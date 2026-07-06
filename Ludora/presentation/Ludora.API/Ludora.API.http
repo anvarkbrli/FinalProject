@@ -1,0 +1,6 @@
+@Ludora.API_HostAddress = http://localhost:5099
+
+GET {{Ludora.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
