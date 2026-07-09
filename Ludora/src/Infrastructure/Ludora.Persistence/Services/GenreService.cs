@@ -5,6 +5,7 @@ using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities;
 using Ludora.Persistence.Data;
+using Ludora.Persistence.Extensions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
@@ -92,7 +93,7 @@ namespace Ludora.Persistence.Services
         public async Task<int> CreateAsync(GenreCreateDTO createDto)
         {
             var normalizedName = createDto.Name.NormalizeName(MaxNameLength);
-            await EnsureNameIsAvailableAsync(normalizedName);
+            await _context.Genres.EnsureNameIsAvailableAsync(normalizedName,"Janr");
 
             var genre = new Genre
             {
@@ -105,7 +106,7 @@ namespace Ludora.Persistence.Services
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+            catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
             {
                 throw new ConflictException("Bu adda janr artıq mövcuddur.");
             }
@@ -130,7 +131,7 @@ namespace Ludora.Persistence.Services
             if (genre.Name == normalizedName)
                 return;
 
-            await EnsureNameIsAvailableAsync(normalizedName, id);
+            await _context.Genres.EnsureNameIsAvailableAsync(normalizedName, "Janr", id);
 
             genre.Name = normalizedName;
             genre.UpdatedAt = DateTime.UtcNow;
@@ -139,7 +140,7 @@ namespace Ludora.Persistence.Services
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+            catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
             {
                 throw new ConflictException("Bu adda janr artıq mövcuddur.");
             }
@@ -183,7 +184,7 @@ namespace Ludora.Persistence.Services
             if (!genre.IsDeleted)
                 throw new ConflictException("Janr artıq aktivdir.");
 
-            await EnsureNameIsAvailableAsync(genre.Name, id);
+            await _context.Genres.EnsureNameIsAvailableAsync(genre.Name, "Janr", id);
 
             genre.IsDeleted = false;
             genre.UpdatedAt = DateTime.UtcNow;
@@ -192,42 +193,14 @@ namespace Ludora.Persistence.Services
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+            catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
             {
                 throw new ConflictException(
                     "Eyni adda aktiv janr olduğu üçün bu janr bərpa edilə bilmir.");
             }
         }
 
-        private async Task EnsureNameIsAvailableAsync(string name, int? excludedId = null)
-        {
-            var duplicate = await _context.Genres
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(g => (!excludedId.HasValue || g.Id != excludedId.Value) && g.Name == name)
-                .OrderBy(g => g.IsDeleted)
-                .Select(g => new { g.IsDeleted })
-                .FirstOrDefaultAsync();
-
-            if (duplicate is null)
-                return;
-
-            if (duplicate.IsDeleted)
-            {
-                throw new ConflictException(
-                    "Bu adda silinmiş janr mövcuddur. Yeni qeyd yaratmaq əvəzinə onu bərpa edin.");
-            }
-
-            throw new ConflictException("Bu adda janr artıq mövcuddur.");
-        }
-
-        
-        private static bool IsUniqueConstraintViolation(DbUpdateException exception)
-        {
-            return exception.InnerException is SqlException sqlException
-                && (sqlException.Number == 2601 || sqlException.Number == 2627);
-        }
-
+     
       
     }
 }

@@ -5,6 +5,7 @@ using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities;
 using Ludora.Persistence.Data;
+using Ludora.Persistence.Extensions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
@@ -92,7 +93,7 @@ namespace Ludora.Persistence.Services
         public async Task<int> CreateAsync(PlatformCreateDTO createDto)
         {
             var normalizedName = createDto.Name.NormalizeName(MaxNameLength);
-            await EnsureNameIsAvailableAsync(normalizedName);
+            await _context.Platforms.EnsureNameIsAvailableAsync(normalizedName, "Platforma");
 
             var platform = new Platform
             {
@@ -105,7 +106,7 @@ namespace Ludora.Persistence.Services
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+            catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
             {
                 throw new ConflictException("Bu adda platforma artıq mövcuddur.");
             }
@@ -130,7 +131,7 @@ namespace Ludora.Persistence.Services
             if (platform.Name == normalizedName)
                 return;
 
-            await EnsureNameIsAvailableAsync(normalizedName, id);
+            await _context.Platforms.EnsureNameIsAvailableAsync(normalizedName, "Platforma", id);
 
             platform.Name = normalizedName;
             platform.UpdatedAt = DateTime.UtcNow;
@@ -139,7 +140,7 @@ namespace Ludora.Persistence.Services
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+            catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
             {
                 throw new ConflictException("Bu adda platforma artıq mövcuddur.");
             }
@@ -183,7 +184,7 @@ namespace Ludora.Persistence.Services
             if (!platform.IsDeleted)
                 throw new ConflictException("Platforma artıq aktivdir.");
 
-            await EnsureNameIsAvailableAsync(platform.Name, id);
+            await _context.Platforms.EnsureNameIsAvailableAsync(platform.Name, "Platforma", id);
 
             platform.IsDeleted = false;
             platform.UpdatedAt = DateTime.UtcNow;
@@ -192,42 +193,14 @@ namespace Ludora.Persistence.Services
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+            catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
             {
                 throw new ConflictException(
                     "Eyni adda aktiv platforma olduğu üçün bu platforma bərpa edilə bilmir.");
             }
         }
 
-        private async Task EnsureNameIsAvailableAsync(string name, int? excludedId = null)
-        {
-            var duplicate = await _context.Platforms
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(p => (!excludedId.HasValue || p.Id != excludedId.Value) && p.Name == name)
-                .OrderBy(p => p.IsDeleted)
-                .Select(p => new { p.IsDeleted })
-                .FirstOrDefaultAsync();
-
-            if (duplicate is null)
-                return;
-
-            if (duplicate.IsDeleted)
-            {
-                throw new ConflictException(
-                    "Bu adda silinmiş platforma mövcuddur. Yeni qeyd yaratmaq əvəzinə onu bərpa edin.");
-            }
-
-            throw new ConflictException("Bu adda platforma artıq mövcuddur.");
-        }
-
-        
-
-        private static bool IsUniqueConstraintViolation(DbUpdateException exception)
-        {
-            return exception.InnerException is SqlException sqlException
-                && (sqlException.Number == 2601 || sqlException.Number == 2627);
-        }
+       
 
    
     }

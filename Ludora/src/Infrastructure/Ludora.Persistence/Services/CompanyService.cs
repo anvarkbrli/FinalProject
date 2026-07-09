@@ -4,6 +4,7 @@ using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities;
 using Ludora.Persistence.Data;
+using Ludora.Persistence.Extensions;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
@@ -91,7 +92,7 @@ namespace Ludora.Persistence.Services
         public async Task<int> CreateAsync(CompanyCreateDTO createDto)
         {
             var normalizedName = createDto.Name.NormalizeName(MaxNameLength);
-            await EnsureNameIsAvailableAsync(normalizedName);
+            await _context.Companies.EnsureNameIsAvailableAsync(normalizedName, "Şirkət");
 
             var company = new Company
             {
@@ -107,7 +108,7 @@ namespace Ludora.Persistence.Services
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+            catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
             {
                 throw new ConflictException("Bu adda şirkət artıq mövcuddur.");
             }
@@ -132,7 +133,7 @@ namespace Ludora.Persistence.Services
             if (company.Name == normalizedName)
                 return;
 
-            await EnsureNameIsAvailableAsync(normalizedName, id);
+            await _context.Companies.EnsureNameIsAvailableAsync(normalizedName, "Şirkət", id);
 
             company.Name = normalizedName;
             company.UpdatedAt = DateTime.UtcNow;
@@ -141,7 +142,7 @@ namespace Ludora.Persistence.Services
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+            catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
             {
                 throw new ConflictException("Bu adda şirkət artıq mövcuddur.");
             }
@@ -161,8 +162,7 @@ namespace Ludora.Persistence.Services
 
             if (hasActiveGames)
             {
-                throw new ConflictException(
-                    "Bu şirkət aktiv oyunlarda istifadə olunur. Əvvəl həmin oyunların şirkətini dəyişin və ya oyunları silin.");
+                throw new ConflictException("Bu şirkət aktiv oyunlarda istifadə olunur. Əvvəl həmin oyunların şirkətini dəyişin və ya oyunları silin.");
             }
 
             company.IsDeleted = true;
@@ -185,7 +185,7 @@ namespace Ludora.Persistence.Services
             if (!company.IsDeleted)
                 throw new ConflictException("Şirkət artıq aktivdir.");
 
-            await EnsureNameIsAvailableAsync(company.Name, id);
+            await _context.Companies.EnsureNameIsAvailableAsync(company.Name, "Şirkət", id);
 
             company.IsDeleted = false;
             company.UpdatedAt = DateTime.UtcNow;
@@ -194,41 +194,13 @@ namespace Ludora.Persistence.Services
             {
                 await _context.SaveChangesAsync();
             }
-            catch (DbUpdateException exception) when (IsUniqueConstraintViolation(exception))
+            catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
             {
-                throw new ConflictException(
-                    "Eyni adda aktiv şirkət olduğu üçün bu şirkət bərpa edilə bilmir.");
+                throw new ConflictException("Eyni adda aktiv şirkət olduğu üçün bu şirkət bərpa edilə bilmir.");
             }
         }
 
-        private async Task EnsureNameIsAvailableAsync(string name, int? excludedId = null)
-        {
-            var duplicate = await _context.Companies
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(c => (!excludedId.HasValue || c.Id != excludedId.Value) && c.Name == name)
-                .OrderBy(c => c.IsDeleted)
-                .Select(c => new { c.IsDeleted })
-                .FirstOrDefaultAsync();
-
-            if (duplicate is null)
-                return;
-
-            if (duplicate.IsDeleted)
-            {
-                throw new ConflictException(
-                    "Bu adda silinmiş şirkət mövcuddur. Yeni qeyd yaratmaq əvəzinə onu bərpa edin.");
-            }
-
-            throw new ConflictException("Bu adda şirkət artıq mövcuddur.");
-        }
-
-        
-        private static bool IsUniqueConstraintViolation(DbUpdateException exception)
-        {
-            return exception.InnerException is SqlException sqlException
-                && (sqlException.Number == 2601 || sqlException.Number == 2627);
-        }
+     
 
        
     }
