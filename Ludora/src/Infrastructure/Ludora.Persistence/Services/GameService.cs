@@ -1,87 +1,92 @@
-﻿using AutoMapper;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities;
 using Ludora.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 
+namespace Ludora.Persistence.Services;
+
 public class GameService : IGameService
 {
     private readonly AppDbContext _context;
-    private readonly IMapper _mapper;
 
-    public GameService(AppDbContext context, IMapper mapper)
+    public GameService(AppDbContext context)
     {
         _context = context;
-        _mapper = mapper;
     }
 
     public async Task<GameDetailDTO> GetByIdAsync(int id)
     {
+        if (id < 1)
+            throw new ArgumentException("Oyun ID-si düzgün deyil.");
+
         var game = await _context.Games
-            .Include(g => g.DeveloperCompany)
-            .Include(g => g.GameGenres).ThenInclude(gg => gg.Genre)
-            .Include(g => g.GamePlatforms).ThenInclude(gp => gp.Platform)
-            .FirstOrDefaultAsync(g => g.Id == id && !g.IsDeleted);
+            .AsNoTracking()
+            .Where(g => g.Id == id && !g.IsDeleted)
+            .Select(g => new GameDetailDTO
+            {
+                Id = g.Id,
+                Title = g.Name,
+                Description = g.Description,
+                ReleaseDate = g.ReleaseDate,
+                CoverImageUrl = g.CoverImageUrl,
+                DeveloperCompanyName = g.DeveloperCompany.Name,
+                PlayCount = g.PlayCount,
+                AverageRating = g.AverageRating,
+                Genres = g.GameGenres
+                    .Where(gg => !gg.Genre.IsDeleted)
+                    .Select(gg => gg.Genre.Name)
+                    .OrderBy(name => name)
+                    .ToList(),
+                Platforms = g.GamePlatforms
+                    .Where(gp => !gp.Platform.IsDeleted)
+                    .Select(gp => gp.Platform.Name)
+                    .OrderBy(name => name)
+                    .ToList()
+            })
+            .FirstOrDefaultAsync();
 
-        if (game == null) throw new KeyNotFoundException("Oyun tapılmadı.");
+        if (game == null)
+            throw new KeyNotFoundException("Oyun tapılmadı.");
 
-        return _mapper.Map<GameDetailDTO>(game);
-    }
-
-    public async Task<List<GameListItemDTO>> GetFilteredGamesAsync(GameFilterDTO filter)
-    {
-        var query = _context.Games
-            .Include(g => g.DeveloperCompany)
-            .Include(g => g.GameGenres).ThenInclude(gg => gg.Genre)
-            .Include(g => g.GamePlatforms).ThenInclude(gp => gp.Platform)
-            .Where(g => !g.IsDeleted);
-
-        // 1. Dinamik Filtrləmə
-        if (!string.IsNullOrWhiteSpace(filter.SearchName))
-            query = query.Where(g => g.Name.ToLower().Contains(filter.SearchName.ToLower()));
-
-        if (filter.CompanyId.HasValue)
-            query = query.Where(g => g.DeveloperCompanyId == filter.CompanyId.Value);
-
-        if (filter.GenreId.HasValue)
-            query = query.Where(g => g.GameGenres.Any(gg => gg.GenreId == filter.GenreId.Value));
-
-        if (filter.PlatformId.HasValue)
-            query = query.Where(g => g.GamePlatforms.Any(gp => gp.PlatformId == filter.PlatformId.Value));
-
-        if (filter.ReleaseYear.HasValue)
-            query = query.Where(g => g.ReleaseDate.Year == filter.ReleaseYear.Value);
-
-        // 2. Dinamik Sıralama (Sorting)
-        query = filter.SortBy?.ToLower() switch
-        {
-            "name_asc" => query.OrderBy(g => g.Name),
-            "name_desc" => query.OrderByDescending(g => g.Name),
-            "rating_desc" => query.OrderByDescending(g => g.AverageRating),
-            "play_desc" => query.OrderByDescending(g => g.PlayCount),
-            "year_desc" => query.OrderByDescending(g => g.ReleaseDate),
-            _ => query.OrderByDescending(g => g.CreatedAt) // Default olaraq ən yeni əlavə edilənlər
-        };
-
-        // 3. Səhifələmə (Pagination)
-        var pagedGames = await query
-            .Skip((filter.PageNumber - 1) * filter.PageSize)
-            .Take(filter.PageSize)
-            .ToListAsync();
-
-        return _mapper.Map<List<GameListItemDTO>>(pagedGames);
+        return game;
     }
 
     public async Task CreateAsync(GameCreateDTO createDto)
     {
-        var game = _mapper.Map<Game>(createDto);
+        ArgumentNullException.ThrowIfNull(createDto);
 
-        if (createDto.GenreIds != null)
-            game.GameGenres = createDto.GenreIds.Select(id => new GameGenre { GenreId = id }).ToList();
+        var title = NormalizeRequiredText(createDto.Title, "Oyunun adı", 200);
+        var description = NormalizeRequiredText(createDto.Description, "Oyunun təsviri", 4000);
+        var coverImageUrl = NormalizeRequiredText(createDto.CoverImageUrl, "Cover şəkil linki", 2048);
 
-        if (createDto.PlatformIds != null)
-            game.GamePlatforms = createDto.PlatformIds.Select(id => new GamePlatform { PlatformId = id }).ToList();
+        if (createDto.ReleaseDate == default)
+            throw new ArgumentException("Oyunun çıxış tarixi düzgün daxil edilməyib.");
+
+        await ValidateCompanyAsync(createDto.DeveloperCompanyId);
+
+        var genreIds = NormalizeIds(createDto.GenreIds, "Janr");
+        var platformIds = NormalizeIds(createDto.PlatformIds, "Platforma");
+
+        await ValidateGenreIdsAsync(genreIds);
+        await ValidatePlatformIdsAsync(platformIds);
+
+        var game = new Game
+        {
+            Name = title,
+            Description = description,
+            ReleaseDate = createDto.ReleaseDate,
+            CoverImageUrl = coverImageUrl,
+            DeveloperCompanyId = createDto.DeveloperCompanyId,
+            GameGenres = genreIds.Select(genreId => new GameGenre
+            {
+                GenreId = genreId
+            }).ToList(),
+            GamePlatforms = platformIds.Select(platformId => new GamePlatform
+            {
+                PlatformId = platformId
+            }).ToList()
+        };
 
         await _context.Games.AddAsync(game);
         await _context.SaveChangesAsync();
@@ -89,6 +94,10 @@ public class GameService : IGameService
 
     public async Task UpdateAsync(int id, GameUpdateDTO updateDto)
     {
+        if (id < 1) throw new ArgumentException("Oyun ID-si düzgün deyil.");
+
+        ArgumentNullException.ThrowIfNull(updateDto);
+
         var game = await _context.Games
             .Include(g => g.GameGenres)
             .Include(g => g.GamePlatforms)
@@ -96,90 +105,353 @@ public class GameService : IGameService
 
         if (game == null) throw new KeyNotFoundException("Oyun tapılmadı.");
 
-        // Sahələrin Null-Check yoxlaması ilə yenilənməsi
-        if (!string.IsNullOrWhiteSpace(updateDto.Title)) game.Name = updateDto.Title;
-        if (!string.IsNullOrWhiteSpace(updateDto.Description)) game.Description = updateDto.Description;
-        if (updateDto.ReleaseDate.HasValue) game.ReleaseDate = updateDto.ReleaseDate.Value ;
-        if (!string.IsNullOrWhiteSpace(updateDto.CoverImageUrl)) game.CoverImageUrl = updateDto.CoverImageUrl;
-        if (updateDto.DeveloperCompanyId.HasValue) game.DeveloperCompanyId = updateDto.DeveloperCompanyId.Value;
+        var hasChanges =
+            updateDto.Title != null ||
+            updateDto.Description != null ||
+            updateDto.ReleaseDate.HasValue ||
+            updateDto.CoverImageUrl != null ||
+            updateDto.DeveloperCompanyId.HasValue ||
+            updateDto.GenreIds != null ||
+            updateDto.PlatformIds != null;
 
-        // Genre yenilənməsi (Many-to-Many sıfırlayıb yenidən yazmaq)
-        if (updateDto.GenreIds != null)
+        if (!hasChanges)
+            return;
+
+        if (updateDto.Title != null)
+            game.Name = NormalizeRequiredText(updateDto.Title, "Oyunun adı", 200);
+
+        if (updateDto.Description != null)
+            game.Description = NormalizeRequiredText(updateDto.Description, "Oyunun təsviri", 4000);
+
+        if (updateDto.CoverImageUrl != null)
+            game.CoverImageUrl = NormalizeRequiredText(updateDto.CoverImageUrl, "Cover şəkil linki", 2048);
+
+        if (updateDto.ReleaseDate.HasValue)
         {
-            game.GameGenres.Clear();
-            game.GameGenres = updateDto.GenreIds.Select(gId => new GameGenre { GameId = id, GenreId = gId }).ToList();
+            if (updateDto.ReleaseDate.Value == default)
+                throw new ArgumentException("Oyunun çıxış tarixi düzgün deyil.");
+
+            game.ReleaseDate = updateDto.ReleaseDate.Value;
         }
 
-        // Platform yenilənməsi
+        if (updateDto.DeveloperCompanyId.HasValue)
+        {
+            await ValidateCompanyAsync(updateDto.DeveloperCompanyId.Value);
+            game.DeveloperCompanyId = updateDto.DeveloperCompanyId.Value;
+        }
+
+        if (updateDto.GenreIds != null)
+        {
+            var genreIds = NormalizeIds(updateDto.GenreIds, "Janr");
+
+            await ValidateGenreIdsAsync(genreIds);
+            UpdateGameGenres(game, genreIds);
+        }
+
         if (updateDto.PlatformIds != null)
         {
-            game.GamePlatforms.Clear();
-            game.GamePlatforms = updateDto.PlatformIds.Select(pId => new GamePlatform { GameId = id, PlatformId = pId }).ToList();
+            var platformIds = NormalizeIds(updateDto.PlatformIds, "Platforma");
+
+            await ValidatePlatformIdsAsync(platformIds);
+            UpdateGamePlatforms(game, platformIds);
         }
 
         game.UpdatedAt = DateTime.UtcNow;
+
         await _context.SaveChangesAsync();
     }
 
     public async Task DeleteAsync(int id)
     {
-        var game = await _context.Games.FirstOrDefaultAsync(g => g.Id == id && !g.IsDeleted);
-        if (game == null) throw new KeyNotFoundException("Oyun tapılmadı.");
+        if (id < 1)
+            throw new ArgumentException("Oyun ID-si düzgün deyil.");
 
-        game.IsDeleted = true; // Soft Delete
+        var game = await _context.Games
+            .FirstOrDefaultAsync(g => g.Id == id && !g.IsDeleted);
+
+        if (game == null)
+            throw new KeyNotFoundException("Oyun tapılmadı və ya artıq silinib.");
+
+        game.IsDeleted = true;
         game.UpdatedAt = DateTime.UtcNow;
+
         await _context.SaveChangesAsync();
     }
 
-    // Front-end Dropdown-ları üçün Lookup Data Metodları
-    public async Task<List<LookupDTO>> GetCompaniesLookupAsync() =>
-        await _context.Companies.Where(c => !c.IsDeleted).Select(c => new LookupDTO { Id = c.Id, Name = c.Name }).ToListAsync();
+    public async Task<List<LookupDTO>> GetCompaniesLookupAsync()
+    {
+        return await _context.Companies
+            .AsNoTracking()
+            .Where(c => !c.IsDeleted)
+            .OrderBy(c => c.Name)
+            .Select(c => new LookupDTO
+            {
+                Id = c.Id,
+                Name = c.Name
+            })
+            .ToListAsync();
+    }
 
-    public async Task<List<LookupDTO>> GetGenresLookupAsync() =>
-        await _context.Genres.Where(g => !g.IsDeleted).Select(g => new LookupDTO { Id = g.Id, Name = g.Name }).ToListAsync();
+    public async Task<List<LookupDTO>> GetGenresLookupAsync()
+    {
+        return await _context.Genres
+            .AsNoTracking()
+            .Where(g => !g.IsDeleted)
+            .OrderBy(g => g.Name)
+            .Select(g => new LookupDTO
+            {
+                Id = g.Id,
+                Name = g.Name
+            })
+            .ToListAsync();
+    }
 
-    public async Task<List<LookupDTO>> GetPlatformsLookupAsync() =>
-        await _context.Platforms.Where(p => !p.IsDeleted).Select(p => new LookupDTO { Id = p.Id, Name = p.Name }).ToListAsync();
+    public async Task<List<LookupDTO>> GetPlatformsLookupAsync()
+    {
+        return await _context.Platforms
+            .AsNoTracking()
+            .Where(p => !p.IsDeleted)
+            .OrderBy(p => p.Name)
+            .Select(p => new LookupDTO
+            {
+                Id = p.Id,
+                Name = p.Name
+            })
+            .ToListAsync();
+    }
 
     public async Task<IEnumerable<GameListItemDTO>> GetFilteredGamesAsync(GameFilterDTO filterDto)
     {
-        // Sorğunu IQueryable olaraq başladırıq ki, filtrlər bazaya getmədən əvvəl tətbiq olunsun
+        ArgumentNullException.ThrowIfNull(filterDto);
+
+        ValidateFilterIds(filterDto);
+
         var query = _context.Games
-            .Include(g => g.GameGenres)     // Əgər oyuna aid janr məlumatı lazımdırsa bura include edirik
-            .Include(g => g.GamePlatforms)  // Platforma məlumatı üçün
-            .Include(g => g.DeveloperCompany)   // Şirkət məlumatı üçün
+            .AsNoTracking()
+            .Where(g => !g.IsDeleted)
             .AsQueryable();
 
-        // 1. Oyunun adına görə filtr (Axtarış)
         if (!string.IsNullOrWhiteSpace(filterDto.SearchName))
         {
-            query = query.Where(g => g.Name.Contains(filterDto.SearchName));
+            var searchName = filterDto.SearchName.Trim();
+            query = query.Where(g => g.Name.Contains(searchName));
         }
 
-        // 2. Janra görə filtr
+        if (filterDto.CompanyId.HasValue)
+            query = query.Where(g => g.DeveloperCompanyId == filterDto.CompanyId.Value);
+
         if (filterDto.GenreId.HasValue)
         {
-            query = query.Where(g => g. == filterDto.GenreId.Value);
+            query = query.Where(g => g.GameGenres.Any(gg =>
+                gg.GenreId == filterDto.GenreId.Value &&
+                !gg.Genre.IsDeleted));
         }
 
-        // 3. Platformaya görə filtr
         if (filterDto.PlatformId.HasValue)
         {
-            query = query.Where(g => g.PlatformId == filterDto.PlatformId.Value);
+            query = query.Where(g => g.GamePlatforms.Any(gp =>
+                gp.PlatformId == filterDto.PlatformId.Value &&
+                !gp.Platform.IsDeleted));
         }
 
-        // 4. Şirkətə (Company) görə filtr
-        if (filterDto.CompanyId.HasValue)
+        if (filterDto.ReleaseYear.HasValue)
+            query = query.Where(g => g.ReleaseDate.Year == filterDto.ReleaseYear.Value.Year);
+
+        query = filterDto.SortBy?.Trim().ToLowerInvariant() switch
         {
-            query = query.Where(g => g.CompanyId == filterDto.CompanyId.Value);
+            "name_asc" => query.OrderBy(g => g.Name),
+            "name_desc" => query.OrderByDescending(g => g.Name),
+            "rating_asc" => query.OrderBy(g => g.AverageRating),
+            "rating_desc" => query.OrderByDescending(g => g.AverageRating),
+            "play_asc" => query.OrderBy(g => g.PlayCount),
+            "play_desc" => query.OrderByDescending(g => g.PlayCount),
+            "year_asc" => query.OrderBy(g => g.ReleaseDate),
+            "year_desc" => query.OrderByDescending(g => g.ReleaseDate),
+            "company_asc" => query.OrderBy(g => g.DeveloperCompany.Name),
+            "company_desc" => query.OrderByDescending(g => g.DeveloperCompany.Name),
+            _ => query.OrderByDescending(g => g.Id)
+        };
+
+        var pageNumber = filterDto.PageNumber < 1 ? 1 : filterDto.PageNumber;
+
+        var pageSize = filterDto.PageSize switch
+        {
+            < 1 => 10,
+            > 100 => 100,
+            _ => filterDto.PageSize
+        };
+
+        var result = await query
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(g => new GameListItemDTO
+            {
+                Id = g.Id,
+                Title = g.Name,
+                CoverImageUrl = g.CoverImageUrl,
+                DeveloperCompanyName = g.DeveloperCompany.Name,
+                PlayCount = g.PlayCount,
+                AverageRating = g.AverageRating,
+                ReleaseDate = g.ReleaseDate,
+                Genres = g.GameGenres
+                    .Where(gg => !gg.Genre.IsDeleted)
+                    .Select(gg => gg.Genre.Name)
+                    .OrderBy(name => name)
+                    .ToList(),
+                Platforms = g.GamePlatforms
+                    .Where(gp => !gp.Platform.IsDeleted)
+                    .Select(gp => gp.Platform.Name)
+                    .OrderBy(name => name)
+                    .ToList()
+            })
+            .ToListAsync();
+
+        return result;
+    }
+
+    private async Task ValidateCompanyAsync(int companyId)
+    {
+        if (companyId < 1)
+            throw new ArgumentException("Şirkət ID-si düzgün deyil.");
+
+        var companyExists = await _context.Companies
+            .AnyAsync(c => c.Id == companyId && !c.IsDeleted);
+
+        if (!companyExists)
+            throw new ArgumentException($"ID-si {companyId} olan şirkət tapılmadı.");
+    }
+
+    private async Task ValidateGenreIdsAsync(IReadOnlyCollection<int> genreIds)
+    {
+        if (genreIds.Count == 0)
+            return;
+
+        var existingGenreIds = await _context.Genres
+            .Where(g => genreIds.Contains(g.Id) && !g.IsDeleted)
+            .Select(g => g.Id)
+            .ToListAsync();
+
+        var missingGenreIds = genreIds
+            .Except(existingGenreIds)
+            .OrderBy(id => id)
+            .ToList();
+
+        if (missingGenreIds.Count > 0)
+            throw new ArgumentException("Bu janr ID-ləri tapılmadı: " + string.Join(", ", missingGenreIds));
+    }
+
+    private async Task ValidatePlatformIdsAsync(IReadOnlyCollection<int> platformIds)
+    {
+        if (platformIds.Count == 0)
+            return;
+
+        var existingPlatformIds = await _context.Platforms
+            .Where(p => platformIds.Contains(p.Id) && !p.IsDeleted)
+            .Select(p => p.Id)
+            .ToListAsync();
+
+        var missingPlatformIds = platformIds
+            .Except(existingPlatformIds)
+            .OrderBy(id => id)
+            .ToList();
+
+        if (missingPlatformIds.Count > 0)
+            throw new ArgumentException("Bu platforma ID-ləri tapılmadı: " + string.Join(", ", missingPlatformIds));
+    }
+
+    private void UpdateGameGenres(Game game, IReadOnlyCollection<int> requestedGenreIds)
+    {
+        var requestedIds = requestedGenreIds.ToHashSet();
+
+        var relationsToRemove = game.GameGenres
+            .Where(gg => !requestedIds.Contains(gg.GenreId))
+            .ToList();
+
+        _context.GameGenres.RemoveRange(relationsToRemove);
+
+        foreach (var relation in relationsToRemove)
+            game.GameGenres.Remove(relation);
+
+        var currentGenreIds = game.GameGenres
+            .Select(gg => gg.GenreId)
+            .ToHashSet();
+
+        var genreIdsToAdd = requestedIds.Except(currentGenreIds);
+
+        foreach (var genreId in genreIdsToAdd)
+        {
+            game.GameGenres.Add(new GameGenre
+            {
+                GameId = game.Id,
+                GenreId = genreId
+            });
         }
+    }
 
-        // Filtrlənmiş datanı bazadan asinxron olaraq çəkirik
-        var filteredGames = await query.ToListAsync();
+    private void UpdateGamePlatforms(Game game, IReadOnlyCollection<int> requestedPlatformIds)
+    {
+        var requestedIds = requestedPlatformIds.ToHashSet();
 
-        // AutoMapper vasitəsilə tapılan Game entity-lərini GameListItemDTO-ya çeviririk
-        var gameListItems = _mapper.Map<IEnumerable<GameListItemDTO>>(filteredGames);
+        var relationsToRemove = game.GamePlatforms
+            .Where(gp => !requestedIds.Contains(gp.PlatformId))
+            .ToList();
 
-        return gameListItems;
+        _context.GamePlatforms.RemoveRange(relationsToRemove);
+
+        foreach (var relation in relationsToRemove)
+            game.GamePlatforms.Remove(relation);
+
+        var currentPlatformIds = game.GamePlatforms
+            .Select(gp => gp.PlatformId)
+            .ToHashSet();
+
+        var platformIdsToAdd = requestedIds.Except(currentPlatformIds);
+
+        foreach (var platformId in platformIdsToAdd)
+        {
+            game.GamePlatforms.Add(new GamePlatform
+            {
+                GameId = game.Id,
+                PlatformId = platformId
+            });
+        }
+    }
+
+    private static List<int> NormalizeIds(IEnumerable<int>? ids, string fieldName)
+    {
+        if (ids == null)
+            return new List<int>();
+
+        var idList = ids.ToList();
+
+        if (idList.Any(id => id < 1))
+            throw new ArgumentException($"{fieldName} ID-si 1-dən kiçik ola bilməz.");
+
+        return idList.Distinct().ToList();
+    }
+
+    private static string NormalizeRequiredText(string? value, string fieldName, int maximumLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException($"{fieldName} boş ola bilməz.");
+
+        var normalizedValue = value.Trim();
+
+        if (normalizedValue.Length > maximumLength)
+            throw new ArgumentException($"{fieldName} maksimum {maximumLength} simvol ola bilər.");
+
+        return normalizedValue;
+    }
+
+    private static void ValidateFilterIds(GameFilterDTO filterDto)
+    {
+        if (filterDto.CompanyId.HasValue && filterDto.CompanyId.Value < 1)
+            throw new ArgumentException("Şirkət ID-si düzgün deyil.");
+
+        if (filterDto.GenreId.HasValue && filterDto.GenreId.Value < 1)
+            throw new ArgumentException("Janr ID-si düzgün deyil.");
+
+        if (filterDto.PlatformId.HasValue && filterDto.PlatformId.Value < 1)
+            throw new ArgumentException("Platforma ID-si düzgün deyil.");
     }
 }

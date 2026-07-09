@@ -13,7 +13,7 @@ namespace Ludora.Domain.Entities
         public string Description { get; set; }
         public DateOnly ReleaseDate { get; set; }
         public string CoverImageUrl { get; set; }
-
+        
         // Foreign Key
         public int DeveloperCompanyId { get; set; }
         public Company DeveloperCompany { get; set; }

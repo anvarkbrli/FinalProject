@@ -150,3 +150,7 @@ C:\Users\Acer\Desktop\New folder\Ludora\presentation\Ludora.API\obj\Debug\net8.0
 C:\Users\Acer\Desktop\New folder\Ludora\presentation\Ludora.API\bin\Debug\net8.0\Ludora.Application.dll
 C:\Users\Acer\Desktop\New folder\Ludora\presentation\Ludora.API\bin\Debug\net8.0\Ludora.Application.pdb
 C:\Users\Acer\Desktop\New folder\Ludora\presentation\Ludora.API\obj\Debug\net8.0\Ludora.API.MvcApplicationPartsAssemblyInfo.cs
+C:\Users\Acer\Desktop\New folder\Ludora\presentation\Ludora.API\bin\Debug\net8.0\AutoMapper.dll
+C:\Users\Acer\Desktop\New folder\Ludora\presentation\Ludora.API\bin\Debug\net8.0\Microsoft.Extensions.Primitives.dll
+C:\Users\Acer\Desktop\New folder\Ludora\presentation\Ludora.API\bin\Debug\net8.0\System.Diagnostics.DiagnosticSource.dll
+C:\Users\Acer\Desktop\New folder\Ludora\presentation\Ludora.API\obj\Debug\net8.0\Ludora.API.sourcelink.json

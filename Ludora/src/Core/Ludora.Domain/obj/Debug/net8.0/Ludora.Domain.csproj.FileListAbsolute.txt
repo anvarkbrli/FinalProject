@@ -9,3 +9,4 @@ C:\Users\Acer\Desktop\New folder\Ludora\src\Core\Ludora.Domain\obj\Debug\net8.0\
 C:\Users\Acer\Desktop\New folder\Ludora\src\Core\Ludora.Domain\obj\Debug\net8.0\refint\Ludora.Domain.dll
 C:\Users\Acer\Desktop\New folder\Ludora\src\Core\Ludora.Domain\obj\Debug\net8.0\Ludora.Domain.pdb
 C:\Users\Acer\Desktop\New folder\Ludora\src\Core\Ludora.Domain\obj\Debug\net8.0\ref\Ludora.Domain.dll
+C:\Users\Acer\Desktop\New folder\Ludora\src\Core\Ludora.Domain\obj\Debug\net8.0\Ludora.Domain.sourcelink.json

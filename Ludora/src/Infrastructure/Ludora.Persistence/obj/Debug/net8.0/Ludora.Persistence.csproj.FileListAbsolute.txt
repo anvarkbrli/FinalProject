@@ -13,3 +13,6 @@ C:\Users\Acer\Desktop\New folder\Ludora\src\Infrastructure\Ludora.Persistence\ob
 C:\Users\Acer\Desktop\New folder\Ludora\src\Infrastructure\Ludora.Persistence\obj\Debug\net8.0\refint\Ludora.Persistence.dll
 C:\Users\Acer\Desktop\New folder\Ludora\src\Infrastructure\Ludora.Persistence\obj\Debug\net8.0\Ludora.Persistence.pdb
 C:\Users\Acer\Desktop\New folder\Ludora\src\Infrastructure\Ludora.Persistence\obj\Debug\net8.0\ref\Ludora.Persistence.dll
+C:\Users\Acer\Desktop\New folder\Ludora\src\Infrastructure\Ludora.Persistence\bin\Debug\net8.0\Ludora.Application.dll
+C:\Users\Acer\Desktop\New folder\Ludora\src\Infrastructure\Ludora.Persistence\bin\Debug\net8.0\Ludora.Application.pdb
+C:\Users\Acer\Desktop\New folder\Ludora\src\Infrastructure\Ludora.Persistence\obj\Debug\net8.0\Ludora.Persistence.sourcelink.json

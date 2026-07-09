@@ -10,8 +10,8 @@ namespace Ludora.Persistence.Data
 {
     public class AppDbContext : DbContext
     {
-        public AppDbContext(DbContextOptions options): base(options) { }
-       
+        public AppDbContext(DbContextOptions options) : base(options) { }
+
         public DbSet<Game> Games { get; set; }
         public DbSet<Company> Companies { get; set; }
         public DbSet<GameGenre> GameGenres { get; set; }
@@ -27,6 +27,18 @@ namespace Ludora.Persistence.Data
 
             modelBuilder.Entity<GamePlatform>()
                 .HasKey(gp => new { gp.GameId, gp.PlatformId });
+
+            modelBuilder.Entity<Game>()
+                .HasQueryFilter(g => !g.IsDeleted);
+
+            modelBuilder.Entity<Company>()
+                .HasQueryFilter(c => !c.IsDeleted);
+
+            modelBuilder.Entity<Genre>()
+                .HasQueryFilter(g => !g.IsDeleted);
+
+            modelBuilder.Entity<Platform>()
+                .HasQueryFilter(p => !p.IsDeleted);
 
             base.OnModelCreating(modelBuilder);
         }
