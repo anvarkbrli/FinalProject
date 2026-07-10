@@ -1,4 +1,5 @@
 using Ludora.Application.DTOs;
+using Ludora.Application.DTOs.GameList;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities;
 using Ludora.Persistence.Data;

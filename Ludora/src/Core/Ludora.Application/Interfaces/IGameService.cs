@@ -1,4 +1,5 @@
 ﻿using Ludora.Application.DTOs;
+using Ludora.Application.DTOs.GameList;
 using System;
 using System.Collections.Generic;
 using System.Linq;

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Ludora.Application.DTOs
 {
-    public sealed class CompanyDetailDTO
+    public  record CompanyDetailDTO
     {
 
         public int Id { get; set; }

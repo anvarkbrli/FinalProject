@@ -31,7 +31,11 @@
         "frameworks": {
           "net8.0": {
             "targetAlias": "net8.0",
-            "projectReferences": {}
+            "projectReferences": {
+              "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Core\\Ludora.Domain\\Ludora.Domain.csproj": {
+                "projectPath": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Core\\Ludora.Domain\\Ludora.Domain.csproj"
+              }
+            }
           }
         },
         "warningProperties": {
@@ -120,6 +124,12 @@
       "frameworks": {
         "net8.0": {
           "targetAlias": "net8.0",
+          "dependencies": {
+            "Microsoft.Extensions.Identity.Stores": {
+              "target": "Package",
+              "version": "[8.0.28, )"
+            }
+          },
           "imports": [
             "net461",
             "net462",
@@ -197,6 +207,10 @@
               "target": "Package",
               "version": "[16.2.0, )"
             },
+            "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[8.0.28, )"
+            },
             "Microsoft.EntityFrameworkCore": {
               "target": "Package",
               "version": "[8.0.28, )"
@@ -204,6 +218,10 @@
             "Microsoft.EntityFrameworkCore.SqlServer": {
               "target": "Package",
               "version": "[8.0.28, )"
+            },
+            "System.IdentityModel.Tokens.Jwt": {
+              "target": "Package",
+              "version": "[8.19.1, )"
             }
           },
           "imports": [

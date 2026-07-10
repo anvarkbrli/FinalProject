@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Ludora.Persistence")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+12c6c7be92ae54059403f1b7e328149ea224cb7a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d1277f14f2e70cf108f11d31a4ed833c4f7911bf")]
 [assembly: System.Reflection.AssemblyProductAttribute("Ludora.Persistence")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Ludora.Persistence")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Ludora.Application.DTOs
 {
-    public sealed class GenreUpdateDTO
+    public record GenreUpdateDTO
     {
         public string? Name { get; set; }
     }

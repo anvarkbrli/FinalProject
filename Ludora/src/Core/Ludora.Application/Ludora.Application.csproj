@@ -10,4 +10,8 @@
     <PackageReference Include="AutoMapper" Version="16.2.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Ludora.Domain\Ludora.Domain.csproj" />
+  </ItemGroup>
+
 </Project>

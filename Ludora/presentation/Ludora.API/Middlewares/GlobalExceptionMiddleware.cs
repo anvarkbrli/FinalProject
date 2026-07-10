@@ -22,9 +22,7 @@ namespace Ludora.API.Middlewares
             }
             catch (Exception exception)
             {
-                _logger.LogError(
-                    exception,
-                    "Unhandled exception occurred.");
+                _logger.LogError(exception,"Unhandled exception occurred.");
 
                 context.Response.ContentType = "application/json";
 
@@ -32,6 +30,12 @@ namespace Ludora.API.Middlewares
                 {
                     ArgumentException =>
                         StatusCodes.Status400BadRequest,
+
+                    UnauthorizedAccessException =>
+                        StatusCodes.Status401Unauthorized,
+
+                    ForbiddenException =>
+                        StatusCodes.Status403Forbidden,
 
                     KeyNotFoundException =>
                         StatusCodes.Status404NotFound,
@@ -50,8 +54,7 @@ namespace Ludora.API.Middlewares
                     message = exception.Message
                 };
 
-                await context.Response.WriteAsync(
-                    JsonSerializer.Serialize(response));
+                await context.Response.WriteAsync(JsonSerializer.Serialize(response));
             }
         }
     }

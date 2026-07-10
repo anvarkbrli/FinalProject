@@ -1,6 +1,6 @@
 using Ludora.API.Middlewares;
 using Ludora.Application.Interfaces;
-using Ludora.Persistence;
+using Ludora.Persistence.ServiceRegistration;
 using Ludora.Persistence.Services;
 namespace Ludora.API
 {

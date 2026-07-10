@@ -1,4 +1,6 @@
 ﻿using Ludora.Domain.Entities;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Generic;
@@ -8,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace Ludora.Persistence.Data
 {
-    public class AppDbContext : DbContext
+    public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     {
         public AppDbContext(DbContextOptions options) : base(options) { }
 
