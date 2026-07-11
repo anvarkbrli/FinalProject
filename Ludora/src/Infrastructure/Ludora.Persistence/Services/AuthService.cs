@@ -77,6 +77,11 @@ public class AuthService : IAuthService
         var roles = await _userManager.GetRolesAsync(user);
         var token = _jwtTokenService.CreateToken(user, roles);
 
-        return new AuthResponseDTO(token.AccessToken, token.ExpiresAtUtc, user.ToCurrentUserDTO());
+        return new AuthResponseDTO
+        {
+            AccessToken = token.AccessToken,
+            ExpiresAtUtc = token.ExpiresAtUtc,
+            User = user.ToCurrentUserDTO()
+        };
     }
 }

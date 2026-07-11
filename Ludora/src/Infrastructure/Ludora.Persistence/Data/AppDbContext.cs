@@ -20,10 +20,16 @@ namespace Ludora.Persistence.Data
         public DbSet<GamePlatform> GamePlatforms { get; set; }
         public DbSet<Genre> Genres { get; set; }
         public DbSet<Platform> Platforms { get; set; }
+        public DbSet<GameList> GameLists { get; set; }
+        public DbSet<GameListItem> GameListItems { get; set; }
+        public DbSet<UserFollow> UserFollows { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+
+            modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
             modelBuilder.Entity<GameGenre>()
                 .HasKey(gg => new { gg.GameId, gg.GenreId });
 

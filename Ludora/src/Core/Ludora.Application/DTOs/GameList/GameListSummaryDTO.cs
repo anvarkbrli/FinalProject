@@ -12,7 +12,7 @@ namespace Ludora.Application.DTOs
 
         public ListVisibility Visibility { get; set; }
 
-        public int OwnerId { get; set; }
+        public Guid OwnerId { get; set; }
 
         public string OwnerUserName { get; set; } = null!;
 

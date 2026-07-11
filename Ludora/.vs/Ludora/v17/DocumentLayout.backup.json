@@ -3,18 +3,6 @@
   "WorkspaceRootPath": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|c:\\users\\acer\\desktop\\new folder\\ludora\\src\\infrastructure\\ludora.persistence\\services\\localfilestorageservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|solutionrelative:src\\infrastructure\\ludora.persistence\\services\\localfilestorageservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|c:\\users\\acer\\desktop\\new folder\\ludora\\src\\infrastructure\\ludora.persistence\\services\\authservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|solutionrelative:src\\infrastructure\\ludora.persistence\\services\\authservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
-      "AbsoluteMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|c:\\users\\acer\\desktop\\new folder\\ludora\\src\\infrastructure\\ludora.persistence\\extensions\\pathextension.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|solutionrelative:src\\infrastructure\\ludora.persistence\\extensions\\pathextension.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
-    },
-    {
       "AbsoluteMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|c:\\users\\acer\\desktop\\new folder\\ludora\\src\\infrastructure\\ludora.persistence\\extensions\\filevalidationextensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|solutionrelative:src\\infrastructure\\ludora.persistence\\extensions\\filevalidationextensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
@@ -23,12 +11,24 @@
       "RelativeMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|solutionrelative:src\\infrastructure\\ludora.persistence\\extensions\\streamextension.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|c:\\users\\acer\\desktop\\new folder\\ludora\\src\\infrastructure\\ludora.persistence\\extensions\\usermanagerextensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
-      "RelativeMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|solutionrelative:src\\infrastructure\\ludora.persistence\\extensions\\usermanagerextensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+      "AbsoluteMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|c:\\users\\acer\\desktop\\new folder\\ludora\\src\\infrastructure\\ludora.persistence\\extensions\\pathextension.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|solutionrelative:src\\infrastructure\\ludora.persistence\\extensions\\pathextension.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{D9F374C2-C10D-45A2-82F5-28A728F74C77}|src\\Core\\Ludora.Application\\Ludora.Application.csproj|c:\\users\\acer\\desktop\\new folder\\ludora\\src\\core\\ludora.application\\extensions\\stringextension.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{D9F374C2-C10D-45A2-82F5-28A728F74C77}|src\\Core\\Ludora.Application\\Ludora.Application.csproj|solutionrelative:src\\core\\ludora.application\\extensions\\stringextension.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|c:\\users\\acer\\desktop\\new folder\\ludora\\src\\infrastructure\\ludora.persistence\\services\\localfilestorageservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|solutionrelative:src\\infrastructure\\ludora.persistence\\services\\localfilestorageservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|c:\\users\\acer\\desktop\\new folder\\ludora\\src\\infrastructure\\ludora.persistence\\services\\authservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|solutionrelative:src\\infrastructure\\ludora.persistence\\services\\authservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
+    },
+    {
+      "AbsoluteMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|c:\\users\\acer\\desktop\\new folder\\ludora\\src\\infrastructure\\ludora.persistence\\extensions\\usermanagerextensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "RelativeMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|solutionrelative:src\\infrastructure\\ludora.persistence\\extensions\\usermanagerextensions.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
       "AbsoluteMoniker": "D:0:0:{2D6028FB-6A82-499D-84F6-1A87AA04AD5C}|src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj|c:\\users\\acer\\desktop\\new folder\\ludora\\src\\infrastructure\\ludora.persistence\\services\\jwttokenservice.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
@@ -46,8 +46,59 @@
       "DocumentGroups": [
         {
           "DockedWidth": 200,
-          "SelectedChildIndex": 4,
+          "SelectedChildIndex": 0,
           "Children": [
+            {
+              "$type": "Document",
+              "DocumentIndex": 0,
+              "Title": "FileValidationExtensions.cs",
+              "DocumentMoniker": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Extensions\\FileValidationExtensions.cs",
+              "RelativeDocumentMoniker": "src\\Infrastructure\\Ludora.Persistence\\Extensions\\FileValidationExtensions.cs",
+              "ToolTip": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Extensions\\FileValidationExtensions.cs",
+              "RelativeToolTip": "src\\Infrastructure\\Ludora.Persistence\\Extensions\\FileValidationExtensions.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAfAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-10T19:01:08.424Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 4,
+              "Title": "LocalFileStorageService.cs",
+              "DocumentMoniker": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Services\\LocalFileStorageService.cs",
+              "RelativeDocumentMoniker": "src\\Infrastructure\\Ludora.Persistence\\Services\\LocalFileStorageService.cs",
+              "ToolTip": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Services\\LocalFileStorageService.cs",
+              "RelativeToolTip": "src\\Infrastructure\\Ludora.Persistence\\Services\\LocalFileStorageService.cs",
+              "ViewState": "AgIAACQAAAAAAAAAAAAYwC4AAAAiAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-10T15:20:21.555Z",
+              "EditorCaption": ""
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 6,
+              "Title": "UserManagerExtensions.cs",
+              "DocumentMoniker": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Extensions\\UserManagerExtensions.cs",
+              "RelativeDocumentMoniker": "src\\Infrastructure\\Ludora.Persistence\\Extensions\\UserManagerExtensions.cs",
+              "ToolTip": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Extensions\\UserManagerExtensions.cs",
+              "RelativeToolTip": "src\\Infrastructure\\Ludora.Persistence\\Extensions\\UserManagerExtensions.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAABAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-10T19:13:00.298Z"
+            },
+            {
+              "$type": "Document",
+              "DocumentIndex": 3,
+              "Title": "StringExtension.cs",
+              "DocumentMoniker": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Core\\Ludora.Application\\Extensions\\StringExtension.cs",
+              "RelativeDocumentMoniker": "src\\Core\\Ludora.Application\\Extensions\\StringExtension.cs",
+              "ToolTip": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Core\\Ludora.Application\\Extensions\\StringExtension.cs",
+              "RelativeToolTip": "src\\Core\\Ludora.Application\\Extensions\\StringExtension.cs",
+              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAAjAAAAAAAAAA==",
+              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
+              "WhenOpened": "2026-07-10T19:09:34.144Z",
+              "EditorCaption": ""
+            },
             {
               "$type": "Document",
               "DocumentIndex": 2,
@@ -63,7 +114,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 4,
+              "DocumentIndex": 1,
               "Title": "StreamExtension.cs",
               "DocumentMoniker": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Extensions\\StreamExtension.cs",
               "RelativeDocumentMoniker": "src\\Infrastructure\\Ludora.Persistence\\Extensions\\StreamExtension.cs",
@@ -76,20 +127,7 @@
             },
             {
               "$type": "Document",
-              "DocumentIndex": 3,
-              "Title": "FileValidationExtensions.cs",
-              "DocumentMoniker": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Extensions\\FileValidationExtensions.cs",
-              "RelativeDocumentMoniker": "src\\Infrastructure\\Ludora.Persistence\\Extensions\\FileValidationExtensions.cs",
-              "ToolTip": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Extensions\\FileValidationExtensions.cs",
-              "RelativeToolTip": "src\\Infrastructure\\Ludora.Persistence\\Extensions\\FileValidationExtensions.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAMAAAAfAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-10T19:01:08.424Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 1,
+              "DocumentIndex": 5,
               "Title": "AuthService.cs",
               "DocumentMoniker": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Services\\AuthService.cs",
               "RelativeDocumentMoniker": "src\\Infrastructure\\Ludora.Persistence\\Services\\AuthService.cs",
@@ -97,47 +135,7 @@
               "RelativeToolTip": "src\\Infrastructure\\Ludora.Persistence\\Services\\AuthService.cs",
               "ViewState": "AgIAAC0AAAAAAAAAAAAYwDgAAABUAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-10T15:15:27.1Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 0,
-              "Title": "LocalFileStorageService.cs",
-              "DocumentMoniker": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Services\\LocalFileStorageService.cs",
-              "RelativeDocumentMoniker": "src\\Infrastructure\\Ludora.Persistence\\Services\\LocalFileStorageService.cs",
-              "ToolTip": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Services\\LocalFileStorageService.cs",
-              "RelativeToolTip": "src\\Infrastructure\\Ludora.Persistence\\Services\\LocalFileStorageService.cs",
-              "ViewState": "AgIAACQAAAAAAAAAAAAYwC4AAAAiAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-10T15:20:21.555Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 5,
-              "Title": "UserManagerExtensions.cs",
-              "DocumentMoniker": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Extensions\\UserManagerExtensions.cs",
-              "RelativeDocumentMoniker": "src\\Infrastructure\\Ludora.Persistence\\Extensions\\UserManagerExtensions.cs",
-              "ToolTip": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Extensions\\UserManagerExtensions.cs",
-              "RelativeToolTip": "src\\Infrastructure\\Ludora.Persistence\\Extensions\\UserManagerExtensions.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAABUAAAABAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-10T19:13:00.298Z",
-              "EditorCaption": ""
-            },
-            {
-              "$type": "Document",
-              "DocumentIndex": 6,
-              "Title": "StringExtension.cs",
-              "DocumentMoniker": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Core\\Ludora.Application\\Extensions\\StringExtension.cs",
-              "RelativeDocumentMoniker": "src\\Core\\Ludora.Application\\Extensions\\StringExtension.cs",
-              "ToolTip": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Core\\Ludora.Application\\Extensions\\StringExtension.cs",
-              "RelativeToolTip": "src\\Core\\Ludora.Application\\Extensions\\StringExtension.cs",
-              "ViewState": "AgIAAAAAAAAAAAAAAAAAAAIAAAAjAAAAAAAAAA==",
-              "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
-              "WhenOpened": "2026-07-10T19:09:34.144Z",
-              "EditorCaption": ""
+              "WhenOpened": "2026-07-10T15:15:27.1Z"
             },
             {
               "$type": "Document",

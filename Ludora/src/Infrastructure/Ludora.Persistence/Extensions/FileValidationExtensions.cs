@@ -23,13 +23,11 @@ public static class FileValidationExtensions
         long maxSize,
         FileSize fileSize)
     {
-        if (file.Stream == Stream.Null || file.Length <= 0)
-            throw new BadRequestException("Profil şəkli seçilməyib.");
+        if (file.Stream == Stream.Null || file.Length <= 0) throw new BadRequestException("Profil şəkli seçilməyib.");
 
         if (file.Length > ConvertToBytes(maxSize, fileSize))
         {
-            throw new BadRequestException(
-                $"Profil şəkli maksimum {maxSize} {fileSize} ola bilər.");
+            throw new BadRequestException($"Profil şəkli maksimum {maxSize} {fileSize} ola bilər.");
         }
     }
 
@@ -38,13 +36,11 @@ public static class FileValidationExtensions
         long maxSize,
         FileSize fileSize)
     {
-        if (bytes.Length == 0)
-            throw new BadRequestException("Yüklənən fayl boşdur.");
+        if (bytes.Length == 0) throw new BadRequestException("Yüklənən fayl boşdur.");
 
         if (bytes.LongLength > ConvertToBytes(maxSize, fileSize))
         {
-            throw new BadRequestException(
-                $"Profil şəkli maksimum {maxSize} {fileSize} ola bilər.");
+            throw new BadRequestException($"Profil şəkli maksimum {maxSize} {fileSize} ola bilər.");
         }
     }
 

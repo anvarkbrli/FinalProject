@@ -1,19 +1,12 @@
 ﻿using Ludora.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Ludora.Persistence.Configurations
 {
     public class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
     {
-        public void Configure(
-            EntityTypeBuilder<AppUser> builder
-        )
+        public void Configure(EntityTypeBuilder<AppUser> builder)
         {
             builder
                 .Property(x => x.Bio)
@@ -30,6 +23,14 @@ namespace Ludora.Persistence.Configurations
             builder
                 .Property(x => x.IsPrivate)
                 .HasDefaultValue(false);
+
+            builder
+                .HasIndex(x => x.UserName)
+                .IsUnique();
+
+            builder
+                .HasIndex(x => x.Email)
+                .IsUnique();
         }
     }
 }

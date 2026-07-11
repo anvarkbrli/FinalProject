@@ -21,6 +21,7 @@ namespace Ludora.Domain.Entities
         // Many-to-Many Cross Tables
         public ICollection<GameGenre> GameGenres { get; set; }
         public ICollection<GamePlatform> GamePlatforms { get; set; }
+        public ICollection<GameListItem> GameListItems { get; set; }
 
         // Stats (For fast filtering/sorting)
         public int PlayCount { get; set; } = 0;

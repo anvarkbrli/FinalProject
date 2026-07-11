@@ -1,4 +1,5 @@
-﻿using Ludora.Domain.Enums;
+﻿using Ludora.Domain.Entities.Base;
+using Ludora.Domain.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -7,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Ludora.Domain.Entities
 {
-    public class GameList
+    public class GameList : BaseEntity
     {
         public string Name { get; set; } = null!;
 

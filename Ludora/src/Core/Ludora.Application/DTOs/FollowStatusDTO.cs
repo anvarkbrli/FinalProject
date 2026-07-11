@@ -8,7 +8,7 @@ namespace Ludora.Application.DTOs
 {
     public record FollowStatusDTO
     {
-        public int UserId { get; set; }
+        public Guid UserId { get; set; }
         public bool IsFollowing { get; set; }
     }
 }

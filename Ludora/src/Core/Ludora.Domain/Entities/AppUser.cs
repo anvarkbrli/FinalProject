@@ -18,7 +18,8 @@ namespace Ludora.Domain.Entities
         public DateTime CreatedAt { get; set; }
 
         public ICollection<GameList> GameLists { get; set; } = new List<GameList>();
-
+        public ICollection<UserFollow> Followers { get; set; } = new List<UserFollow>();
+        public ICollection<UserFollow> Following { get; set; } = new List<UserFollow>();
         public AppUser()
         {
             Id = Guid.NewGuid();
