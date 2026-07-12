@@ -28,23 +28,23 @@ namespace Ludora.API.Middlewares
 
                 context.Response.StatusCode = exception switch
                 {
-                    ArgumentException =>
-                        StatusCodes.Status400BadRequest,
+                    BadRequestException => StatusCodes.Status400BadRequest,
 
-                    UnauthorizedAccessException =>
-                        StatusCodes.Status401Unauthorized,
+                    ArgumentException => StatusCodes.Status400BadRequest,
 
-                    ForbiddenException =>
-                        StatusCodes.Status403Forbidden,
+                    UnauthorizedException => StatusCodes.Status401Unauthorized,
+                    
+                    UnauthorizedAccessException => StatusCodes.Status401Unauthorized,
 
-                    KeyNotFoundException =>
-                        StatusCodes.Status404NotFound,
+                    ForbiddenException => StatusCodes.Status403Forbidden,
 
-                    ConflictException =>
-                        StatusCodes.Status409Conflict,
+                    NotFoundException => StatusCodes.Status404NotFound,
 
-                    _ =>
-                        StatusCodes.Status500InternalServerError
+                    KeyNotFoundException => StatusCodes.Status404NotFound,
+
+                    ConflictException => StatusCodes.Status409Conflict,
+
+                    _ => StatusCodes.Status500InternalServerError
                 };
 
                 var response = new

@@ -16,7 +16,7 @@ namespace Ludora.Domain.Entities
 
         public ListVisibility Visibility { get; set; } = ListVisibility.Public;
 
-        public int UserId { get; set; }
+        public Guid UserId { get; set; }
         public AppUser User { get; set; } = null!;
 
         public ICollection<GameListItem> GameListItems { get; set; } = new List<GameListItem>();

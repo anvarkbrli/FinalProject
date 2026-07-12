@@ -12,7 +12,7 @@ namespace Ludora.Domain.Entities
 
         public AppUser Follower { get; set; } = null!;
 
-        public int FollowingId { get; set; }
+        public Guid FollowingId { get; set; }
 
         public AppUser Following { get; set; } = null!;
 

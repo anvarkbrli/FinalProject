@@ -1,7 +1,11 @@
 using Ludora.API.Middlewares;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Settings;
 using Ludora.Persistence.ServiceRegistration;
 using Ludora.Persistence.Services;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 namespace Ludora.API
 {
     public class Program
@@ -10,13 +14,41 @@ namespace Ludora.API
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
-
             builder.Services.AddControllers();
-            // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
+
+            builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
+
+            var fileStorageSettings = builder.Configuration
+                .GetSection("FileStorageSettings")
+                .Get<FileStorageSettings>() ?? new FileStorageSettings();
+
+            builder.Services.AddSingleton(fileStorageSettings);
+
+            builder.Services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                var jwtSettings = builder.Configuration.GetSection("JwtSettings").Get<JwtSettings>();
+
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = jwtSettings!.Issuer,
+                    ValidAudience = jwtSettings.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key))
+                };
+            });
+
             builder.Services.AddPersistenceServices(builder.Configuration);
+
             builder.Services.AddCors(options =>
             {
                 options.AddPolicy("Frontend", policy =>
@@ -28,14 +60,10 @@ namespace Ludora.API
                 });
             });
            
-            builder.Services.AddScoped<IGenreService, GenreService>();
-            builder.Services.AddScoped<IPlatformService, PlatformService>();
-            builder.Services.AddScoped<ICompanyService, CompanyService>();
-            builder.Services.AddScoped<IGameService, GameService>();
+        
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
             {
                 app.UseSwagger();

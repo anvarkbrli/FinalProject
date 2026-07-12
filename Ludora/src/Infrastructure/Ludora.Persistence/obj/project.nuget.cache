@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "JZp1yhtHgVw=",
+  "dgSpecHash": "i9vRC8Kp2V4=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj",
+  "projectFilePath": "C:\\Users\\Acer\\Desktop\\Ludora\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Acer\\.nuget\\packages\\automapper\\16.2.0\\automapper.16.2.0.nupkg.sha512",
     "C:\\Users\\Acer\\.nuget\\packages\\azure.core\\1.38.0\\azure.core.1.38.0.nupkg.sha512",

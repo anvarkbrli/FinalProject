@@ -1,10 +1,10 @@
 ﻿namespace Ludora.Persistence.Services;
 
 using Ludora.Application.DTOs;
-using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Settings;
+using Ludora.Persistence.Extensions;
 
 public class LocalFileStorageService : IFileStorageService
 {
@@ -19,34 +19,15 @@ public class LocalFileStorageService : IFileStorageService
 
     public async Task<string> SaveProfileImageAsync(ProfileImageUploadDTO dto)
     {
-        if (dto.IsEmpty()) throw new BadRequestException("Profil şəkli seçilməyib.");
+        dto.ValidateUpload(MaxProfileImageSize, FileSize.MB);
 
-        if (dto.ExceedsSize(MaxProfileImageSize, FileSize.MB))throw new BadRequestException("Profil şəkli maksimum 5 MB ola bilər.");
+        var fileBytes = await dto.Stream.ToByteArrayAsync();
 
-        await using var memoryStream = new MemoryStream();
+        fileBytes.ValidateActualSize(MaxProfileImageSize, FileSize.MB);
 
-        await dto.Stream.CopyToAsync(memoryStream);
+        var extension = fileBytes.GetImageExtension();
 
-        var fileBytes = memoryStream.ToArray();
-
-        if (fileBytes.Length == 0)
-            throw new BadRequestException("Yüklənən fayl boşdur.");
-
-        if (fileBytes.ExceedsSize(MaxProfileImageSize, FileSize.MB))
-            throw new BadRequestException("Profil şəkli maksimum 5 MB ola bilər.");
-
-        var extension = fileBytes.DetectImageExtension();
-
-        if (extension is null)
-        {
-            throw new BadRequestException(
-                "Yalnız JPEG, PNG və WEBP şəkilləri qəbul edilir.");
-        }
-
-        var folderPath = Path.Combine(
-            _settings.WebRootPath,
-            "uploads",
-            "profile-images");
+        var folderPath = Path.Combine(_settings.WebRootPath, "uploads", "profile-images");
 
         Directory.CreateDirectory(folderPath);
 
@@ -73,16 +54,12 @@ public class LocalFileStorageService : IFileStorageService
 
     private string? GetSafeFullPath(string relativePath)
     {
-        var safeRelativePath = relativePath
-            .TrimStart('/')
-            .Replace('/', Path.DirectorySeparatorChar);
+        var safeRelativePath = relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
 
         var webRootPath = Path.GetFullPath(_settings.WebRootPath);
         var fullPath = Path.GetFullPath(Path.Combine(webRootPath, safeRelativePath));
+        var allowedRoot = webRootPath.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
-        var allowedRoot = webRootPath.TrimEnd(
-            Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-
-        return fullPath.StartsWith(allowedRoot, StringComparison.OrdinalIgnoreCase)? fullPath : null;
+        return fullPath.StartsWith(allowedRoot, StringComparison.OrdinalIgnoreCase) ? fullPath : null;
     }
 }

@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Infrastructure\\Ludora.Infrastructure.csproj": {}
+    "C:\\Users\\Acer\\Desktop\\Ludora\\Ludora\\src\\Infrastructure\\Ludora.Infrastructure\\Ludora.Infrastructure.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Infrastructure\\Ludora.Infrastructure.csproj": {
+    "C:\\Users\\Acer\\Desktop\\Ludora\\Ludora\\src\\Infrastructure\\Ludora.Infrastructure\\Ludora.Infrastructure.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Infrastructure\\Ludora.Infrastructure.csproj",
+        "projectUniqueName": "C:\\Users\\Acer\\Desktop\\Ludora\\Ludora\\src\\Infrastructure\\Ludora.Infrastructure\\Ludora.Infrastructure.csproj",
         "projectName": "Ludora.Infrastructure",
-        "projectPath": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Infrastructure\\Ludora.Infrastructure.csproj",
+        "projectPath": "C:\\Users\\Acer\\Desktop\\Ludora\\Ludora\\src\\Infrastructure\\Ludora.Infrastructure\\Ludora.Infrastructure.csproj",
         "packagesPath": "C:\\Users\\Acer\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\src\\Infrastructure\\Ludora.Infrastructure\\obj\\",
+        "outputPath": "C:\\Users\\Acer\\Desktop\\Ludora\\Ludora\\src\\Infrastructure\\Ludora.Infrastructure\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
