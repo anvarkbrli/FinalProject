@@ -9,7 +9,7 @@
     "Parameters": [
       {
         "Name": "dto",
-        "Type": "Ludora.Application.DTOs.LoginDTO",
+        "Type": "Ludora.Application.DTOs.JWT.LoginDTO",
         "IsRequired": true
       }
     ],
@@ -25,7 +25,7 @@
     "Parameters": [
       {
         "Name": "dto",
-        "Type": "Ludora.Application.DTOs.RegisterDTO",
+        "Type": "Ludora.Application.DTOs.JWT.RegisterDTO",
         "IsRequired": true
       }
     ],
@@ -781,8 +781,8 @@
   },
   {
     "ContainingType": "Ludora.API.Controllers.UsersController",
-    "Method": "Follow",
-    "RelativePath": "api/Users/{userId}/follow",
+    "Method": "Block",
+    "RelativePath": "api/Users/{userId}/block",
     "HttpMethod": "POST",
     "IsController": true,
     "Order": 0,
@@ -797,9 +797,9 @@
   },
   {
     "ContainingType": "Ludora.API.Controllers.UsersController",
-    "Method": "Unfollow",
+    "Method": "Follow",
     "RelativePath": "api/Users/{userId}/follow",
-    "HttpMethod": "DELETE",
+    "HttpMethod": "POST",
     "IsController": true,
     "Order": 0,
     "Parameters": [
@@ -861,6 +861,38 @@
   },
   {
     "ContainingType": "Ludora.API.Controllers.UsersController",
+    "Method": "Unblock",
+    "RelativePath": "api/Users/{userId}/unblock",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.UsersController",
+    "Method": "Unfollow",
+    "RelativePath": "api/Users/{userId}/unfollow",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.UsersController",
     "Method": "GetByUserName",
     "RelativePath": "api/Users/{userName}",
     "HttpMethod": "GET",
@@ -903,6 +935,64 @@
   },
   {
     "ContainingType": "Ludora.API.Controllers.UsersController",
+    "Method": "GetFollowRequests",
+    "RelativePath": "api/Users/me/follow-requests",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.UsersController",
+    "Method": "AcceptFollowRequest",
+    "RelativePath": "api/Users/me/follow-requests/{requesterId}/accept-follow",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "requesterId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.UsersController",
+    "Method": "RejectFollowRequest",
+    "RelativePath": "api/Users/me/follow-requests/{requesterId}/reject-follow",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "requesterId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.UsersController",
+    "Method": "RemoveFollower",
+    "RelativePath": "api/Users/me/followers/{followerId}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "followerId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.UsersController",
     "Method": "UpdateProfileImage",
     "RelativePath": "api/Users/me/profile-image",
     "HttpMethod": "PUT",
@@ -915,6 +1005,42 @@
         "IsRequired": false
       }
     ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.UsersController",
+    "Method": "GetSettings",
+    "RelativePath": "api/Users/me/settings",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.UsersController",
+    "Method": "UpdateSettings",
+    "RelativePath": "api/Users/me/settings",
+    "HttpMethod": "PATCH",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dto",
+        "Type": "Ludora.Application.DTOs.UpdateUserSettingsDTO",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.UsersController",
+    "Method": "GetBlockedUsers",
+    "RelativePath": "api/Users/me/settings/blocked-users",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
     "ReturnTypes": []
   }
 ]

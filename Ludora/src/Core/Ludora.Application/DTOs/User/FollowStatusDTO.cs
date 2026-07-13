@@ -10,5 +10,7 @@ namespace Ludora.Application.DTOs
     {
         public Guid UserId { get; set; }
         public bool IsFollowing { get; set; }
+        public bool IsPending { get; set; }
+    
     }
 }

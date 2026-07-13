@@ -1,6 +1,4 @@
-﻿
-
-namespace Ludora.Application.Settings
+﻿namespace Ludora.Application.Settings
 {
     public class JwtSettings
     {
@@ -12,6 +10,6 @@ namespace Ludora.Application.Settings
 
         public string Audience { get; set; } = string.Empty;
 
-        public int ExpireMinutes { get; set; }
+        public int ExpiresInMinutes { get; set; }
     }
 }

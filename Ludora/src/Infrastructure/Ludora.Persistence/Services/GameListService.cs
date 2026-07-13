@@ -23,14 +23,14 @@ namespace Ludora.Persistence.Services
 
             if (!userExists) throw new NotFoundException("İstifadəçi tapılmadı.");
 
-            var query = _context.GameLists
-                .AsNoTracking()
-                .Where(gl => gl.UserId == userId);
+            var query = _context.GameLists.AsNoTracking().Where(gl => gl.UserId == userId);
 
             if (currentUserId != userId)
             {
-                var isFollowing = currentUserId.HasValue && await _context.UserFollows.AnyAsync(f =>
-                    f.FollowerId == currentUserId.Value && f.FollowingId == userId);
+                var isFollowing = currentUserId.HasValue && await _context.UserFollows.AnyAsync(uf =>
+                    uf.FollowerId == currentUserId.Value &&
+                    uf.FollowingId == userId &&
+                    uf.Status == FollowStatus.Accepted);
 
                 query = isFollowing
                     ? query.Where(gl => gl.Visibility != ListVisibility.Private)
@@ -96,16 +96,13 @@ namespace Ludora.Persistence.Services
 
         public async Task<int> CreateAsync(Guid userId, GameListCreateDTO dto)
         {
-            if (string.IsNullOrWhiteSpace(dto.Name))
-                throw new BadRequestException("Siyahının adı boş ola bilməz.");
+            if (string.IsNullOrWhiteSpace(dto.Name)) throw new BadRequestException("Siyahının adı boş ola bilməz.");
 
             var name = dto.Name.Trim();
 
-            var listExists = await _context.GameLists.AnyAsync(gl =>
-                gl.UserId == userId && gl.Name.ToLower() == name.ToLower());
+            var listExists = await _context.GameLists.AnyAsync(gl => gl.UserId == userId && gl.Name.ToLower() == name.ToLower());
 
-            if (listExists)
-                throw new ConflictException("Bu adda oyun siyahısı artıq mövcuddur.");
+            if (listExists) throw new ConflictException("Bu adda oyun siyahısı artıq mövcuddur.");
 
             var gameList = new GameList
             {
@@ -145,8 +142,7 @@ namespace Ludora.Persistence.Services
             if (dto.Description is not null)
                 gameList.Description = string.IsNullOrWhiteSpace(dto.Description) ? null : dto.Description.Trim();
 
-            if (dto.Visibility.HasValue)
-                gameList.Visibility = dto.Visibility.Value;
+            if (dto.Visibility.HasValue) gameList.Visibility = dto.Visibility.Value;
 
             gameList.UpdatedAt = DateTime.UtcNow;
 
@@ -207,31 +203,39 @@ namespace Ludora.Persistence.Services
         {
             var gameList = await _context.GameLists.FirstOrDefaultAsync(gl => gl.Id == id);
 
-            if (gameList is null)
-                throw new NotFoundException("Oyun siyahısı tapılmadı.");
+            if (gameList is null) throw new NotFoundException("Oyun siyahısı tapılmadı.");
 
-            if (gameList.UserId != userId)
-                throw new ForbiddenException("Bu oyun siyahısını dəyişmək icazəniz yoxdur.");
+            if (gameList.UserId != userId)  throw new ForbiddenException("Bu oyun siyahısını dəyişmək icazəniz yoxdur.");
 
             return gameList;
         }
 
         private async Task CheckListAccessAsync(GameList gameList, Guid? currentUserId)
         {
+            await CheckBlockAccessAsync(gameList.UserId, currentUserId);
+
             if (gameList.UserId == currentUserId || gameList.Visibility == ListVisibility.Public)
                 return;
 
-            if (gameList.Visibility == ListVisibility.Private)
-                throw new ForbiddenException("Bu oyun siyahısı gizlidir.");
+            if (gameList.Visibility == ListVisibility.Private) throw new ForbiddenException("Bu oyun siyahısı gizlidir.");
 
-            if (!currentUserId.HasValue)
-                throw new ForbiddenException("Bu siyahını yalnız izləyicilər görə bilər.");
+            if (!currentUserId.HasValue) throw new ForbiddenException("Bu siyahını yalnız izləyicilər görə bilər.");
 
-            var isFollowing = await _context.UserFollows.AnyAsync(f =>
-                f.FollowerId == currentUserId.Value && f.FollowingId == gameList.UserId);
+            var isFollowing = await _context.UserFollows.AnyAsync(uf =>
+                uf.FollowerId == currentUserId.Value && uf.FollowingId == gameList.UserId);
 
-            if (!isFollowing)
-                throw new ForbiddenException("Bu siyahını yalnız izləyicilər görə bilər.");
+            if (!isFollowing) throw new ForbiddenException("Bu siyahını yalnız izləyicilər görə bilər.");
         }
+        private async Task CheckBlockAccessAsync(Guid ownerId, Guid? currentUserId)
+        {
+            if (!currentUserId.HasValue || currentUserId.Value == ownerId) return;
+
+            var hasBlock = await _context.UserBlocks.AnyAsync(ub =>
+                ub.BlockerId == currentUserId.Value && ub.BlockedUserId == ownerId ||
+                ub.BlockerId == ownerId && ub.BlockedUserId == currentUserId.Value);
+
+            if (hasBlock) throw new ForbiddenException("Bu istifadəçinin oyun siyahılarına baxmaq mümkün deyil.");
+        }
+
     }
 }

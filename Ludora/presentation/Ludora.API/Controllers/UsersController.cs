@@ -1,5 +1,6 @@
 ﻿using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
+using Ludora.Persistence.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -13,11 +14,13 @@ namespace Ludora.API.Controllers
     {
         private readonly IUserService _userService;
         private readonly IFollowService _followService;
+        private readonly IBlockService _blockService;
 
-        public UsersController(IUserService userService, IFollowService followService)
+        public UsersController(IUserService userService, IFollowService followService, IBlockService blockService)
         {
             _userService = userService;
             _followService = followService;
+            _blockService = blockService;
         }
 
         [Authorize]
@@ -29,10 +32,28 @@ namespace Ludora.API.Controllers
             return Ok(result);
         }
 
+        [Authorize]
+        [HttpGet("me/settings")]
+        public async Task<IActionResult> GetSettings()
+        {
+            var result = await _userService.GetSettingsAsync(GetCurrentUserId());
+
+            return Ok(result);
+        }
+
+        [Authorize]
+        [HttpPatch("me/settings")]
+        public async Task<IActionResult> UpdateSettings([FromBody] UpdateUserSettingsDTO dto)
+        {
+            var result = await _userService.UpdateSettingsAsync(GetCurrentUserId(), dto);
+
+            return Ok(result);
+        }
+
         [HttpGet("{userName}")]
         public async Task<IActionResult> GetByUserName(string userName)
         {
-            var result = await _userService.GetByUserNameAsync(userName);
+            var result = await _userService.GetByUserNameAsync(userName, GetOptionalCurrentUserId());
 
             return Ok(result);
         }
@@ -73,12 +94,38 @@ namespace Ludora.API.Controllers
         }
 
         [Authorize]
-        [HttpDelete("{userId:guid}/follow")]
+        [HttpDelete("{userId:guid}/unfollow")]
         public async Task<IActionResult> Unfollow(Guid userId)
         {
             await _followService.UnfollowAsync(GetCurrentUserId(), userId);
 
             return NoContent();
+        }
+        [Authorize]
+        [HttpPost("{userId:guid}/block")]
+        public async Task<IActionResult> Block(Guid userId)
+        {
+            await _blockService.BlockAsync(GetCurrentUserId(), userId);
+
+            return NoContent();
+        }
+
+        [Authorize]
+        [HttpDelete("{userId:guid}/unblock")]
+        public async Task<IActionResult> Unblock(Guid userId)
+        {
+            await _blockService.UnblockAsync(GetCurrentUserId(), userId);
+
+            return NoContent();
+        }
+
+        [Authorize]
+        [HttpGet("me/settings/blocked-users")]
+        public async Task<IActionResult> GetBlockedUsers()
+        {
+            var result = await _blockService.GetBlockedUsersAsync(GetCurrentUserId());
+
+            return Ok(result);
         }
 
         [Authorize]
@@ -88,6 +135,42 @@ namespace Ludora.API.Controllers
             var result = await _followService.GetFollowStatusAsync(GetCurrentUserId(), userId);
 
             return Ok(result);
+        }
+
+        [Authorize]
+        [HttpGet("me/follow-requests")]
+        public async Task<IActionResult> GetFollowRequests()
+        {
+            var result = await _followService.GetFollowRequestsAsync(GetCurrentUserId());
+
+            return Ok(result);
+        }
+
+        [Authorize]
+        [HttpPost("me/follow-requests/{requesterId:guid}/accept-follow")]
+        public async Task<IActionResult> AcceptFollowRequest(Guid requesterId)
+        {
+            await _followService.AcceptFollowRequestAsync(GetCurrentUserId(), requesterId);
+
+            return NoContent();
+        }
+
+        [Authorize]
+        [HttpDelete("me/follow-requests/{requesterId:guid}/reject-follow")]
+        public async Task<IActionResult> RejectFollowRequest(Guid requesterId)
+        {
+            await _followService.RejectFollowRequestAsync(GetCurrentUserId(), requesterId);
+
+            return NoContent();
+        }
+
+        [Authorize]
+        [HttpDelete("me/followers/{followerId:guid}")]
+        public async Task<IActionResult> RemoveFollower(Guid followerId)
+        {
+            await _followService.RemoveFollowerAsync(GetCurrentUserId(), followerId);
+
+            return NoContent();
         }
 
         [HttpGet("{userId:guid}/followers")]

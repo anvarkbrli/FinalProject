@@ -1,4 +1,4 @@
-﻿using Ludora.Application.DTOs;
+﻿using Ludora.Application.DTOs.JWT;
 using Ludora.Domain.Entities;
 using System;
 using System.Collections.Generic;

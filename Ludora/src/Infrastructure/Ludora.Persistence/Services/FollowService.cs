@@ -2,131 +2,217 @@
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities;
+using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 
-namespace Ludora.Persistence.Services
+namespace Ludora.Persistence.Services;
+
+public class FollowService : IFollowService
 {
-    public class FollowService : IFollowService
+    private readonly AppDbContext _context;
+
+    public FollowService(AppDbContext context)
     {
-        private readonly AppDbContext _context;
+        _context = context;
+    }
 
-        public FollowService(AppDbContext context)
+    public async Task<FollowStatusDTO> FollowAsync(Guid followerId, Guid followingId)
+    {
+        if (followerId == followingId)
+            throw new BadRequestException("İstifadəçi özünü izləyə bilməz.");
+
+        var followingUser = await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == followingId);
+
+        if (followingUser is null)
+            throw new NotFoundException("İstifadəçi tapılmadı.");
+
+        var hasBlock = await _context.UserBlocks.AnyAsync(ub =>
+            ub.BlockerId == followerId && ub.BlockedUserId == followingId ||
+            ub.BlockerId == followingId && ub.BlockedUserId == followerId);
+
+        if (hasBlock) throw new ForbiddenException("Bloklanmış istifadəçilər arasında izləmə əməliyyatı mümkün deyil.");
+
+        var existingFollow = await _context.UserFollows.FirstOrDefaultAsync(uf =>
+            uf.FollowerId == followerId && uf.FollowingId == followingId);
+
+        if (existingFollow is not null)
         {
-            _context = context;
+            if (existingFollow.Status == FollowStatus.Accepted) throw new ConflictException("Bu istifadəçini artıq izləyirsiniz.");
+
+            throw new ConflictException("Bu istifadəçiyə artıq izləmə sorğusu göndərmisiniz.");
         }
 
-        public async Task FollowAsync(Guid followerId, Guid followingId)
+        var status = followingUser.IsPrivate ? FollowStatus.Pending : FollowStatus.Accepted;
+
+        var userFollow = new UserFollow
         {
-            if (followerId == followingId)
-                throw new BadRequestException("İstifadəçi özünü izləyə bilməz.");
+            FollowerId = followerId,
+            FollowingId = followingId,
+            Status = status,
+            CreatedAt = DateTime.UtcNow,
+            AcceptedAt = status == FollowStatus.Accepted ? DateTime.UtcNow : null
+        };
 
-            var followingUserExists = await _context.Users.AnyAsync(u => u.Id == followingId);
+        await _context.UserFollows.AddAsync(userFollow);
+        await _context.SaveChangesAsync();
 
-            if (!followingUserExists)
-                throw new NotFoundException("İstifadəçi tapılmadı.");
+        return new FollowStatusDTO
+        {
+            UserId = followingId,
+            IsFollowing = status == FollowStatus.Accepted,
+            IsPending = status == FollowStatus.Pending
+        };
+    }
 
-            var alreadyFollowing = await _context.UserFollows.AnyAsync(f =>
-                f.FollowerId == followerId && f.FollowingId == followingId);
+    public async Task UnfollowAsync(Guid followerId, Guid followingId)
+    {
+        var userFollow = await _context.UserFollows.FirstOrDefaultAsync(uf =>
+            uf.FollowerId == followerId && uf.FollowingId == followingId);
 
-            if (alreadyFollowing)
-                throw new ConflictException("Bu istifadəçini artıq izləyirsiniz.");
+        if (userFollow is null) throw new NotFoundException("İzləmə və ya izləmə sorğusu tapılmadı.");
 
-            var userFollow = new UserFollow
+        _context.UserFollows.Remove(userFollow);
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task AcceptFollowRequestAsync(Guid currentUserId, Guid requesterId)
+    {
+        var followRequest = await _context.UserFollows.FirstOrDefaultAsync(uf =>
+            uf.FollowerId == requesterId &&
+            uf.FollowingId == currentUserId &&
+            uf.Status == FollowStatus.Pending);
+
+        if (followRequest is null)
+            throw new NotFoundException("İzləmə sorğusu tapılmadı.");
+
+        followRequest.Status = FollowStatus.Accepted;
+        followRequest.AcceptedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync();
+    }
+
+    public async Task RejectFollowRequestAsync(Guid currentUserId, Guid requesterId)
+    {
+        var followRequest = await _context.UserFollows.FirstOrDefaultAsync(uf =>
+            uf.FollowerId == requesterId &&
+            uf.FollowingId == currentUserId &&
+            uf.Status == FollowStatus.Pending);
+
+        if (followRequest is null)
+            throw new NotFoundException("İzləmə sorğusu tapılmadı.");
+
+        _context.UserFollows.Remove(followRequest);
+        await _context.SaveChangesAsync();
+    }
+    public async Task RemoveFollowerAsync(Guid currentUserId, Guid followerId)
+    {
+        var follow = await _context.UserFollows.FirstOrDefaultAsync(uf =>
+            uf.FollowerId == followerId &&
+            uf.FollowingId == currentUserId &&
+            uf.Status == FollowStatus.Accepted);
+
+        if (follow is null)
+            throw new NotFoundException("Bu istifadəçi sizi izləmir.");
+
+        _context.UserFollows.Remove(follow);
+        await _context.SaveChangesAsync();
+    }
+
+
+    public async Task<List<FollowRequestDTO>> GetFollowRequestsAsync(Guid userId)
+    {
+        return await _context.UserFollows
+            .AsNoTracking()
+            .Where(uf => uf.FollowingId == userId && uf.Status == FollowStatus.Pending)
+            .OrderByDescending(uf => uf.CreatedAt)
+            .Select(uf => new FollowRequestDTO
             {
-                FollowerId = followerId,
-                FollowingId = followingId,
-                CreatedAt = DateTime.UtcNow
-            };
+                UserId = uf.FollowerId,
+                UserName = uf.Follower.UserName ?? string.Empty,
+                ProfileImageUrl = uf.Follower.ProfileImageUrl,
+                RequestedAt = uf.CreatedAt
+            })
+            .ToListAsync();
+    }
 
-            await _context.UserFollows.AddAsync(userFollow);
-            await _context.SaveChangesAsync();
-        }
+    public async Task<FollowStatusDTO> GetFollowStatusAsync(Guid currentUserId, Guid profileUserId)
+    {
+        var userExists = await _context.Users.AnyAsync(u => u.Id == profileUserId);
 
-        public async Task UnfollowAsync(Guid followerId, Guid followingId)
+        if (!userExists)
+            throw new NotFoundException("İstifadəçi tapılmadı.");
+
+        var follow = await _context.UserFollows
+            .AsNoTracking()
+            .FirstOrDefaultAsync(uf =>
+                uf.FollowerId == currentUserId &&
+                uf.FollowingId == profileUserId);
+
+        return new FollowStatusDTO
         {
-            var userFollow = await _context.UserFollows.FirstOrDefaultAsync(f =>
-                f.FollowerId == followerId && f.FollowingId == followingId);
+            UserId = profileUserId,
+            IsFollowing = follow?.Status == FollowStatus.Accepted,
+            IsPending = follow?.Status == FollowStatus.Pending
+        };
+    }
 
-            if (userFollow is null)
-                throw new NotFoundException("İzləmə əlaqəsi tapılmadı.");
+    public async Task<List<UserListItemDTO>> GetFollowersAsync(Guid userId, Guid? currentUserId)
+    {
+        await CheckUserExistsAsync(userId);
 
-            _context.UserFollows.Remove(userFollow);
-            await _context.SaveChangesAsync();
-        }
+        var currentUserFollowingIds = await GetCurrentUserFollowingIdsAsync(currentUserId);
 
-        public async Task<FollowStatusDTO> GetFollowStatusAsync(Guid currentUserId, Guid profileUserId)
-        {
-            var userExists = await _context.Users.AnyAsync(u => u.Id == profileUserId);
-
-            if (!userExists)
-                throw new NotFoundException("İstifadəçi tapılmadı.");
-
-            var isFollowing = await _context.UserFollows.AnyAsync(f =>
-                f.FollowerId == currentUserId && f.FollowingId == profileUserId);
-
-            return new FollowStatusDTO
+        return await _context.UserFollows
+            .AsNoTracking()
+            .Where(uf => uf.FollowingId == userId && uf.Status == FollowStatus.Accepted)
+            .Select(uf => new UserListItemDTO
             {
-                UserId = profileUserId,
-                IsFollowing = isFollowing
-            };
-        }
+                Id = uf.FollowerId,
+                UserName = uf.Follower.UserName ?? string.Empty,
+                ProfileImageUrl = uf.Follower.ProfileImageUrl,
+                IsFollowing = currentUserFollowingIds.Contains(uf.FollowerId)
+            })
+            .ToListAsync();
+    }
 
-        public async Task<List<UserListItemDTO>> GetFollowersAsync(Guid userId, Guid? currentUserId)
-        {
-            await CheckUserExistsAsync(userId);
+    public async Task<List<UserListItemDTO>> GetFollowingAsync(Guid userId, Guid? currentUserId)
+    {
+        await CheckUserExistsAsync(userId);
 
-            var currentUserFollowingIds = await GetCurrentUserFollowingIdsAsync(currentUserId);
+        var currentUserFollowingIds = await GetCurrentUserFollowingIdsAsync(currentUserId);
 
-            return await _context.UserFollows
-                .AsNoTracking()
-                .Where(f => f.FollowingId == userId)
-                .Select(f => new UserListItemDTO
-                {
-                    Id = f.FollowerId,
-                    UserName = f.Follower.UserName ?? string.Empty,
-                    ProfileImageUrl = f.Follower.ProfileImageUrl,
-                    IsFollowing = currentUserFollowingIds.Contains(f.FollowerId)
-                })
-                .ToListAsync();
-        }
+        return await _context.UserFollows
+            .AsNoTracking()
+            .Where(uf => uf.FollowerId == userId && uf.Status == FollowStatus.Accepted)
+            .Select(uf => new UserListItemDTO
+            {
+                Id = uf.FollowingId,
+                UserName = uf.Following.UserName ?? string.Empty,
+                ProfileImageUrl = uf.Following.ProfileImageUrl,
+                IsFollowing = currentUserFollowingIds.Contains(uf.FollowingId)
+            })
+            .ToListAsync();
+    }
 
-        public async Task<List<UserListItemDTO>> GetFollowingAsync(Guid userId, Guid? currentUserId)
-        {
-            await CheckUserExistsAsync(userId);
+    private async Task CheckUserExistsAsync(Guid userId)
+    {
+        var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
 
-            var currentUserFollowingIds = await GetCurrentUserFollowingIdsAsync(currentUserId);
+        if (!userExists)
+            throw new NotFoundException("İstifadəçi tapılmadı.");
+    }
 
-            return await _context.UserFollows
-                .AsNoTracking()
-                .Where(f => f.FollowerId == userId)
-                .Select(f => new UserListItemDTO
-                {
-                    Id = f.FollowingId,
-                    UserName = f.Following.UserName ?? string.Empty,
-                    ProfileImageUrl = f.Following.ProfileImageUrl,
-                    IsFollowing = currentUserFollowingIds.Contains(f.FollowingId)
-                })
-                .ToListAsync();
-        }
+    private async Task<List<Guid>> GetCurrentUserFollowingIdsAsync(Guid? currentUserId)
+    {
+        if (!currentUserId.HasValue)
+            return new List<Guid>();
 
-        private async Task CheckUserExistsAsync(Guid userId)
-        {
-            var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
-
-            if (!userExists)
-                throw new NotFoundException("İstifadəçi tapılmadı.");
-        }
-
-        private async Task<List<Guid>> GetCurrentUserFollowingIdsAsync(Guid? currentUserId)
-        {
-            if (!currentUserId.HasValue)
-                return new List<Guid>();
-
-            return await _context.UserFollows
-                .Where(f => f.FollowerId == currentUserId.Value)
-                .Select(f => f.FollowingId)
-                .ToListAsync();
-        }
+        return await _context.UserFollows
+            .Where(uf => uf.FollowerId == currentUserId.Value && uf.Status == FollowStatus.Accepted)
+            .Select(uf => uf.FollowingId)
+            .ToListAsync();
     }
 }

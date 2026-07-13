@@ -3,6 +3,8 @@ using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Mappings;
 using Ludora.Domain.Entities;
+using Ludora.Domain.Enums;
+using Ludora.Persistence.Data;
 using Ludora.Persistence.Extensions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -13,24 +15,40 @@ namespace Ludora.Persistence.Services
     {
         private readonly UserManager<AppUser> _userManager;
         private readonly IFileStorageService _fileStorageService;
+        private readonly AppDbContext _context;
 
-        public UserService(UserManager<AppUser> userManager, IFileStorageService fileStorageService)
+        public UserService(UserManager<AppUser> userManager, IFileStorageService fileStorageService, AppDbContext context)
         {
             _userManager = userManager;
             _fileStorageService = fileStorageService;
+            _context = context;
         }
 
         public async Task<CurrentUserDTO> GetCurrentUserAsync(Guid userId)
         {
             var user = await _userManager.FindByIdOrThrowAsync(userId);
 
-            return user.ToCurrentUserDTO();
+            var followerCount = await _context.UserFollows.CountAsync(uf => uf.FollowingId == userId && uf.Status == FollowStatus.Accepted);
+
+            var followingCount = await _context.UserFollows.CountAsync(uf => uf.FollowerId == userId && uf.Status == FollowStatus.Accepted);
+
+            return new CurrentUserDTO
+            {
+                Id = user.Id,
+                UserName = user.UserName ?? string.Empty,
+                Bio = user.Bio,
+                ProfileImageUrl = user.ProfileImageUrl,
+                IsPrivate = user.IsPrivate,
+                CreatedAt = user.CreatedAt,
+                FollowerCount = followerCount,
+                FollowingCount = followingCount,
+                PostCount = 0
+            };
         }
 
-        public async Task<UserProfileDTO> GetByUserNameAsync(string userName)
+        public async Task<UserProfileDTO> GetByUserNameAsync(string userName, Guid? currentUserId)
         {
-            if (string.IsNullOrWhiteSpace(userName))
-                throw new BadRequestException("İstifadəçi adı boş ola bilməz.");
+            if (string.IsNullOrWhiteSpace(userName)) throw new BadRequestException("İstifadəçi adı boş ola bilməz.");
 
             var user = await _userManager.Users
                 .AsNoTracking()
@@ -41,6 +59,15 @@ namespace Ludora.Persistence.Services
             if (user is null)
                 throw new NotFoundException("İstifadəçi tapılmadı.");
 
+            if (currentUserId.HasValue && currentUserId.Value != user.Id)
+            {
+                var hasBlock = await _context.UserBlocks.AnyAsync(ub =>
+                    ub.BlockerId == currentUserId.Value && ub.BlockedUserId == user.Id ||
+                    ub.BlockerId == user.Id && ub.BlockedUserId == currentUserId.Value);
+
+                if (hasBlock) throw new ForbiddenException("Bu profilə baxmaq mümkün deyil.");
+            }
+
             return new UserProfileDTO
             {
                 Id = user.Id,
@@ -49,8 +76,8 @@ namespace Ludora.Persistence.Services
                 ProfileImageUrl = user.ProfileImageUrl,
                 IsPrivate = user.IsPrivate,
                 CreatedAt = user.CreatedAt,
-                FollowerCount = user.Followers.Count,
-                FollowingCount = user.Following.Count,
+                FollowerCount = await _context.UserFollows.CountAsync(uf => uf.FollowerId == user.Id && uf.Status == FollowStatus.Accepted),
+                FollowingCount = await _context.UserFollows.CountAsync(uf => uf.FollowingId == user.Id && uf.Status == FollowStatus.Accepted),
                 PostCount = 0
             };
         }
@@ -94,6 +121,33 @@ namespace Ludora.Persistence.Services
             await _fileStorageService.DeleteAsync(oldImagePath);
 
             return user.ToCurrentUserDTO();
+        }
+
+        public async Task<UserSettingsDTO> GetSettingsAsync(Guid userId)
+        {
+            var user = await _userManager.FindByIdOrThrowAsync(userId);
+
+            return new UserSettingsDTO
+            {
+                IsPrivate = user.IsPrivate
+            };
+        }
+
+        public async Task<UserSettingsDTO> UpdateSettingsAsync(Guid userId, UpdateUserSettingsDTO dto)
+        {
+            var user = await _userManager.FindByIdOrThrowAsync(userId);
+
+            if (dto.IsPrivate.HasValue)
+                user.IsPrivate = dto.IsPrivate.Value;
+
+            var result = await _userManager.UpdateAsync(user);
+
+            result.ThrowIfFailed();
+
+            return new UserSettingsDTO
+            {
+                IsPrivate = user.IsPrivate
+            };
         }
     }
 }

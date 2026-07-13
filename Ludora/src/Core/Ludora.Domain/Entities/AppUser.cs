@@ -20,11 +20,10 @@ namespace Ludora.Domain.Entities
         public ICollection<GameList> GameLists { get; set; } = new List<GameList>();
         public ICollection<UserFollow> Followers { get; set; } = new List<UserFollow>();
         public ICollection<UserFollow> Following { get; set; } = new List<UserFollow>();
-        public AppUser()
-        {
-            Id = Guid.NewGuid();
-            CreatedAt = DateTime.UtcNow;
-            IsPrivate = false;
-        }
+
+        public ICollection<UserBlock> BlockedUsers { get; set; } = new List<UserBlock>();
+
+        public ICollection<UserBlock> BlockedByUsers { get; set; } = new List<UserBlock>();
+       
     }
 }

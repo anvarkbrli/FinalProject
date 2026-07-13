@@ -325,6 +325,24 @@ namespace Ludora.Persistence.Migrations
                     b.ToTable("Platforms");
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.UserBlock", b =>
+                {
+                    b.Property<Guid>("BlockerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("BlockedUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("BlockerId", "BlockedUserId");
+
+                    b.HasIndex("BlockedUserId");
+
+                    b.ToTable("UserBlocks");
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.UserFollow", b =>
                 {
                     b.Property<Guid>("FollowerId")
@@ -333,8 +351,14 @@ namespace Ludora.Persistence.Migrations
                     b.Property<Guid>("FollowingId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<DateTime?>("AcceptedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
 
                     b.HasKey("FollowerId", "FollowingId");
 
@@ -553,6 +577,25 @@ namespace Ludora.Persistence.Migrations
                     b.Navigation("Platform");
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.UserBlock", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.AppUser", "BlockedUser")
+                        .WithMany("BlockedByUsers")
+                        .HasForeignKey("BlockedUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.AppUser", "Blocker")
+                        .WithMany("BlockedUsers")
+                        .HasForeignKey("BlockerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BlockedUser");
+
+                    b.Navigation("Blocker");
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.UserFollow", b =>
                 {
                     b.HasOne("Ludora.Domain.Entities.AppUser", "Follower")
@@ -625,6 +668,10 @@ namespace Ludora.Persistence.Migrations
 
             modelBuilder.Entity("Ludora.Domain.Entities.AppUser", b =>
                 {
+                    b.Navigation("BlockedByUsers");
+
+                    b.Navigation("BlockedUsers");
+
                     b.Navigation("Followers");
 
                     b.Navigation("Following");

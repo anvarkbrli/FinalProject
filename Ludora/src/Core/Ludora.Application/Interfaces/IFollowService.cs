@@ -1,18 +1,16 @@
 ﻿using Ludora.Application.DTOs;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Ludora.Application.Interfaces
+namespace Ludora.Application.Interfaces;
+
+public interface IFollowService
 {
-    public interface IFollowService
-    {
-        Task FollowAsync(Guid followerId, Guid followingId);
-        Task UnfollowAsync(Guid followerId, Guid followingId);
-        Task<FollowStatusDTO> GetFollowStatusAsync(Guid currentUserId, Guid profileUserId);
-        Task<List<UserListItemDTO>> GetFollowersAsync(Guid userId, Guid? currentUserId);
-        Task<List<UserListItemDTO>> GetFollowingAsync(Guid userId, Guid? currentUserId);
-    }
+    Task<FollowStatusDTO> FollowAsync(Guid followerId, Guid followingId);
+    Task UnfollowAsync(Guid followerId, Guid followingId);
+    Task AcceptFollowRequestAsync(Guid currentUserId, Guid requesterId);
+    Task RejectFollowRequestAsync(Guid currentUserId, Guid requesterId);
+    Task RemoveFollowerAsync(Guid currentUserId, Guid followerId);
+    Task<List<FollowRequestDTO>> GetFollowRequestsAsync(Guid userId);
+    Task<FollowStatusDTO> GetFollowStatusAsync(Guid currentUserId, Guid profileUserId);
+    Task<List<UserListItemDTO>> GetFollowersAsync(Guid userId, Guid? currentUserId);
+    Task<List<UserListItemDTO>> GetFollowingAsync(Guid userId, Guid? currentUserId);
 }

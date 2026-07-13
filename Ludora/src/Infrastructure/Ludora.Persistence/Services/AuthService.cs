@@ -1,6 +1,6 @@
 ﻿namespace Ludora.Persistence.Services;
 
-using Ludora.Application.DTOs;
+using Ludora.Application.DTOs.JWT;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Mappings;
@@ -36,11 +36,10 @@ public class AuthService : IAuthService
 
         var user = new AppUser
         {
-            UserName = userName,
-            Email = email,
-            Bio = null,
-            ProfileImageUrl = null,
-            IsPrivate = false
+            Id = Guid.NewGuid(),
+            UserName = dto.UserName.Trim(),
+            Email = dto.Email.Trim(),
+            CreatedAt = DateTime.UtcNow
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);

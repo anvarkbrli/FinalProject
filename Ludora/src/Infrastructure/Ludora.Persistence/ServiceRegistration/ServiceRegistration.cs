@@ -42,5 +42,6 @@ public static class ServiceRegistration
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<IPlatformService, PlatformService>();
         services.AddScoped<ICompanyService, CompanyService>();
+        services.AddScoped<IBlockService, BlockService>();
     }
 }

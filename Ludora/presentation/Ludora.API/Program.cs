@@ -5,6 +5,7 @@ using Ludora.Persistence.ServiceRegistration;
 using Ludora.Persistence.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
+using Microsoft.OpenApi.Models;
 using System.Text;
 namespace Ludora.API
 {
@@ -16,7 +17,34 @@ namespace Ludora.API
 
             builder.Services.AddControllers();
             builder.Services.AddEndpointsApiExplorer();
-            builder.Services.AddSwaggerGen();
+
+            builder.Services.AddSwaggerGen(options =>
+            {
+                options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+                {
+                    Name = "Authorization",
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "bearer",
+                    BearerFormat = "JWT",
+                    In = ParameterLocation.Header,
+                    Description = "JWT access tokenini daxil edin."
+                });
+
+                options.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+            });
 
             builder.Services.Configure<JwtSettings>(builder.Configuration.GetSection("JwtSettings"));
 
@@ -60,6 +88,7 @@ namespace Ludora.API
                 });
             });
            
+
         
 
             var app = builder.Build();
@@ -75,8 +104,9 @@ namespace Ludora.API
 
             app.UseHttpsRedirection();
 
-            app.UseAuthorization();
+            app.UseAuthentication();
 
+            app.UseAuthorization();
 
             app.MapControllers();
 

@@ -1,4 +1,4 @@
-﻿using Ludora.Application.DTOs;
+﻿using Ludora.Application.DTOs.JWT;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;

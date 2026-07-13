@@ -20,6 +20,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<GameList> GameLists { get; set; }
     public DbSet<GameListItem> GameListItems { get; set; }
     public DbSet<UserFollow> UserFollows { get; set; }
+    public DbSet<UserBlock> UserBlocks { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

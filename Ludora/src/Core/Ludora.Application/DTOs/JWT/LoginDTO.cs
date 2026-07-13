@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ludora.Application.DTOs
+namespace Ludora.Application.DTOs.JWT
 {
     public record LoginDTO
     {
