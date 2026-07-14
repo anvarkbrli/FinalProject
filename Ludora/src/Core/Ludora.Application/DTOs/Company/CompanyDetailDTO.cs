@@ -1,22 +1,23 @@
-﻿    using System;
+﻿using Ludora.Domain.Enums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Ludora.Application.DTOs
 {
     public  record CompanyDetailDTO
     {
 
-        public int Id { get; set; }
+        public CatalogSource Source { get; init; }
 
-        public string Name { get; set; } = string.Empty;
+        public long Id { get; init; }
 
-        public int ActiveGameCount { get; set; }
+        public string Name { get; init; } = string.Empty;
 
-        public DateTime CreatedAt { get; set; }
+        public bool IsOverridden { get; init; }
 
-        public DateTime? UpdatedAt { get; set; }
+        public DateTime? CreatedAt { get; init; }
+
+        public DateTime? UpdatedAt { get; init; }
     }
 }

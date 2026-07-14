@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ludora.Domain.Enums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,15 +9,16 @@ namespace Ludora.Application.DTOs
 {
     public record GameFilterDTO
     {
-        public string? SearchName { get; set; }
-        public int? CompanyId { get; set; }
-        public int? GenreId { get; set; }
-        public int? PlatformId { get; set; }
-        public DateOnly? ReleaseYear { get; set; }
-
-        // Sorting: "name_asc", "name_desc", "rating_desc", "play_desc", "year_desc"
-        public string? SortBy { get; set; }
-        public int PageNumber { get; set; } = 1;
-        public int PageSize { get; set; } = 10;
+        public string? SearchName { get; init; }
+        public CatalogSource? CompanySource { get; init; }
+        public long? CompanyId { get; init; }
+        public CatalogSource? GenreSource { get; init; }
+        public long? GenreId { get; init; }
+        public CatalogSource? PlatformSource { get; init; }
+        public long? PlatformId { get; init; }
+        public int? ReleaseYear { get; init; }
+        public string? SortBy { get; init; }
+        public int PageNumber { get; init; } = 1;
+        public int PageSize { get; init; } = 20;
     }
 }

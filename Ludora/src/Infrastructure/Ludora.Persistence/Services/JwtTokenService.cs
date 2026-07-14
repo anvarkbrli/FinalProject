@@ -6,7 +6,7 @@ using System.Text;
 using Ludora.Application.DTOs.JWT;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Settings;
-using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.User;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 

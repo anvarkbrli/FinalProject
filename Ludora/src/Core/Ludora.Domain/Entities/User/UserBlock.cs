@@ -1,4 +1,4 @@
-﻿namespace Ludora.Domain.Entities;
+﻿namespace Ludora.Domain.Entities.User;
 
 public class UserBlock
 {

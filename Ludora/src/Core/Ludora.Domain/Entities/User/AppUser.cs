@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Ludora.Domain.Entities
+namespace Ludora.Domain.Entities.User
 {
     public class AppUser : IdentityUser<Guid>
     {

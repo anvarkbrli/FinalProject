@@ -1,5 +1,6 @@
 ﻿using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.GameList;
+using Ludora.Domain.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,15 +11,19 @@ namespace Ludora.Application.Interfaces
 {
     public interface IGameService
     {
-        Task<GameDetailDTO> GetByIdAsync(int id);
-        Task<IEnumerable<GameListItemDTO>> GetFilteredGamesAsync(GameFilterDTO filterDto);
-        Task CreateAsync(GameCreateDTO createDto);
-        Task UpdateAsync(int id, GameUpdateDTO updateDto);
-        Task DeleteAsync(int id);
+        public interface IGameService
+        {
+            Task<IReadOnlyList<GameListItemDTO>> GetFilteredGamesAsync(GameFilterDTO filter, CancellationToken cancellationToken = default);
+            Task<GameDetailDTO> GetByIdAsync(CatalogSource source,long id,CancellationToken cancellationToken = default);
+            Task<long> CreateAsync(GameCreateDTO dto,CancellationToken cancellationToken = default);
+            Task UpdateAsync(CatalogSource source,long id,GameUpdateDTO dto,CancellationToken cancellationToken = default);
+            Task DeleteAsync(CatalogSource source,long id,CancellationToken cancellationToken = default);
+            Task RestoreAsync( CatalogSource source, long id, CancellationToken cancellationToken = default);
 
-        // Dropdown-lar üçün yüngül axtarış/listləmə metodları
-        Task<List<LookupDTO>> GetCompaniesLookupAsync();
-        Task<List<LookupDTO>> GetGenresLookupAsync();
-        Task<List<LookupDTO>> GetPlatformsLookupAsync();
+            Task<IReadOnlyDictionary<(CatalogSource Source, long Id), GameDetailDTO>>
+                GetByReferencesAsync(
+                    IReadOnlyCollection<CatalogReferenceDTO> references,
+                    CancellationToken cancellationToken = default);
+        }
     }
 }

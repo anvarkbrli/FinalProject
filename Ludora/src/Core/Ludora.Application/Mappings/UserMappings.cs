@@ -1,7 +1,7 @@
 ﻿namespace Ludora.Application.Mappings;
 
 using Ludora.Application.DTOs;
-using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.User;
 
 public static class UserMappings
 {

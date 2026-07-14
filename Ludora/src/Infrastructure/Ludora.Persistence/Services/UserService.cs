@@ -2,7 +2,7 @@
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Mappings;
-using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
 using Ludora.Persistence.Extensions;

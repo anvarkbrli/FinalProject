@@ -1,5 +1,5 @@
 ﻿using Ludora.Application.Interfaces;
-using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.User;
 using Ludora.Persistence.Data;
 using Ludora.Persistence.Services;
 using Microsoft.AspNetCore.Identity;

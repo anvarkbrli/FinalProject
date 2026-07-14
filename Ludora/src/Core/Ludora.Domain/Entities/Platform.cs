@@ -10,6 +10,5 @@ namespace Ludora.Domain.Entities
     public class Platform:BaseEntity
     {
         public string Name { get; set; }
-        public ICollection<GamePlatform> GamePlatforms { get; set; }
     }
 }

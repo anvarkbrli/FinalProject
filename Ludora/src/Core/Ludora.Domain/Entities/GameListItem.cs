@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿
 
 namespace Ludora.Domain.Entities
 {
@@ -12,9 +8,15 @@ namespace Ludora.Domain.Entities
 
         public GameList GameList { get; set; } = null!;
 
-        public int GameId { get; set; }
+        public long IgdbGameId { get; set; }
 
-        public Game Game { get; set; } = null!;
+        public string GameTitle { get; set; } = null!;
+
+        public string? CoverImageUrl { get; set; }
+
+        public DateOnly? ReleaseDate { get; set; }
+
+        public double? IgdbRating { get; set; }
 
         public DateTime AddedAt { get; set; } = DateTime.UtcNow;
     }

@@ -1,4 +1,5 @@
 ﻿using Ludora.Domain.Entities.Base;
+using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using System;
 using System.Collections.Generic;

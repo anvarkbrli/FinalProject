@@ -4,7 +4,7 @@ using Ludora.Application.DTOs.JWT;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Mappings;
-using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.User;
 using Ludora.Persistence.Extensions;
 using Microsoft.AspNetCore.Identity;
 

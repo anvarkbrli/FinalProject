@@ -10,10 +10,12 @@ namespace Ludora.Persistence.Services;
 public class GameService : IGameService
 {
     private readonly AppDbContext _context;
+    private readonly IIgdbClient _igdbClient;
 
-    public GameService(AppDbContext context)
+    public GameService(AppDbContext context, IIgdbClient igdbClient)
     {
         _context = context;
+        _igdbClient = igdbClient;
     }
 
     public async Task<GameDetailDTO> GetByIdAsync(int id)

@@ -1,17 +1,14 @@
-﻿using Ludora.Domain.Entities.Base;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Ludora.Domain.Enums;
 
-namespace Ludora.Domain.Entities
+namespace Ludora.Domain.Entities;
+
+public class GameGenre
 {
-    public class GameGenre 
-    {
-        public int GameId { get; set; }
-        public Game Game { get; set; }
-        public int GenreId { get; set; }
-        public Genre Genre { get; set; }
-    }
+    public int GameId { get; set; }
+
+    public Game Game { get; set; } = null!;
+
+    public CatalogSource GenreSource { get; set; }
+
+    public long GenreSourceId { get; set; }
 }

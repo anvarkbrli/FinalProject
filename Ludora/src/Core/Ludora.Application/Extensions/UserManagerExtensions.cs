@@ -1,7 +1,7 @@
 ﻿namespace Ludora.Persistence.Extensions;
 
 using Ludora.Application.Exceptions;
-using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.User;
 using Microsoft.AspNetCore.Identity;
 
 public static class UserManagerExtensions

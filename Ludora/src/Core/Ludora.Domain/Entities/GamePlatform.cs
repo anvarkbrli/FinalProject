@@ -1,16 +1,14 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Ludora.Domain.Enums;
 
-namespace Ludora.Domain.Entities
+namespace Ludora.Domain.Entities;
+
+public class GamePlatform
 {
-    public class GamePlatform
-    {
-        public int GameId { get; set; }
-        public Game Game { get; set; }
-        public int PlatformId { get; set; }
-        public Platform Platform { get; set; }
-    }
+    public int GameId { get; set; }
+
+    public Game Game { get; set; } = null!;
+
+    public CatalogSource PlatformSource { get; set; }
+
+    public long PlatformSourceId { get; set; }
 }

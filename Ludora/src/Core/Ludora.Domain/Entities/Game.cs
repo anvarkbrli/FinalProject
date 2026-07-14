@@ -9,22 +9,25 @@ namespace Ludora.Domain.Entities
 {
     public class Game :BaseEntity
     {
-        public string Name { get; set; }
-        public string Description { get; set; }
-        public DateOnly ReleaseDate { get; set; }
-        public string CoverImageUrl { get; set; }
-        
-        // Foreign Key
-        public int DeveloperCompanyId { get; set; }
-        public Company DeveloperCompany { get; set; }
+        public string Name { get; set; } = string.Empty;
 
-        // Many-to-Many Cross Tables
+        public string? Description { get; set; }
+
+        public DateOnly? ReleaseDate { get; set; }
+
+        public string? CoverImageUrl { get; set; }
+
+        public int PlayCount { get; set; }
+
+        public double AverageRating { get; set; }
+
         public ICollection<GameGenre> GameGenres { get; set; }
-        public ICollection<GamePlatform> GamePlatforms { get; set; }
-        public ICollection<GameListItem> GameListItems { get; set; }
+            = new List<GameGenre>();
 
-        // Stats (For fast filtering/sorting)
-        public int PlayCount { get; set; } = 0;
-        public double AverageRating { get; set; } = 0.0;
+        public ICollection<GamePlatform> GamePlatforms { get; set; }
+            = new List<GamePlatform>();
+
+        public ICollection<GameCompany> GameCompanies { get; set; }
+            = new List<GameCompany>();
     }
 }

@@ -6,14 +6,15 @@ using System.Threading.Tasks;
 
 namespace Ludora.Application.DTOs
 {
+
     public record GameCreateDTO
     {
-        public string Title { get; set; }
-        public string Description { get; set; }
-        public DateOnly ReleaseDate { get; set; }
-        public string CoverImageUrl { get; set; }
-        public int DeveloperCompanyId { get; set; }
-        public List<int> GenreIds { get; set; }
-        public List<int> PlatformIds { get; set; }
+        public string Title { get; init; } = string.Empty;
+        public string? Description { get; init; }
+        public DateOnly? ReleaseDate { get; init; }
+        public string? CoverImageUrl { get; init; }
+        public List<CompanyReferenceDTO> CompanyReferences { get; init; } = [];
+        public List<CatalogReferenceDTO> GenreReferences { get; init; } = [];
+        public List<CatalogReferenceDTO> PlatformReferences { get; init; } = [];
     }
 }
