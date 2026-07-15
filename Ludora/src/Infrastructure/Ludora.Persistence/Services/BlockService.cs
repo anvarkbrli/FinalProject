@@ -1,7 +1,7 @@
 ﻿using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
-using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.User;
 using Ludora.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 

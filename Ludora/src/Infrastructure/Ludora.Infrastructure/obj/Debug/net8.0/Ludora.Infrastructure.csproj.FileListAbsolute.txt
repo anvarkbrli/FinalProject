@@ -22,3 +22,9 @@ C:\Users\Acer\Desktop\Ludora\Ludora\src\Infrastructure\Ludora.Infrastructure\obj
 C:\Users\Acer\Desktop\Ludora\Ludora\src\Infrastructure\Ludora.Infrastructure\obj\Debug\net8.0\refint\Ludora.Infrastructure.dll
 C:\Users\Acer\Desktop\Ludora\Ludora\src\Infrastructure\Ludora.Infrastructure\obj\Debug\net8.0\Ludora.Infrastructure.pdb
 C:\Users\Acer\Desktop\Ludora\Ludora\src\Infrastructure\Ludora.Infrastructure\obj\Debug\net8.0\ref\Ludora.Infrastructure.dll
+C:\Users\Acer\Desktop\Ludora\Ludora\src\Infrastructure\Ludora.Infrastructure\bin\Debug\net8.0\Ludora.Application.dll
+C:\Users\Acer\Desktop\Ludora\Ludora\src\Infrastructure\Ludora.Infrastructure\bin\Debug\net8.0\Ludora.Domain.dll
+C:\Users\Acer\Desktop\Ludora\Ludora\src\Infrastructure\Ludora.Infrastructure\bin\Debug\net8.0\Ludora.Application.pdb
+C:\Users\Acer\Desktop\Ludora\Ludora\src\Infrastructure\Ludora.Infrastructure\bin\Debug\net8.0\Ludora.Domain.pdb
+C:\Users\Acer\Desktop\Ludora\Ludora\src\Infrastructure\Ludora.Infrastructure\obj\Debug\net8.0\Ludora.Infrastructure.csproj.AssemblyReference.cache
+C:\Users\Acer\Desktop\Ludora\Ludora\src\Infrastructure\Ludora.Infrastructure\obj\Debug\net8.0\Ludora.I.FC0CB9FA.Up2Date

@@ -9,6 +9,7 @@
       "Ludora.API/1.0.0": {
         "dependencies": {
           "Ludora.Application": "1.0.0",
+          "Ludora.Infrastructure": "1.0.0",
           "Ludora.Persistence": "1.0.0",
           "Microsoft.AspNetCore.Authentication.JwtBearer": "8.0.28",
           "Microsoft.EntityFrameworkCore.Design": "8.0.28",
@@ -1058,6 +1059,17 @@
           }
         }
       },
+      "Ludora.Infrastructure/1.0.0": {
+        "dependencies": {
+          "Ludora.Application": "1.0.0"
+        },
+        "runtime": {
+          "Ludora.Infrastructure.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
       "Ludora.Persistence/1.0.0": {
         "dependencies": {
           "AutoMapper": "16.2.0",
@@ -1684,6 +1696,11 @@
       "sha512": ""
     },
     "Ludora.Domain/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Ludora.Infrastructure/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

@@ -1,73 +1,79 @@
-﻿using Ludora.Application.DTOs;
+using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
+using Ludora.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Ludora.API.Controllers
+namespace Ludora.API.Controllers;
+
+[Route("api/games")]
+[ApiController]
+public sealed class GamesController : ControllerBase
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class GamesController : ControllerBase
+    private readonly IGameService _gameService;
+
+    public GamesController(IGameService gameService)
     {
-        private readonly IGameService _gameService;
+        _gameService = gameService;
+    }
 
-        public GamesController(IGameService gameService)
-        {
-            _gameService = gameService;
-        }
+    [HttpGet]
+    public async Task<IActionResult> GetAll(
+        [FromQuery] GameFilterDTO filter,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _gameService.GetFilteredGamesAsync(filter, cancellationToken));
+    }
 
-        [HttpGet]
-        public async Task<IActionResult> GetAll([FromQuery] GameFilterDTO filterDto)
-        {
-            var games = await _gameService.GetFilteredGamesAsync(filterDto);
-            return Ok(games);
-        }
+    [HttpGet("{source}/{id:long:min(1)}")]
+    public async Task<IActionResult> GetById(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _gameService.GetByIdAsync(source, id, cancellationToken));
+    }
 
-        [HttpGet("{id}")]
-        public async Task<IActionResult> GetById(int id)
-        {
-            var game = await _gameService.GetByIdAsync(id);
-            return Ok(game);
-        }
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        [FromBody] GameCreateDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var id = await _gameService.CreateAsync(dto, cancellationToken);
 
-        [HttpPost]
-        public async Task<IActionResult> Create([FromForm] GameCreateDTO createDto)
-        {
-            await _gameService.CreateAsync(createDto);
-            return StatusCode(201);
-        }
+        return CreatedAtAction(
+            nameof(GetById),
+            new { source = CatalogSource.Local, id },
+            new { source = CatalogSource.Local, id });
+    }
 
-        [HttpPut("{id}")]
-        public async Task<IActionResult> Update(int id, [FromBody] GameUpdateDTO updateDto)
-        {
-            await _gameService.UpdateAsync(id, updateDto);
-            return NoContent();
-        }
+    [HttpPatch("{source}/{id:long:min(1)}")]
+    public async Task<IActionResult> Update(
+        CatalogSource source,
+        long id,
+        [FromBody] GameUpdateDTO dto,
+        CancellationToken cancellationToken)
+    {
+        await _gameService.UpdateAsync(source, id, dto, cancellationToken);
+        return NoContent();
+    }
 
-        [HttpDelete("{id}")]
-        public async Task<IActionResult> Delete(int id)
-        {
-            await _gameService.DeleteAsync(id);
-            return NoContent();
-        }
+    [HttpDelete("{source}/{id:long:min(1)}")]
+    public async Task<IActionResult> Delete(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        await _gameService.DeleteAsync(source, id, cancellationToken);
+        return NoContent();
+    }
 
-        // --- Dropdown/Lookup Endpoints ---
-
-        [HttpGet("lookup/companies")]
-        public async Task<IActionResult> GetCompaniesLookup()
-        {
-            return Ok(await _gameService.GetCompaniesLookupAsync());
-        }
-
-        [HttpGet("lookup/genres")]
-        public async Task<IActionResult> GetGenresLookup()
-        {
-            return Ok(await _gameService.GetGenresLookupAsync());
-        }
-
-        [HttpGet("lookup/platforms")]
-        public async Task<IActionResult> GetPlatformsLookup()
-        {
-            return Ok(await _gameService.GetPlatformsLookupAsync());
-        }
+    [HttpPatch("{source}/{id:long:min(1)}/restore")]
+    public async Task<IActionResult> Restore(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        await _gameService.RestoreAsync(source, id, cancellationToken);
+        return NoContent();
     }
 }

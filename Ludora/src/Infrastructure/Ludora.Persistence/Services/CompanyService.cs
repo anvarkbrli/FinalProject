@@ -2,206 +2,448 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Models;
 using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.IGDB;
+using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
 using Ludora.Persistence.Extensions;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 
-namespace Ludora.Persistence.Services
+namespace Ludora.Persistence.Services;
+
+public sealed class CompanyService : ICompanyService
 {
-    public sealed class CompanyService : ICompanyService
+    private const int MaxNameLength = 200;
+    private const int MaxSearchLength = 200;
+    private readonly AppDbContext _context;
+    private readonly IIgdbClient _igdbClient;
+
+    public CompanyService(AppDbContext context, IIgdbClient igdbClient)
     {
-        private const int MaxNameLength = 200;
-        private readonly AppDbContext _context;
+        _context = context;
+        _igdbClient = igdbClient;
+    }
 
-        public CompanyService(AppDbContext context)
+    public async Task<IReadOnlyList<CompanyDetailDTO>> GetAllAsync(
+        string? searchName,
+        CatalogSource? source = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (source.HasValue)
+            source.Value.EnsureValidCatalogSource();
+
+        var search = searchName.NormalizeOptionalText(
+            "Axtarış mətni",
+            MaxSearchLength);
+
+        var result = new List<CompanyDetailDTO>();
+
+        if (!source.HasValue || source == CatalogSource.Local)
         {
-            _context = context;
-        }
+            var localQuery = _context.Companies.AsNoTracking();
 
-        public async Task<List<CompanyDetailDTO>> GetAllAsync(string? searchName)
-        {
-            IQueryable<Company> query = _context.Companies.AsNoTracking();
+            if (search is not null)
+                localQuery = localQuery.Where(x => x.Name.Contains(search));
 
-            if (!string.IsNullOrWhiteSpace(searchName))
-            {
-                var search = searchName.Trim();
-                query = query.Where(c => c.Name.Contains(search));
-            }
-
-            return await query
-                .OrderBy(c => c.Name)
-                .Select(c => new CompanyDetailDTO
+            result.AddRange(await localQuery
+                .Select(x => new CompanyDetailDTO
                 {
-                    Id = c.Id,
-                    Name = c.Name,
-                    ActiveGameCount = c.DevelopedGames.Count(g => !g.IsDeleted),
-                    CreatedAt = c.CreatedAt,
-                    UpdatedAt = c.UpdatedAt
+                    Source = CatalogSource.Local,
+                    Id = x.Id,
+                    Name = x.Name,
+                    IsOverridden = false,
+                    CreatedAt = x.CreatedAt,
+                    UpdatedAt = x.UpdatedAt
                 })
-                .ToListAsync();
+                .ToListAsync(cancellationToken));
         }
 
-        public async Task<List<CompanyDetailDTO>> GetDeletedAsync(string? searchName)
+        var shouldQueryIgdb = source == CatalogSource.Igdb ||
+                              (!source.HasValue && _igdbClient.IsEnabled);
+
+        if (shouldQueryIgdb)
         {
-            IQueryable<Company> query = _context.Companies
-                .IgnoreQueryFilters()
-                .AsNoTracking()
-                .Where(c => c.IsDeleted);
-
-            if (!string.IsNullOrWhiteSpace(searchName))
-            {
-                var search = searchName.Trim();
-                query = query.Where(c => c.Name.Contains(search));
-            }
-
-            return await query
-                .OrderBy(c => c.Name)
-                .Select(c => new CompanyDetailDTO
-                {
-                    Id = c.Id,
-                    Name = c.Name,
-                    ActiveGameCount = c.DevelopedGames.Count(g => !g.IsDeleted),
-                    CreatedAt = c.CreatedAt,
-                    UpdatedAt = c.UpdatedAt
-                })
-                .ToListAsync();
-        }
-
-        public async Task<CompanyDetailDTO> GetByIdAsync(int id)
-        {
-            id.EnsureValidId();
-
-            var company = await _context.Companies
-                .AsNoTracking()
-                .Where(c => c.Id == id)
-                .Select(c => new CompanyDetailDTO
-                {
-                    Id = c.Id,
-                    Name = c.Name,
-                    ActiveGameCount = c.DevelopedGames.Count(g => !g.IsDeleted),
-                    CreatedAt = c.CreatedAt,
-                    UpdatedAt = c.UpdatedAt
-                })
-                .FirstOrDefaultAsync();
-
-            return company ?? throw new KeyNotFoundException("Şirkət tapılmadı.");
-        }
-
-        public async Task<int> CreateAsync(CompanyCreateDTO createDto)
-        {
-            var normalizedName = createDto.Name.NormalizeName(MaxNameLength);
-            await _context.Companies.EnsureNameIsAvailableAsync(normalizedName, "Şirkət");
-
-            var company = new Company
-            {
-                Name = normalizedName,
-                CreatedAt = DateTime.UtcNow,
-                IsDeleted = false,
-                
-            };
-
-            await _context.Companies.AddAsync(company);
+            IReadOnlyList<IgdbCompanyModel> igdbItems;
 
             try
             {
-                await _context.SaveChangesAsync();
+                igdbItems = await _igdbClient.GetCompaniesAsync(search, cancellationToken);
             }
-            catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
+            catch (ExternalServiceException) when (!source.HasValue)
             {
-                throw new ConflictException("Bu adda şirkət artıq mövcuddur.");
+                igdbItems = Array.Empty<IgdbCompanyModel>();
             }
 
-            return company.Id;
+            var ids = igdbItems.Select(x => x.Id).ToArray();
+            var overrides = await _context.Set<IgdbCompanyOverride>()
+                .AsNoTracking()
+                .Where(x => ids.Contains(x.IgdbCompanyId))
+                .ToDictionaryAsync(x => x.IgdbCompanyId, cancellationToken);
+
+            foreach (var item in igdbItems)
+            {
+                overrides.TryGetValue(item.Id, out var itemOverride);
+
+                if (itemOverride?.IsHidden == true)
+                    continue;
+
+                result.Add(new CompanyDetailDTO
+                {
+                    Source = CatalogSource.Igdb,
+                    Id = item.Id,
+                    Name = itemOverride?.Name ?? item.Name,
+                    IsOverridden = itemOverride is not null,
+                    CreatedAt = itemOverride?.CreatedAt,
+                    UpdatedAt = itemOverride?.UpdatedAt
+                });
+            }
         }
 
-        public async Task UpdateAsync(int id, CompanyUpdateDTO updateDto)
+        return result
+            .OrderBy(x => x.Name)
+            .ThenBy(x => x.Source)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<CompanyDetailDTO>> GetDeletedAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _context.Companies
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(x => x.IsDeleted)
+            .Select(x => new CompanyDetailDTO
+            {
+                Source = CatalogSource.Local,
+                Id = x.Id,
+                Name = x.Name,
+                IsOverridden = false,
+                CreatedAt = x.CreatedAt,
+                UpdatedAt = x.UpdatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var hiddenOverrides = await _context.Set<IgdbCompanyOverride>()
+            .AsNoTracking()
+            .Where(x => x.IsHidden)
+            .ToListAsync(cancellationToken);
+
+        if (hiddenOverrides.Count > 0)
         {
-            id.EnsureValidId();
+            var igdbNames = new Dictionary<long, string>();
+
+            if (_igdbClient.IsEnabled)
+            {
+                var ids = hiddenOverrides.Select(x => x.IgdbCompanyId).ToArray();
+
+                try
+                {
+                    var igdbItems = await _igdbClient.GetCompaniesByIdsAsync(ids, cancellationToken);
+
+                    foreach (var item in igdbItems)
+                        igdbNames[item.Id] = item.Name;
+                }
+                catch (ExternalServiceException)
+                {
+                    // Override adı və ya IGDB ID fallback-i istifadə olunacaq.
+                }
+            }
+
+            result.AddRange(hiddenOverrides.Select(x => new CompanyDetailDTO
+            {
+                Source = CatalogSource.Igdb,
+                Id = x.IgdbCompanyId,
+                Name = x.Name ??
+                       (igdbNames.TryGetValue(x.IgdbCompanyId, out var itemName)
+                           ? itemName
+                           : $"IGDB #{x.IgdbCompanyId}"),
+                IsOverridden = true,
+                CreatedAt = x.CreatedAt,
+                UpdatedAt = x.UpdatedAt
+            }));
+        }
+
+        return result.OrderBy(x => x.Name).ToList();
+    }
+
+    public async Task<CompanyDetailDTO> GetByIdAsync(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidCatalogReference(source, "Şirkət");
+
+        if (source == CatalogSource.Local)
+        {
+            var local = await _context.Companies
+                .AsNoTracking()
+                .Where(x => x.Id == (int)id)
+                .Select(x => new CompanyDetailDTO
+                {
+                    Source = CatalogSource.Local,
+                    Id = x.Id,
+                    Name = x.Name,
+                    IsOverridden = false,
+                    CreatedAt = x.CreatedAt,
+                    UpdatedAt = x.UpdatedAt
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return local ?? throw new NotFoundException("Şirkət tapılmadı.");
+        }
+
+        var igdbItem = await _igdbClient.GetCompanyByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException("IGDB şirkət tapılmadı.");
+
+        var itemOverride = await _context.Set<IgdbCompanyOverride>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.IgdbCompanyId == id, cancellationToken);
+
+        if (itemOverride?.IsHidden == true)
+            throw new NotFoundException("Şirkət gizlədilib.");
+
+        return new CompanyDetailDTO
+        {
+            Source = CatalogSource.Igdb,
+            Id = id,
+            Name = itemOverride?.Name ?? igdbItem.Name,
+            IsOverridden = itemOverride is not null,
+            CreatedAt = itemOverride?.CreatedAt,
+            UpdatedAt = itemOverride?.UpdatedAt
+        };
+    }
+
+    public async Task<long> CreateAsync(
+        CompanyCreateDTO createDto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(createDto);
+        var name = createDto.Name.NormalizeName(MaxNameLength, "Şirkət");
+
+        await _context.Companies.EnsureNameIsAvailableAsync(
+            name,
+            "Şirkət",
+            cancellationToken: cancellationToken);
+
+        var entity = new Company
+        {
+            Name = name,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _context.Companies.AddAsync(entity, cancellationToken);
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
+        {
+            throw new ConflictException("Bu adda şirkət artıq mövcuddur.");
+        }
+
+        return entity.Id;
+    }
+
+    public async Task UpdateAsync(
+        CatalogSource source,
+        long id,
+        CompanyUpdateDTO updateDto,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidCatalogReference(source, "Şirkət");
+        ArgumentNullException.ThrowIfNull(updateDto);
+
+        if (source == CatalogSource.Local)
+        {
+            var entity = await _context.Companies
+                .FirstOrDefaultAsync(x => x.Id == (int)id, cancellationToken)
+                ?? throw new NotFoundException("Şirkət tapılmadı.");
 
             if (updateDto.Name is null)
-                throw new ArgumentException("Yenilənəcək şirkət adı göndərilməyib.");
-
-            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Id == id);
-
-            if (company is null)
-                throw new KeyNotFoundException("Şirkət tapılmadı.");
-
-            var normalizedName = updateDto.Name.NormalizeName(MaxNameLength);
-
-            if (company.Name == normalizedName)
                 return;
 
-            await _context.Companies.EnsureNameIsAvailableAsync(normalizedName, "Şirkət", id);
+            var name = updateDto.Name.NormalizeName(MaxNameLength, "Şirkət");
 
-            company.Name = normalizedName;
-            company.UpdatedAt = DateTime.UtcNow;
+            await _context.Companies.EnsureNameIsAvailableAsync(
+                name,
+                "Şirkət",
+                entity.Id,
+                cancellationToken);
 
-            try
+            entity.Name = name;
+            entity.UpdatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            _ = await _igdbClient.GetCompanyByIdAsync(id, cancellationToken)
+                ?? throw new NotFoundException("IGDB şirkət tapılmadı.");
+
+            if (updateDto.Name is null)
+                return;
+
+            var name = updateDto.Name.NormalizeName(MaxNameLength, "Şirkət");
+            var itemOverride = await _context.Set<IgdbCompanyOverride>()
+                .FirstOrDefaultAsync(x => x.IgdbCompanyId == id, cancellationToken);
+
+            if (itemOverride is null)
             {
-                await _context.SaveChangesAsync();
+                itemOverride = new IgdbCompanyOverride
+                {
+                    IgdbCompanyId = id,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _context.Set<IgdbCompanyOverride>().AddAsync(itemOverride, cancellationToken);
             }
-            catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
+
+            itemOverride.Name = name;
+            itemOverride.IsHidden = false;
+            itemOverride.UpdatedAt = DateTime.UtcNow;
+        }
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
+        {
+            var message = source == CatalogSource.Local
+                ? "Bu adda şirkət artıq mövcuddur."
+                : "IGDB şirkət məlumatı eyni vaxtda dəyişdirilib. Sorğunu yenidən göndərin.";
+
+            throw new ConflictException(message);
+        }
+    }
+
+    public async Task DeleteAsync(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidCatalogReference(source, "Şirkət");
+
+        if (source == CatalogSource.Local)
+        {
+            var entity = await _context.Companies
+                .FirstOrDefaultAsync(x => x.Id == (int)id, cancellationToken)
+                ?? throw new NotFoundException("Şirkət tapılmadı.");
+
+            await EnsureNotReferencedAsync(source, id, cancellationToken);
+
+            entity.IsDeleted = true;
+            entity.UpdatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            _ = await _igdbClient.GetCompanyByIdAsync(id, cancellationToken)
+                ?? throw new NotFoundException("IGDB şirkət tapılmadı.");
+
+            await EnsureNotReferencedAsync(source, id, cancellationToken);
+
+            var itemOverride = await _context.Set<IgdbCompanyOverride>()
+                .FirstOrDefaultAsync(x => x.IgdbCompanyId == id, cancellationToken);
+
+            if (itemOverride is null)
             {
-                throw new ConflictException("Bu adda şirkət artıq mövcuddur.");
+                itemOverride = new IgdbCompanyOverride
+                {
+                    IgdbCompanyId = id,
+                    IsHidden = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _context.Set<IgdbCompanyOverride>().AddAsync(itemOverride, cancellationToken);
+            }
+            else
+            {
+                itemOverride.IsHidden = true;
+                itemOverride.UpdatedAt = DateTime.UtcNow;
             }
         }
 
-        public async Task DeleteAsync(int id)
+        try
         {
-            id.EnsureValidId();
-
-            var company = await _context.Companies.FirstOrDefaultAsync(c => c.Id == id);
-
-            if (company is null)
-                throw new KeyNotFoundException("Şirkət tapılmadı.");
-
-            var hasActiveGames = await _context.Games
-                .AnyAsync(g => g.DeveloperCompanyId == id);
-
-            if (hasActiveGames)
-            {
-                throw new ConflictException("Bu şirkət aktiv oyunlarda istifadə olunur. Əvvəl həmin oyunların şirkətini dəyişin və ya oyunları silin.");
-            }
-
-            company.IsDeleted = true;
-            company.UpdatedAt = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync();
+            await _context.SaveChangesAsync(cancellationToken);
         }
-
-        public async Task RestoreAsync(int id)
+        catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
         {
-            id.EnsureValidId();
+            throw new ConflictException(
+                "IGDB məlumatı eyni vaxtda dəyişdirilib. Sorğunu yenidən göndərin.");
+        }
+    }
 
-            var company = await _context.Companies
+    public async Task RestoreAsync(CatalogSource source, long id, CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidCatalogReference(source, "Şirkət");
+
+        if (source == CatalogSource.Local)
+        {
+            var entity = await _context.Companies
                 .IgnoreQueryFilters()
-                .FirstOrDefaultAsync(c => c.Id == id);
+                .FirstOrDefaultAsync(x => x.Id == (int)id, cancellationToken)
+                ?? throw new NotFoundException("Şirkət tapılmadı.");
 
-            if (company is null)
-                throw new KeyNotFoundException("Şirkət tapılmadı.");
-
-            if (!company.IsDeleted)
-                throw new ConflictException("Şirkət artıq aktivdir.");
-
-            await _context.Companies.EnsureNameIsAvailableAsync(company.Name, "Şirkət", id);
-
-            company.IsDeleted = false;
-            company.UpdatedAt = DateTime.UtcNow;
-
-            try
+            if (!entity.IsDeleted)
             {
-                await _context.SaveChangesAsync();
+                throw new ConflictException("Şirkət onsuz da aktivdir.");
             }
-            catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
-            {
-                throw new ConflictException("Eyni adda aktiv şirkət olduğu üçün bu şirkət bərpa edilə bilmir.");
-            }
+
+            await _context.Companies.EnsureNameIsAvailableAsync(
+                entity.Name,
+                "Şirkət",
+                entity.Id,
+                cancellationToken);
+
+            entity.IsDeleted = false;
+            entity.UpdatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            _ = await _igdbClient.GetCompanyByIdAsync(id, cancellationToken)
+                ?? throw new NotFoundException("IGDB şirkət tapılmadı.");
+
+            var itemOverride = await _context.Set<IgdbCompanyOverride>()
+                .FirstOrDefaultAsync(x => x.IgdbCompanyId == id, cancellationToken)
+                ?? throw new NotFoundException("Gizlədilmiş IGDB şirkət tapılmadı.");
+
+            if (!itemOverride.IsHidden)
+                throw new ConflictException("IGDB şirkət artıq aktivdir");
+
+            itemOverride.IsHidden = false;
+            itemOverride.UpdatedAt = DateTime.UtcNow;
         }
 
-     
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
+        {
+            var message = source == CatalogSource.Local
+                ? "Bu adda şirkət artıq mövcuddur."
+                : "IGDB şirkət məlumatı eyni vaxtda dəyişdirilib. Sorğunu yenidən göndərin.";
 
-       
+            throw new ConflictException(message);
+        }
+    }
+
+    private async Task EnsureNotReferencedAsync(CatalogSource source, long id, CancellationToken cancellationToken)
+    {
+        var usedByLocalGame = await _context.GameCompanies
+            .AnyAsync(x =>
+                x.CompanySource == source &&
+                x.CompanySourceId == id,
+                cancellationToken);
+
+        var usedByIgdbOverride = await _context.IgdbGameCompanyOverrides
+            .AnyAsync(x =>
+                x.CompanySource == source &&
+                x.CompanySourceId == id,
+                cancellationToken);
+
+        if (usedByLocalGame || usedByIgdbOverride)
+        {
+            throw new ConflictException("Bu şirkət oyunlarda istifadə olunduğu üçün silinə bilməz.");
+        }
     }
 }

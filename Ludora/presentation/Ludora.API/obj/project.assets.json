@@ -1687,6 +1687,22 @@
           "bin/placeholder/Ludora.Domain.dll": {}
         }
       },
+      "Ludora.Infrastructure/1.0.0": {
+        "type": "project",
+        "framework": ".NETCoreApp,Version=v8.0",
+        "dependencies": {
+          "Ludora.Application": "1.0.0"
+        },
+        "compile": {
+          "bin/placeholder/Ludora.Infrastructure.dll": {}
+        },
+        "runtime": {
+          "bin/placeholder/Ludora.Infrastructure.dll": {}
+        },
+        "frameworkReferences": [
+          "Microsoft.AspNetCore.App"
+        ]
+      },
       "Ludora.Persistence/1.0.0": {
         "type": "project",
         "framework": ".NETCoreApp,Version=v8.0",
@@ -4486,6 +4502,11 @@
       "path": "../../src/Core/Ludora.Domain/Ludora.Domain.csproj",
       "msbuildProject": "../../src/Core/Ludora.Domain/Ludora.Domain.csproj"
     },
+    "Ludora.Infrastructure/1.0.0": {
+      "type": "project",
+      "path": "../../src/Infrastructure/Ludora.Infrastructure/Ludora.Infrastructure.csproj",
+      "msbuildProject": "../../src/Infrastructure/Ludora.Infrastructure/Ludora.Infrastructure.csproj"
+    },
     "Ludora.Persistence/1.0.0": {
       "type": "project",
       "path": "../../src/Infrastructure/Ludora.Persistence/Ludora.Persistence.csproj",
@@ -4495,6 +4516,7 @@
   "projectFileDependencyGroups": {
     "net8.0": [
       "Ludora.Application >= 1.0.0",
+      "Ludora.Infrastructure >= 1.0.0",
       "Ludora.Persistence >= 1.0.0",
       "Microsoft.AspNetCore.Authentication.JwtBearer >= 8.0.28",
       "Microsoft.EntityFrameworkCore.Design >= 8.0.28",
@@ -4536,6 +4558,9 @@
           "projectReferences": {
             "C:\\Users\\Acer\\Desktop\\Ludora\\Ludora\\src\\Core\\Ludora.Application\\Ludora.Application.csproj": {
               "projectPath": "C:\\Users\\Acer\\Desktop\\Ludora\\Ludora\\src\\Core\\Ludora.Application\\Ludora.Application.csproj"
+            },
+            "C:\\Users\\Acer\\Desktop\\Ludora\\Ludora\\src\\Infrastructure\\Ludora.Infrastructure\\Ludora.Infrastructure.csproj": {
+              "projectPath": "C:\\Users\\Acer\\Desktop\\Ludora\\Ludora\\src\\Infrastructure\\Ludora.Infrastructure\\Ludora.Infrastructure.csproj"
             },
             "C:\\Users\\Acer\\Desktop\\Ludora\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj": {
               "projectPath": "C:\\Users\\Acer\\Desktop\\Ludora\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj"

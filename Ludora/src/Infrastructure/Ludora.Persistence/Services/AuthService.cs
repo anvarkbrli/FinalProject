@@ -5,6 +5,9 @@ using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Mappings;
 using Ludora.Domain.Entities.User;
+using Ludora.Domain.Enums;
+using Ludora.Persistence.Data;
+using Microsoft.EntityFrameworkCore;
 using Ludora.Persistence.Extensions;
 using Microsoft.AspNetCore.Identity;
 
@@ -12,13 +15,16 @@ public class AuthService : IAuthService
 {
     private readonly UserManager<AppUser> _userManager;
     private readonly IJwtTokenService _jwtTokenService;
+    private readonly AppDbContext _context;
 
     public AuthService(
         UserManager<AppUser> userManager,
-        IJwtTokenService jwtTokenService)
+        IJwtTokenService jwtTokenService,
+        AppDbContext context)
     {
         _userManager = userManager;
         _jwtTokenService = jwtTokenService;
+        _context = context;
     }
 
     public async Task<AuthResponseDTO> RegisterAsync(RegisterDTO dto)
@@ -76,11 +82,19 @@ public class AuthService : IAuthService
         var roles = await _userManager.GetRolesAsync(user);
         var token = _jwtTokenService.CreateToken(user, roles);
 
+        var userDto = user.ToCurrentUserDTO();
+        userDto.FollowerCount = await _context.UserFollows.CountAsync(x =>
+            x.FollowingId == user.Id &&
+            x.Status == FollowStatus.Accepted);
+        userDto.FollowingCount = await _context.UserFollows.CountAsync(x =>
+            x.FollowerId == user.Id &&
+            x.Status == FollowStatus.Accepted);
+
         return new AuthResponseDTO
         {
             AccessToken = token.AccessToken,
             ExpiresAtUtc = token.ExpiresAtUtc,
-            User = user.ToCurrentUserDTO()
+            User = userDto
         };
     }
 }

@@ -1,12 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Text.Json.Serialization;
 
-namespace Ludora.Infrastructure.IGDB.Models
+namespace Ludora.Infrastructure.IGDB.Models;
+
+internal sealed class IgdbPlatformResponse
 {
-    public class IgdbPlatformResponse
-    {
-    }
+    [JsonPropertyName("id")]
+    public long Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
 }

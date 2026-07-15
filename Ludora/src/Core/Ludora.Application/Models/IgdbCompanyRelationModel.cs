@@ -1,12 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Ludora.Domain.Enums;
 
-namespace Ludora.Application.Models
+namespace Ludora.Application.Models;
+
+public sealed record IgdbCompanyRelationModel
 {
-    public class IgdbCompanyRelationModel
-    {
-    }
+    public IgdbCompanyModel Company { get; init; } = new();
+    public GameCompanyRole Role { get; init; }
 }

@@ -1,75 +1,69 @@
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
+using Ludora.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Ludora.API.Controllers
+namespace Ludora.API.Controllers;
+
+[Route("api/platforms")]
+[ApiController]
+public sealed class PlatformsController : ControllerBase
 {
-    [Route("api/platforms")]
-    [ApiController]
-    public sealed class PlatformsController : ControllerBase
+    private readonly IPlatformService _platformService;
+
+    public PlatformsController(IPlatformService platformService)
     {
-        private readonly IPlatformService _platformService;
+        _platformService = platformService;
+    }
 
-        public PlatformsController(IPlatformService platformService)
-        {
-            _platformService = platformService;
-        }
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<PlatformDetailDTO>>> GetAll([FromQuery] string? searchName,[FromQuery] CatalogSource? source = null, CancellationToken cancellationToken = default)
+    {
+        return Ok(await _platformService.GetAllAsync(searchName, source, cancellationToken));
+    }
 
-        [HttpGet]
-        public async Task<ActionResult<List<PlatformDetailDTO>>> GetAll(
-            [FromQuery] string? searchName)
-        {
-            var platforms = await _platformService.GetAllAsync(searchName);
-            return Ok(platforms);
-        }
+    [HttpGet("deleted")]
+    public async Task<ActionResult<IReadOnlyList<PlatformDetailDTO>>> GetDeleted(
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _platformService.GetDeletedAsync(cancellationToken));
+    }
 
-        [HttpGet("deleted")]
-        public async Task<ActionResult<List<PlatformDetailDTO>>> GetDeleted(
-            [FromQuery] string? searchName)
-        {
-            var platforms = await _platformService.GetDeletedAsync(searchName);
-            return Ok(platforms);
-        }
+    [HttpGet("{source}/{id:long:min(1)}")]
+    public async Task<ActionResult<PlatformDetailDTO>> GetById(CatalogSource source,long id, CancellationToken cancellationToken)
+    {
+        return Ok(await _platformService.GetByIdAsync(source, id, cancellationToken));
+    }
 
-        [HttpGet("{id:int:min(1)}")]
-        public async Task<ActionResult<PlatformDetailDTO>> GetById(int id)
-        {
-            var platform = await _platformService.GetByIdAsync(id);
-            return Ok(platform);
-        }
+    [HttpPost]
+    public async Task<IActionResult> Create([FromBody] PlatformCreateDTO dto,CancellationToken cancellationToken)
+    {
+        var id = await _platformService.CreateAsync(dto, cancellationToken);
 
-        [HttpPost]
-        public async Task<IActionResult> Create([FromBody] PlatformCreateDTO createDto)
-        {
-            var platformId = await _platformService.CreateAsync(createDto);
+        return CreatedAtAction(
+            nameof(GetById),
+            new { source = CatalogSource.Local, id },
+            new { source = CatalogSource.Local, id });
+    }
 
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = platformId },
-                new { id = platformId });
-        }
+    [HttpPatch("{source}/{id:long:min(1)}")]
+    public async Task<IActionResult> Update(CatalogSource source,long id,[FromBody] PlatformUpdateDTO dto, CancellationToken cancellationToken)
+    {
+        await _platformService.UpdateAsync(source, id, dto, cancellationToken);
+        return NoContent();
+    }
 
-        [HttpPatch("{id:int:min(1)}")]
-        public async Task<IActionResult> Update(
-            int id,
-            [FromBody] PlatformUpdateDTO updateDto)
-        {
-            await _platformService.UpdateAsync(id, updateDto);
-            return NoContent();
-        }
+    [HttpDelete("{source}/{id:long:min(1)}")]
+    public async Task<IActionResult> Delete(CatalogSource source,long id,CancellationToken cancellationToken)
+    {
+        await _platformService.DeleteAsync(source, id, cancellationToken);
+        return NoContent();
+    }
 
-        [HttpDelete("{id:int:min(1)}")]
-        public async Task<IActionResult> Delete(int id)
-        {
-            await _platformService.DeleteAsync(id);
-            return NoContent();
-        }
-
-        [HttpPatch("{id:int:min(1)}/restore")]
-        public async Task<IActionResult> Restore(int id)
-        {
-            await _platformService.RestoreAsync(id);
-            return NoContent();
-        }
+    [HttpPatch("{source}/{id:long:min(1)}/restore")]
+    public async Task<IActionResult> Restore(CatalogSource source,long id,CancellationToken cancellationToken)
+    {
+        await _platformService.RestoreAsync(source, id, cancellationToken);
+        return NoContent();
     }
 }

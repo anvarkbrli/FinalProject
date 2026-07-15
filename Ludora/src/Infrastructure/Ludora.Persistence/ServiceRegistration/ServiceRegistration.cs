@@ -37,6 +37,8 @@ public static class ServiceRegistration
         services.AddScoped<IGameListService, GameListService>();
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
+        services.AddScoped<IUserGameService, UserGameService>();
+        services.AddScoped<IPostService, PostService>();
 
         services.AddScoped<IGameService, GameService>();
         services.AddScoped<IGenreService, GenreService>();

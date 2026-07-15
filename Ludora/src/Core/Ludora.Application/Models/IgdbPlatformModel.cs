@@ -1,12 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+namespace Ludora.Application.Models;
 
-namespace Ludora.Application.Models
+public sealed record IgdbPlatformModel
 {
-    public class IgdbPlatformModel
-    {
-    }
+    public long Id { get; init; }
+    public string Name { get; init; } = string.Empty;
 }

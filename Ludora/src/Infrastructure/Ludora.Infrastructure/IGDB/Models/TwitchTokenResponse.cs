@@ -1,12 +1,15 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Text.Json.Serialization;
 
-namespace Ludora.Infrastructure.IGDB.Models
+namespace Ludora.Infrastructure.IGDB.Models;
+
+internal sealed class TwitchTokenResponse
 {
-    public class TwitchTokenResponse
-    {
-    }
+    [JsonPropertyName("access_token")]
+    public string AccessToken { get; set; } = string.Empty;
+
+    [JsonPropertyName("expires_in")]
+    public int ExpiresIn { get; set; }
+
+    [JsonPropertyName("token_type")]
+    public string TokenType { get; set; } = string.Empty;
 }

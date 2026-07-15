@@ -79,6 +79,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
           }
         ],
         "responses": {
@@ -148,15 +155,6 @@
         "tags": [
           "Companies"
         ],
-        "parameters": [
-          {
-            "name": "searchName",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -190,12 +188,20 @@
         }
       }
     },
-    "/api/companies/{id}": {
+    "/api/companies/{source}/{id}": {
       "get": {
         "tags": [
           "Companies"
         ],
         "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
           {
             "name": "id",
             "in": "path",
@@ -203,7 +209,7 @@
             "schema": {
               "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -236,13 +242,21 @@
         ],
         "parameters": [
           {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
               "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -277,29 +291,13 @@
         ],
         "parameters": [
           {
-            "name": "id",
+            "name": "source",
             "in": "path",
             "required": true,
             "schema": {
-              "minimum": 1,
-              "type": "integer",
-              "format": "int32"
+              "$ref": "#/components/schemas/CatalogSource"
             }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/companies/{id}/restore": {
-      "patch": {
-        "tags": [
-          "Companies"
-        ],
-        "parameters": [
+          },
           {
             "name": "id",
             "in": "path",
@@ -307,7 +305,7 @@
             "schema": {
               "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -318,7 +316,39 @@
         }
       }
     },
-    "/api/GameLists/user/{userId}": {
+    "/api/companies/{source}/{id}/restore": {
+      "patch": {
+        "tags": [
+          "Companies"
+        ],
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/game-lists/user/{userId}": {
       "get": {
         "tags": [
           "GameLists"
@@ -341,7 +371,7 @@
         }
       }
     },
-    "/api/GameLists/{id}": {
+    "/api/game-lists/{id}": {
       "get": {
         "tags": [
           "GameLists"
@@ -352,6 +382,7 @@
             "in": "path",
             "required": true,
             "schema": {
+              "minimum": 1,
               "type": "integer",
               "format": "int32"
             }
@@ -363,7 +394,7 @@
           }
         }
       },
-      "put": {
+      "patch": {
         "tags": [
           "GameLists"
         ],
@@ -373,6 +404,7 @@
             "in": "path",
             "required": true,
             "schema": {
+              "minimum": 1,
               "type": "integer",
               "format": "int32"
             }
@@ -413,6 +445,7 @@
             "in": "path",
             "required": true,
             "schema": {
+              "minimum": 1,
               "type": "integer",
               "format": "int32"
             }
@@ -425,7 +458,7 @@
         }
       }
     },
-    "/api/GameLists": {
+    "/api/game-lists": {
       "post": {
         "tags": [
           "GameLists"
@@ -456,7 +489,7 @@
         }
       }
     },
-    "/api/GameLists/{listId}/games/{gameId}": {
+    "/api/game-lists/{listId}/games/{source}/{gameId}": {
       "post": {
         "tags": [
           "GameLists"
@@ -467,8 +500,17 @@
             "in": "path",
             "required": true,
             "schema": {
+              "minimum": 1,
               "type": "integer",
               "format": "int32"
+            }
+          },
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
             }
           },
           {
@@ -476,8 +518,9 @@
             "in": "path",
             "required": true,
             "schema": {
+              "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -497,8 +540,17 @@
             "in": "path",
             "required": true,
             "schema": {
+              "minimum": 1,
               "type": "integer",
               "format": "int32"
+            }
+          },
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
             }
           },
           {
@@ -506,8 +558,9 @@
             "in": "path",
             "required": true,
             "schema": {
+              "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -518,12 +571,19 @@
         }
       }
     },
-    "/api/Games": {
+    "/api/games": {
       "get": {
         "tags": [
           "Games"
         ],
         "parameters": [
+          {
+            "name": "Source",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
           {
             "name": "SearchName",
             "in": "query",
@@ -532,11 +592,25 @@
             }
           },
           {
+            "name": "CompanySource",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
             "name": "CompanyId",
             "in": "query",
             "schema": {
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
+            }
+          },
+          {
+            "name": "GenreSource",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
             }
           },
           {
@@ -544,7 +618,14 @@
             "in": "query",
             "schema": {
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
+            }
+          },
+          {
+            "name": "PlatformSource",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
             }
           },
           {
@@ -552,15 +633,15 @@
             "in": "query",
             "schema": {
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           },
           {
             "name": "ReleaseYear",
             "in": "query",
             "schema": {
-              "type": "string",
-              "format": "date"
+              "type": "integer",
+              "format": "int32"
             }
           },
           {
@@ -599,65 +680,19 @@
         ],
         "requestBody": {
           "content": {
-            "multipart/form-data": {
+            "application/json": {
               "schema": {
-                "type": "object",
-                "properties": {
-                  "Title": {
-                    "type": "string"
-                  },
-                  "Description": {
-                    "type": "string"
-                  },
-                  "ReleaseDate": {
-                    "type": "string",
-                    "format": "date"
-                  },
-                  "CoverImageUrl": {
-                    "type": "string"
-                  },
-                  "DeveloperCompanyId": {
-                    "type": "integer",
-                    "format": "int32"
-                  },
-                  "GenreIds": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer",
-                      "format": "int32"
-                    }
-                  },
-                  "PlatformIds": {
-                    "type": "array",
-                    "items": {
-                      "type": "integer",
-                      "format": "int32"
-                    }
-                  }
-                }
-              },
-              "encoding": {
-                "Title": {
-                  "style": "form"
-                },
-                "Description": {
-                  "style": "form"
-                },
-                "ReleaseDate": {
-                  "style": "form"
-                },
-                "CoverImageUrl": {
-                  "style": "form"
-                },
-                "DeveloperCompanyId": {
-                  "style": "form"
-                },
-                "GenreIds": {
-                  "style": "form"
-                },
-                "PlatformIds": {
-                  "style": "form"
-                }
+                "$ref": "#/components/schemas/GameCreateDTO"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameCreateDTO"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/GameCreateDTO"
               }
             }
           }
@@ -669,19 +704,28 @@
         }
       }
     },
-    "/api/Games/{id}": {
+    "/api/games/{source}/{id}": {
       "get": {
         "tags": [
           "Games"
         ],
         "parameters": [
           {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
+              "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -691,18 +735,27 @@
           }
         }
       },
-      "put": {
+      "patch": {
         "tags": [
           "Games"
         ],
         "parameters": [
           {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
+              "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -737,12 +790,21 @@
         ],
         "parameters": [
           {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
+              "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -753,34 +815,30 @@
         }
       }
     },
-    "/api/Games/lookup/companies": {
-      "get": {
+    "/api/games/{source}/{id}/restore": {
+      "patch": {
         "tags": [
           "Games"
         ],
-        "responses": {
-          "200": {
-            "description": "OK"
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "type": "integer",
+              "format": "int64"
+            }
           }
-        }
-      }
-    },
-    "/api/Games/lookup/genres": {
-      "get": {
-        "tags": [
-          "Games"
-        ],
-        "responses": {
-          "200": {
-            "description": "OK"
-          }
-        }
-      }
-    },
-    "/api/Games/lookup/platforms": {
-      "get": {
-        "tags": [
-          "Games"
         ],
         "responses": {
           "200": {
@@ -800,6 +858,13 @@
             "in": "query",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
             }
           }
         ],
@@ -870,15 +935,6 @@
         "tags": [
           "Genres"
         ],
-        "parameters": [
-          {
-            "name": "searchName",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -912,12 +968,20 @@
         }
       }
     },
-    "/api/genres/{id}": {
+    "/api/genres/{source}/{id}": {
       "get": {
         "tags": [
           "Genres"
         ],
         "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
           {
             "name": "id",
             "in": "path",
@@ -925,7 +989,7 @@
             "schema": {
               "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -958,13 +1022,21 @@
         ],
         "parameters": [
           {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
               "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -999,13 +1071,21 @@
         ],
         "parameters": [
           {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
               "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -1016,12 +1096,20 @@
         }
       }
     },
-    "/api/genres/{id}/restore": {
+    "/api/genres/{source}/{id}/restore": {
       "patch": {
         "tags": [
           "Genres"
         ],
         "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
           {
             "name": "id",
             "in": "path",
@@ -1029,7 +1117,7 @@
             "schema": {
               "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -1051,6 +1139,13 @@
             "in": "query",
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
             }
           }
         ],
@@ -1121,15 +1216,6 @@
         "tags": [
           "Platforms"
         ],
-        "parameters": [
-          {
-            "name": "searchName",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -1163,12 +1249,20 @@
         }
       }
     },
-    "/api/platforms/{id}": {
+    "/api/platforms/{source}/{id}": {
       "get": {
         "tags": [
           "Platforms"
         ],
         "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
           {
             "name": "id",
             "in": "path",
@@ -1176,7 +1270,7 @@
             "schema": {
               "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -1209,13 +1303,21 @@
         ],
         "parameters": [
           {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
               "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -1250,13 +1352,21 @@
         ],
         "parameters": [
           {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
             "name": "id",
             "in": "path",
             "required": true,
             "schema": {
               "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
@@ -1267,12 +1377,20 @@
         }
       }
     },
-    "/api/platforms/{id}/restore": {
+    "/api/platforms/{source}/{id}/restore": {
       "patch": {
         "tags": [
           "Platforms"
         ],
         "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
           {
             "name": "id",
             "in": "path",
@@ -1280,13 +1398,622 @@
             "schema": {
               "minimum": 1,
               "type": "integer",
-              "format": "int32"
+              "format": "int64"
             }
           }
         ],
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Posts": {
+      "post": {
+        "tags": [
+          "Posts"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostCreateDTO"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostCreateDTO"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostCreateDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDTO"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDTO"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Posts/{postId}": {
+      "get": {
+        "tags": [
+          "Posts"
+        ],
+        "parameters": [
+          {
+            "name": "postId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDTO"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDTO"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Posts"
+        ],
+        "parameters": [
+          {
+            "name": "postId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostUpdateDTO"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostUpdateDTO"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostUpdateDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDTO"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDTO"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PostDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Posts"
+        ],
+        "parameters": [
+          {
+            "name": "postId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/Posts/user/{userId}": {
+      "get": {
+        "tags": [
+          "Posts"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PostDTO"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PostDTO"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PostDTO"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/Posts/feed": {
+      "get": {
+        "tags": [
+          "Posts"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PostDTO"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PostDTO"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PostDTO"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/UserGames": {
+      "get": {
+        "tags": [
+          "UserGames"
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/UserGameStatus"
+            }
+          },
+          {
+            "name": "isFavorite",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "isWishlisted",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserGameDTO"
+                  }
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserGameDTO"
+                  }
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/UserGameDTO"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/UserGames/{source}/{gameId}": {
+      "get": {
+        "tags": [
+          "UserGames"
+        ],
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/UserGames/{source}/{gameId}/status": {
+      "put": {
+        "tags": [
+          "UserGames"
+        ],
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserGameStatusDTO"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserGameStatusDTO"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserGameStatusDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "UserGames"
+        ],
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/UserGames/{source}/{gameId}/favorite": {
+      "put": {
+        "tags": [
+          "UserGames"
+        ],
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserGameFavoriteDto"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserGameFavoriteDto"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserGameFavoriteDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/UserGames/{source}/{gameId}/wishlist": {
+      "put": {
+        "tags": [
+          "UserGames"
+        ],
+        "parameters": [
+          {
+            "name": "source",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/CatalogSource"
+            }
+          },
+          {
+            "name": "gameId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserGameWishlistDTO"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserGameWishlistDTO"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetUserGameWishlistDTO"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserGameDTO"
+                }
+              }
+            }
           }
         }
       }
@@ -1612,7 +2339,7 @@
         }
       }
     },
-    "/api/Users/me/followers/{followerId}": {
+    "/api/Users/me/followers/{followerId}/remove-follower": {
       "delete": {
         "tags": [
           "Users"
@@ -1684,6 +2411,26 @@
   },
   "components": {
     "schemas": {
+      "CatalogReferenceDTO": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/CatalogSource"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CatalogSource": {
+        "enum": [
+          "Local",
+          "Igdb"
+        ],
+        "type": "string"
+      },
       "CompanyCreateDTO": {
         "type": "object",
         "properties": {
@@ -1697,21 +2444,24 @@
       "CompanyDetailDTO": {
         "type": "object",
         "properties": {
+          "source": {
+            "$ref": "#/components/schemas/CatalogSource"
+          },
           "id": {
             "type": "integer",
-            "format": "int32"
+            "format": "int64"
           },
           "name": {
             "type": "string",
             "nullable": true
           },
-          "activeGameCount": {
-            "type": "integer",
-            "format": "int32"
+          "isOverridden": {
+            "type": "boolean"
           },
           "createdAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "nullable": true
           },
           "updatedAt": {
             "type": "string",
@@ -1721,11 +2471,78 @@
         },
         "additionalProperties": false
       },
+      "CompanyReferenceDTO": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/CatalogSource"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "role": {
+            "$ref": "#/components/schemas/GameCompanyRole"
+          }
+        },
+        "additionalProperties": false
+      },
       "CompanyUpdateDTO": {
         "type": "object",
         "properties": {
           "name": {
             "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "GameCompanyRole": {
+        "enum": [
+          "Developer",
+          "Publisher"
+        ],
+        "type": "string"
+      },
+      "GameCreateDTO": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "nullable": true
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "releaseDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "coverImageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "companyReferences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CompanyReferenceDTO"
+            },
+            "nullable": true
+          },
+          "genreReferences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogReferenceDTO"
+            },
+            "nullable": true
+          },
+          "platformReferences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogReferenceDTO"
+            },
             "nullable": true
           }
         },
@@ -1785,24 +2602,24 @@
             "type": "string",
             "nullable": true
           },
-          "developerCompanyId": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "genreIds": {
+          "companyReferences": {
             "type": "array",
             "items": {
-              "type": "integer",
-              "format": "int32"
+              "$ref": "#/components/schemas/CompanyReferenceDTO"
             },
             "nullable": true
           },
-          "platformIds": {
+          "genreReferences": {
             "type": "array",
             "items": {
-              "type": "integer",
-              "format": "int32"
+              "$ref": "#/components/schemas/CatalogReferenceDTO"
+            },
+            "nullable": true
+          },
+          "platformReferences": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CatalogReferenceDTO"
             },
             "nullable": true
           }
@@ -1822,21 +2639,24 @@
       "GenreDetailDTO": {
         "type": "object",
         "properties": {
+          "source": {
+            "$ref": "#/components/schemas/CatalogSource"
+          },
           "id": {
             "type": "integer",
-            "format": "int32"
+            "format": "int64"
           },
           "name": {
             "type": "string",
             "nullable": true
           },
-          "activeGameCount": {
-            "type": "integer",
-            "format": "int32"
+          "isOverridden": {
+            "type": "boolean"
           },
           "createdAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "nullable": true
           },
           "updatedAt": {
             "type": "string",
@@ -1858,12 +2678,11 @@
       },
       "ListVisibility": {
         "enum": [
-          1,
-          2,
-          3
+          "Public",
+          "Private",
+          "FollowersOnly"
         ],
-        "type": "integer",
-        "format": "int32"
+        "type": "string"
       },
       "LoginDTO": {
         "required": [
@@ -1896,21 +2715,24 @@
       "PlatformDetailDTO": {
         "type": "object",
         "properties": {
+          "source": {
+            "$ref": "#/components/schemas/CatalogSource"
+          },
           "id": {
             "type": "integer",
-            "format": "int32"
+            "format": "int64"
           },
           "name": {
             "type": "string",
             "nullable": true
           },
-          "activeGameCount": {
-            "type": "integer",
-            "format": "int32"
+          "isOverridden": {
+            "type": "boolean"
           },
           "createdAt": {
             "type": "string",
-            "format": "date-time"
+            "format": "date-time",
+            "nullable": true
           },
           "updatedAt": {
             "type": "string",
@@ -1924,6 +2746,64 @@
         "type": "object",
         "properties": {
           "name": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PostCreateDTO": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PostDTO": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "userName": {
+            "type": "string",
+            "nullable": true
+          },
+          "profileImageUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "content": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "isMine": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PostUpdateDTO": {
+        "type": "object",
+        "properties": {
+          "content": {
             "type": "string",
             "nullable": true
           }
@@ -1963,6 +2843,33 @@
         },
         "additionalProperties": false
       },
+      "SetUserGameFavoriteDto": {
+        "type": "object",
+        "properties": {
+          "isFavorite": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetUserGameStatusDTO": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/UserGameStatus"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SetUserGameWishlistDTO": {
+        "type": "object",
+        "properties": {
+          "isWishlisted": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
       "UpdateProfileDTO": {
         "required": [
           "userName"
@@ -1993,6 +2900,63 @@
           }
         },
         "additionalProperties": false
+      },
+      "UserGameDTO": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "$ref": "#/components/schemas/CatalogSource"
+          },
+          "gameId": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "slug": {
+            "type": "string",
+            "nullable": true
+          },
+          "coverUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "releaseDate": {
+            "type": "string",
+            "format": "date",
+            "nullable": true
+          },
+          "status": {
+            "$ref": "#/components/schemas/UserGameStatus"
+          },
+          "isFavorite": {
+            "type": "boolean"
+          },
+          "isWishlisted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "UserGameStatus": {
+        "enum": [
+          "Playing",
+          "PlanToPlay",
+          "Played",
+          "Dropped"
+        ],
+        "type": "string"
       }
     },
     "securitySchemes": {

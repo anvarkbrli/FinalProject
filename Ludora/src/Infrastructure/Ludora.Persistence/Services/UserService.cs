@@ -36,6 +36,7 @@ namespace Ludora.Persistence.Services
             {
                 Id = user.Id,
                 UserName = user.UserName ?? string.Empty,
+                Email = user.Email ?? string.Empty,
                 Bio = user.Bio,
                 ProfileImageUrl = user.ProfileImageUrl,
                 IsPrivate = user.IsPrivate,
@@ -76,8 +77,8 @@ namespace Ludora.Persistence.Services
                 ProfileImageUrl = user.ProfileImageUrl,
                 IsPrivate = user.IsPrivate,
                 CreatedAt = user.CreatedAt,
-                FollowerCount = await _context.UserFollows.CountAsync(uf => uf.FollowerId == user.Id && uf.Status == FollowStatus.Accepted),
-                FollowingCount = await _context.UserFollows.CountAsync(uf => uf.FollowingId == user.Id && uf.Status == FollowStatus.Accepted),
+                FollowerCount = await _context.UserFollows.CountAsync(uf => uf.FollowingId == user.Id && uf.Status == FollowStatus.Accepted),
+                FollowingCount = await _context.UserFollows.CountAsync(uf => uf.FollowerId == user.Id && uf.Status == FollowStatus.Accepted),
                 PostCount = 0
             };
         }
@@ -99,7 +100,7 @@ namespace Ludora.Persistence.Services
 
             result.ThrowIfFailed();
 
-            return user.ToCurrentUserDTO();
+            return await GetCurrentUserAsync(userId);
         }
 
         public async Task<CurrentUserDTO> UpdateProfileImageAsync(Guid userId, ProfileImageUploadDTO dto)
@@ -120,7 +121,7 @@ namespace Ludora.Persistence.Services
 
             await _fileStorageService.DeleteAsync(oldImagePath);
 
-            return user.ToCurrentUserDTO();
+            return await GetCurrentUserAsync(userId);
         }
 
         public async Task<UserSettingsDTO> GetSettingsAsync(Guid userId)

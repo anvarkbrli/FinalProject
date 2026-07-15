@@ -32,7 +32,8 @@ namespace Ludora.Persistence.Configurations
                 {
                     x.UserId,
                     x.Name
-                });
+                })
+                .IsUnique();
 
             builder.HasQueryFilter(x => !x.IsDeleted);
         }

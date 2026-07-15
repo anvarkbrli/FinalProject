@@ -1,39 +1,69 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+namespace Ludora.Application.Extensions;
 
-namespace Ludora.Application.Extensions
+using Ludora.Application.Exceptions;
+using Ludora.Domain.Enums;
+
+public static class ValidationExtensions
 {
-    public static class ValidationExtensions
+    public static void EnsureValidId(this int id, string parameterName = "id")
     {
-        public static void EnsureValidId(this int id, string parameterName = "id")
+        if (id < 1)
         {
-            if (id < 1)
-            {
-                throw new ArgumentException(
-                    $"{parameterName} 1-dən kiçik ola bilməz.",
-                    parameterName);
-            }
+            throw new BadRequestException(
+                $"{parameterName} 1-dən kiçik ola bilməz.");
         }
-        public static string NormalizeName(this string? name, int maxLength)
+    }
+
+    public static void EnsureValidCatalogSource(this CatalogSource source)
+    {
+        if (!Enum.IsDefined(source))
+            throw new BadRequestException("Məlumat mənbəyi düzgün deyil.");
+    }
+
+    public static void EnsureValidCatalogReference(
+        this long id,
+        CatalogSource source,
+        string entityName)
+    {
+        source.EnsureValidCatalogSource();
+
+        if (id < 1)
+            throw new BadRequestException($"{entityName} ID-si düzgün deyil.");
+
+        if (source == CatalogSource.Local && id > int.MaxValue)
         {
-            if (string.IsNullOrWhiteSpace(name))
-                throw new ArgumentException("Platforma adı boş ola bilməz.");
+            throw new BadRequestException(
+                $"Local {entityName.ToLowerInvariant()} ID-si düzgün deyil.");
+        }
+    }
 
-            var normalizedName = string.Join(
-                " ",
-                name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+    public static void EnsureDefined<TEnum>(
+        this TEnum value,
+        string fieldName)
+        where TEnum : struct, Enum
+    {
+        if (!Enum.IsDefined(value))
+            throw new BadRequestException($"{fieldName} düzgün deyil.");
+    }
 
-            if (normalizedName.Length > maxLength)
-            {
-                throw new ArgumentException(
-                    $"Platforma adı maksimum {maxLength} simvol ola bilər.");
-            }
+    public static string NormalizeName(
+        this string? name,
+        int maxLength,
+        string entityName)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new BadRequestException($"{entityName} adı boş ola bilməz.");
 
-            return normalizedName;
+        var normalizedName = string.Join(
+            " ",
+            name.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries));
+
+        if (normalizedName.Length > maxLength)
+        {
+            throw new BadRequestException(
+                $"{entityName} adı maksimum {maxLength} simvol ola bilər.");
         }
 
+        return normalizedName;
     }
 }

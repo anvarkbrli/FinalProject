@@ -22,6 +22,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Core\Ludora.Application\Ludora.Application.csproj" />
     <ProjectReference Include="..\..\src\Infrastructure\Ludora.Persistence\Ludora.Persistence.csproj" />
+    <ProjectReference Include="..\..\src\Infrastructure\Ludora.Infrastructure\Ludora.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

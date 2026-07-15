@@ -20,6 +20,8 @@ namespace Ludora.Domain.Entities
         public int PlayCount { get; set; }
 
         public double AverageRating { get; set; }
+        public string? Slug { get; set; } = null!;
+
 
         public ICollection<GameGenre> GameGenres { get; set; }
             = new List<GameGenre>();

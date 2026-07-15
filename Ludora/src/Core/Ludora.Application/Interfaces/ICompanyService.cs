@@ -1,15 +1,40 @@
 using Ludora.Application.DTOs;
+using Ludora.Domain.Enums;
 
-namespace Ludora.Application.Interfaces
+namespace Ludora.Application.Interfaces;
+
+public interface ICompanyService
 {
-    public interface ICompanyService
-    {
-        Task<List<CompanyDetailDTO>> GetAllAsync(string? searchName);
-        Task<List<CompanyDetailDTO>> GetDeletedAsync(string? searchName);
-        Task<CompanyDetailDTO> GetByIdAsync(int id);
-        Task<int> CreateAsync(CompanyCreateDTO createDto);
-        Task UpdateAsync(int id, CompanyUpdateDTO updateDto);
-        Task DeleteAsync(int id);
-        Task RestoreAsync(int id);
-    }
+    Task<IReadOnlyList<CompanyDetailDTO>> GetAllAsync(
+        string? searchName,
+        CatalogSource? source = null,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<CompanyDetailDTO>> GetDeletedAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<CompanyDetailDTO> GetByIdAsync(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<long> CreateAsync(
+        CompanyCreateDTO createDto,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateAsync(
+        CatalogSource source,
+        long id,
+        CompanyUpdateDTO updateDto,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task RestoreAsync(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken = default);
 }

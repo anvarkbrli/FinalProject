@@ -1,75 +1,87 @@
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
+using Ludora.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Ludora.API.Controllers
+namespace Ludora.API.Controllers;
+
+[Route("api/genres")]
+[ApiController]
+public sealed class GenresController : ControllerBase
 {
-    [Route("api/genres")]
-    [ApiController]
-    public sealed class GenresController : ControllerBase
+    private readonly IGenreService _genreService;
+
+    public GenresController(IGenreService genreService)
     {
-        private readonly IGenreService _genreService;
+        _genreService = genreService;
+    }
 
-        public GenresController(IGenreService genreService)
-        {
-            _genreService = genreService;
-        }
+    [HttpGet]
+    public async Task<ActionResult<IReadOnlyList<GenreDetailDTO>>> GetAll(
+        [FromQuery] string? searchName,
+        [FromQuery] CatalogSource? source = null,
+        CancellationToken cancellationToken = default)
+    {
+        return Ok(await _genreService.GetAllAsync(searchName, source, cancellationToken));
+    }
 
-        [HttpGet]
-        public async Task<ActionResult<List<GenreDetailDTO>>> GetAll(
-            [FromQuery] string? searchName)
-        {
-            var genres = await _genreService.GetAllAsync(searchName);
-            return Ok(genres);
-        }
+    [HttpGet("deleted")]
+    public async Task<ActionResult<IReadOnlyList<GenreDetailDTO>>> GetDeleted(
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _genreService.GetDeletedAsync(cancellationToken));
+    }
 
-        [HttpGet("deleted")]
-        public async Task<ActionResult<List<GenreDetailDTO>>> GetDeleted(
-            [FromQuery] string? searchName)
-        {
-            var genres = await _genreService.GetDeletedAsync(searchName);
-            return Ok(genres);
-        }
+    [HttpGet("{source}/{id:long:min(1)}")]
+    public async Task<ActionResult<GenreDetailDTO>> GetById(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _genreService.GetByIdAsync(source, id, cancellationToken));
+    }
 
-        [HttpGet("{id:int:min(1)}")]
-        public async Task<ActionResult<GenreDetailDTO>> GetById(int id)
-        {
-            var genre = await _genreService.GetByIdAsync(id);
-            return Ok(genre);
-        }
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        [FromBody] GenreCreateDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var id = await _genreService.CreateAsync(dto, cancellationToken);
 
-        [HttpPost]
-        public async Task<IActionResult> Create([FromBody] GenreCreateDTO createDto)
-        {
-            var genreId = await _genreService.CreateAsync(createDto);
+        return CreatedAtAction(
+            nameof(GetById),
+            new { source = CatalogSource.Local, id },
+            new { source = CatalogSource.Local, id });
+    }
 
-            return CreatedAtAction(
-                nameof(GetById),
-                new { id = genreId },
-                new { id = genreId });
-        }
+    [HttpPatch("{source}/{id:long:min(1)}")]
+    public async Task<IActionResult> Update(
+        CatalogSource source,
+        long id,
+        [FromBody] GenreUpdateDTO dto,
+        CancellationToken cancellationToken)
+    {
+        await _genreService.UpdateAsync(source, id, dto, cancellationToken);
+        return NoContent();
+    }
 
-        [HttpPatch("{id:int:min(1)}")]
-        public async Task<IActionResult> Update(
-            int id,
-            [FromBody] GenreUpdateDTO updateDto)
-        {
-            await _genreService.UpdateAsync(id, updateDto);
-            return NoContent();
-        }
+    [HttpDelete("{source}/{id:long:min(1)}")]
+    public async Task<IActionResult> Delete(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        await _genreService.DeleteAsync(source, id, cancellationToken);
+        return NoContent();
+    }
 
-        [HttpDelete("{id:int:min(1)}")]
-        public async Task<IActionResult> Delete(int id)
-        {
-            await _genreService.DeleteAsync(id);
-            return NoContent();
-        }
-
-        [HttpPatch("{id:int:min(1)}/restore")]
-        public async Task<IActionResult> Restore(int id)
-        {
-            await _genreService.RestoreAsync(id);
-            return NoContent();
-        }
+    [HttpPatch("{source}/{id:long:min(1)}/restore")]
+    public async Task<IActionResult> Restore(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        await _genreService.RestoreAsync(source, id, cancellationToken);
+        return NoContent();
     }
 }

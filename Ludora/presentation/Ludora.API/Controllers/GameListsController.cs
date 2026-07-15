@@ -1,99 +1,130 @@
-﻿using Ludora.Application.DTOs;
-using Ludora.Application.Interfaces;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
+using Ludora.Application.DTOs;
+using Ludora.Application.Interfaces;
+using Ludora.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
 
-namespace Ludora.API.Controllers
+namespace Ludora.API.Controllers;
+
+[Route("api/game-lists")]
+[ApiController]
+public sealed class GameListsController : ControllerBase
 {
-    [Route("api/[controller]")]
-    [ApiController]
-    public class GameListsController : ControllerBase
+    private readonly IGameListService _gameListService;
+
+    public GameListsController(IGameListService gameListService)
     {
-        private readonly IGameListService _gameListService;
+        _gameListService = gameListService;
+    }
 
-        public GameListsController(IGameListService gameListService)
-        {
-            _gameListService = gameListService;
-        }
+    [HttpGet("user/{userId:guid}")]
+    public async Task<IActionResult> GetUserLists(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _gameListService.GetUserListsAsync(
+            userId,
+            GetOptionalCurrentUserId(),
+            cancellationToken));
+    }
 
-        [HttpGet("user/{userId:guid}")]
-        public async Task<IActionResult> GetUserLists(Guid userId)
-        {
-            var result = await _gameListService.GetUserListsAsync(userId, GetOptionalCurrentUserId());
+    [HttpGet("{id:int:min(1)}")]
+    public async Task<IActionResult> GetById(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _gameListService.GetByIdAsync(
+            id,
+            GetOptionalCurrentUserId(),
+            cancellationToken));
+    }
 
-            return Ok(result);
-        }
+    [Authorize]
+    [HttpPost]
+    public async Task<IActionResult> Create(
+        [FromBody] GameListCreateDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var id = await _gameListService.CreateAsync(
+            GetCurrentUserId(),
+            dto,
+            cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id }, new { id });
+    }
 
-        [HttpGet("{id:int}")]
-        public async Task<IActionResult> GetById(int id)
-        {
-            var result = await _gameListService.GetByIdAsync(id, GetOptionalCurrentUserId());
+    [Authorize]
+    [HttpPatch("{id:int:min(1)}")]
+    public async Task<IActionResult> Update(
+        int id,
+        [FromBody] GameListUpdateDTO dto,
+        CancellationToken cancellationToken)
+    {
+        await _gameListService.UpdateAsync(
+            id,
+            GetCurrentUserId(),
+            dto,
+            cancellationToken);
+        return NoContent();
+    }
 
-            return Ok(result);
-        }
+    [Authorize]
+    [HttpDelete("{id:int:min(1)}")]
+    public async Task<IActionResult> Delete(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        await _gameListService.DeleteAsync(id, GetCurrentUserId(), cancellationToken);
+        return NoContent();
+    }
 
-        [Authorize]
-        [HttpPost]
-        public async Task<IActionResult> Create([FromBody] GameListCreateDTO dto)
-        {
-            var id = await _gameListService.CreateAsync(GetCurrentUserId(), dto);
+    [Authorize]
+    [HttpPost("{listId:int:min(1)}/games/{source}/{gameId:long:min(1)}")]
+    public async Task<IActionResult> AddGame(
+        int listId,
+        CatalogSource source,
+        long gameId,
+        CancellationToken cancellationToken)
+    {
+        await _gameListService.AddGameAsync(
+            listId,
+            source,
+            gameId,
+            GetCurrentUserId(),
+            cancellationToken);
+        return NoContent();
+    }
 
-            return StatusCode(StatusCodes.Status201Created, new { id });
-        }
+    [Authorize]
+    [HttpDelete("{listId:int:min(1)}/games/{source}/{gameId:long:min(1)}")]
+    public async Task<IActionResult> RemoveGame(
+        int listId,
+        CatalogSource source,
+        long gameId,
+        CancellationToken cancellationToken)
+    {
+        await _gameListService.RemoveGameAsync(
+            listId,
+            source,
+            gameId,
+            GetCurrentUserId(),
+            cancellationToken);
+        return NoContent();
+    }
 
-        [Authorize]
-        [HttpPut("{id:int}")]
-        public async Task<IActionResult> Update(int id, [FromBody] GameListUpdateDTO dto)
-        {
-            await _gameListService.UpdateAsync(id, GetCurrentUserId(), dto);
+    private Guid GetCurrentUserId()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-            return NoContent();
-        }
+        if (!Guid.TryParse(userId, out var parsedUserId))
+            throw new UnauthorizedAccessException("İstifadəçi sistemə daxil olmayıb.");
 
-        [Authorize]
-        [HttpDelete("{id:int}")]
-        public async Task<IActionResult> Delete(int id)
-        {
-            await _gameListService.DeleteAsync(id, GetCurrentUserId());
+        return parsedUserId;
+    }
 
-            return NoContent();
-        }
-
-        [Authorize]
-        [HttpPost("{listId:int}/games/{gameId:int}")]
-        public async Task<IActionResult> AddGame(int listId, int gameId)
-        {
-            await _gameListService.AddGameAsync(listId, gameId, GetCurrentUserId());
-
-            return NoContent();
-        }
-
-        [Authorize]
-        [HttpDelete("{listId:int}/games/{gameId:int}")]
-        public async Task<IActionResult> RemoveGame(int listId, int gameId)
-        {
-            await _gameListService.RemoveGameAsync(listId, gameId, GetCurrentUserId());
-
-            return NoContent();
-        }
-
-        private Guid GetCurrentUserId()
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            if (!Guid.TryParse(userId, out var parsedUserId))
-                throw new UnauthorizedAccessException("İstifadəçi sistemə daxil olmayıb.");
-
-            return parsedUserId;
-        }
-
-        private Guid? GetOptionalCurrentUserId()
-        {
-            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-            return Guid.TryParse(userId, out var parsedUserId) ? parsedUserId : null;
-        }
+    private Guid? GetOptionalCurrentUserId()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(userId, out var parsedUserId) ? parsedUserId : null;
     }
 }

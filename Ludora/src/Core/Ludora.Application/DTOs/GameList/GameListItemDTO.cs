@@ -1,4 +1,5 @@
 ﻿
+using Ludora.Application.DTOs;
 using Ludora.Domain.Enums;
 
 namespace Ludora.Application.DTOs.GameList

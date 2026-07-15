@@ -44,7 +44,7 @@ public class LocalFileStorageService : IFileStorageService
         if (string.IsNullOrWhiteSpace(relativePath))
             return Task.CompletedTask;
 
-        var fullPath = GetSafeFullPath(relativePath);
+        var fullPath = _settings.WebRootPath.GetSafeFullPath(relativePath);
 
         if (fullPath is not null && File.Exists(fullPath))
             File.Delete(fullPath);
@@ -52,14 +52,4 @@ public class LocalFileStorageService : IFileStorageService
         return Task.CompletedTask;
     }
 
-    private string? GetSafeFullPath(string relativePath)
-    {
-        var safeRelativePath = relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
-
-        var webRootPath = Path.GetFullPath(_settings.WebRootPath);
-        var fullPath = Path.GetFullPath(Path.Combine(webRootPath, safeRelativePath));
-        var allowedRoot = webRootPath.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-
-        return fullPath.StartsWith(allowedRoot, StringComparison.OrdinalIgnoreCase) ? fullPath : null;
-    }
 }

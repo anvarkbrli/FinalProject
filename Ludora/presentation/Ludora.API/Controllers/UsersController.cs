@@ -165,7 +165,7 @@ namespace Ludora.API.Controllers
         }
 
         [Authorize]
-        [HttpDelete("me/followers/{followerId:guid}")]
+        [HttpDelete("me/followers/{followerId:guid}/remove-follower")]
         public async Task<IActionResult> RemoveFollower(Guid followerId)
         {
             await _followService.RemoveFollowerAsync(GetCurrentUserId(), followerId);

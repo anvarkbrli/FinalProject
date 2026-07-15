@@ -1,14 +1,22 @@
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.GameList;
+using Ludora.Application.Exceptions;
+using Ludora.Application.Extensions;
+using Ludora.Application.Helpers;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Models;
 using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.IGDB;
+using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
+using Ludora.Persistence.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ludora.Persistence.Services;
 
-public class GameService : IGameService
+public sealed class GameService : IGameService
 {
+    private const int MaxPageSize = 100;
     private readonly AppDbContext _context;
     private readonly IIgdbClient _igdbClient;
 
@@ -18,443 +26,1484 @@ public class GameService : IGameService
         _igdbClient = igdbClient;
     }
 
-    public async Task<GameDetailDTO> GetByIdAsync(int id)
+    public async Task<IReadOnlyList<GameListItemDTO>> GetFilteredGamesAsync(GameFilterDTO filter, CancellationToken cancellationToken = default)
     {
-        if (id < 1)
-            throw new ArgumentException("Oyun ID-si düzgün deyil.");
+        ArgumentNullException.ThrowIfNull(filter);
+        ValidateFilter(filter);
 
-        var game = await _context.Games
-            .AsNoTracking()
-            .Where(g => g.Id == id && !g.IsDeleted)
-            .Select(g => new GameDetailDTO
+        var pageNumber = filter.PageNumber;
+        var pageSize = filter.PageSize;
+        var skip = checked((pageNumber - 1) * pageSize);
+
+        if (filter.Source == CatalogSource.Local)
+        {
+            var localGames = await ApplyLocalSort(BuildLocalQuery(filter), filter.SortBy)
+                .Include(x => x.GameGenres)
+                .Include(x => x.GamePlatforms)
+                .Include(x => x.GameCompanies)
+                .Skip(skip)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+            return (await MapLocalGamesAsync(localGames, cancellationToken)).Select(ToListItem).ToList();
+        }
+
+        if (filter.Source == CatalogSource.Igdb)
+        {
+            var igdbGames = await _igdbClient.GetGamesAsync(filter, cancellationToken);
+            var mappedIgdbGames = await MapIgdbGamesAsync(igdbGames, cancellationToken);
+
+            return SortGames(mappedIgdbGames, filter.SortBy).Select(ToListItem).ToList();
+        }
+
+        var requestedEnd = (long)pageNumber * pageSize;
+
+        if (requestedEnd > 500)
+        {
+            throw new BadRequestException("Bütün mənbələr üzrə birləşdirilmiş axtarışda ilk 500 nəticə dəstəklənir.");
+        }
+
+        var fetchCount = (int)requestedEnd;
+        var details = new List<GameDetailDTO>();
+        var localCombinedGames = await ApplyLocalSort(BuildLocalQuery(filter), filter.SortBy)
+            .Include(x => x.GameGenres)
+            .Include(x => x.GamePlatforms)
+            .Include(x => x.GameCompanies)
+            .Take(fetchCount)
+            .ToListAsync(cancellationToken);
+
+        details.AddRange(await MapLocalGamesAsync(localCombinedGames, cancellationToken));
+
+        if (_igdbClient.IsEnabled && CanQueryIgdb(filter))
+        {
+            var igdbFilter = filter with
             {
-                Id = g.Id,
-                Title = g.Name,
-                Description = g.Description,
-                ReleaseDate = g.ReleaseDate,
-                CoverImageUrl = g.CoverImageUrl,
-                DeveloperCompanyName = g.DeveloperCompany.Name,
-                PlayCount = g.PlayCount,
-                AverageRating = g.AverageRating,
-                Genres = g.GameGenres
-                    .Where(gg => !gg.Genre.IsDeleted)
-                    .Select(gg => gg.Genre.Name)
-                    .OrderBy(name => name)
-                    .ToList(),
-                Platforms = g.GamePlatforms
-                    .Where(gp => !gp.Platform.IsDeleted)
-                    .Select(gp => gp.Platform.Name)
-                    .OrderBy(name => name)
-                    .ToList()
-            })
-            .FirstOrDefaultAsync();
+                Source = CatalogSource.Igdb,
+                PageNumber = 1,
+                PageSize = fetchCount
+            };
 
-        if (game == null)
-            throw new KeyNotFoundException("Oyun tapılmadı.");
+            try
+            {
+                var igdbGames = await _igdbClient.GetGamesAsync(igdbFilter, cancellationToken);
+                details.AddRange(await MapIgdbGamesAsync(igdbGames, cancellationToken));
+            }
+            catch (ExternalServiceException)
+            {
+            }
+        }
 
-        return game;
+        return SortGames(details, filter.SortBy)
+            .Skip(skip)
+            .Take(pageSize)
+            .Select(ToListItem)
+            .ToList();
     }
 
-    public async Task CreateAsync(GameCreateDTO createDto)
+    public async Task<GameDetailDTO> GetByIdAsync(CatalogSource source, long id, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(createDto);
+        id.EnsureValidCatalogReference(source, "Oyun");
 
-        var title = NormalizeRequiredText(createDto.Title, "Oyunun adı", 200);
-        var description = NormalizeRequiredText(createDto.Description, "Oyunun təsviri", 4000);
-        var coverImageUrl = NormalizeRequiredText(createDto.CoverImageUrl, "Cover şəkil linki", 2048);
+        if (source == CatalogSource.Local)
+        {
+            if (id > int.MaxValue)
+            {
+                throw new NotFoundException("Oyun tapılmadı.");
+            }
 
-        if (createDto.ReleaseDate == default)
-            throw new ArgumentException("Oyunun çıxış tarixi düzgün daxil edilməyib.");
+            var game = await _context.Games
+                .AsNoTracking()
+                .Include(x => x.GameGenres)
+                .Include(x => x.GamePlatforms)
+                .Include(x => x.GameCompanies)
+                .FirstOrDefaultAsync(x => x.Id == (int)id, cancellationToken)
+                ?? throw new NotFoundException("Oyun tapılmadı.");
 
-        await ValidateCompanyAsync(createDto.DeveloperCompanyId);
+            return (await MapLocalGamesAsync([game], cancellationToken)).Single();
+        }
 
-        var genreIds = NormalizeIds(createDto.GenreIds, "Janr");
-        var platformIds = NormalizeIds(createDto.PlatformIds, "Platforma");
+        var igdbGame = await _igdbClient.GetGameByIdAsync(id, cancellationToken)
+            ?? throw new NotFoundException("IGDB oyunu tapılmadı.");
 
-        await ValidateGenreIdsAsync(genreIds);
-        await ValidatePlatformIdsAsync(platformIds);
+        var mapped = await MapIgdbGamesAsync([igdbGame], cancellationToken);
+        return mapped.FirstOrDefault()
+               ?? throw new NotFoundException("Oyun gizlədilib.");
+    }
+
+    public async Task<long> CreateAsync(
+        GameCreateDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        var title = dto.Title.NormalizeRequiredText("Oyunun adı", 200);
+        var genreReferences = NormalizeCatalogReferences(dto.GenreReferences, "Janr");
+        var platformReferences = NormalizeCatalogReferences(dto.PlatformReferences, "Platforma");
+        var companyReferences = NormalizeCompanyReferences(dto.CompanyReferences);
+
+        await ValidateGenreReferencesAsync(genreReferences, cancellationToken);
+        await ValidatePlatformReferencesAsync(platformReferences, cancellationToken);
+        await ValidateCompanyReferencesAsync(companyReferences, cancellationToken);
 
         var game = new Game
         {
             Name = title,
-            Description = description,
-            ReleaseDate = createDto.ReleaseDate,
-            CoverImageUrl = coverImageUrl,
-            DeveloperCompanyId = createDto.DeveloperCompanyId,
-            GameGenres = genreIds.Select(genreId => new GameGenre
+            Slug = await CreateUniqueSlugAsync(title, cancellationToken: cancellationToken),
+            Description = dto.Description.NormalizeOptionalText("Oyunun açıqlaması", 4000),
+            ReleaseDate = dto.ReleaseDate,
+            CoverImageUrl = dto.CoverImageUrl.NormalizeOptionalText("Şəkil linki", 2048),
+            CreatedAt = DateTime.UtcNow,
+            GameGenres = genreReferences.Select(x => new GameGenre
             {
-                GenreId = genreId
+                GenreSource = x.Source,
+                GenreSourceId = x.Id
             }).ToList(),
-            GamePlatforms = platformIds.Select(platformId => new GamePlatform
+            GamePlatforms = platformReferences.Select(x => new GamePlatform
             {
-                PlatformId = platformId
+                PlatformSource = x.Source,
+                PlatformSourceId = x.Id
+            }).ToList(),
+            GameCompanies = companyReferences.Select(x => new GameCompany
+            {
+                CompanySource = x.Source,
+                CompanySourceId = x.Id,
+                Role = x.Role
             }).ToList()
         };
 
-        await _context.Games.AddAsync(game);
-        await _context.SaveChangesAsync();
+        await _context.Games.AddAsync(game, cancellationToken);
+        await SaveChangesAsync(cancellationToken);
+        return game.Id;
     }
 
-    public async Task UpdateAsync(int id, GameUpdateDTO updateDto)
+    public async Task UpdateAsync(
+        CatalogSource source,
+        long id,
+        GameUpdateDTO dto,
+        CancellationToken cancellationToken = default)
     {
-        if (id < 1) throw new ArgumentException("Oyun ID-si düzgün deyil.");
+        id.EnsureValidCatalogReference(source, "Oyun");
+        ArgumentNullException.ThrowIfNull(dto);
 
-        ArgumentNullException.ThrowIfNull(updateDto);
+        var hasChanges = dto.Title is not null ||
+                         dto.Description is not null ||
+                         dto.CoverImageUrl is not null ||
+                         dto.ReleaseDate.HasValue ||
+                         dto.GenreReferences is not null ||
+                         dto.PlatformReferences is not null ||
+                         dto.CompanyReferences is not null;
 
-        var game = await _context.Games
-            .Include(g => g.GameGenres)
-            .Include(g => g.GamePlatforms)
-            .FirstOrDefaultAsync(g => g.Id == id && !g.IsDeleted);
+        var genreReferences = dto.GenreReferences is null
+            ? null
+            : NormalizeCatalogReferences(dto.GenreReferences, "Janr");
 
-        if (game == null) throw new KeyNotFoundException("Oyun tapılmadı.");
+        var platformReferences = dto.PlatformReferences is null
+            ? null
+            : NormalizeCatalogReferences(dto.PlatformReferences, "Platforma");
 
-        var hasChanges =
-            updateDto.Title != null ||
-            updateDto.Description != null ||
-            updateDto.ReleaseDate.HasValue ||
-            updateDto.CoverImageUrl != null ||
-            updateDto.DeveloperCompanyId.HasValue ||
-            updateDto.GenreIds != null ||
-            updateDto.PlatformIds != null;
+        var companyReferences = dto.CompanyReferences is null
+            ? null
+            : NormalizeCompanyReferences(dto.CompanyReferences);
 
-        if (!hasChanges)
-            return;
-
-        if (updateDto.Title != null)
-            game.Name = NormalizeRequiredText(updateDto.Title, "Oyunun adı", 200);
-
-        if (updateDto.Description != null)
-            game.Description = NormalizeRequiredText(updateDto.Description, "Oyunun təsviri", 4000);
-
-        if (updateDto.CoverImageUrl != null)
-            game.CoverImageUrl = NormalizeRequiredText(updateDto.CoverImageUrl, "Cover şəkil linki", 2048);
-
-        if (updateDto.ReleaseDate.HasValue)
+        if (genreReferences is not null)
         {
-            if (updateDto.ReleaseDate.Value == default)
-                throw new ArgumentException("Oyunun çıxış tarixi düzgün deyil.");
-
-            game.ReleaseDate = updateDto.ReleaseDate.Value;
+            await ValidateGenreReferencesAsync(genreReferences, cancellationToken);
         }
 
-        if (updateDto.DeveloperCompanyId.HasValue)
+        if (platformReferences is not null)
         {
-            await ValidateCompanyAsync(updateDto.DeveloperCompanyId.Value);
-            game.DeveloperCompanyId = updateDto.DeveloperCompanyId.Value;
+            await ValidatePlatformReferencesAsync(platformReferences, cancellationToken);
         }
 
-        if (updateDto.GenreIds != null)
+        if (companyReferences is not null)
         {
-            var genreIds = NormalizeIds(updateDto.GenreIds, "Janr");
-
-            await ValidateGenreIdsAsync(genreIds);
-            UpdateGameGenres(game, genreIds);
+            await ValidateCompanyReferencesAsync(companyReferences, cancellationToken);
         }
 
-        if (updateDto.PlatformIds != null)
+        if (source == CatalogSource.Local)
         {
-            var platformIds = NormalizeIds(updateDto.PlatformIds, "Platforma");
+            if (id > int.MaxValue)
+                throw new NotFoundException("Oyun tapılmadı.");
 
-            await ValidatePlatformIdsAsync(platformIds);
-            UpdateGamePlatforms(game, platformIds);
-        }
+            var game = await _context.Games
+                .Include(x => x.GameGenres)
+                .Include(x => x.GamePlatforms)
+                .Include(x => x.GameCompanies)
+                .FirstOrDefaultAsync(x => x.Id == (int)id, cancellationToken)
+                ?? throw new NotFoundException("Oyun tapılmadı.");
 
-        game.UpdatedAt = DateTime.UtcNow;
+            if (!hasChanges) return;
+                
 
-        await _context.SaveChangesAsync();
-    }
+            if (dto.Title is not null)
+                game.Name = dto.Title.NormalizeRequiredText("Oyunun adı", 200);
 
-    public async Task DeleteAsync(int id)
-    {
-        if (id < 1)
-            throw new ArgumentException("Oyun ID-si düzgün deyil.");
+            if (dto.Description is not null)
+                game.Description = dto.Description.NormalizeOptionalText("Oyunun açıqlaması", 4000);
 
-        var game = await _context.Games
-            .FirstOrDefaultAsync(g => g.Id == id && !g.IsDeleted);
+            if (dto.CoverImageUrl is not null)
+                game.CoverImageUrl = dto.CoverImageUrl.NormalizeOptionalText("Şəkil linki", 2048);
 
-        if (game == null)
-            throw new KeyNotFoundException("Oyun tapılmadı və ya artıq silinib.");
-
-        game.IsDeleted = true;
-        game.UpdatedAt = DateTime.UtcNow;
-
-        await _context.SaveChangesAsync();
-    }
-
-    public async Task<List<LookupDTO>> GetCompaniesLookupAsync()
-    {
-        return await _context.Companies
-            .AsNoTracking()
-            .Where(c => !c.IsDeleted)
-            .OrderBy(c => c.Name)
-            .Select(c => new LookupDTO
+            if (dto.ReleaseDate.HasValue)
             {
-                Id = c.Id,
-                Name = c.Name
-            })
-            .ToListAsync();
-    }
-
-    public async Task<List<LookupDTO>> GetGenresLookupAsync()
-    {
-        return await _context.Genres
-            .AsNoTracking()
-            .Where(g => !g.IsDeleted)
-            .OrderBy(g => g.Name)
-            .Select(g => new LookupDTO
+                game.ReleaseDate = dto.ReleaseDate;
+            }
+                
+            if (genreReferences is not null)
             {
-                Id = g.Id,
-                Name = g.Name
-            })
-            .ToListAsync();
-    }
+                SyncLocalGenres(game, genreReferences);
+            }
 
-    public async Task<List<LookupDTO>> GetPlatformsLookupAsync()
-    {
-        return await _context.Platforms
-            .AsNoTracking()
-            .Where(p => !p.IsDeleted)
-            .OrderBy(p => p.Name)
-            .Select(p => new LookupDTO
+            if (platformReferences is not null)
             {
-                Id = p.Id,
-                Name = p.Name
-            })
-            .ToListAsync();
-    }
+                SyncLocalPlatforms(game, platformReferences);
+            }
 
-    public async Task<IEnumerable<GameListItemDTO>> GetFilteredGamesAsync(GameFilterDTO filterDto)
-    {
-        ArgumentNullException.ThrowIfNull(filterDto);
+            if (companyReferences is not null)
+            {
+                SyncLocalCompanies(game, companyReferences);
+            }
 
-        ValidateFilterIds(filterDto);
+            game.UpdatedAt = DateTime.UtcNow;
 
-        var query = _context.Games
-            .AsNoTracking()
-            .Where(g => !g.IsDeleted)
-            .AsQueryable();
-
-        if (!string.IsNullOrWhiteSpace(filterDto.SearchName))
+            await UpdateGameListSnapshotsAsync(
+                CatalogSource.Local,
+                id,
+                game.Name,
+                game.CoverImageUrl,
+                game.ReleaseDate,
+                game.AverageRating,
+                cancellationToken);
+        }
+        else
         {
-            var searchName = filterDto.SearchName.Trim();
-            query = query.Where(g => g.Name.Contains(searchName));
+            var igdbGame = await _igdbClient.GetGameByIdAsync(id, cancellationToken)
+                ?? throw new NotFoundException("IGDB oyunu tapılmadı.");
+
+            if (!hasChanges) return;
+                
+
+            var gameOverride = await _context.IgdbGameOverrides
+                .Include(x => x.Genres)
+                .Include(x => x.Platforms)
+                .Include(x => x.Companies)
+                .FirstOrDefaultAsync(x => x.IgdbGameId == id, cancellationToken);
+
+            if (gameOverride is null)
+            {
+                gameOverride = new IgdbGameOverride
+                {
+                    IgdbGameId = id,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _context.IgdbGameOverrides.AddAsync(gameOverride, cancellationToken);
+            }
+
+            if (dto.Title is not null)
+                gameOverride.Name = dto.Title.NormalizeRequiredText("Oyunun adı", 200);
+
+            if (dto.Description is not null)
+                gameOverride.Description = dto.Description.NormalizeOptionalText("Oyunun açıqlaması", 4000);
+
+            if (dto.CoverImageUrl is not null)
+                gameOverride.CoverImageUrl = dto.CoverImageUrl.NormalizeOptionalText("Şəkil linki", 2048);
+
+            if (dto.ReleaseDate.HasValue)
+                gameOverride.ReleaseDate = dto.ReleaseDate;
+
+            if (genreReferences is not null)
+                SyncIgdbOverrideGenres(gameOverride, genreReferences);
+
+            if (platformReferences is not null)
+                SyncIgdbOverridePlatforms(gameOverride, platformReferences);
+
+            if (companyReferences is not null)
+                SyncIgdbOverrideCompanies(gameOverride, companyReferences);
+
+            gameOverride.IsHidden = false;
+            gameOverride.UpdatedAt = DateTime.UtcNow;
+
+            await UpdateGameListSnapshotsAsync(
+                CatalogSource.Igdb,
+                id,
+                gameOverride.Name ?? igdbGame.Name,
+                gameOverride.CoverImageUrl ?? igdbGame.CoverImageUrl,
+                gameOverride.ReleaseDate ?? igdbGame.ReleaseDate,
+                gameOverride.Rating ?? igdbGame.Rating,
+                cancellationToken);
         }
 
-        if (filterDto.CompanyId.HasValue)
-            query = query.Where(g => g.DeveloperCompanyId == filterDto.CompanyId.Value);
+        await SaveChangesAsync(cancellationToken);
+    }
 
-        if (filterDto.GenreId.HasValue)
+    public async Task DeleteAsync(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidCatalogReference(source, "Oyun");
+
+        if (source == CatalogSource.Local)
         {
-            query = query.Where(g => g.GameGenres.Any(gg =>
-                gg.GenreId == filterDto.GenreId.Value &&
-                !gg.Genre.IsDeleted));
+            if (id > int.MaxValue)
+                throw new NotFoundException("Oyun tapılmadı.");
+
+            var game = await _context.Games
+                .FirstOrDefaultAsync(x => x.Id == (int)id, cancellationToken)
+                ?? throw new NotFoundException("Oyun tapılmadı.");
+
+            game.IsDeleted = true;
+            game.UpdatedAt = DateTime.UtcNow;
         }
-
-        if (filterDto.PlatformId.HasValue)
+        else
         {
-            query = query.Where(g => g.GamePlatforms.Any(gp =>
-                gp.PlatformId == filterDto.PlatformId.Value &&
-                !gp.Platform.IsDeleted));
-        }
+            _ = await _igdbClient.GetGameByIdAsync(id, cancellationToken)
+                ?? throw new NotFoundException("IGDB oyunu tapılmadı.");
 
-        if (filterDto.ReleaseYear.HasValue)
-            query = query.Where(g => g.ReleaseDate.Year == filterDto.ReleaseYear.Value.Year);
+            var gameOverride = await _context.IgdbGameOverrides
+                .FirstOrDefaultAsync(x => x.IgdbGameId == id, cancellationToken);
 
-        query = filterDto.SortBy?.Trim().ToLowerInvariant() switch
-        {
-            "name_asc" => query.OrderBy(g => g.Name),
-            "name_desc" => query.OrderByDescending(g => g.Name),
-            "rating_asc" => query.OrderBy(g => g.AverageRating),
-            "rating_desc" => query.OrderByDescending(g => g.AverageRating),
-            "play_asc" => query.OrderBy(g => g.PlayCount),
-            "play_desc" => query.OrderByDescending(g => g.PlayCount),
-            "year_asc" => query.OrderBy(g => g.ReleaseDate),
-            "year_desc" => query.OrderByDescending(g => g.ReleaseDate),
-            "company_asc" => query.OrderBy(g => g.DeveloperCompany.Name),
-            "company_desc" => query.OrderByDescending(g => g.DeveloperCompany.Name),
-            _ => query.OrderByDescending(g => g.Id)
-        };
-
-        var pageNumber = filterDto.PageNumber < 1 ? 1 : filterDto.PageNumber;
-
-        var pageSize = filterDto.PageSize switch
-        {
-            < 1 => 10,
-            > 100 => 100,
-            _ => filterDto.PageSize
-        };
-
-        var result = await query
-            .Skip((pageNumber - 1) * pageSize)
-            .Take(pageSize)
-            .Select(g => new GameListItemDTO
+            if (gameOverride is null)
             {
-                Id = g.Id,
-                Title = g.Name,
-                CoverImageUrl = g.CoverImageUrl,
-                DeveloperCompanyName = g.DeveloperCompany.Name,
-                PlayCount = g.PlayCount,
-                AverageRating = g.AverageRating,
-                ReleaseDate = g.ReleaseDate,
-                Genres = g.GameGenres
-                    .Where(gg => !gg.Genre.IsDeleted)
-                    .Select(gg => gg.Genre.Name)
-                    .OrderBy(name => name)
-                    .ToList(),
-                Platforms = g.GamePlatforms
-                    .Where(gp => !gp.Platform.IsDeleted)
-                    .Select(gp => gp.Platform.Name)
-                    .OrderBy(name => name)
-                    .ToList()
-            })
-            .ToListAsync();
+                gameOverride = new IgdbGameOverride
+                {
+                    IgdbGameId = id,
+                    IsHidden = true,
+                    CreatedAt = DateTime.UtcNow
+                };
+                await _context.IgdbGameOverrides.AddAsync(gameOverride, cancellationToken);
+            }
+            else
+            {
+                gameOverride.IsHidden = true;
+                gameOverride.UpdatedAt = DateTime.UtcNow;
+            }
+        }
+
+        await SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RestoreAsync(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidCatalogReference(source, "Oyun");
+
+        if (source == CatalogSource.Local)
+        {
+            if (id > int.MaxValue)
+                throw new NotFoundException("Oyun tapılmadı.");
+
+            var game = await _context.Games
+                .IgnoreQueryFilters()
+                .FirstOrDefaultAsync(x => x.Id == (int)id, cancellationToken)
+                ?? throw new NotFoundException("Oyun tapılmadı.");
+
+            if (!game.IsDeleted)
+                return;
+
+            game.IsDeleted = false;
+            game.UpdatedAt = DateTime.UtcNow;
+        }
+        else
+        {
+            _ = await _igdbClient.GetGameByIdAsync(id, cancellationToken)
+                ?? throw new NotFoundException("IGDB oyunu tapılmadı.");
+
+            var gameOverride = await _context.IgdbGameOverrides
+                .FirstOrDefaultAsync(x => x.IgdbGameId == id, cancellationToken)
+                ?? throw new NotFoundException("Gizlədilmiş IGDB oyunu tapılmadı.");
+
+            if (!gameOverride.IsHidden)
+                throw new ConflictException("IGDB oyunu gizlədilməyib.");
+
+            gameOverride.IsHidden = false;
+            gameOverride.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyDictionary<(CatalogSource Source, long Id), GameDetailDTO>> GetByReferencesAsync(
+        IReadOnlyCollection<CatalogReferenceDTO> references,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(references);
+
+        foreach (var reference in references)
+        {
+            if (reference is null)
+                throw new BadRequestException("Oyun istinadı boş ola bilməz.");
+
+            reference.Id.EnsureValidCatalogReference(reference.Source, "Oyun");
+        }
+
+        var normalized = references
+            .DistinctBy(x => new { x.Source, x.Id })
+            .ToList();
+
+        var result = new Dictionary<(CatalogSource Source, long Id), GameDetailDTO>();
+
+        var localIds = normalized
+            .Where(x => x.Source == CatalogSource.Local && x.Id <= int.MaxValue)
+            .Select(x => (int)x.Id)
+            .ToArray();
+
+        if (localIds.Length > 0)
+        {
+            var localGames = await _context.Games
+                .AsNoTracking()
+                .Include(x => x.GameGenres)
+                .Include(x => x.GamePlatforms)
+                .Include(x => x.GameCompanies)
+                .Where(x => localIds.Contains(x.Id))
+                .ToListAsync(cancellationToken);
+
+            foreach (var game in await MapLocalGamesAsync(localGames, cancellationToken))
+                result[(game.Source, game.Id)] = game;
+        }
+
+        var igdbIds = normalized
+            .Where(x => x.Source == CatalogSource.Igdb)
+            .Select(x => x.Id)
+            .ToArray();
+
+        if (igdbIds.Length > 0)
+        {
+            var igdbGames = await _igdbClient.GetGamesByIdsAsync(igdbIds, cancellationToken);
+
+            foreach (var game in await MapIgdbGamesAsync(igdbGames, cancellationToken))
+                result[(game.Source, game.Id)] = game;
+        }
 
         return result;
     }
 
-    private async Task ValidateCompanyAsync(int companyId)
+    private IQueryable<Game> BuildLocalQuery(GameFilterDTO filter)
     {
-        if (companyId < 1)
-            throw new ArgumentException("Şirkət ID-si düzgün deyil.");
+        var query = _context.Games.AsNoTracking();
 
-        var companyExists = await _context.Companies
-            .AnyAsync(c => c.Id == companyId && !c.IsDeleted);
+        if (!string.IsNullOrWhiteSpace(filter.SearchName))
+        {
+            var search = filter.SearchName.Trim();
+            query = query.Where(x => x.Name.Contains(search));
+        }
 
-        if (!companyExists)
-            throw new ArgumentException($"ID-si {companyId} olan şirkət tapılmadı.");
+        if (filter.CompanyId.HasValue)
+        {
+            query = query.Where(x => x.GameCompanies.Any(company =>
+                company.CompanySource == filter.CompanySource!.Value &&
+                company.CompanySourceId == filter.CompanyId.Value));
+        }
+
+        if (filter.GenreId.HasValue)
+        {
+            query = query.Where(x => x.GameGenres.Any(genre =>
+                genre.GenreSource == filter.GenreSource!.Value &&
+                genre.GenreSourceId == filter.GenreId.Value));
+        }
+
+        if (filter.PlatformId.HasValue)
+        {
+            query = query.Where(x => x.GamePlatforms.Any(platform =>
+                platform.PlatformSource == filter.PlatformSource!.Value &&
+                platform.PlatformSourceId == filter.PlatformId.Value));
+        }
+
+        if (filter.ReleaseYear.HasValue)
+        {
+            query = query.Where(x =>
+                x.ReleaseDate.HasValue &&
+                x.ReleaseDate.Value.Year == filter.ReleaseYear.Value);
+        }
+
+        return query;
     }
 
-    private async Task ValidateGenreIdsAsync(IReadOnlyCollection<int> genreIds)
+    private static IQueryable<Game> ApplyLocalSort(
+        IQueryable<Game> query,
+        string? sortBy)
     {
-        if (genreIds.Count == 0)
+        return sortBy?.Trim().ToLowerInvariant() switch
+        {
+            "name_asc" => query.OrderBy(x => x.Name),
+            "name_desc" => query.OrderByDescending(x => x.Name),
+            "rating_asc" => query.OrderBy(x => x.AverageRating),
+            "rating_desc" => query.OrderByDescending(x => x.AverageRating),
+            "play_asc" => query.OrderBy(x => x.PlayCount),
+            "play_desc" => query.OrderByDescending(x => x.PlayCount),
+            "year_asc" => query.OrderBy(x => x.ReleaseDate),
+            "year_desc" => query.OrderByDescending(x => x.ReleaseDate),
+            _ => query
+                .OrderByDescending(x => x.ReleaseDate)
+                .ThenBy(x => x.Name)
+        };
+    }
+
+    private static IEnumerable<GameDetailDTO> SortGames(
+        IEnumerable<GameDetailDTO> games,
+        string? sortBy)
+    {
+        return sortBy?.Trim().ToLowerInvariant() switch
+        {
+            "name_asc" => games.OrderBy(x => x.Title),
+            "name_desc" => games.OrderByDescending(x => x.Title),
+            "rating_asc" => games.OrderBy(x => x.AverageRating ?? double.MaxValue),
+            "rating_desc" => games.OrderByDescending(x => x.AverageRating ?? double.MinValue),
+            "play_asc" => games.OrderBy(x => x.PlayCount),
+            "play_desc" => games.OrderByDescending(x => x.PlayCount),
+            "year_asc" => games.OrderBy(x => x.ReleaseDate ?? DateOnly.MaxValue),
+            "year_desc" => games.OrderByDescending(x => x.ReleaseDate ?? DateOnly.MinValue),
+            _ => games
+                .OrderByDescending(x => x.ReleaseDate ?? DateOnly.MinValue)
+                .ThenBy(x => x.Title)
+        };
+    }
+
+    private static bool CanQueryIgdb(GameFilterDTO filter)
+    {
+        return (!filter.CompanyId.HasValue || filter.CompanySource == CatalogSource.Igdb) &&
+               (!filter.GenreId.HasValue || filter.GenreSource == CatalogSource.Igdb) &&
+               (!filter.PlatformId.HasValue || filter.PlatformSource == CatalogSource.Igdb);
+    }
+
+    private async Task<IReadOnlyList<GameDetailDTO>> MapLocalGamesAsync(
+        IReadOnlyCollection<Game> games,
+        CancellationToken cancellationToken)
+    {
+        if (games.Count == 0)
+            return Array.Empty<GameDetailDTO>();
+
+        var genreRefs = games.SelectMany(x => x.GameGenres)
+            .Select(x => new CatalogReferenceDTO { Source = x.GenreSource, Id = x.GenreSourceId })
+            .ToList();
+
+        var platformRefs = games.SelectMany(x => x.GamePlatforms)
+            .Select(x => new CatalogReferenceDTO { Source = x.PlatformSource, Id = x.PlatformSourceId })
+            .ToList();
+
+        var companyRefs = games.SelectMany(x => x.GameCompanies)
+            .Select(x => new CatalogReferenceDTO { Source = x.CompanySource, Id = x.CompanySourceId })
+            .ToList();
+
+        var genreMap = await ResolveGenreLookupsAsync(genreRefs, cancellationToken, true);
+        var platformMap = await ResolvePlatformLookupsAsync(platformRefs, cancellationToken, true);
+        var companyMap = await ResolveCompanyLookupsAsync(companyRefs, cancellationToken, true);
+
+        return games.Select(game => new GameDetailDTO
+        {
+            Source = CatalogSource.Local,
+            Id = game.Id,
+            Title = game.Name,
+            Description = game.Description,
+            ReleaseDate = game.ReleaseDate,
+            CoverImageUrl = game.CoverImageUrl,
+            PlayCount = game.PlayCount,
+            AverageRating = game.AverageRating,
+            IsOverridden = false,
+            Genres = game.GameGenres
+                .Select(x => genreMap.GetValueOrDefault((x.GenreSource, x.GenreSourceId)))
+                .Where(x => x is not null)
+                .Select(x => x!)
+                .OrderBy(x => x.Name)
+                .ToList(),
+            Platforms = game.GamePlatforms
+                .Select(x => platformMap.GetValueOrDefault((x.PlatformSource, x.PlatformSourceId)))
+                .Where(x => x is not null)
+                .Select(x => x!)
+                .OrderBy(x => x.Name)
+                .ToList(),
+            Companies = game.GameCompanies
+                .Select(x => companyMap.TryGetValue((x.CompanySource, x.CompanySourceId), out var company)
+                    ? new CompanyLookupDTO
+                    {
+                        Source = company.Source,
+                        Id = company.Id,
+                        Name = company.Name,
+                        IsOverridden = company.IsOverridden,
+                        Role = x.Role
+                    }
+                    : null)
+                .Where(x => x is not null)
+                .Select(x => x!)
+                .OrderBy(x => x.Role)
+                .ThenBy(x => x.Name)
+                .ToList()
+        }).ToList();
+    }
+
+    private async Task<IReadOnlyList<GameDetailDTO>> MapIgdbGamesAsync(
+        IReadOnlyCollection<IgdbGameModel> games,
+        CancellationToken cancellationToken)
+    {
+        if (games.Count == 0)
+            return Array.Empty<GameDetailDTO>();
+
+        var ids = games.Select(x => x.Id).ToArray();
+        var overrides = await _context.IgdbGameOverrides
+            .AsNoTracking()
+            .Include(x => x.Genres)
+            .Include(x => x.Platforms)
+            .Include(x => x.Companies)
+            .Where(x => ids.Contains(x.IgdbGameId))
+            .ToDictionaryAsync(x => x.IgdbGameId, cancellationToken);
+
+        var overrideGenreRefs = overrides.Values
+            .Where(x => x.ReplaceGenres)
+            .SelectMany(x => x.Genres)
+            .Select(x => new CatalogReferenceDTO { Source = x.GenreSource, Id = x.GenreSourceId })
+            .ToList();
+
+        var overridePlatformRefs = overrides.Values
+            .Where(x => x.ReplacePlatforms)
+            .SelectMany(x => x.Platforms)
+            .Select(x => new CatalogReferenceDTO { Source = x.PlatformSource, Id = x.PlatformSourceId })
+            .ToList();
+
+        var overrideCompanyRefs = overrides.Values
+            .Where(x => x.ReplaceCompanies)
+            .SelectMany(x => x.Companies)
+            .Select(x => new CatalogReferenceDTO { Source = x.CompanySource, Id = x.CompanySourceId })
+            .ToList();
+
+        var genreMap = await ResolveGenreLookupsAsync(overrideGenreRefs, cancellationToken, true);
+        var platformMap = await ResolvePlatformLookupsAsync(overridePlatformRefs, cancellationToken, true);
+        var companyMap = await ResolveCompanyLookupsAsync(overrideCompanyRefs, cancellationToken, true);
+
+        var baseGenreIds = games
+            .SelectMany(x => x.Genres)
+            .Select(x => x.Id)
+            .Distinct()
+            .ToArray();
+
+        var basePlatformIds = games
+            .SelectMany(x => x.Platforms)
+            .Select(x => x.Id)
+            .Distinct()
+            .ToArray();
+
+        var baseCompanyIds = games
+            .SelectMany(x => x.Companies)
+            .Select(x => x.Company.Id)
+            .Distinct()
+            .ToArray();
+
+        var baseGenreOverrides = await _context.IgdbGenreOverrides
+            .AsNoTracking()
+            .Where(x => baseGenreIds.Contains(x.IgdbGenreId))
+            .ToDictionaryAsync(x => x.IgdbGenreId, cancellationToken);
+
+        var basePlatformOverrides = await _context.IgdbPlatformOverrides
+            .AsNoTracking()
+            .Where(x => basePlatformIds.Contains(x.IgdbPlatformId))
+            .ToDictionaryAsync(x => x.IgdbPlatformId, cancellationToken);
+
+        var baseCompanyOverrides = await _context.IgdbCompanyOverrides
+            .AsNoTracking()
+            .Where(x => baseCompanyIds.Contains(x.IgdbCompanyId))
+            .ToDictionaryAsync(x => x.IgdbCompanyId, cancellationToken);
+
+        var result = new List<GameDetailDTO>();
+
+        foreach (var game in games)
+        {
+            overrides.TryGetValue(game.Id, out var gameOverride);
+
+            if (gameOverride?.IsHidden == true)
+                continue;
+
+            var genres = gameOverride?.ReplaceGenres == true
+                ? gameOverride.Genres
+                    .Select(x => genreMap.GetValueOrDefault((x.GenreSource, x.GenreSourceId)))
+                    .Where(x => x is not null)
+                    .Select(x => x!)
+                    .ToList()
+                : game.Genres
+                    .Where(x => !baseGenreOverrides.TryGetValue(x.Id, out var itemOverride) || !itemOverride.IsHidden)
+                    .Select(x => new LookupDTO
+                    {
+                        Source = CatalogSource.Igdb,
+                        Id = x.Id,
+                        Name = baseGenreOverrides.TryGetValue(x.Id, out var itemOverride) && itemOverride.Name is not null
+                            ? itemOverride.Name
+                            : x.Name,
+                        IsOverridden = baseGenreOverrides.ContainsKey(x.Id)
+                    })
+                    .ToList();
+
+            var platforms = gameOverride?.ReplacePlatforms == true
+                ? gameOverride.Platforms
+                    .Select(x => platformMap.GetValueOrDefault((x.PlatformSource, x.PlatformSourceId)))
+                    .Where(x => x is not null)
+                    .Select(x => x!)
+                    .ToList()
+                : game.Platforms
+                    .Where(x => !basePlatformOverrides.TryGetValue(x.Id, out var itemOverride) || !itemOverride.IsHidden)
+                    .Select(x => new LookupDTO
+                    {
+                        Source = CatalogSource.Igdb,
+                        Id = x.Id,
+                        Name = basePlatformOverrides.TryGetValue(x.Id, out var itemOverride) && itemOverride.Name is not null
+                            ? itemOverride.Name
+                            : x.Name,
+                        IsOverridden = basePlatformOverrides.ContainsKey(x.Id)
+                    })
+                    .ToList();
+
+            var companies = gameOverride?.ReplaceCompanies == true
+                ? gameOverride.Companies
+                    .Select(x => companyMap.TryGetValue((x.CompanySource, x.CompanySourceId), out var company)
+                        ? new CompanyLookupDTO
+                        {
+                            Source = company.Source,
+                            Id = company.Id,
+                            Name = company.Name,
+                            IsOverridden = company.IsOverridden,
+                            Role = x.Role
+                        }
+                        : null)
+                    .Where(x => x is not null)
+                    .Select(x => x!)
+                    .ToList()
+                : game.Companies
+                    .Where(x => !baseCompanyOverrides.TryGetValue(x.Company.Id, out var itemOverride) || !itemOverride.IsHidden)
+                    .Select(x => new CompanyLookupDTO
+                    {
+                        Source = CatalogSource.Igdb,
+                        Id = x.Company.Id,
+                        Name = baseCompanyOverrides.TryGetValue(x.Company.Id, out var itemOverride) && itemOverride.Name is not null
+                            ? itemOverride.Name
+                            : x.Company.Name,
+                        IsOverridden = baseCompanyOverrides.ContainsKey(x.Company.Id),
+                        Role = x.Role
+                    })
+                    .ToList();
+
+            result.Add(new GameDetailDTO
+            {
+                Source = CatalogSource.Igdb,
+                Id = game.Id,
+                Title = gameOverride?.Name ?? game.Name,
+                Description = gameOverride?.Description ?? game.Description,
+                ReleaseDate = gameOverride?.ReleaseDate ?? game.ReleaseDate,
+                CoverImageUrl = gameOverride?.CoverImageUrl ?? game.CoverImageUrl,
+                PlayCount = 0,
+                AverageRating = gameOverride?.Rating ?? game.Rating,
+                IsOverridden = gameOverride is not null,
+                Genres = genres.OrderBy(x => x.Name).ToList(),
+                Platforms = platforms.OrderBy(x => x.Name).ToList(),
+                Companies = companies.OrderBy(x => x.Role).ThenBy(x => x.Name).ToList()
+            });
+        }
+
+        return result;
+    }
+
+    private async Task<Dictionary<(CatalogSource Source, long Id), LookupDTO>> ResolveGenreLookupsAsync(
+        IReadOnlyCollection<CatalogReferenceDTO> references,
+        CancellationToken cancellationToken,
+        bool allowIgdbFallback = false)
+    {
+        var result = new Dictionary<(CatalogSource Source, long Id), LookupDTO>();
+        var localIds = references
+            .Where(x => x.Source == CatalogSource.Local)
+            .Select(x => (int)x.Id)
+            .Distinct()
+            .ToArray();
+
+        var locals = await _context.Genres
+            .AsNoTracking()
+            .Where(x => localIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var item in locals)
+        {
+            result[(CatalogSource.Local, item.Id)] = new LookupDTO
+            {
+                Source = CatalogSource.Local,
+                Id = item.Id,
+                Name = item.Name,
+                IsOverridden = false
+            };
+        }
+
+        var igdbIds = references
+            .Where(x => x.Source == CatalogSource.Igdb)
+            .Select(x => x.Id)
+            .Distinct()
+            .ToArray();
+
+        if (igdbIds.Length == 0)
+            return result;
+
+        var overrides = await _context.IgdbGenreOverrides
+            .AsNoTracking()
+            .Where(x => igdbIds.Contains(x.IgdbGenreId))
+            .ToDictionaryAsync(x => x.IgdbGenreId, cancellationToken);
+
+        IReadOnlyList<IgdbGenreModel> items;
+
+        try
+        {
+            items = await _igdbClient.GetGenresByIdsAsync(igdbIds, cancellationToken);
+        }
+        catch (ExternalServiceException) when (allowIgdbFallback)
+        {
+            items = Array.Empty<IgdbGenreModel>();
+        }
+
+        foreach (var item in items)
+        {
+            overrides.TryGetValue(item.Id, out var itemOverride);
+
+            if (itemOverride?.IsHidden == true)
+                continue;
+
+            result[(CatalogSource.Igdb, item.Id)] = new LookupDTO
+            {
+                Source = CatalogSource.Igdb,
+                Id = item.Id,
+                Name = itemOverride?.Name ?? item.Name,
+                IsOverridden = itemOverride is not null
+            };
+        }
+
+        AddFallbackLookups(
+            result,
+            igdbIds,
+            overrides.ToDictionary(
+                x => x.Key,
+                x => (x.Value.Name, x.Value.IsHidden)),
+            allowIgdbFallback);
+
+        return result;
+    }
+
+    private async Task<Dictionary<(CatalogSource Source, long Id), LookupDTO>> ResolvePlatformLookupsAsync(
+        IReadOnlyCollection<CatalogReferenceDTO> references,
+        CancellationToken cancellationToken,
+        bool allowIgdbFallback = false)
+    {
+        var result = new Dictionary<(CatalogSource Source, long Id), LookupDTO>();
+        var localIds = references
+            .Where(x => x.Source == CatalogSource.Local)
+            .Select(x => (int)x.Id)
+            .Distinct()
+            .ToArray();
+
+        var locals = await _context.Platforms
+            .AsNoTracking()
+            .Where(x => localIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var item in locals)
+        {
+            result[(CatalogSource.Local, item.Id)] = new LookupDTO
+            {
+                Source = CatalogSource.Local,
+                Id = item.Id,
+                Name = item.Name,
+                IsOverridden = false
+            };
+        }
+
+        var igdbIds = references
+            .Where(x => x.Source == CatalogSource.Igdb)
+            .Select(x => x.Id)
+            .Distinct()
+            .ToArray();
+
+        if (igdbIds.Length == 0)
+            return result;
+
+        var overrides = await _context.IgdbPlatformOverrides
+            .AsNoTracking()
+            .Where(x => igdbIds.Contains(x.IgdbPlatformId))
+            .ToDictionaryAsync(x => x.IgdbPlatformId, cancellationToken);
+
+        IReadOnlyList<IgdbPlatformModel> items;
+
+        try
+        {
+            items = await _igdbClient.GetPlatformsByIdsAsync(igdbIds, cancellationToken);
+        }
+        catch (ExternalServiceException) when (allowIgdbFallback)
+        {
+            items = Array.Empty<IgdbPlatformModel>();
+        }
+
+        foreach (var item in items)
+        {
+            overrides.TryGetValue(item.Id, out var itemOverride);
+
+            if (itemOverride?.IsHidden == true)
+                continue;
+
+            result[(CatalogSource.Igdb, item.Id)] = new LookupDTO
+            {
+                Source = CatalogSource.Igdb,
+                Id = item.Id,
+                Name = itemOverride?.Name ?? item.Name,
+                IsOverridden = itemOverride is not null
+            };
+        }
+
+        AddFallbackLookups(
+            result,
+            igdbIds,
+            overrides.ToDictionary(
+                x => x.Key,
+                x => (x.Value.Name, x.Value.IsHidden)),
+            allowIgdbFallback);
+
+        return result;
+    }
+
+    private async Task<Dictionary<(CatalogSource Source, long Id), LookupDTO>> ResolveCompanyLookupsAsync(
+        IReadOnlyCollection<CatalogReferenceDTO> references,
+        CancellationToken cancellationToken,
+        bool allowIgdbFallback = false)
+    {
+        var result = new Dictionary<(CatalogSource Source, long Id), LookupDTO>();
+        var localIds = references
+            .Where(x => x.Source == CatalogSource.Local)
+            .Select(x => (int)x.Id)
+            .Distinct()
+            .ToArray();
+
+        var locals = await _context.Companies
+            .AsNoTracking()
+            .Where(x => localIds.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+
+        foreach (var item in locals)
+        {
+            result[(CatalogSource.Local, item.Id)] = new LookupDTO
+            {
+                Source = CatalogSource.Local,
+                Id = item.Id,
+                Name = item.Name,
+                IsOverridden = false
+            };
+        }
+
+        var igdbIds = references
+            .Where(x => x.Source == CatalogSource.Igdb)
+            .Select(x => x.Id)
+            .Distinct()
+            .ToArray();
+
+        if (igdbIds.Length == 0)
+            return result;
+
+        var overrides = await _context.IgdbCompanyOverrides
+            .AsNoTracking()
+            .Where(x => igdbIds.Contains(x.IgdbCompanyId))
+            .ToDictionaryAsync(x => x.IgdbCompanyId, cancellationToken);
+
+        IReadOnlyList<IgdbCompanyModel> items;
+
+        try
+        {
+            items = await _igdbClient.GetCompaniesByIdsAsync(igdbIds, cancellationToken);
+        }
+        catch (ExternalServiceException) when (allowIgdbFallback)
+        {
+            items = Array.Empty<IgdbCompanyModel>();
+        }
+
+        foreach (var item in items)
+        {
+            overrides.TryGetValue(item.Id, out var itemOverride);
+
+            if (itemOverride?.IsHidden == true)
+                continue;
+
+            result[(CatalogSource.Igdb, item.Id)] = new LookupDTO
+            {
+                Source = CatalogSource.Igdb,
+                Id = item.Id,
+                Name = itemOverride?.Name ?? item.Name,
+                IsOverridden = itemOverride is not null
+            };
+        }
+
+        AddFallbackLookups(
+            result,
+            igdbIds,
+            overrides.ToDictionary(
+                x => x.Key,
+                x => (x.Value.Name, x.Value.IsHidden)),
+            allowIgdbFallback);
+
+        return result;
+    }
+
+    private static void AddFallbackLookups(
+        IDictionary<(CatalogSource Source, long Id), LookupDTO> result,
+        IEnumerable<long> igdbIds,
+        IReadOnlyDictionary<long, (string? Name, bool IsHidden)> overrides,
+        bool allowFallback)
+    {
+        if (!allowFallback)
             return;
 
-        var existingGenreIds = await _context.Genres
-            .Where(g => genreIds.Contains(g.Id) && !g.IsDeleted)
-            .Select(g => g.Id)
-            .ToListAsync();
+        foreach (var id in igdbIds)
+        {
+            if (result.ContainsKey((CatalogSource.Igdb, id)))
+                continue;
 
-        var missingGenreIds = genreIds
-            .Except(existingGenreIds)
-            .OrderBy(id => id)
-            .ToList();
+            overrides.TryGetValue(id, out var itemOverride);
 
-        if (missingGenreIds.Count > 0)
-            throw new ArgumentException("Bu janr ID-ləri tapılmadı: " + string.Join(", ", missingGenreIds));
+            if (itemOverride.IsHidden)
+                continue;
+
+            result[(CatalogSource.Igdb, id)] = new LookupDTO
+            {
+                Source = CatalogSource.Igdb,
+                Id = id,
+                Name = itemOverride.Name ?? $"IGDB #{id}",
+                IsOverridden = overrides.ContainsKey(id)
+            };
+        }
     }
 
-    private async Task ValidatePlatformIdsAsync(IReadOnlyCollection<int> platformIds)
+    private async Task ValidateGenreReferencesAsync(
+        IReadOnlyCollection<CatalogReferenceDTO> references,
+        CancellationToken cancellationToken)
     {
-        if (platformIds.Count == 0)
-            return;
-
-        var existingPlatformIds = await _context.Platforms
-            .Where(p => platformIds.Contains(p.Id) && !p.IsDeleted)
-            .Select(p => p.Id)
-            .ToListAsync();
-
-        var missingPlatformIds = platformIds
-            .Except(existingPlatformIds)
-            .OrderBy(id => id)
-            .ToList();
-
-        if (missingPlatformIds.Count > 0)
-            throw new ArgumentException("Bu platforma ID-ləri tapılmadı: " + string.Join(", ", missingPlatformIds));
+        var map = await ResolveGenreLookupsAsync(references, cancellationToken);
+        EnsureAllReferencesResolved(references, map.Keys, "Janr");
     }
 
-    private void UpdateGameGenres(Game game, IReadOnlyCollection<int> requestedGenreIds)
+    private async Task ValidatePlatformReferencesAsync(
+        IReadOnlyCollection<CatalogReferenceDTO> references,
+        CancellationToken cancellationToken)
     {
-        var requestedIds = requestedGenreIds.ToHashSet();
+        var map = await ResolvePlatformLookupsAsync(references, cancellationToken);
+        EnsureAllReferencesResolved(references, map.Keys, "Platforma");
+    }
 
-        var relationsToRemove = game.GameGenres
-            .Where(gg => !requestedIds.Contains(gg.GenreId))
+    private async Task ValidateCompanyReferencesAsync(
+        IReadOnlyCollection<CompanyReferenceDTO> references,
+        CancellationToken cancellationToken)
+    {
+        var catalogReferences = references
+            .Select(x => new CatalogReferenceDTO { Source = x.Source, Id = x.Id })
             .ToList();
 
-        _context.GameGenres.RemoveRange(relationsToRemove);
+        var map = await ResolveCompanyLookupsAsync(catalogReferences, cancellationToken);
+        EnsureAllReferencesResolved(catalogReferences, map.Keys, "Şirkət");
+    }
 
-        foreach (var relation in relationsToRemove)
-            game.GameGenres.Remove(relation);
+    private static void EnsureAllReferencesResolved(
+        IReadOnlyCollection<CatalogReferenceDTO> requested,
+        IEnumerable<(CatalogSource Source, long Id)> resolved,
+        string fieldName)
+    {
+        var resolvedSet = resolved.ToHashSet();
+        var missing = requested
+            .Where(x => !resolvedSet.Contains((x.Source, x.Id)))
+            .Select(x => $"{x.Source}:{x.Id}")
+            .ToList();
 
-        var currentGenreIds = game.GameGenres
-            .Select(gg => gg.GenreId)
+        if (missing.Count > 0)
+            throw new BadRequestException($"Bu {fieldName.ToLower()} istinadları tapılmadı: {string.Join(", ", missing)}");
+    }
+
+    private void SyncLocalGenres(
+        Game game,
+        IReadOnlyCollection<CatalogReferenceDTO> references)
+    {
+        var desired = references
+            .Select(x => (x.Source, x.Id))
             .ToHashSet();
 
-        var genreIdsToAdd = requestedIds.Except(currentGenreIds);
+        var removed = game.GameGenres
+            .Where(x => !desired.Contains((x.GenreSource, x.GenreSourceId)))
+            .ToList();
 
-        foreach (var genreId in genreIdsToAdd)
+        _context.GameGenres.RemoveRange(removed);
+
+        var existing = game.GameGenres
+            .Except(removed)
+            .Select(x => (x.GenreSource, x.GenreSourceId))
+            .ToHashSet();
+
+        foreach (var reference in references.Where(x => !existing.Contains((x.Source, x.Id))))
         {
             game.GameGenres.Add(new GameGenre
             {
                 GameId = game.Id,
-                GenreId = genreId
+                GenreSource = reference.Source,
+                GenreSourceId = reference.Id
             });
         }
     }
 
-    private void UpdateGamePlatforms(Game game, IReadOnlyCollection<int> requestedPlatformIds)
+    private void SyncLocalPlatforms(
+        Game game,
+        IReadOnlyCollection<CatalogReferenceDTO> references)
     {
-        var requestedIds = requestedPlatformIds.ToHashSet();
-
-        var relationsToRemove = game.GamePlatforms
-            .Where(gp => !requestedIds.Contains(gp.PlatformId))
-            .ToList();
-
-        _context.GamePlatforms.RemoveRange(relationsToRemove);
-
-        foreach (var relation in relationsToRemove)
-            game.GamePlatforms.Remove(relation);
-
-        var currentPlatformIds = game.GamePlatforms
-            .Select(gp => gp.PlatformId)
+        var desired = references
+            .Select(x => (x.Source, x.Id))
             .ToHashSet();
 
-        var platformIdsToAdd = requestedIds.Except(currentPlatformIds);
+        var removed = game.GamePlatforms
+            .Where(x => !desired.Contains((x.PlatformSource, x.PlatformSourceId)))
+            .ToList();
 
-        foreach (var platformId in platformIdsToAdd)
+        _context.GamePlatforms.RemoveRange(removed);
+
+        var existing = game.GamePlatforms
+            .Except(removed)
+            .Select(x => (x.PlatformSource, x.PlatformSourceId))
+            .ToHashSet();
+
+        foreach (var reference in references.Where(x => !existing.Contains((x.Source, x.Id))))
         {
             game.GamePlatforms.Add(new GamePlatform
             {
                 GameId = game.Id,
-                PlatformId = platformId
+                PlatformSource = reference.Source,
+                PlatformSourceId = reference.Id
             });
         }
     }
 
-    private static List<int> NormalizeIds(IEnumerable<int>? ids, string fieldName)
+    private void SyncLocalCompanies(
+        Game game,
+        IReadOnlyCollection<CompanyReferenceDTO> references)
     {
-        if (ids == null)
-            return new List<int>();
+        var desired = references
+            .Select(x => (x.Source, x.Id, x.Role))
+            .ToHashSet();
 
-        var idList = ids.ToList();
+        var removed = game.GameCompanies
+            .Where(x => !desired.Contains((x.CompanySource, x.CompanySourceId, x.Role)))
+            .ToList();
 
-        if (idList.Any(id => id < 1))
-            throw new ArgumentException($"{fieldName} ID-si 1-dən kiçik ola bilməz.");
+        _context.GameCompanies.RemoveRange(removed);
 
-        return idList.Distinct().ToList();
+        var existing = game.GameCompanies
+            .Except(removed)
+            .Select(x => (x.CompanySource, x.CompanySourceId, x.Role))
+            .ToHashSet();
+
+        foreach (var reference in references.Where(x =>
+                     !existing.Contains((x.Source, x.Id, x.Role))))
+        {
+            game.GameCompanies.Add(new GameCompany
+            {
+                GameId = game.Id,
+                CompanySource = reference.Source,
+                CompanySourceId = reference.Id,
+                Role = reference.Role
+            });
+        }
     }
 
-    private static string NormalizeRequiredText(string? value, string fieldName, int maximumLength)
+    private void SyncIgdbOverrideGenres(
+        IgdbGameOverride gameOverride,
+        IReadOnlyCollection<CatalogReferenceDTO> references)
     {
-        if (string.IsNullOrWhiteSpace(value))
-            throw new ArgumentException($"{fieldName} boş ola bilməz.");
+        var desired = references
+            .Select(x => (x.Source, x.Id))
+            .ToHashSet();
 
-        var normalizedValue = value.Trim();
+        var removed = gameOverride.Genres
+            .Where(x => !desired.Contains((x.GenreSource, x.GenreSourceId)))
+            .ToList();
 
-        if (normalizedValue.Length > maximumLength)
-            throw new ArgumentException($"{fieldName} maksimum {maximumLength} simvol ola bilər.");
+        _context.IgdbGameGenreOverrides.RemoveRange(removed);
 
-        return normalizedValue;
+        var existing = gameOverride.Genres
+            .Except(removed)
+            .Select(x => (x.GenreSource, x.GenreSourceId))
+            .ToHashSet();
+
+        foreach (var reference in references.Where(x => !existing.Contains((x.Source, x.Id))))
+        {
+            gameOverride.Genres.Add(new IgdbGameGenreOverride
+            {
+                GenreSource = reference.Source,
+                GenreSourceId = reference.Id
+            });
+        }
+
+        gameOverride.ReplaceGenres = true;
     }
 
-    private static void ValidateFilterIds(GameFilterDTO filterDto)
+    private void SyncIgdbOverridePlatforms(
+        IgdbGameOverride gameOverride,
+        IReadOnlyCollection<CatalogReferenceDTO> references)
     {
-        if (filterDto.CompanyId.HasValue && filterDto.CompanyId.Value < 1)
-            throw new ArgumentException("Şirkət ID-si düzgün deyil.");
+        var desired = references
+            .Select(x => (x.Source, x.Id))
+            .ToHashSet();
 
-        if (filterDto.GenreId.HasValue && filterDto.GenreId.Value < 1)
-            throw new ArgumentException("Janr ID-si düzgün deyil.");
+        var removed = gameOverride.Platforms
+            .Where(x => !desired.Contains((x.PlatformSource, x.PlatformSourceId)))
+            .ToList();
 
-        if (filterDto.PlatformId.HasValue && filterDto.PlatformId.Value < 1)
-            throw new ArgumentException("Platforma ID-si düzgün deyil.");
+        _context.IgdbGamePlatformOverrides.RemoveRange(removed);
+
+        var existing = gameOverride.Platforms
+            .Except(removed)
+            .Select(x => (x.PlatformSource, x.PlatformSourceId))
+            .ToHashSet();
+
+        foreach (var reference in references.Where(x => !existing.Contains((x.Source, x.Id))))
+        {
+            gameOverride.Platforms.Add(new IgdbGamePlatformOverride
+            {
+                PlatformSource = reference.Source,
+                PlatformSourceId = reference.Id
+            });
+        }
+
+        gameOverride.ReplacePlatforms = true;
+    }
+
+    private void SyncIgdbOverrideCompanies(
+        IgdbGameOverride gameOverride,
+        IReadOnlyCollection<CompanyReferenceDTO> references)
+    {
+        var desired = references
+            .Select(x => (x.Source, x.Id, x.Role))
+            .ToHashSet();
+
+        var removed = gameOverride.Companies
+            .Where(x => !desired.Contains((x.CompanySource, x.CompanySourceId, x.Role)))
+            .ToList();
+
+        _context.IgdbGameCompanyOverrides.RemoveRange(removed);
+
+        var existing = gameOverride.Companies
+            .Except(removed)
+            .Select(x => (x.CompanySource, x.CompanySourceId, x.Role))
+            .ToHashSet();
+
+        foreach (var reference in references.Where(x =>
+                     !existing.Contains((x.Source, x.Id, x.Role))))
+        {
+            gameOverride.Companies.Add(new IgdbGameCompanyOverride
+            {
+                CompanySource = reference.Source,
+                CompanySourceId = reference.Id,
+                Role = reference.Role
+            });
+        }
+
+        gameOverride.ReplaceCompanies = true;
+    }
+
+    private async Task UpdateGameListSnapshotsAsync(
+        CatalogSource source,
+        long gameId,
+        string title,
+        string? coverImageUrl,
+        DateOnly? releaseDate,
+        double? rating,
+        CancellationToken cancellationToken)
+    {
+        var items = await _context.GameListItems
+            .Where(x =>
+                x.GameSource == source &&
+                x.GameSourceId == gameId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var item in items)
+        {
+            item.GameTitle = title;
+            item.CoverImageUrl = coverImageUrl;
+            item.ReleaseDate = releaseDate;
+            item.Rating = rating;
+        }
+    }
+
+    private async Task SaveChangesAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException exception) when (exception.IsUniqueConstraintViolation())
+        {
+            throw new ConflictException(
+                "Kataloq məlumatı eyni vaxtda dəyişdirilib. Sorğunu yenidən göndərin.");
+        }
+    }
+
+    private static GameListItemDTO ToListItem(GameDetailDTO game)
+    {
+        return new GameListItemDTO
+        {
+            Source = game.Source,
+            Id = game.Id,
+            Title = game.Title,
+            CoverImageUrl = game.CoverImageUrl,
+            ReleaseDate = game.ReleaseDate,
+            AverageRating = game.AverageRating,
+            IsOverridden = game.IsOverridden,
+            Genres = game.Genres,
+            Platforms = game.Platforms
+        };
+    }
+
+    private static List<CatalogReferenceDTO> NormalizeCatalogReferences(
+        IEnumerable<CatalogReferenceDTO>? references,
+        string fieldName)
+    {
+        if (references is null)
+            return [];
+
+        var result = references.ToList();
+
+        foreach (var reference in result)
+        {
+            if (reference is null)
+                throw new BadRequestException($"{fieldName} istinadı boş ola bilməz.");
+
+            reference.Id.EnsureValidCatalogReference(reference.Source, fieldName);
+        }
+
+        return result
+            .DistinctBy(x => new { x.Source, x.Id })
+            .ToList();
+    }
+
+    private static List<CompanyReferenceDTO> NormalizeCompanyReferences(
+        IEnumerable<CompanyReferenceDTO>? references)
+    {
+        if (references is null)
+        {
+            return [];
+        }
+
+        var result = references.ToList();
+
+        foreach (var reference in result)
+        {
+            if (reference is null)
+            {
+                throw new BadRequestException("Şirkət istinadı boş ola bilməz.");
+            }
+
+            reference.Id.EnsureValidCatalogReference(reference.Source, "Şirkət");
+
+            if (!Enum.IsDefined(reference.Role))
+            {
+                throw new BadRequestException("Şirkət rolu düzgün deyil.");
+            }
+        }
+
+        return result.DistinctBy(x => new { x.Source, x.Id, x.Role }).ToList();
+    }
+
+    private static void ValidateFilter(GameFilterDTO filter)
+    {
+        if (filter.Source.HasValue)
+        {
+            filter.Source.Value.EnsureValidCatalogSource();
+        }
+
+        if (filter.PageNumber < 1)
+            throw new BadRequestException("Səhifə nömrəsi 1-dən kiçik ola bilməz.");
+
+        if (filter.PageSize is < 1 or > MaxPageSize)
+        {
+            throw new BadRequestException($"Səhifə ölçüsü 1-{MaxPageSize} aralığında olmalıdır.");
+        }
+
+        if ((long)(filter.PageNumber - 1) * filter.PageSize > int.MaxValue)
+        {
+            throw new BadRequestException("Səhifə nömrəsi və ölçüsünün kombinasiyası çox böyükdür.");
+        }
+
+        if (filter.SearchName?.Trim().Length > 200) throw new BadRequestException("Axtarış mətni maksimum 200 simvol ola bilər.");
+
+        ValidateFilterReference(filter.CompanySource, filter.CompanyId, "Şirkət");
+        ValidateFilterReference(filter.GenreSource, filter.GenreId, "Janr");
+        ValidateFilterReference(filter.PlatformSource, filter.PlatformId, "Platforma");
+
+        if (filter.ReleaseYear is < 1900 or > 2200)
+            throw new BadRequestException("Çıxış ili düzgün deyil.");
+
+        var allowedSorts = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "name_asc",
+            "name_desc",
+            "rating_asc",
+            "rating_desc",
+            "play_asc",
+            "play_desc",
+            "year_asc",
+            "year_desc"
+        };
+
+        if (!string.IsNullOrWhiteSpace(filter.SortBy) &&
+            !allowedSorts.Contains(filter.SortBy.Trim()))
+        {
+            throw new BadRequestException("SortBy dəyəri düzgün deyil.");
+        }
+
+        if (filter.Source == CatalogSource.Igdb &&
+            (filter.CompanySource == CatalogSource.Local ||
+             filter.GenreSource == CatalogSource.Local ||
+             filter.PlatformSource == CatalogSource.Local))
+        {
+            throw new BadRequestException(
+                "IGDB oyunlarını local kataloq istinadı ilə filterləmək mümkün deyil.");
+        }
+
+        if (filter.Source == CatalogSource.Igdb &&
+            filter.SortBy?.StartsWith("play_", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            throw new BadRequestException(
+                "IGDB oyunlarında oynanma sayına görə sıralama dəstəklənmir.");
+        }
+    }
+
+    private static void ValidateFilterReference(
+        CatalogSource? source,
+        long? id,
+        string entityName)
+    {
+        if (source.HasValue != id.HasValue)
+        {
+            throw new BadRequestException(
+                $"{entityName} filterində mənbə və ID birlikdə göndərilməlidir.");
+        }
+
+        if (!source.HasValue)
+            return;
+
+        id!.Value.EnsureValidCatalogReference(source.Value, entityName);
+    }
+
+    private async Task<string> CreateUniqueSlugAsync(
+    string title,
+    int? ignoredGameId = null,
+    CancellationToken cancellationToken = default)
+    {
+        var baseSlug = SlugHelper.Generate(title);
+        var slug = baseSlug;
+        var number = 2;
+
+        while (await _context.Games
+            .IgnoreQueryFilters()
+            .AnyAsync(
+                x => x.Slug == slug &&
+                     (!ignoredGameId.HasValue ||
+                      x.Id != ignoredGameId.Value),
+                cancellationToken))
+        {
+            slug = $"{baseSlug}-{number}";
+            number++;
+        }
+
+        return slug;
     }
 }

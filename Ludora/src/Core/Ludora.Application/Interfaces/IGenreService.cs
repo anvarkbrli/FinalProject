@@ -1,15 +1,40 @@
 using Ludora.Application.DTOs;
+using Ludora.Domain.Enums;
 
-namespace Ludora.Application.Interfaces
+namespace Ludora.Application.Interfaces;
+
+public interface IGenreService
 {
-    public interface IGenreService
-    {
-        Task<List<GenreDetailDTO>> GetAllAsync(string? searchName);
-        Task<List<GenreDetailDTO>> GetDeletedAsync(string? searchName);
-        Task<GenreDetailDTO> GetByIdAsync(int id);
-        Task<int> CreateAsync(GenreCreateDTO createDto);
-        Task UpdateAsync(int id, GenreUpdateDTO updateDto);
-        Task DeleteAsync(int id);
-        Task RestoreAsync(int id);
-    }
+    Task<IReadOnlyList<GenreDetailDTO>> GetAllAsync(
+        string? searchName,
+        CatalogSource? source = null,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<GenreDetailDTO>> GetDeletedAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<GenreDetailDTO> GetByIdAsync(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task<long> CreateAsync(
+        GenreCreateDTO createDto,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateAsync(
+        CatalogSource source,
+        long id,
+        GenreUpdateDTO updateDto,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken = default);
+
+    Task RestoreAsync(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken = default);
 }

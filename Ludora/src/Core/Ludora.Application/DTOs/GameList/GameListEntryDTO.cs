@@ -1,18 +1,14 @@
-﻿
-namespace Ludora.Application.DTOs
+using Ludora.Domain.Enums;
+
+namespace Ludora.Application.DTOs;
+
+public record GameListEntryDTO
 {
-    public record GameListEntryDTO
-    {
-        public int Id { get; set; }
-
-        public string Title { get; set; } = null!;
-
-        public string CoverImageUrl { get; set; } = null!;
-
-        public DateOnly ReleaseDate { get; set; }
-
-        public double AverageRating { get; set; }
-
-        public DateTime AddedAt { get; set; }
-    }
+    public CatalogSource Source { get; init; }
+    public long Id { get; init; }
+    public string Title { get; init; } = string.Empty;
+    public string? CoverImageUrl { get; init; }
+    public DateOnly? ReleaseDate { get; init; }
+    public double? AverageRating { get; init; }
+    public DateTime AddedAt { get; init; }
 }

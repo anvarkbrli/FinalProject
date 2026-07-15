@@ -326,3 +326,5 @@ C:\Users\Acer\Desktop\Ludora\Ludora\presentation\Ludora.API\obj\Debug\net8.0\Lud
 C:\Users\Acer\Desktop\Ludora\Ludora\presentation\Ludora.API\obj\Debug\net8.0\Ludora.API.genruntimeconfig.cache
 C:\Users\Acer\Desktop\Ludora\Ludora\presentation\Ludora.API\obj\Debug\net8.0\ref\Ludora.API.dll
 C:\Users\Acer\Desktop\Ludora\Ludora\presentation\Ludora.API\obj\Debug\net8.0\staticwebassets.upToDateCheck.txt
+C:\Users\Acer\Desktop\Ludora\Ludora\presentation\Ludora.API\bin\Debug\net8.0\Ludora.Infrastructure.dll
+C:\Users\Acer\Desktop\Ludora\Ludora\presentation\Ludora.API\bin\Debug\net8.0\Ludora.Infrastructure.pdb
