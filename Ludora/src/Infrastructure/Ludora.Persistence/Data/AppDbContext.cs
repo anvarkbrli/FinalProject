@@ -1,4 +1,5 @@
 using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.Forum;
 using Ludora.Domain.Entities.GameTracking;
 using Ludora.Domain.Entities.IGDB;
 using Ludora.Domain.Entities.User;
@@ -25,6 +26,11 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<UserBlock> UserBlocks { get; set; }
     public DbSet<UserGame> UserGames { get; set; }
     public DbSet<UserPost> UserPosts { get; set; }
+    public DbSet<ForumCategory> ForumCategories { get; set; }
+    public DbSet<Discussion> Discussions { get; set; }
+    public DbSet<DiscussionReply> DiscussionReplies { get; set; }
+    public DbSet<DiscussionLike> DiscussionLikes { get; set; }
+    public DbSet<DiscussionReplyLike> DiscussionReplyLikes { get; set; }
 
     public DbSet<IgdbGameOverride> IgdbGameOverrides { get; set; }
     public DbSet<IgdbGenreOverride> IgdbGenreOverrides { get; set; }

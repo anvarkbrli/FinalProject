@@ -565,11 +565,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\Ludora\\src\\Core\\Ludora.Domain\\Ludora.Domain.csproj",
+      "projectUniqueName": "C:\\Users\\Acer\\Desktop\\Ludorabg\\Ludora\\src\\Core\\Ludora.Domain\\Ludora.Domain.csproj",
       "projectName": "Ludora.Domain",
-      "projectPath": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\Ludora\\src\\Core\\Ludora.Domain\\Ludora.Domain.csproj",
+      "projectPath": "C:\\Users\\Acer\\Desktop\\Ludorabg\\Ludora\\src\\Core\\Ludora.Domain\\Ludora.Domain.csproj",
       "packagesPath": "C:\\Users\\Acer\\.nuget\\packages\\",
-      "outputPath": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\Ludora\\src\\Core\\Ludora.Domain\\obj\\",
+      "outputPath": "C:\\Users\\Acer\\Desktop\\Ludorabg\\Ludora\\src\\Core\\Ludora.Domain\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"

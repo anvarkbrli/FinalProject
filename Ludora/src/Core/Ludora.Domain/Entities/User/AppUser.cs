@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Identity;
+using Ludora.Domain.Entities.Forum;
+using Microsoft.AspNetCore.Identity;
 
 namespace Ludora.Domain.Entities.User
 {
@@ -16,6 +17,10 @@ namespace Ludora.Domain.Entities.User
         public ICollection<UserBlock> BlockedByUsers { get; set; } = new List<UserBlock>();
         public ICollection<UserGame> UserGames { get; set; } = new HashSet<UserGame>();
         public ICollection<UserPost> Posts { get; set; } = new List<UserPost>();
+        public ICollection<Discussion> Discussions { get; set; } = new List<Discussion>();
+        public ICollection<DiscussionReply> DiscussionReplies { get; set; } = new List<DiscussionReply>();
+        public ICollection<DiscussionLike> DiscussionLikes { get; set; } = new List<DiscussionLike>();
+        public ICollection<DiscussionReplyLike> DiscussionReplyLikes { get; set; } = new List<DiscussionReplyLike>();
 
     }
 }

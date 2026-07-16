@@ -1,0 +1,620 @@
+using Ludora.Application.DTOs;
+using Ludora.Application.Exceptions;
+using Ludora.Application.Extensions;
+using Ludora.Application.Helpers;
+using Ludora.Application.Interfaces;
+using Ludora.Domain.Entities.Forum;
+using Ludora.Persistence.Data;
+using Microsoft.EntityFrameworkCore;
+
+namespace Ludora.Persistence.Services;
+
+public sealed class DiscussionService : IDiscussionService
+{
+    private const int MaxTitleLength = 200;
+    private const int MaxContentLength = 10000;
+    private const int MaxSearchLength = 200;
+    private const int MaxPageSize = 100;
+
+    private readonly AppDbContext _context;
+
+    public DiscussionService(AppDbContext context)
+    {
+        _context = context;
+    }
+
+    public async Task<PagedResultDTO<DiscussionListItemDTO>> GetAllAsync(
+        DiscussionFilterDTO filter,
+        Guid? currentUserId,
+        bool canModerate,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        ValidatePagination(filter.PageNumber, filter.PageSize);
+
+        var search = filter.Search.NormalizeOptionalText("Axtarış mətni", MaxSearchLength);
+        var categorySlug = filter.CategorySlug
+            .NormalizeOptionalText("Kateqoriya slug-u", 120)?
+            .ToLowerInvariant();
+
+        var query = _context.Discussions.AsNoTracking();
+
+        if (currentUserId.HasValue && !canModerate)
+            query = ExcludeBlockedAuthors(query, currentUserId.Value);
+
+        if (search is not null)
+        {
+            query = query.Where(x =>
+                x.Title.Contains(search) ||
+                x.Content.Contains(search));
+        }
+
+        if (categorySlug is not null)
+            query = query.Where(x => x.Category.Slug == categorySlug);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        query = ApplySorting(query, filter.SortBy);
+
+        var items = await ProjectListItems(query, currentUserId, canModerate)
+            .Skip((filter.PageNumber - 1) * filter.PageSize)
+            .Take(filter.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return CreatePagedResult(items, filter.PageNumber, filter.PageSize, totalCount);
+    }
+
+    public async Task<PagedResultDTO<DiscussionListItemDTO>> GetDeletedAsync(
+        DiscussionFilterDTO filter,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        ValidatePagination(filter.PageNumber, filter.PageSize);
+
+        var search = filter.Search.NormalizeOptionalText("Axtarış mətni", MaxSearchLength);
+        var categorySlug = filter.CategorySlug
+            .NormalizeOptionalText("Kateqoriya slug-u", 120)?
+            .ToLowerInvariant();
+
+        var query = _context.Discussions
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(x => x.IsDeleted);
+
+        if (search is not null)
+        {
+            query = query.Where(x =>
+                x.Title.Contains(search) ||
+                x.Content.Contains(search));
+        }
+
+        if (categorySlug is not null)
+            query = query.Where(x => x.Category.Slug == categorySlug);
+
+        var totalCount = await query.CountAsync(cancellationToken);
+        query = ApplySorting(query, filter.SortBy, ignoreReplyFilters: true);
+
+        var items = await ProjectListItems(query, null, true, ignoreReplyFilters: true)
+            .Skip((filter.PageNumber - 1) * filter.PageSize)
+            .Take(filter.PageSize)
+            .ToListAsync(cancellationToken);
+
+        return CreatePagedResult(items, filter.PageNumber, filter.PageSize, totalCount);
+    }
+
+    public async Task<DiscussionDetailDTO> GetByIdAsync(
+        int id,
+        Guid? currentUserId,
+        bool canModerate,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidId();
+
+        await EnsureCanViewAsync(
+            _context.Discussions.Where(x => x.Id == id),
+            currentUserId,
+            canModerate,
+            cancellationToken);
+
+        await IncrementViewCountAsync(id, cancellationToken);
+
+        return await ProjectDetails(
+                _context.Discussions.AsNoTracking().Where(x => x.Id == id),
+                currentUserId,
+                canModerate)
+            .FirstAsync(cancellationToken);
+    }
+
+    public async Task<DiscussionDetailDTO> GetBySlugAsync(
+        string slug,
+        Guid? currentUserId,
+        bool canModerate,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedSlug = slug.NormalizeRequiredText("Mövzu slug-u", 240)
+            .ToLowerInvariant();
+
+        var discussionId = await _context.Discussions
+            .AsNoTracking()
+            .Where(x => x.Slug == normalizedSlug)
+            .Select(x => (int?)x.Id)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Mövzu tapılmadı.");
+
+        return await GetByIdAsync(
+            discussionId,
+            currentUserId,
+            canModerate,
+            cancellationToken);
+    }
+
+    public async Task<DiscussionDetailDTO> CreateAsync(
+        Guid userId,
+        DiscussionCreateDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+        dto.CategoryId.EnsureValidId("Kateqoriya ID-si");
+
+        var userExists = await _context.Users
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == userId, cancellationToken);
+
+        if (!userExists)
+            throw new NotFoundException("İstifadəçi tapılmadı.");
+
+        var categoryExists = await _context.ForumCategories
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == dto.CategoryId, cancellationToken);
+
+        if (!categoryExists)
+            throw new NotFoundException("Forum kateqoriyası tapılmadı.");
+
+        var title = dto.Title.NormalizeRequiredText("Mövzu başlığı", MaxTitleLength);
+        var content = dto.Content.NormalizeRequiredText("Mövzu mətni", MaxContentLength);
+        var slug = await CreateUniqueSlugAsync(title, cancellationToken);
+
+        var discussion = new Discussion
+        {
+            Title = title,
+            Slug = slug,
+            Content = content,
+            CategoryId = dto.CategoryId,
+            UserId = userId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _context.Discussions.AddAsync(discussion, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return await ProjectDetails(
+                _context.Discussions.AsNoTracking().Where(x => x.Id == discussion.Id),
+                userId,
+                false)
+            .FirstAsync(cancellationToken);
+    }
+
+    public async Task<DiscussionDetailDTO> UpdateAsync(
+        int id,
+        Guid userId,
+        bool canModerate,
+        DiscussionUpdateDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidId();
+        ArgumentNullException.ThrowIfNull(dto);
+        dto.CategoryId.EnsureValidId("Kateqoriya ID-si");
+
+        var discussion = await _context.Discussions
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Mövzu tapılmadı.");
+
+        EnsureCanModify(discussion.UserId, userId, canModerate);
+
+        var categoryExists = await _context.ForumCategories
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == dto.CategoryId, cancellationToken);
+
+        if (!categoryExists)
+            throw new NotFoundException("Forum kateqoriyası tapılmadı.");
+
+        discussion.Title = dto.Title.NormalizeRequiredText("Mövzu başlığı", MaxTitleLength);
+        discussion.Content = dto.Content.NormalizeRequiredText("Mövzu mətni", MaxContentLength);
+        discussion.CategoryId = dto.CategoryId;
+        discussion.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return await ProjectDetails(
+                _context.Discussions.AsNoTracking().Where(x => x.Id == discussion.Id),
+                userId,
+                canModerate)
+            .FirstAsync(cancellationToken);
+    }
+
+    public async Task DeleteAsync(
+        int id,
+        Guid userId,
+        bool canModerate,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidId();
+
+        var discussion = await _context.Discussions
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Mövzu tapılmadı.");
+
+        EnsureCanModify(discussion.UserId, userId, canModerate);
+
+        discussion.IsDeleted = true;
+        discussion.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task LikeAsync(
+        int id,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidId();
+
+        var authorId = await _context.Discussions
+            .AsNoTracking()
+            .Where(x => x.Id == id)
+            .Select(x => (Guid?)x.UserId)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Mövzu tapılmadı.");
+
+        await EnsureUsersAreNotBlockedAsync(userId, authorId, cancellationToken);
+
+        var alreadyLiked = await _context.DiscussionLikes
+            .AnyAsync(x => x.DiscussionId == id && x.UserId == userId, cancellationToken);
+
+        if (alreadyLiked)
+            throw new ConflictException("Bu mövzunu artıq bəyənmisiniz.");
+
+        await _context.DiscussionLikes.AddAsync(new DiscussionLike
+        {
+            DiscussionId = id,
+            UserId = userId,
+            CreatedAt = DateTime.UtcNow
+        }, cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UnlikeAsync(
+        int id,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidId();
+
+        var like = await _context.DiscussionLikes
+            .FirstOrDefaultAsync(
+                x => x.DiscussionId == id && x.UserId == userId,
+                cancellationToken)
+            ?? throw new NotFoundException("Mövzu bəyənməsi tapılmadı.");
+
+        _context.DiscussionLikes.Remove(like);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task SetPinnedAsync(
+        int id,
+        bool isPinned,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidId();
+
+        var discussion = await _context.Discussions
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Mövzu tapılmadı.");
+
+        if (discussion.IsPinned == isPinned)
+            return;
+
+        discussion.IsPinned = isPinned;
+        discussion.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task SetLockedAsync(
+        int id,
+        bool isLocked,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidId();
+
+        var discussion = await _context.Discussions
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Mövzu tapılmadı.");
+
+        if (discussion.IsLocked == isLocked)
+            return;
+
+        discussion.IsLocked = isLocked;
+        discussion.UpdatedAt = DateTime.UtcNow;
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<DiscussionDetailDTO> RestoreAsync(
+        int id,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidId();
+
+        var discussion = await _context.Discussions
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Mövzu tapılmadı.");
+
+        var categoryIsActive = await _context.ForumCategories
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == discussion.CategoryId, cancellationToken);
+
+        if (!categoryIsActive)
+        {
+            throw new ConflictException(
+                "Mövzunun kateqoriyası silinib. Əvvəlcə kateqoriyanı bərpa edin.");
+        }
+
+        if (discussion.IsDeleted)
+        {
+            discussion.IsDeleted = false;
+            discussion.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        return await ProjectDetails(
+                _context.Discussions.AsNoTracking().Where(x => x.Id == id),
+                null,
+                true)
+            .FirstAsync(cancellationToken);
+    }
+
+    private IQueryable<Discussion> ExcludeBlockedAuthors(
+        IQueryable<Discussion> query,
+        Guid currentUserId)
+    {
+        var blockedUserIds = _context.UserBlocks
+            .AsNoTracking()
+            .Where(x => x.BlockerId == currentUserId)
+            .Select(x => x.BlockedUserId)
+            .Concat(
+                _context.UserBlocks
+                    .AsNoTracking()
+                    .Where(x => x.BlockedUserId == currentUserId)
+                    .Select(x => x.BlockerId));
+
+        return query.Where(x => !blockedUserIds.Contains(x.UserId));
+    }
+
+    private static IQueryable<Discussion> ApplySorting(
+        IQueryable<Discussion> query,
+        string? sortBy,
+        bool ignoreReplyFilters = false)
+    {
+        var normalizedSort = string.IsNullOrWhiteSpace(sortBy)
+            ? "newest"
+            : sortBy.Trim().ToLowerInvariant();
+
+        return normalizedSort switch
+        {
+            "newest" => query
+                .OrderByDescending(x => x.IsPinned)
+                .ThenByDescending(x => x.CreatedAt),
+
+            "oldest" => query
+                .OrderByDescending(x => x.IsPinned)
+                .ThenBy(x => x.CreatedAt),
+
+            "popular" or "most-liked" => query
+                .OrderByDescending(x => x.IsPinned)
+                .ThenByDescending(x => x.Likes.Count)
+                .ThenByDescending(x => x.CreatedAt),
+
+            "most-replied" => query
+                .OrderByDescending(x => x.IsPinned)
+                .ThenByDescending(x => ignoreReplyFilters
+                    ? x.Replies.Count(reply => !reply.IsDeleted)
+                    : x.Replies.Count)
+                .ThenByDescending(x => x.CreatedAt),
+
+            "most-viewed" => query
+                .OrderByDescending(x => x.IsPinned)
+                .ThenByDescending(x => x.ViewCount)
+                .ThenByDescending(x => x.CreatedAt),
+
+            "recently-updated" => query
+                .OrderByDescending(x => x.IsPinned)
+                .ThenByDescending(x => x.UpdatedAt ?? x.CreatedAt),
+
+            _ => throw new BadRequestException(
+                "SortBy yalnız newest, oldest, popular, most-liked, most-replied, most-viewed və recently-updated ola bilər.")
+        };
+    }
+
+    private static IQueryable<DiscussionListItemDTO> ProjectListItems(
+        IQueryable<Discussion> query,
+        Guid? currentUserId,
+        bool canModerate,
+        bool ignoreReplyFilters = false)
+    {
+        return query.Select(x => new DiscussionListItemDTO
+        {
+            Id = x.Id,
+            Title = x.Title,
+            Slug = x.Slug,
+            CategoryId = x.CategoryId,
+            CategoryName = x.Category.Name,
+            CategorySlug = x.Category.Slug,
+            AuthorId = x.UserId,
+            AuthorUserName = x.User.UserName ?? string.Empty,
+            AuthorProfileImageUrl = x.User.ProfileImageUrl,
+            LikeCount = x.Likes.Count,
+            ReplyCount = ignoreReplyFilters
+                ? x.Replies.Count(reply => !reply.IsDeleted)
+                : x.Replies.Count,
+            ViewCount = x.ViewCount,
+            IsLikedByCurrentUser = currentUserId.HasValue &&
+                                   x.Likes.Any(like => like.UserId == currentUserId.Value),
+            IsPinned = x.IsPinned,
+            IsLocked = x.IsLocked,
+            IsDeleted = x.IsDeleted,
+            CanEdit = currentUserId.HasValue &&
+                      (canModerate || x.UserId == currentUserId.Value),
+            CanDelete = currentUserId.HasValue &&
+                        (canModerate || x.UserId == currentUserId.Value),
+            CreatedAt = x.CreatedAt,
+            UpdatedAt = x.UpdatedAt
+        });
+    }
+
+    private static IQueryable<DiscussionDetailDTO> ProjectDetails(
+        IQueryable<Discussion> query,
+        Guid? currentUserId,
+        bool canModerate)
+    {
+        return query.Select(x => new DiscussionDetailDTO
+        {
+            Id = x.Id,
+            Title = x.Title,
+            Slug = x.Slug,
+            Content = x.Content,
+            CategoryId = x.CategoryId,
+            CategoryName = x.Category.Name,
+            CategorySlug = x.Category.Slug,
+            AuthorId = x.UserId,
+            AuthorUserName = x.User.UserName ?? string.Empty,
+            AuthorProfileImageUrl = x.User.ProfileImageUrl,
+            LikeCount = x.Likes.Count,
+            ReplyCount = x.Replies.Count,
+            ViewCount = x.ViewCount,
+            IsLikedByCurrentUser = currentUserId.HasValue &&
+                                   x.Likes.Any(like => like.UserId == currentUserId.Value),
+            IsPinned = x.IsPinned,
+            IsLocked = x.IsLocked,
+            IsDeleted = x.IsDeleted,
+            CanEdit = currentUserId.HasValue &&
+                      (canModerate || x.UserId == currentUserId.Value),
+            CanDelete = currentUserId.HasValue &&
+                        (canModerate || x.UserId == currentUserId.Value),
+            CreatedAt = x.CreatedAt,
+            UpdatedAt = x.UpdatedAt
+        });
+    }
+
+    private async Task EnsureCanViewAsync(
+        IQueryable<Discussion> query,
+        Guid? currentUserId,
+        bool canModerate,
+        CancellationToken cancellationToken)
+    {
+        var authorId = await query
+            .AsNoTracking()
+            .Select(x => (Guid?)x.UserId)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Mövzu tapılmadı.");
+
+        if (!currentUserId.HasValue || canModerate)
+            return;
+
+        await EnsureUsersAreNotBlockedAsync(
+            currentUserId.Value,
+            authorId,
+            cancellationToken);
+    }
+
+    private async Task EnsureUsersAreNotBlockedAsync(
+        Guid firstUserId,
+        Guid secondUserId,
+        CancellationToken cancellationToken)
+    {
+        if (firstUserId == secondUserId)
+            return;
+
+        var isBlocked = await _context.UserBlocks
+            .AsNoTracking()
+            .AnyAsync(x =>
+                    (x.BlockerId == firstUserId && x.BlockedUserId == secondUserId) ||
+                    (x.BlockerId == secondUserId && x.BlockedUserId == firstUserId),
+                cancellationToken);
+
+        if (isBlocked)
+            throw new ForbiddenException("Bloklanmış istifadəçilər arasında bu əməliyyat mümkün deyil.");
+    }
+
+    private static void EnsureCanModify(
+        Guid ownerId,
+        Guid currentUserId,
+        bool canModerate)
+    {
+        if (ownerId != currentUserId && !canModerate)
+            throw new ForbiddenException("Bu mövzunu dəyişmək üçün icazəniz yoxdur.");
+    }
+
+    private async Task IncrementViewCountAsync(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        await _context.Discussions
+            .Where(x => x.Id == id)
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(
+                    x => x.ViewCount,
+                    x => x.ViewCount + 1),
+                cancellationToken);
+    }
+
+    private async Task<string> CreateUniqueSlugAsync(
+        string title,
+        CancellationToken cancellationToken)
+    {
+        var baseSlug = SlugHelper.Generate(title, "discussion");
+        var slug = baseSlug;
+        var suffix = 2;
+
+        while (await _context.Discussions
+                   .IgnoreQueryFilters()
+                   .AsNoTracking()
+                   .AnyAsync(x => x.Slug == slug, cancellationToken))
+        {
+            slug = $"{baseSlug}-{suffix++}";
+        }
+
+        return slug;
+    }
+
+    private static void ValidatePagination(int pageNumber, int pageSize)
+    {
+        if (pageNumber < 1)
+            throw new BadRequestException("Səhifə nömrəsi 1-dən kiçik ola bilməz.");
+
+        if (pageSize is < 1 or > MaxPageSize)
+            throw new BadRequestException($"Səhifə ölçüsü 1-{MaxPageSize} aralığında olmalıdır.");
+
+        if ((long)(pageNumber - 1) * pageSize > int.MaxValue)
+            throw new BadRequestException("Səhifə parametrləri həddindən artıq böyükdür.");
+    }
+
+    private static PagedResultDTO<T> CreatePagedResult<T>(
+        IReadOnlyList<T> items,
+        int pageNumber,
+        int pageSize,
+        int totalCount)
+    {
+        return new PagedResultDTO<T>
+        {
+            Items = items,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = totalCount == 0
+                ? 0
+                : (int)Math.Ceiling(totalCount / (double)pageSize)
+        };
+    }
+}

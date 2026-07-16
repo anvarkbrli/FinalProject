@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Ludora.Application")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f8f85bbe175d5051088e02571933fb110da96680")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+b3e5582b54b075c953fd1f9d5401cdd6eb0ddf5b")]
 [assembly: System.Reflection.AssemblyProductAttribute("Ludora.Application")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Ludora.Application")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

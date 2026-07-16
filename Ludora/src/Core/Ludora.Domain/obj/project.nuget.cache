@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "6uup8zUF1CA=",
+  "dgSpecHash": "oZNuOhHfay8=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\Ludora\\src\\Core\\Ludora.Domain\\Ludora.Domain.csproj",
+  "projectFilePath": "C:\\Users\\Acer\\Desktop\\Ludorabg\\Ludora\\src\\Core\\Ludora.Domain\\Ludora.Domain.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Acer\\.nuget\\packages\\microsoft.aspnetcore.cryptography.internal\\8.0.28\\microsoft.aspnetcore.cryptography.internal.8.0.28.nupkg.sha512",
     "C:\\Users\\Acer\\.nuget\\packages\\microsoft.aspnetcore.cryptography.keyderivation\\8.0.28\\microsoft.aspnetcore.cryptography.keyderivation.8.0.28.nupkg.sha512",

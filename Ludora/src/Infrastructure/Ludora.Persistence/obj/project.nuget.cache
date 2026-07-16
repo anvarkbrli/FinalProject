@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "BIvU+ArcIqA=",
+  "dgSpecHash": "6yvCxka3PTM=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Acer\\Desktop\\New folder\\Ludora\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj",
+  "projectFilePath": "C:\\Users\\Acer\\Desktop\\Ludorabg\\Ludora\\src\\Infrastructure\\Ludora.Persistence\\Ludora.Persistence.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\Acer\\.nuget\\packages\\azure.core\\1.38.0\\azure.core.1.38.0.nupkg.sha512",
     "C:\\Users\\Acer\\.nuget\\packages\\azure.identity\\1.11.4\\azure.identity.1.11.4.nupkg.sha512",

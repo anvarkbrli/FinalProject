@@ -1,30 +1,30 @@
-﻿
+namespace Ludora.Application.DTOs;
 
-namespace Ludora.Application.DTOs
+public record DiscussionListItemDTO
 {
-    public record DiscussionListItemDTO
-    {
-        public long Id { get; set; }
+    public int Id { get; init; }
+    public string Title { get; init; } = string.Empty;
+    public string Slug { get; init; } = string.Empty;
 
-        public string Title { get; set; } = null!;
-        public string Slug { get; set; } = null!;
+    public int CategoryId { get; init; }
+    public string CategoryName { get; init; } = string.Empty;
+    public string CategorySlug { get; init; } = string.Empty;
 
-        public string CategoryName { get; set; } = null!;
-        public string CategorySlug { get; set; } = null!;
+    public Guid AuthorId { get; init; }
+    public string AuthorUserName { get; init; } = string.Empty;
+    public string? AuthorProfileImageUrl { get; init; }
 
-        public Guid AuthorId { get; set; }
-        public string AuthorUserName { get; set; } = null!;
-        public string? AuthorProfileImageUrl { get; set; }
+    public int LikeCount { get; init; }
+    public int ReplyCount { get; init; }
+    public int ViewCount { get; init; }
 
-        public int LikeCount { get; set; }
-        public int ReplyCount { get; set; }
-        public int ViewCount { get; set; }
+    public bool IsLikedByCurrentUser { get; init; }
+    public bool IsPinned { get; init; }
+    public bool IsLocked { get; init; }
+    public bool IsDeleted { get; init; }
+    public bool CanEdit { get; init; }
+    public bool CanDelete { get; init; }
 
-        public bool IsLikedByCurrentUser { get; set; }
-        public bool IsPinned { get; set; }
-        public bool IsLocked { get; set; }
-
-        public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
-    }
+    public DateTime CreatedAt { get; init; }
+    public DateTime? UpdatedAt { get; init; }
 }

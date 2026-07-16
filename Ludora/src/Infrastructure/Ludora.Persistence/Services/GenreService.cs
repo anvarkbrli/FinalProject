@@ -4,6 +4,7 @@ using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Models;
 using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.GameTracking;
 using Ludora.Domain.Entities.IGDB;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;

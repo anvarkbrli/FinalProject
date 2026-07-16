@@ -42,6 +42,9 @@ public static class ServiceRegistration
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddScoped<IUserGameService, UserGameService>();
         services.AddScoped<IPostService, PostService>();
+        services.AddScoped<IForumCategoryService, ForumCategoryService>();
+        services.AddScoped<IDiscussionService, DiscussionService>();
+        services.AddScoped<IDiscussionReplyService, DiscussionReplyService>();
 
         services.AddScoped<IGameService, GameService>();
         services.AddScoped<IGenreService, GenreService>();
