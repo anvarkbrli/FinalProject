@@ -1,4 +1,4 @@
-﻿namespace Ludora.Persistence.Services;
+namespace Ludora.Persistence.Services;
 
 using Ludora.Application.DTOs.JWT;
 using Ludora.Application.Exceptions;
@@ -16,15 +16,18 @@ public class AuthService : IAuthService
     private readonly UserManager<AppUser> _userManager;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly AppDbContext _context;
+    private readonly SignInManager<AppUser> _signInManager;
 
     public AuthService(
         UserManager<AppUser> userManager,
         IJwtTokenService jwtTokenService,
-        AppDbContext context)
+        AppDbContext context,
+        SignInManager<AppUser> signInManager)
     {
         _userManager = userManager;
         _jwtTokenService = jwtTokenService;
         _context = context;
+        _signInManager = signInManager;
     }
 
     public async Task<AuthResponseDTO> RegisterAsync(RegisterDTO dto)
@@ -33,24 +36,42 @@ public class AuthService : IAuthService
         var userName = dto.UserName.Trim();
 
         if (await _userManager.FindByEmailAsync(email) is not null)
-            throw new ConflictException("Bu email artıq istifadə olunur.");
+        {
+            throw new ConflictException(
+                "Bu email artıq istifadə olunur.");
+        }
 
         if (await _userManager.FindByNameAsync(userName) is not null)
         {
-            throw new ConflictException("Bu istifadəçi adı artıq istifadə olunur.");
+            throw new ConflictException(
+                "Bu istifadəçi adı artıq istifadə olunur.");
         }
 
         var user = new AppUser
         {
             Id = Guid.NewGuid(),
-            UserName = dto.UserName.Trim(),
-            Email = dto.Email.Trim(),
+            UserName = userName,
+            Email = email,
             CreatedAt = DateTime.UtcNow
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
 
         result.ThrowIfFailed();
+
+        var roleResult =
+            await _userManager.AddToRoleAsync(user, "User");
+
+        if (!roleResult.Succeeded)
+        {
+            await _userManager.DeleteAsync(user);
+
+            throw new InvalidOperationException(
+                "İstifadəçiyə User rolu verilə bilmədi: " +
+                string.Join(
+                    ", ",
+                    roleResult.Errors.Select(x => x.Description)));
+        }
 
         return await CreateAuthResponseAsync(user);
     }
@@ -66,13 +87,13 @@ public class AuthService : IAuthService
             throw new UnauthorizedException("Email, istifadəçi adı və ya şifrə yanlışdır.");
         }
 
-        var passwordIsCorrect = await _userManager
-            .CheckPasswordAsync(user, dto.Password);
+        var signInResult = await _signInManager.CheckPasswordSignInAsync(user, dto.Password, lockoutOnFailure: true);
 
-        if (!passwordIsCorrect)
-        {
+        if (signInResult.IsLockedOut)
+            throw new UnauthorizedException("Çox sayda uğursuz giriş cəhdi edildi. Bir müddət sonra yenidən yoxlayın.");
+
+        if (!signInResult.Succeeded)
             throw new UnauthorizedException("Email, istifadəçi adı və ya şifrə yanlışdır.");
-        }
 
         return await CreateAuthResponseAsync(user);
     }
@@ -89,6 +110,7 @@ public class AuthService : IAuthService
         userDto.FollowingCount = await _context.UserFollows.CountAsync(x =>
             x.FollowerId == user.Id &&
             x.Status == FollowStatus.Accepted);
+        userDto.PostCount = await _context.UserPosts.CountAsync(x => x.UserId == user.Id);
 
         return new AuthResponseDTO
         {

@@ -1,6 +1,7 @@
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ludora.API.Controllers;
@@ -22,6 +23,7 @@ public sealed class PlatformsController : ControllerBase
         return Ok(await _platformService.GetAllAsync(searchName, source, cancellationToken));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet("deleted")]
     public async Task<ActionResult<IReadOnlyList<PlatformDetailDTO>>> GetDeleted(
         CancellationToken cancellationToken)
@@ -35,6 +37,7 @@ public sealed class PlatformsController : ControllerBase
         return Ok(await _platformService.GetByIdAsync(source, id, cancellationToken));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] PlatformCreateDTO dto,CancellationToken cancellationToken)
     {
@@ -46,6 +49,7 @@ public sealed class PlatformsController : ControllerBase
             new { source = CatalogSource.Local, id });
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPatch("{source}/{id:long:min(1)}")]
     public async Task<IActionResult> Update(CatalogSource source,long id,[FromBody] PlatformUpdateDTO dto, CancellationToken cancellationToken)
     {
@@ -53,6 +57,7 @@ public sealed class PlatformsController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{source}/{id:long:min(1)}")]
     public async Task<IActionResult> Delete(CatalogSource source,long id,CancellationToken cancellationToken)
     {
@@ -60,6 +65,7 @@ public sealed class PlatformsController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPatch("{source}/{id:long:min(1)}/restore")]
     public async Task<IActionResult> Restore(CatalogSource source,long id,CancellationToken cancellationToken)
     {

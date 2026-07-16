@@ -1,4 +1,4 @@
-﻿using Ludora.Application.DTOs;
+using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities.User;
@@ -161,7 +161,7 @@ public class FollowService : IFollowService
 
     public async Task<List<UserListItemDTO>> GetFollowersAsync(Guid userId, Guid? currentUserId)
     {
-        await CheckUserExistsAsync(userId);
+        await EnsureCanViewConnectionsAsync(userId, currentUserId);
 
         var currentUserFollowingIds = await GetCurrentUserFollowingIdsAsync(currentUserId);
 
@@ -180,7 +180,7 @@ public class FollowService : IFollowService
 
     public async Task<List<UserListItemDTO>> GetFollowingAsync(Guid userId, Guid? currentUserId)
     {
-        await CheckUserExistsAsync(userId);
+        await EnsureCanViewConnectionsAsync(userId, currentUserId);
 
         var currentUserFollowingIds = await GetCurrentUserFollowingIdsAsync(currentUserId);
 
@@ -195,6 +195,32 @@ public class FollowService : IFollowService
                 IsFollowing = currentUserFollowingIds.Contains(uf.FollowingId)
             })
             .ToListAsync();
+    }
+
+    private async Task EnsureCanViewConnectionsAsync(Guid userId, Guid? currentUserId)
+    {
+        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId)
+            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
+
+        if (currentUserId == userId)
+            return;
+
+        if (currentUserId.HasValue)
+        {
+            var blocked = await _context.UserBlocks.AsNoTracking().AnyAsync(x =>
+                (x.BlockerId == currentUserId.Value && x.BlockedUserId == userId) ||
+                (x.BlockerId == userId && x.BlockedUserId == currentUserId.Value));
+            if (blocked)
+                throw new ForbiddenException("Bu istifadəçinin əlaqələrinə baxmaq mümkün deyil.");
+        }
+
+        if (!user.IsPrivate)
+            return;
+
+        var follows = currentUserId.HasValue && await _context.UserFollows.AsNoTracking().AnyAsync(x =>
+            x.FollowerId == currentUserId.Value && x.FollowingId == userId && x.Status == FollowStatus.Accepted);
+        if (!follows)
+            throw new ForbiddenException("Bu profil gizlidir.");
     }
 
     private async Task CheckUserExistsAsync(Guid userId)

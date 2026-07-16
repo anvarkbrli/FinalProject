@@ -31,6 +31,11 @@ public interface IGameListService
         Guid userId,
         CancellationToken cancellationToken = default);
 
+    Task RestoreAsync(
+        int id,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
     Task AddGameAsync(
         int listId,
         CatalogSource source,

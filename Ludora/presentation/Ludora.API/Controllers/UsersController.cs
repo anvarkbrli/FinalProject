@@ -1,4 +1,4 @@
-﻿using Ludora.Application.DTOs;
+using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Persistence.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -71,9 +71,10 @@ namespace Ludora.API.Controllers
         [HttpPut("me/profile-image")]
         public async Task<IActionResult> UpdateProfileImage(IFormFile image)
         {
+            await using var stream = image.OpenReadStream();
             var dto = new ProfileImageUploadDTO
             {
-                Stream = image.OpenReadStream(),
+                Stream = stream,
                 FileName = image.FileName,
                 ContentType = image.ContentType,
                 Length = image.Length

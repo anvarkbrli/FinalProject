@@ -1,6 +1,7 @@
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ludora.API.Controllers;
@@ -25,6 +26,7 @@ public sealed class GenresController : ControllerBase
         return Ok(await _genreService.GetAllAsync(searchName, source, cancellationToken));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet("deleted")]
     public async Task<ActionResult<IReadOnlyList<GenreDetailDTO>>> GetDeleted(
         CancellationToken cancellationToken)
@@ -41,6 +43,7 @@ public sealed class GenresController : ControllerBase
         return Ok(await _genreService.GetByIdAsync(source, id, cancellationToken));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> Create(
         [FromBody] GenreCreateDTO dto,
@@ -54,6 +57,7 @@ public sealed class GenresController : ControllerBase
             new { source = CatalogSource.Local, id });
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPatch("{source}/{id:long:min(1)}")]
     public async Task<IActionResult> Update(
         CatalogSource source,
@@ -65,6 +69,7 @@ public sealed class GenresController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{source}/{id:long:min(1)}")]
     public async Task<IActionResult> Delete(
         CatalogSource source,
@@ -75,6 +80,7 @@ public sealed class GenresController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPatch("{source}/{id:long:min(1)}/restore")]
     public async Task<IActionResult> Restore(
         CatalogSource source,

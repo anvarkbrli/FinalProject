@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Ludora.Application.Exceptions;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ludora.API.Middlewares;
 
@@ -56,7 +57,9 @@ public sealed class GlobalExceptionMiddleware
 
             var message = statusCode == StatusCodes.Status500InternalServerError
                 ? "Gözlənilməz server xətası baş verdi."
-                : exception.Message;
+                : exception is DbUpdateException
+                    ? "Məlumat bazasında eyni və ya ziddiyyətli məlumat mövcuddur."
+                    : exception.Message;
 
             var response = new
             {
@@ -82,6 +85,7 @@ public sealed class GlobalExceptionMiddleware
             NotFoundException => StatusCodes.Status404NotFound,
             KeyNotFoundException => StatusCodes.Status404NotFound,
             ConflictException => StatusCodes.Status409Conflict,
+            DbUpdateException => StatusCodes.Status409Conflict,
             ExternalServiceException => StatusCodes.Status503ServiceUnavailable,
             _ => StatusCodes.Status500InternalServerError
         };

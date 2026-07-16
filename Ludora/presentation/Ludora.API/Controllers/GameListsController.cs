@@ -79,6 +79,14 @@ public sealed class GameListsController : ControllerBase
     }
 
     [Authorize]
+    [HttpPatch("{id:int:min(1)}/restore")]
+    public async Task<IActionResult> Restore(int id, CancellationToken cancellationToken)
+    {
+        await _gameListService.RestoreAsync(id, GetCurrentUserId(), cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
     [HttpPost("{listId:int:min(1)}/games/{source}/{gameId:long:min(1)}")]
     public async Task<IActionResult> AddGame(
         int listId,

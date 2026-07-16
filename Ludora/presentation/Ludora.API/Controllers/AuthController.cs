@@ -1,7 +1,8 @@
-﻿using Ludora.Application.DTOs.JWT;
+using Ludora.Application.DTOs.JWT;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers
 {
@@ -16,6 +17,7 @@ namespace Ludora.API.Controllers
             _authService = authService;
         }
 
+        [EnableRateLimiting("Auth")]
         [HttpPost("register")]
         public async Task<IActionResult> Register([FromBody] RegisterDTO dto)
         {
@@ -24,6 +26,7 @@ namespace Ludora.API.Controllers
             return StatusCode(StatusCodes.Status201Created, result);
         }
 
+        [EnableRateLimiting("Auth")]
         [HttpPost("login")]
         public async Task<IActionResult> Login([FromBody] LoginDTO dto)
         {

@@ -489,6 +489,30 @@
         }
       }
     },
+    "/api/game-lists/{id}/restore": {
+      "patch": {
+        "tags": [
+          "GameLists"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/api/game-lists/{listId}/games/{source}/{gameId}": {
       "post": {
         "tags": [

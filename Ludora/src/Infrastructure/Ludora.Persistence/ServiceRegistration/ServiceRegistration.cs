@@ -1,4 +1,4 @@
-﻿using Ludora.Application.Interfaces;
+using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities.User;
 using Ludora.Persistence.Data;
 using Ludora.Persistence.Services;
@@ -24,6 +24,9 @@ public static class ServiceRegistration
             options.Password.RequireUppercase = true;
             options.Password.RequireLowercase = true;
             options.Password.RequireNonAlphanumeric = false;
+            options.Lockout.AllowedForNewUsers = true;
+            options.Lockout.MaxFailedAccessAttempts = 5;
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
         })
 
         .AddRoles<IdentityRole<Guid>>()

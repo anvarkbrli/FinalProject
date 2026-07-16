@@ -1,6 +1,7 @@
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ludora.API.Controllers;
@@ -33,6 +34,7 @@ public sealed class GamesController : ControllerBase
         return Ok(await _gameService.GetByIdAsync(source, id, cancellationToken));
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPost]
     public async Task<IActionResult> Create(
         [FromBody] GameCreateDTO dto,
@@ -46,6 +48,7 @@ public sealed class GamesController : ControllerBase
             new { source = CatalogSource.Local, id });
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPatch("{source}/{id:long:min(1)}")]
     public async Task<IActionResult> Update(
         CatalogSource source,
@@ -57,6 +60,7 @@ public sealed class GamesController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpDelete("{source}/{id:long:min(1)}")]
     public async Task<IActionResult> Delete(
         CatalogSource source,
@@ -67,6 +71,7 @@ public sealed class GamesController : ControllerBase
         return NoContent();
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpPatch("{source}/{id:long:min(1)}/restore")]
     public async Task<IActionResult> Restore(
         CatalogSource source,

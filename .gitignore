@@ -1,0 +1,21 @@
+# Build outputs
+**/bin/
+**/obj/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Local secrets and settings
+appsettings.Local.json
+secrets.json
+
+# Uploaded runtime files
+**/wwwroot/uploads/
+**/uploads/
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.vscode/

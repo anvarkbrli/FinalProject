@@ -1,4 +1,4 @@
-﻿using Ludora.Application.DTOs;
+using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Mappings;
@@ -43,7 +43,7 @@ namespace Ludora.Persistence.Services
                 CreatedAt = user.CreatedAt,
                 FollowerCount = followerCount,
                 FollowingCount = followingCount,
-                PostCount = 0
+                PostCount = await _context.UserPosts.CountAsync(x => x.UserId == user.Id)
             };
         }
 
@@ -79,7 +79,7 @@ namespace Ludora.Persistence.Services
                 CreatedAt = user.CreatedAt,
                 FollowerCount = await _context.UserFollows.CountAsync(uf => uf.FollowingId == user.Id && uf.Status == FollowStatus.Accepted),
                 FollowingCount = await _context.UserFollows.CountAsync(uf => uf.FollowerId == user.Id && uf.Status == FollowStatus.Accepted),
-                PostCount = 0
+                PostCount = await _context.UserPosts.CountAsync(x => x.UserId == user.Id)
             };
         }
 

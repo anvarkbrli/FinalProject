@@ -3,6 +3,7 @@ using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
 using Ludora.Persistence.Extensions;
@@ -201,6 +202,26 @@ public sealed class GameListService : IGameListService
         gameList.IsDeleted = true;
         gameList.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RestoreAsync(
+        int id,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidId();
+        var gameList = await _context.GameLists
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
+            ?? throw new NotFoundException("Oyun siyahısı tapılmadı.");
+
+        if (!gameList.IsDeleted)
+            return;
+
+        await EnsureListNameIsAvailableAsync(userId, gameList.Name, gameList.Id, cancellationToken);
+        gameList.IsDeleted = false;
+        gameList.UpdatedAt = DateTime.UtcNow;
+        await SaveListChangesAsync(cancellationToken);
     }
 
     public async Task AddGameAsync(

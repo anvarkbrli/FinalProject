@@ -268,6 +268,22 @@
   },
   {
     "ContainingType": "Ludora.API.Controllers.GameListsController",
+    "Method": "Restore",
+    "RelativePath": "api/game-lists/{id}/restore",
+    "HttpMethod": "PATCH",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "id",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.GameListsController",
     "Method": "AddGame",
     "RelativePath": "api/game-lists/{listId}/games/{source}/{gameId}",
     "HttpMethod": "POST",

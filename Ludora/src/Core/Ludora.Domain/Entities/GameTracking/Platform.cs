@@ -1,9 +1,8 @@
 ﻿using Ludora.Domain.Entities.Base;
 
-
-namespace Ludora.Domain.Entities
+namespace Ludora.Domain.Entities.GameTracking
 {
-    public class Company : BaseEntity
+    public class Platform : BaseEntity
     {
         public string Name { get; set; }
     }

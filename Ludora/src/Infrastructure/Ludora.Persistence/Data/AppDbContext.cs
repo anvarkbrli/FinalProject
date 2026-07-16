@@ -1,4 +1,5 @@
 using Ludora.Domain.Entities;
+using Ludora.Domain.Entities.GameTracking;
 using Ludora.Domain.Entities.IGDB;
 using Ludora.Domain.Entities.User;
 using Microsoft.AspNetCore.Identity;
