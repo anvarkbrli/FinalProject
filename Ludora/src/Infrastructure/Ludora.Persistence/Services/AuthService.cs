@@ -1,5 +1,6 @@
 namespace Ludora.Persistence.Services;
 
+using Ludora.Application.Common;
 using Ludora.Application.DTOs.JWT;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
@@ -60,7 +61,7 @@ public class AuthService : IAuthService
         result.ThrowIfFailed();
 
         var roleResult =
-            await _userManager.AddToRoleAsync(user, "User");
+            await _userManager.AddToRoleAsync(user, RoleNames.User);
 
         if (!roleResult.Succeeded)
         {
@@ -95,7 +96,25 @@ public class AuthService : IAuthService
         if (!signInResult.Succeeded)
             throw new UnauthorizedException("Email, istifadəçi adı və ya şifrə yanlışdır.");
 
+        EnsureUserIsNotBanned(user);
+
         return await CreateAuthResponseAsync(user);
+    }
+
+    private static void EnsureUserIsNotBanned(AppUser user)
+    {
+        var now = DateTime.UtcNow;
+        var isBanned = user.IsPermanentlyBanned ||
+                       (user.BannedUntilUtc.HasValue && user.BannedUntilUtc > now);
+
+        if (!isBanned)
+            return;
+
+        if (user.IsPermanentlyBanned)
+            throw new UnauthorizedException("Hesabınız admin tərəfindən müddətsiz bloklanıb.");
+
+        throw new UnauthorizedException(
+            $"Hesabınız {user.BannedUntilUtc:yyyy-MM-dd HH:mm} UTC tarixinədək bloklanıb.");
     }
 
     private async Task<AuthResponseDTO> CreateAuthResponseAsync(AppUser user)

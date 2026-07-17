@@ -31,6 +31,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<DiscussionReply> DiscussionReplies { get; set; }
     public DbSet<DiscussionLike> DiscussionLikes { get; set; }
     public DbSet<DiscussionReplyLike> DiscussionReplyLikes { get; set; }
+    public DbSet<UserBanHistory> UserBanHistories { get; set; }
 
     public DbSet<IgdbGameOverride> IgdbGameOverrides { get; set; }
     public DbSet<IgdbGenreOverride> IgdbGenreOverrides { get; set; }
@@ -39,6 +40,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<IgdbGameGenreOverride> IgdbGameGenreOverrides { get; set; }
     public DbSet<IgdbGamePlatformOverride> IgdbGamePlatformOverrides { get; set; }
     public DbSet<IgdbGameCompanyOverride> IgdbGameCompanyOverrides { get; set; }
+   
  
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -37,15 +37,16 @@ public sealed class IgdbTokenProvider
             if (HasValidToken())
                 return _accessToken!;
 
-            using var request = new HttpRequestMessage(HttpMethod.Post, _settings.TokenUrl)
-            {
-                Content = new FormUrlEncodedContent(new Dictionary<string, string>
-                {
-                    ["client_id"] = _settings.ClientId,
-                    ["client_secret"] = _settings.ClientSecret,
-                    ["grant_type"] = "client_credentials"
-                })
-            };
+            var tokenUrl =
+                $"{_settings.TokenUrl}" +
+                $"?client_id={Uri.EscapeDataString(_settings.ClientId.Trim())}" +
+                $"&client_secret={Uri.EscapeDataString(_settings.ClientSecret.Trim())}" +
+                "&grant_type=client_credentials";
+
+            using var request =
+                new HttpRequestMessage(
+                    HttpMethod.Post,
+                    tokenUrl);
 
             var client = _httpClientFactory.CreateClient("IgdbToken");
 

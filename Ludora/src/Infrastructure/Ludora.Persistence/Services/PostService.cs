@@ -183,7 +183,12 @@ namespace Ludora.Persistence.Services
             if (post.UserId != userId)
                 throw new ForbiddenException("Bu postu silmək icazəniz yoxdur.");
 
-            _context.UserPosts.Remove(post);
+            post.IsDeleted = true;
+            post.DeletedAtUtc = DateTime.UtcNow;
+            post.DeletedByUserId = userId;
+            post.DeleteReason = null;
+            post.UpdatedAt = DateTime.UtcNow;
+
             await _context.SaveChangesAsync(cancellationToken);
         }
 

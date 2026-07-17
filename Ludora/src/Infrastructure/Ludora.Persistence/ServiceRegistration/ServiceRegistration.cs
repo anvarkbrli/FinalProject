@@ -2,6 +2,7 @@ using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities.User;
 using Ludora.Persistence.Data;
 using Ludora.Persistence.Services;
+using Ludora.Persistence.Services.Admin;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -35,6 +36,9 @@ public static class ServiceRegistration
         .AddDefaultTokenProviders();
 
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAdminDashboardService, AdminDashboardService>();
+        services.AddScoped<IAdminUserService, AdminUserService>();
+        services.AddScoped<IAdminPostService, AdminPostService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IFollowService, FollowService>();
         services.AddScoped<IGameListService, GameListService>();

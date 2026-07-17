@@ -12,8 +12,8 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace Ludora.Persistence.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260716210137_ForumFirstVersion")]
-    partial class ForumFirstVersion
+    [Migration("20260717151506_UserBanHistory")]
+    partial class UserBanHistory
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -617,6 +617,19 @@ namespace Ludora.Persistence.Migrations
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("int");
 
+                    b.Property<string>("BanReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("BannedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("BannedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("BannedUntilUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<string>("Bio")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -634,6 +647,11 @@ namespace Ludora.Persistence.Migrations
 
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
+
+                    b.Property<bool>("IsPermanentlyBanned")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<bool>("IsPrivate")
                         .ValueGeneratedOnAdd()
@@ -694,6 +712,8 @@ namespace Ludora.Persistence.Migrations
                     b.HasIndex("UserName")
                         .IsUnique()
                         .HasFilter("[UserName] IS NOT NULL");
+
+                    b.HasIndex("IsPermanentlyBanned", "BannedUntilUtc");
 
                     b.ToTable("AspNetUsers", (string)null);
                 });
@@ -772,6 +792,53 @@ namespace Ludora.Persistence.Migrations
                     b.ToTable("GameListItems");
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.User.UserBanHistory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BanType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("BannedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("BannedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("BannedUntilUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("UnbannedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("UnbannedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BannedByUserId");
+
+                    b.HasIndex("UnbannedByUserId");
+
+                    b.HasIndex("UserId", "BannedAtUtc");
+
+                    b.HasIndex("UserId", "UnbannedAtUtc");
+
+                    b.ToTable("UserBanHistories", (string)null);
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.User.UserBlock", b =>
                 {
                     b.Property<Guid>("BlockerId")
@@ -830,6 +897,19 @@ namespace Ludora.Persistence.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("DeleteReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("DeletedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -837,6 +917,8 @@ namespace Ludora.Persistence.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsDeleted", "CreatedAt");
 
                     b.HasIndex("UserId", "CreatedAt");
 
@@ -1182,6 +1264,32 @@ namespace Ludora.Persistence.Migrations
                     b.Navigation("GameList");
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.User.UserBanHistory", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "BannedByUser")
+                        .WithMany("IssuedBans")
+                        .HasForeignKey("BannedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "UnbannedByUser")
+                        .WithMany("RemovedBans")
+                        .HasForeignKey("UnbannedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("BanHistories")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("BannedByUser");
+
+                    b.Navigation("UnbannedByUser");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.User.UserBlock", b =>
                 {
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "BlockedUser")
@@ -1330,6 +1438,8 @@ namespace Ludora.Persistence.Migrations
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.AppUser", b =>
                 {
+                    b.Navigation("BanHistories");
+
                     b.Navigation("BlockedByUsers");
 
                     b.Navigation("BlockedUsers");
@@ -1348,7 +1458,11 @@ namespace Ludora.Persistence.Migrations
 
                     b.Navigation("GameLists");
 
+                    b.Navigation("IssuedBans");
+
                     b.Navigation("Posts");
+
+                    b.Navigation("RemovedBans");
 
                     b.Navigation("UserGames");
                 });

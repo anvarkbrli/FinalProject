@@ -6,11 +6,69 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Ludora.Persistence.Migrations
 {
     /// <inheritdoc />
-    public partial class ForumFirstVersion : Migration
+    public partial class AdminPanelFirstVersion : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AddColumn<string>(
+                name: "DeleteReason",
+                table: "UserPosts",
+                type: "nvarchar(500)",
+                maxLength: 500,
+                nullable: true);
+
+            migrationBuilder.AddColumn<DateTime>(
+                name: "DeletedAtUtc",
+                table: "UserPosts",
+                type: "datetime2",
+                nullable: true);
+
+            migrationBuilder.AddColumn<Guid>(
+                name: "DeletedByUserId",
+                table: "UserPosts",
+                type: "uniqueidentifier",
+                nullable: true);
+
+            migrationBuilder.AddColumn<bool>(
+                name: "IsDeleted",
+                table: "UserPosts",
+                type: "bit",
+                nullable: false,
+                defaultValue: false);
+
+            migrationBuilder.AddColumn<string>(
+                name: "BanReason",
+                table: "AspNetUsers",
+                type: "nvarchar(500)",
+                maxLength: 500,
+                nullable: true);
+
+            migrationBuilder.AddColumn<DateTime>(
+                name: "BannedAtUtc",
+                table: "AspNetUsers",
+                type: "datetime2",
+                nullable: true);
+
+            migrationBuilder.AddColumn<Guid>(
+                name: "BannedByUserId",
+                table: "AspNetUsers",
+                type: "uniqueidentifier",
+                nullable: true);
+
+            migrationBuilder.AddColumn<DateTime>(
+                name: "BannedUntilUtc",
+                table: "AspNetUsers",
+                type: "datetime2",
+                nullable: true);
+
+            migrationBuilder.AddColumn<bool>(
+                name: "IsPermanentlyBanned",
+                table: "AspNetUsers",
+                type: "bit",
+                nullable: false,
+                defaultValue: false);
+
             migrationBuilder.CreateTable(
                 name: "ForumCategories",
                 columns: table => new
@@ -145,6 +203,16 @@ namespace Ludora.Persistence.Migrations
                 });
 
             migrationBuilder.CreateIndex(
+                name: "IX_UserPosts_IsDeleted_CreatedAt",
+                table: "UserPosts",
+                columns: new[] { "IsDeleted", "CreatedAt" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AspNetUsers_IsPermanentlyBanned_BannedUntilUtc",
+                table: "AspNetUsers",
+                columns: new[] { "IsPermanentlyBanned", "BannedUntilUtc" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_DiscussionLikes_UserId",
                 table: "DiscussionLikes",
                 column: "UserId");
@@ -215,6 +283,50 @@ namespace Ludora.Persistence.Migrations
 
             migrationBuilder.DropTable(
                 name: "ForumCategories");
+
+            migrationBuilder.DropIndex(
+                name: "IX_UserPosts_IsDeleted_CreatedAt",
+                table: "UserPosts");
+
+            migrationBuilder.DropIndex(
+                name: "IX_AspNetUsers_IsPermanentlyBanned_BannedUntilUtc",
+                table: "AspNetUsers");
+
+            migrationBuilder.DropColumn(
+                name: "DeleteReason",
+                table: "UserPosts");
+
+            migrationBuilder.DropColumn(
+                name: "DeletedAtUtc",
+                table: "UserPosts");
+
+            migrationBuilder.DropColumn(
+                name: "DeletedByUserId",
+                table: "UserPosts");
+
+            migrationBuilder.DropColumn(
+                name: "IsDeleted",
+                table: "UserPosts");
+
+            migrationBuilder.DropColumn(
+                name: "BanReason",
+                table: "AspNetUsers");
+
+            migrationBuilder.DropColumn(
+                name: "BannedAtUtc",
+                table: "AspNetUsers");
+
+            migrationBuilder.DropColumn(
+                name: "BannedByUserId",
+                table: "AspNetUsers");
+
+            migrationBuilder.DropColumn(
+                name: "BannedUntilUtc",
+                table: "AspNetUsers");
+
+            migrationBuilder.DropColumn(
+                name: "IsPermanentlyBanned",
+                table: "AspNetUsers");
         }
     }
 }

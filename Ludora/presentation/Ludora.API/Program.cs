@@ -1,8 +1,11 @@
+using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Ludora.API.Middlewares;
+using Ludora.Application.Common;
 using Ludora.Application.Settings;
+using Ludora.Domain.Entities.User;
 using Ludora.Infrastructure.IGDB;
 using Ludora.Persistence.ServiceRegistration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -69,6 +72,52 @@ public class Program
                 IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSettings.Key)),
                 ClockSkew = TimeSpan.FromMinutes(1)
             };
+
+            options.Events = new JwtBearerEvents
+            {
+                OnTokenValidated = async context =>
+                {
+                    var userIdValue = context.Principal?
+                        .FindFirstValue(ClaimTypes.NameIdentifier);
+
+                    if (!Guid.TryParse(userIdValue, out var userId))
+                    {
+                        context.Fail("Token istifadəçisi müəyyən edilmədi.");
+                        return;
+                    }
+
+                    var userManager = context.HttpContext.RequestServices
+                        .GetRequiredService<UserManager<AppUser>>();
+
+                    var user = await userManager.FindByIdAsync(userId.ToString());
+
+                    if (user is null)
+                    {
+                        context.Fail("İstifadəçi tapılmadı.");
+                        return;
+                    }
+
+                    var tokenSecurityStamp = context.Principal?
+                        .FindFirstValue("security_stamp");
+
+                    if (!string.Equals(
+                            tokenSecurityStamp,
+                            user.SecurityStamp ?? string.Empty,
+                            StringComparison.Ordinal))
+                    {
+                        context.Fail("Token artıq etibarlı deyil. Yenidən daxil olun.");
+                        return;
+                    }
+
+                    var now = DateTime.UtcNow;
+                    var isBanned = user.IsPermanentlyBanned ||
+                                   (user.BannedUntilUtc.HasValue &&
+                                    user.BannedUntilUtc > now);
+
+                    if (isBanned)
+                        context.Fail("Hesab admin tərəfindən bloklanıb.");
+                }
+            };
         });
 
         builder.Services.AddAuthorization();
@@ -126,8 +175,8 @@ public class Program
 
         string[] roleNames =
         [
-            "Admin",
-            "User"
+            RoleNames.Admin,
+            RoleNames.User
         ];
 
         foreach (var roleName in roleNames)

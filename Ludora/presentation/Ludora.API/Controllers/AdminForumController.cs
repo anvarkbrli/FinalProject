@@ -1,3 +1,5 @@
+using Ludora.API.Extensions;
+using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -5,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Ludora.API.Controllers;
 
-[Authorize(Roles = "Admin")]
+[Authorize(Roles = RoleNames.Admin)]
 [Route("api/admin/forum")]
 [ApiController]
 public sealed class AdminForumController : ControllerBase
@@ -27,6 +29,20 @@ public sealed class AdminForumController : ControllerBase
         CancellationToken cancellationToken)
     {
         return Ok(await _discussionService.GetDeletedAsync(filter, cancellationToken));
+    }
+
+    [HttpDelete("discussions/{id:int}")]
+    public async Task<IActionResult> DeleteDiscussion(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        await _discussionService.DeleteAsync(
+            id,
+            User.GetRequiredUserId(),
+            true,
+            cancellationToken);
+
+        return NoContent();
     }
 
     [HttpPost("discussions/{id:int}/pin")]
@@ -87,6 +103,20 @@ public sealed class AdminForumController : ControllerBase
             cancellationToken);
 
         return Ok(result);
+    }
+
+    [HttpDelete("replies/{replyId:int}")]
+    public async Task<IActionResult> DeleteReply(
+        int replyId,
+        CancellationToken cancellationToken)
+    {
+        await _replyService.DeleteAsync(
+            replyId,
+            User.GetRequiredUserId(),
+            true,
+            cancellationToken);
+
+        return NoContent();
     }
 
     [HttpPost("replies/{replyId:int}/restore")]
