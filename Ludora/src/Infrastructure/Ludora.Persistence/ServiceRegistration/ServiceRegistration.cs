@@ -39,6 +39,8 @@ public static class ServiceRegistration
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
         services.AddScoped<IAdminUserService, AdminUserService>();
         services.AddScoped<IAdminPostService, AdminPostService>();
+        services.AddScoped<IUserWarningService, UserWarningService>();
+        services.AddScoped<IAnnouncementService, AnnouncementService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IFollowService, FollowService>();
         services.AddScoped<IGameListService, GameListService>();

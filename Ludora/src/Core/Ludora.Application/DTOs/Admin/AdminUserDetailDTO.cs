@@ -21,5 +21,7 @@ public record AdminUserDetailDTO
     public int DeletedPostCount { get; init; }
     public int DiscussionCount { get; init; }
     public int ReplyCount { get; init; }
+    public int WarningCount { get; init; }
+    public int UnreadWarningCount { get; init; }
     public DateTime CreatedAt { get; init; }
 }

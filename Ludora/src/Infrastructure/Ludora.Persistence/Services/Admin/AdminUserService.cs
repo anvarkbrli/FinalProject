@@ -173,6 +173,12 @@ public sealed class AdminUserService : IAdminUserService
                 .CountAsync(x => x.UserId == userId && x.IsDeleted, cancellationToken),
             DiscussionCount = await _context.Discussions.CountAsync(x => x.UserId == userId, cancellationToken),
             ReplyCount = await _context.DiscussionReplies.CountAsync(x => x.UserId == userId, cancellationToken),
+            WarningCount = await _context.UserWarnings.CountAsync(
+                x => x.UserId == userId,
+                cancellationToken),
+            UnreadWarningCount = await _context.UserWarnings.CountAsync(
+                x => x.UserId == userId && !x.IsRead,
+                cancellationToken),
             CreatedAt = user.CreatedAt
         };
     }
@@ -282,6 +288,115 @@ public sealed class AdminUserService : IAdminUserService
 
             Items = items
         };
+    }
+
+    public async Task<AdminUserWarningHistoryDTO> GetWarningHistoryAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        if (userId == Guid.Empty)
+            throw new BadRequestException("İstifadəçi ID-si düzgün deyil.");
+
+        var user = await _context.Users
+            .AsNoTracking()
+            .Where(x => x.Id == userId)
+            .Select(x => new
+            {
+                x.Id,
+                UserName = x.UserName ?? string.Empty
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
+
+        var items = await _context.UserWarnings
+            .AsNoTracking()
+            .Where(x => x.UserId == userId)
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .Select(x => new UserWarningDTO
+            {
+                Id = x.Id,
+                UserId = x.UserId,
+                UserName = x.User.UserName ?? string.Empty,
+                WarnedByUserId = x.WarnedByUserId,
+                WarnedByUserName = x.WarnedByUser.UserName ?? string.Empty,
+                Message = x.Message,
+                CreatedAtUtc = x.CreatedAtUtc,
+                IsRead = x.IsRead,
+                ReadAtUtc = x.ReadAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        return new AdminUserWarningHistoryDTO
+        {
+            UserId = user.Id,
+            UserName = user.UserName,
+            TotalWarningCount = items.Count,
+            ReadWarningCount = items.Count(x => x.IsRead),
+            UnreadWarningCount = items.Count(x => !x.IsRead),
+            Items = items
+        };
+    }
+
+    public async Task<UserWarningDTO> WarnAsync(
+        Guid adminUserId,
+        Guid userId,
+        CreateUserWarningDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        EnsureDifferentUsers(
+            adminUserId,
+            userId,
+            "Öz hesabınıza xəbərdarlıq göndərə bilməzsiniz.");
+
+        var message = dto.Message.NormalizeRequiredText(
+            "Xəbərdarlıq mətni",
+            1000);
+
+        var user = await _userManager.FindByIdAsync(userId.ToString())
+            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
+
+        var roles = await _userManager.GetRolesAsync(user);
+
+        if (roles.Contains(
+            RoleNames.Admin,
+            StringComparer.OrdinalIgnoreCase))
+        {
+            throw new ForbiddenException(
+                "Admin rolundakı istifadəçiyə xəbərdarlıq göndərmək olmaz.");
+        }
+
+        var warning = new UserWarning
+        {
+            UserId = userId,
+            WarnedByUserId = adminUserId,
+            Message = message,
+            CreatedAtUtc = DateTime.UtcNow
+        };
+
+        await _context.UserWarnings.AddAsync(
+            warning,
+            cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return await _context.UserWarnings
+            .AsNoTracking()
+            .Where(x => x.Id == warning.Id)
+            .Select(x => new UserWarningDTO
+            {
+                Id = x.Id,
+                UserId = x.UserId,
+                UserName = x.User.UserName ?? string.Empty,
+                WarnedByUserId = x.WarnedByUserId,
+                WarnedByUserName = x.WarnedByUser.UserName ?? string.Empty,
+                Message = x.Message,
+                CreatedAtUtc = x.CreatedAtUtc,
+                IsRead = x.IsRead,
+                ReadAtUtc = x.ReadAtUtc
+            })
+            .FirstAsync(cancellationToken);
     }
 
     public async Task<AdminUserDetailDTO> BanAsync(

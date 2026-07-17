@@ -1,5 +1,181 @@
 [
   {
+    "ContainingType": "Ludora.API.Controllers.AdminAnnouncementsController",
+    "Method": "GetAll",
+    "RelativePath": "api/admin/announcements",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "Search",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "IsPublished",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "IsDeleted",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "SortBy",
+        "Type": "System.String",
+        "IsRequired": false
+      },
+      {
+        "Name": "PageNumber",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "PageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Ludora.Application.DTOs.PagedResultDTO\u00601[[Ludora.Application.DTOs.AnnouncementDTO, Ludora.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.AdminAnnouncementsController",
+    "Method": "Create",
+    "RelativePath": "api/admin/announcements",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "dto",
+        "Type": "Ludora.Application.DTOs.Admin.AnnouncementCreateDTO",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Ludora.Application.DTOs.AnnouncementDTO",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.AdminAnnouncementsController",
+    "Method": "GetById",
+    "RelativePath": "api/admin/announcements/{announcementId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "announcementId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Ludora.Application.DTOs.AnnouncementDTO",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.AdminAnnouncementsController",
+    "Method": "Update",
+    "RelativePath": "api/admin/announcements/{announcementId}",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "announcementId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      },
+      {
+        "Name": "dto",
+        "Type": "Ludora.Application.DTOs.Admin.AnnouncementUpdateDTO",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Ludora.Application.DTOs.AnnouncementDTO",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.AdminAnnouncementsController",
+    "Method": "Delete",
+    "RelativePath": "api/admin/announcements/{announcementId}",
+    "HttpMethod": "DELETE",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "announcementId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.AdminAnnouncementsController",
+    "Method": "Restore",
+    "RelativePath": "api/admin/announcements/{announcementId}/restore",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "announcementId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Ludora.Application.DTOs.AnnouncementDTO",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
     "ContainingType": "Ludora.API.Controllers.AdminDashboardController",
     "Method": "Get",
     "RelativePath": "api/admin/dashboard",
@@ -555,6 +731,120 @@
     "ReturnTypes": [
       {
         "Type": "Ludora.Application.DTOs.AdminUserDetailDTO",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.AdminUsersController",
+    "Method": "GetWarningHistory",
+    "RelativePath": "api/admin/users/{userId}/warnings",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Ludora.Application.DTOs.Admin.AdminUserWarningHistoryDTO",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.AdminUsersController",
+    "Method": "Warn",
+    "RelativePath": "api/admin/users/{userId}/warnings",
+    "HttpMethod": "POST",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "userId",
+        "Type": "System.Guid",
+        "IsRequired": true
+      },
+      {
+        "Name": "dto",
+        "Type": "Ludora.Application.DTOs.Admin.CreateUserWarningDTO",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Ludora.Application.DTOs.UserWarningDTO",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.AnnouncementsController",
+    "Method": "GetPublished",
+    "RelativePath": "api/announcements",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "pageNumber",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Ludora.Application.DTOs.PagedResultDTO\u00601[[Ludora.Application.DTOs.AnnouncementDTO, Ludora.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.AnnouncementsController",
+    "Method": "GetPublishedById",
+    "RelativePath": "api/announcements/{announcementId}",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "announcementId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Ludora.Application.DTOs.AnnouncementDTO",
         "MediaTypes": [
           "text/plain",
           "application/json",
@@ -2573,6 +2863,78 @@
     "Method": "GetBlockedUsers",
     "RelativePath": "api/Users/me/settings/blocked-users",
     "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [],
+    "ReturnTypes": []
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.WarningsController",
+    "Method": "GetMine",
+    "RelativePath": "api/warnings",
+    "HttpMethod": "GET",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "isRead",
+        "Type": "System.Nullable\u00601[[System.Boolean, System.Private.CoreLib, Version=8.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]]",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageNumber",
+        "Type": "System.Int32",
+        "IsRequired": false
+      },
+      {
+        "Name": "pageSize",
+        "Type": "System.Int32",
+        "IsRequired": false
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Ludora.Application.DTOs.PagedResultDTO\u00601[[Ludora.Application.DTOs.UserWarningDTO, Ludora.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null]]",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.WarningsController",
+    "Method": "MarkAsRead",
+    "RelativePath": "api/warnings/{warningId}/read",
+    "HttpMethod": "PUT",
+    "IsController": true,
+    "Order": 0,
+    "Parameters": [
+      {
+        "Name": "warningId",
+        "Type": "System.Int32",
+        "IsRequired": true
+      }
+    ],
+    "ReturnTypes": [
+      {
+        "Type": "Ludora.Application.DTOs.UserWarningDTO",
+        "MediaTypes": [
+          "text/plain",
+          "application/json",
+          "text/json"
+        ],
+        "StatusCode": 200
+      }
+    ]
+  },
+  {
+    "ContainingType": "Ludora.API.Controllers.WarningsController",
+    "Method": "MarkAllAsRead",
+    "RelativePath": "api/warnings/read-all",
+    "HttpMethod": "PUT",
     "IsController": true,
     "Order": 0,
     "Parameters": [],

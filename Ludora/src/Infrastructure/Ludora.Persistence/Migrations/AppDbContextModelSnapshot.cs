@@ -605,6 +605,55 @@ namespace Ludora.Persistence.Migrations
                     b.ToTable("IgdbPlatformOverrides");
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.User.Announcement", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsPublished")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("PublishedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId", "CreatedAt");
+
+                    b.HasIndex("IsDeleted", "CreatedAt");
+
+                    b.HasIndex("IsPublished", "CreatedAt");
+
+                    b.ToTable("Announcements", (string)null);
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.User.AppUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -920,6 +969,45 @@ namespace Ludora.Persistence.Migrations
                     b.HasIndex("UserId", "CreatedAt");
 
                     b.ToTable("UserPosts");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.UserWarning", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRead")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<string>("Message")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("ReadAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WarnedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WarnedByUserId", "CreatedAtUtc");
+
+                    b.HasIndex("UserId", "IsRead", "CreatedAtUtc");
+
+                    b.ToTable("UserWarnings", (string)null);
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.UserGame", b =>
@@ -1239,6 +1327,17 @@ namespace Ludora.Persistence.Migrations
                     b.Navigation("GameOverride");
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.User.Announcement", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "CreatedByUser")
+                        .WithMany("Announcements")
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("CreatedByUser");
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.User.GameList", b =>
                 {
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
@@ -1264,20 +1363,20 @@ namespace Ludora.Persistence.Migrations
             modelBuilder.Entity("Ludora.Domain.Entities.User.UserBanHistory", b =>
                 {
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "BannedByUser")
-                        .WithMany("IssuedBans")
+                        .WithMany()
                         .HasForeignKey("BannedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "UnbannedByUser")
-                        .WithMany("RemovedBans")
+                        .WithMany()
                         .HasForeignKey("UnbannedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
-                        .WithMany("BanHistories")
+                        .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.NoAction)
                         .IsRequired();
 
                     b.Navigation("BannedByUser");
@@ -1334,6 +1433,25 @@ namespace Ludora.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.UserWarning", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("ReceivedWarnings")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "WarnedByUser")
+                        .WithMany("SentWarnings")
+                        .HasForeignKey("WarnedByUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.Navigation("User");
+
+                    b.Navigation("WarnedByUser");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.UserGame", b =>
@@ -1435,7 +1553,7 @@ namespace Ludora.Persistence.Migrations
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.AppUser", b =>
                 {
-                    b.Navigation("BanHistories");
+                    b.Navigation("Announcements");
 
                     b.Navigation("BlockedByUsers");
 
@@ -1455,11 +1573,11 @@ namespace Ludora.Persistence.Migrations
 
                     b.Navigation("GameLists");
 
-                    b.Navigation("IssuedBans");
-
                     b.Navigation("Posts");
 
-                    b.Navigation("RemovedBans");
+                    b.Navigation("ReceivedWarnings");
+
+                    b.Navigation("SentWarnings");
 
                     b.Navigation("UserGames");
                 });

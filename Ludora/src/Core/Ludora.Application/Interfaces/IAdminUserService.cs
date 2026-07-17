@@ -14,8 +14,18 @@ public interface IAdminUserService
         CancellationToken cancellationToken = default);
 
     Task<AdminUserBanHistoryDTO> GetBanHistoryAsync(
-    Guid userId,
-    CancellationToken cancellationToken = default);
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task<AdminUserWarningHistoryDTO> GetWarningHistoryAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task<UserWarningDTO> WarnAsync(
+        Guid adminUserId,
+        Guid userId,
+        CreateUserWarningDTO dto,
+        CancellationToken cancellationToken = default);
 
     Task<AdminUserDetailDTO> BanAsync(
         Guid adminUserId,

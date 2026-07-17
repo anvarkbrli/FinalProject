@@ -40,6 +40,31 @@ public sealed class AdminUsersController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("{userId:guid}/warnings")]
+    public async Task<ActionResult<AdminUserWarningHistoryDTO>> GetWarningHistory(
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _adminUserService.GetWarningHistoryAsync(
+            userId,
+            cancellationToken));
+    }
+
+    [HttpPost("{userId:guid}/warnings")]
+    public async Task<ActionResult<UserWarningDTO>> Warn(
+        Guid userId,
+        [FromBody] CreateUserWarningDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await _adminUserService.WarnAsync(
+            User.GetRequiredUserId(),
+            userId,
+            dto,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
     [HttpPost("{userId:guid}/ban")]
     public async Task<ActionResult<AdminUserDetailDTO>> Ban(Guid userId, [FromBody] BanUserDTO dto, CancellationToken cancellationToken)
     {

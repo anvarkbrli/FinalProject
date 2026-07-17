@@ -27,4 +27,8 @@ public class AppUser : IdentityUser<Guid>
     public ICollection<DiscussionReply> DiscussionReplies { get; set; } = new List<DiscussionReply>();
     public ICollection<DiscussionLike> DiscussionLikes { get; set; } = new List<DiscussionLike>();
     public ICollection<DiscussionReplyLike> DiscussionReplyLikes { get; set; } = new List<DiscussionReplyLike>();
+    public ICollection<UserWarning> ReceivedWarnings { get; set; } = new List<UserWarning>();
+    public ICollection<UserWarning> SentWarnings { get; set; } = new List<UserWarning>();
+    public ICollection<Announcement> Announcements { get; set; } = new List<Announcement>();
 }
+

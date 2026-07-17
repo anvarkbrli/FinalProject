@@ -41,7 +41,17 @@ public sealed class AdminDashboardService : IAdminDashboardService
             DeletedReplies = await _context.DiscussionReplies
                 .IgnoreQueryFilters()
                 .CountAsync(x => x.IsDeleted, cancellationToken),
-            TotalGames = await _context.Games.CountAsync(cancellationToken)
+            TotalGames = await _context.Games.CountAsync(cancellationToken),
+            TotalWarnings = await _context.UserWarnings.CountAsync(cancellationToken),
+            UnreadWarnings = await _context.UserWarnings
+                .CountAsync(x => !x.IsRead, cancellationToken),
+            TotalAnnouncements = await _context.Announcements
+                .CountAsync(cancellationToken),
+            PublishedAnnouncements = await _context.Announcements
+                .CountAsync(x => x.IsPublished, cancellationToken),
+            DeletedAnnouncements = await _context.Announcements
+                .IgnoreQueryFilters()
+                .CountAsync(x => x.IsDeleted, cancellationToken)
         };
     }
 }
