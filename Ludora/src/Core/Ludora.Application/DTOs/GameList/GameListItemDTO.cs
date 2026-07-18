@@ -15,5 +15,6 @@ namespace Ludora.Application.DTOs.GameList
         public bool IsOverridden { get; init; }
         public List<LookupDTO> Genres { get; init; } = [];
         public List<LookupDTO> Platforms { get; init; } = [];
+        public GameType GameType { get; init; } = GameType.MainGame;
     }
 }

@@ -1,4 +1,5 @@
 ﻿using Ludora.Domain.Entities.Base;
+using Ludora.Domain.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -17,11 +18,9 @@ namespace Ludora.Domain.Entities.GameTracking
         public double AverageRating { get; set; }
         public string? Slug { get; set; } = null!;
 
-        public ICollection<GameGenre> GameGenres { get; set; }
-            = new List<GameGenre>();
-        public ICollection<GamePlatform> GamePlatforms { get; set; }
-            = new List<GamePlatform>();
-        public ICollection<GameCompany> GameCompanies { get; set; }
-            = new List<GameCompany>();
+        public GameType GameType { get; set; } = GameType.MainGame;
+        public ICollection<GameGenre> GameGenres { get; set; } = new List<GameGenre>();
+        public ICollection<GamePlatform> GamePlatforms { get; set; } = new List<GamePlatform>();
+        public ICollection<GameCompany> GameCompanies { get; set; } = new List<GameCompany>();
     }
 }

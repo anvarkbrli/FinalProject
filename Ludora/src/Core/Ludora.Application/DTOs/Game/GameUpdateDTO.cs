@@ -1,4 +1,5 @@
-﻿using System;
+using Ludora.Domain.Enums;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -8,6 +9,7 @@ namespace Ludora.Application.DTOs
 {
     public record GameUpdateDTO
     {
+        public GameType? GameType { get; init; }
         public string? Title { get; init; }
         public string? Description { get; init; }
         public DateOnly? ReleaseDate { get; init; }

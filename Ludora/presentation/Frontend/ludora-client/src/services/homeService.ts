@@ -1,4 +1,5 @@
 import { api } from "../lib/api";
+import { filterDisplayableGames } from "../lib/gameQuality";
 import type {
   AnnouncementDTO,
   DiscussionListItemDTO,
@@ -10,15 +11,24 @@ import type {
 export async function getFeaturedGames(): Promise<
   GameListItemDTO[]
 > {
-  const response = await api.get<GameListItemDTO[]>("/games", {
+  /*
+   * Bəzi nəticələr keyfiyyət filtrindən keçməyə
+   * bilər. Buna görə 6 yox, 24 nəticə gətiririk
+   * və uyğun ilk 6 oyunu saxlayırıq.
+   */
+  const response = await api.get<
+    GameListItemDTO[]
+  >("/games", {
     params: {
       sortBy: "rating_desc",
       pageNumber: 1,
-      pageSize: 6,
+      pageSize: 24,
     },
   });
 
-  return response.data;
+  return filterDisplayableGames(
+    response.data,
+  ).slice(0, 6);
 }
 
 export async function getTrendingDiscussions(): Promise<
@@ -40,13 +50,16 @@ export async function getTrendingDiscussions(): Promise<
 export async function getForumCategories(): Promise<
   ForumCategoryDTO[]
 > {
-  const response = await api.get<ForumCategoryDTO[]>(
-    "/forum/categories",
-  );
+  const response = await api.get<
+    ForumCategoryDTO[]
+  >("/forum/categories");
 
   return [...response.data]
     .sort(
-      (firstCategory, secondCategory) =>
+      (
+        firstCategory,
+        secondCategory,
+      ) =>
         secondCategory.discussionCount -
         firstCategory.discussionCount,
     )

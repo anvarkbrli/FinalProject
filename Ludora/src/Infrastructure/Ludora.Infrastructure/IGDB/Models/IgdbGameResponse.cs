@@ -1,3 +1,4 @@
+using Ludora.Domain.Enums;
 using System.Text.Json.Serialization;
 
 namespace Ludora.Infrastructure.IGDB.Models;
@@ -30,6 +31,30 @@ internal sealed class IgdbGameResponse
 
     [JsonPropertyName("involved_companies")]
     public List<IgdbInvolvedCompanyResponse>? InvolvedCompanies { get; set; }
+    [JsonPropertyName("game_type")]
+    public GameType? GameType { get; set; }
+
+    [JsonPropertyName("parent_game")]
+    public long? ParentGameId { get; set; }
+
+    [JsonPropertyName("dlcs")]
+    public List<long>? DlcIds { get; set; }
+
+    [JsonPropertyName("expansions")]
+    public List<long>? ExpansionIds { get; set; }
+
+    [JsonPropertyName("standalone_expansions")]
+    public List<long>? StandaloneExpansionIds { get; set; }
+
+    [JsonPropertyName("bundles")]
+    public List<long>? BundleIds { get; set; }
+
+    [JsonPropertyName("remakes")]
+    public List<long>? RemakeIds { get; set; }
+
+    [JsonPropertyName("remasters")]
+    public List<long>? RemasterIds { get; set; }
+
 }
 
 internal sealed class IgdbCoverResponse

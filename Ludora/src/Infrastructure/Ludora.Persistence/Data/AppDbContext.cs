@@ -20,6 +20,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<GameGenre> GameGenres { get; set; }
     public DbSet<GamePlatform> GamePlatforms { get; set; }
     public DbSet<GameCompany> GameCompanies { get; set; }
+    public DbSet<GameRelation> GameRelations { get; set; }
     public DbSet<GameList> GameLists { get; set; }
     public DbSet<GameListItem> GameListItems { get; set; }
     public DbSet<UserFollow> UserFollows { get; set; }

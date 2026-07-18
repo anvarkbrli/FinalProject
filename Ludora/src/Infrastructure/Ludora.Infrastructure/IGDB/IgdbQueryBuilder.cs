@@ -9,6 +9,8 @@ internal static class IgdbQueryBuilder
 {
     private const string GameFields =
         "fields id,name,summary,first_release_date,total_rating," +
+        "game_type,parent_game,dlcs,expansions,standalone_expansions," +
+        "bundles,remakes,remasters," +
         "cover.image_id,genres.id,genres.name,platforms.id,platforms.name," +
         "involved_companies.company.id,involved_companies.company.name," +
         "involved_companies.developer,involved_companies.publisher;";
@@ -16,7 +18,19 @@ internal static class IgdbQueryBuilder
     public static string BuildGames(GameFilterDTO filter)
     {
         var builder = new StringBuilder(GameFields);
-        var where = new List<string> { "version_parent = null" };
+        var where = new List<string>
+        {
+            "version_parent = null"
+        };
+
+        if (!filter.IncludeRelatedContent)
+        {
+            where.Add(
+                "game_type = (0,4,8,9,10,11)"
+            );
+        }
+
+
 
         if (!string.IsNullOrWhiteSpace(filter.SearchName))
             builder.Append(" search \"").Append(Escape(filter.SearchName.Trim())).Append("\";");

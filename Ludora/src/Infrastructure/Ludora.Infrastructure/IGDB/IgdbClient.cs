@@ -436,6 +436,46 @@ public sealed class IgdbClient : IIgdbClient
             ReleaseDate = releaseDate,
             CoverImageUrl = coverUrl,
             Rating = response.TotalRating,
+
+            GameType = response.GameType ?? GameType.MainGame,
+
+            ParentGameId = response.ParentGameId,
+
+            DlcIds = response.DlcIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList()
+            ?? [],
+
+            ExpansionIds = response.ExpansionIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList()
+            ?? [],
+
+            StandaloneExpansionIds = response.StandaloneExpansionIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList()
+             ?? [],
+
+            BundleIds = response.BundleIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList()
+            ?? [],
+
+            RemakeIds = response.RemakeIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList()
+            ?? [],
+
+            RemasterIds = response.RemasterIds?
+            .Where(x => x > 0)
+            .Distinct()
+            .ToList()
+            ?? [],
             Genres = (response.Genres ?? [])
                 .Where(IsValidNamedResponse)
                 .Select(MapGenre)

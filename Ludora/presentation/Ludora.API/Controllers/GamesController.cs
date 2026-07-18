@@ -72,6 +72,44 @@ public sealed class GamesController : ControllerBase
     }
 
     [Authorize(Roles = "Admin")]
+    [HttpPost("{source}/{id:long:min(1)}/relations")]
+    public async Task<IActionResult> AddRelation(
+        CatalogSource source,
+        long id,
+        [FromBody] GameRelationCreateDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var relationId = await _gameService.AddRelationAsync(
+            source,
+            id,
+            dto,
+            cancellationToken);
+
+        return Ok(new { id = relationId });
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpDelete("{source}/{id:long:min(1)}/relations/{relatedSource}/{relatedId:long:min(1)}")]
+    public async Task<IActionResult> RemoveRelation(
+        CatalogSource source,
+        long id,
+        CatalogSource relatedSource,
+        long relatedId,
+        [FromQuery] GameType relationType,
+        CancellationToken cancellationToken)
+    {
+        await _gameService.RemoveRelationAsync(
+            source,
+            id,
+            relatedSource,
+            relatedId,
+            relationType,
+            cancellationToken);
+
+        return NoContent();
+    }
+
+    [Authorize(Roles = "Admin")]
     [HttpPatch("{source}/{id:long:min(1)}/restore")]
     public async Task<IActionResult> Restore(
         CatalogSource source,

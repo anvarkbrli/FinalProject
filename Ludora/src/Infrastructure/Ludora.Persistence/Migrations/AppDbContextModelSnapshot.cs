@@ -250,6 +250,9 @@ namespace Ludora.Persistence.Migrations
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
 
+                    b.Property<int>("GameType")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -335,6 +338,50 @@ namespace Ludora.Persistence.Migrations
                     b.HasIndex("PlatformSource", "PlatformSourceId");
 
                     b.ToTable("GamePlatforms");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.GameTracking.GameRelation", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<long>("BaseGameId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("BaseGameSource")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("RelatedGameId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("RelatedGameSource")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RelationType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BaseGameSource", "BaseGameId");
+
+                    b.HasIndex("RelatedGameSource", "RelatedGameId");
+
+                    b.HasIndex("BaseGameSource", "BaseGameId", "RelatedGameSource", "RelatedGameId", "RelationType")
+                        .IsUnique();
+
+                    b.ToTable("GameRelations");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.GameTracking.Genre", b =>
@@ -486,6 +533,9 @@ namespace Ludora.Persistence.Migrations
                     b.Property<string>("Description")
                         .HasMaxLength(4000)
                         .HasColumnType("nvarchar(4000)");
+
+                    b.Property<int?>("GameType")
+                        .HasColumnType("int");
 
                     b.Property<long>("IgdbGameId")
                         .HasColumnType("bigint");

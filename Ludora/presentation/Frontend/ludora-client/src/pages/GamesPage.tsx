@@ -3,7 +3,6 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import {
-  ChevronDown,
   Filter,
   Gamepad2,
   LoaderCircle,
@@ -18,19 +17,32 @@ import {
   useMemo,
   useState,
 } from "react";
+import {
+  SearchableSelect,
+  type SearchableSelectOption,
+} from "../components/common/SearchableSelect";
 import { GameCard } from "../components/home/GameCard";
 import { GameCardSkeleton } from "../components/home/GameCardSkeleton";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
 import { getApiErrorMessage } from "../lib/api";
 import {
+  isPriorityPlatform,
+  sortPlatformsByCurrentRelevance,
+} from "../lib/catalogPriority";
+import { isDisplayableGame } from "../lib/gameQuality";
+import {
+  getGameCompanies,
   getGameGenres,
   getGamePlatforms,
   getGames,
 } from "../services/gamesService";
-import type { CatalogSource } from "../types/home";
+import type {
+  CatalogSource,
+} from "../types/home";
 import type {
   CatalogFilterItemDTO,
+  GameCatalogItemDTO,
   GameSort,
 } from "../types/games";
 
@@ -42,7 +54,7 @@ const sortOptions: Array<{
 }> = [
   {
     value: "",
-    label: "Ən yeni oyunlar",
+    label: "Standart sıralama",
   },
   {
     value: "rating_desc",
@@ -84,7 +96,9 @@ function serializeCatalogReference(
   return `${item.source}:${item.id}`;
 }
 
-function parseCatalogReference(value: string): {
+function parseCatalogReference(
+  value: string,
+): {
   source: CatalogSource;
   id: number;
 } | null {
@@ -92,12 +106,16 @@ function parseCatalogReference(value: string): {
     return null;
   }
 
-  const [sourceValue, idValue] = value.split(":");
+  const [sourceValue, idValue] =
+    value.split(":");
+
   const id = Number(idValue);
 
   if (
-    (sourceValue !== "Local" &&
-      sourceValue !== "Igdb") ||
+    (
+      sourceValue !== "Local" &&
+      sourceValue !== "Igdb"
+    ) ||
     !Number.isInteger(id) ||
     id < 1
   ) {
@@ -110,119 +128,151 @@ function parseCatalogReference(value: string): {
   };
 }
 
-function getSourceLabel(
+function getCatalogDescription(
   source: CatalogSource,
 ): string {
-  return source === "Local" ? "Ludora" : "IGDB";
+  return source === "Local"
+    ? "Ludora kataloqu"
+    : "IGDB kataloqu";
+}
+
+function sortAlphabetically(
+  items: CatalogFilterItemDTO[],
+): CatalogFilterItemDTO[] {
+  return [...items].sort(
+    (firstItem, secondItem) => {
+      return firstItem.name.localeCompare(
+        secondItem.name,
+        "az-AZ",
+        {
+          sensitivity: "base",
+        },
+      );
+    },
+  );
 }
 
 export function GamesPage() {
-  const [searchInput, setSearchInput] =
-    useState("");
+  const [
+    searchInput,
+    setSearchInput,
+  ] = useState("");
 
-  const [debouncedSearch, setDebouncedSearch] =
-    useState("");
+  const [
+    debouncedSearch,
+    setDebouncedSearch,
+  ] = useState("");
 
-  const [source, setSource] = useState<
-    CatalogSource | ""
-  >("");
+  const [
+    companyReference,
+    setCompanyReference,
+  ] = useState("");
 
-  const [genreReference, setGenreReference] =
-    useState("");
+  const [
+    genreReference,
+    setGenreReference,
+  ] = useState("");
 
   const [
     platformReference,
     setPlatformReference,
   ] = useState("");
 
-  const [releaseYear, setReleaseYear] =
-    useState("");
+  const [
+    releaseYear,
+    setReleaseYear,
+  ] = useState("");
 
   const [sortBy, setSortBy] =
     useState<GameSort>("");
 
-  const [isMobileFiltersOpen, setIsMobileFiltersOpen] =
-    useState(false);
+  const [
+    isMobileFiltersOpen,
+    setIsMobileFiltersOpen,
+  ] = useState(false);
 
   useEffect(() => {
-    const timeoutId = window.setTimeout(() => {
-      setDebouncedSearch(searchInput.trim());
-    }, 350);
+    const timeoutId =
+      window.setTimeout(() => {
+        setDebouncedSearch(
+          searchInput.trim(),
+        );
+      }, 350);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
   }, [searchInput]);
 
-  useEffect(() => {
-    if (source !== "Igdb") {
-      return;
-    }
-
-    const parsedGenre =
-      parseCatalogReference(genreReference);
-
-    const parsedPlatform =
-      parseCatalogReference(platformReference);
-
-    if (parsedGenre?.source === "Local") {
-      setGenreReference("");
-    }
-
-    if (parsedPlatform?.source === "Local") {
-      setPlatformReference("");
-    }
-
-    if (
-      sortBy === "play_asc" ||
-      sortBy === "play_desc"
-    ) {
-      setSortBy("");
-    }
-  }, [
-    genreReference,
-    platformReference,
-    sortBy,
-    source,
-  ]);
+  const companiesQuery = useQuery({
+    queryKey: [
+      "game-catalog",
+      "companies",
+    ],
+    queryFn: getGameCompanies,
+    staleTime: 5 * 60_000,
+  });
 
   const genresQuery = useQuery({
-    queryKey: ["game-catalog", "genres"],
+    queryKey: [
+      "game-catalog",
+      "genres",
+    ],
     queryFn: getGameGenres,
     staleTime: 5 * 60_000,
   });
 
   const platformsQuery = useQuery({
-    queryKey: ["game-catalog", "platforms"],
+    queryKey: [
+      "game-catalog",
+      "platforms",
+    ],
     queryFn: getGamePlatforms,
     staleTime: 5 * 60_000,
   });
 
+  const parsedCompany =
+    parseCatalogReference(
+      companyReference,
+    );
+
   const parsedGenre =
-    parseCatalogReference(genreReference);
+    parseCatalogReference(
+      genreReference,
+    );
 
   const parsedPlatform =
-    parseCatalogReference(platformReference);
+    parseCatalogReference(
+      platformReference,
+    );
 
-  const numericReleaseYear =
+  const releaseYearNumber =
     releaseYear.trim() === ""
       ? undefined
       : Number(releaseYear);
 
+  const isReleaseYearValid =
+    releaseYear.trim() === "" ||
+    (
+      releaseYearNumber !== undefined &&
+      Number.isInteger(
+        releaseYearNumber,
+      ) &&
+      releaseYearNumber >= 1900 &&
+      releaseYearNumber <= 2200
+    );
+
   const validReleaseYear =
-    numericReleaseYear !== undefined &&
-    Number.isInteger(numericReleaseYear) &&
-    numericReleaseYear >= 1900 &&
-    numericReleaseYear <= 2200
-      ? numericReleaseYear
+    isReleaseYearValid
+      ? releaseYearNumber
       : undefined;
 
   const gamesQuery = useInfiniteQuery({
     queryKey: [
       "game-catalog",
       "games",
-      source,
       debouncedSearch,
+      companyReference,
       genreReference,
       platformReference,
       validReleaseYear,
@@ -233,22 +283,38 @@ export function GamesPage() {
 
     queryFn: ({ pageParam }) => {
       return getGames({
-        source: source || undefined,
         searchName:
-          debouncedSearch || undefined,
+          debouncedSearch ||
+          undefined,
 
-        genreSource: parsedGenre?.source,
-        genreId: parsedGenre?.id,
+        companySource:
+          parsedCompany?.source,
+
+        companyId:
+          parsedCompany?.id,
+
+        genreSource:
+          parsedGenre?.source,
+
+        genreId:
+          parsedGenre?.id,
 
         platformSource:
           parsedPlatform?.source,
-        platformId: parsedPlatform?.id,
 
-        releaseYear: validReleaseYear,
+        platformId:
+          parsedPlatform?.id,
+
+        releaseYear:
+          validReleaseYear,
+
         sortBy,
 
-        pageNumber: pageParam,
-        pageSize: PAGE_SIZE,
+        pageNumber:
+          pageParam,
+
+        pageSize:
+          PAGE_SIZE,
       });
     },
 
@@ -256,26 +322,45 @@ export function GamesPage() {
       lastPage,
       allPages,
     ) => {
-      if (lastPage.length < PAGE_SIZE) {
+      if (
+        lastPage.length <
+        PAGE_SIZE
+      ) {
         return undefined;
       }
 
-      return allPages.length + 1;
+      const nextPageNumber =
+        allPages.length + 1;
+
+      if (
+        nextPageNumber *
+          PAGE_SIZE >
+        500
+      ) {
+        return undefined;
+      }
+
+      return nextPageNumber;
     },
   });
 
-  const games = useMemo(() => {
+  const games = useMemo<
+    GameCatalogItemDTO[]
+  >(() => {
     const uniqueGames = new Map<
       string,
-      NonNullable<
-        typeof gamesQuery.data
-      >["pages"][number][number]
+      GameCatalogItemDTO
     >();
 
-    for (
-      const page of gamesQuery.data?.pages ?? []
-    ) {
+    const pages =
+      gamesQuery.data?.pages ?? [];
+
+    for (const page of pages) {
       for (const game of page) {
+        if (!isDisplayableGame(game)) {
+          continue;
+        }
+
         uniqueGames.set(
           `${game.source}-${game.id}`,
           game,
@@ -283,251 +368,237 @@ export function GamesPage() {
       }
     }
 
-    return Array.from(uniqueGames.values());
+    return Array.from(
+      uniqueGames.values(),
+    );
   }, [gamesQuery.data]);
 
-  const visibleGenres = useMemo(() => {
-    const genres = genresQuery.data ?? [];
-
-    if (source === "Igdb") {
-      return genres.filter(
-        (genre) => genre.source === "Igdb",
+  const sortedCompanies =
+    useMemo(() => {
+      return sortAlphabetically(
+        companiesQuery.data ?? [],
       );
-    }
+    }, [companiesQuery.data]);
 
-    return genres;
-  }, [genresQuery.data, source]);
-
-  const visiblePlatforms = useMemo(() => {
-    const platforms =
-      platformsQuery.data ?? [];
-
-    if (source === "Igdb") {
-      return platforms.filter(
-        (platform) =>
-          platform.source === "Igdb",
+  const sortedPlatforms =
+    useMemo(() => {
+      return sortPlatformsByCurrentRelevance(
+        platformsQuery.data ?? [],
       );
-    }
+    }, [platformsQuery.data]);
 
-    return platforms;
-  }, [platformsQuery.data, source]);
+  const sortedGenres =
+    useMemo(() => {
+      return sortAlphabetically(
+        genresQuery.data ?? [],
+      );
+    }, [genresQuery.data]);
 
-  const visibleSortOptions =
-    source === "Igdb"
-      ? sortOptions.filter(
+  const companyOptions =
+    useMemo<
+      SearchableSelectOption[]
+    >(() => {
+      return sortedCompanies.map(
+        (company) => ({
+          value:
+            serializeCatalogReference(
+              company,
+            ),
+
+          label: company.name,
+
+          description:
+            getCatalogDescription(
+              company.source,
+            ),
+
+        }),
+      );
+    }, [sortedCompanies]);
+
+  const platformOptions =
+    useMemo<
+      SearchableSelectOption[]
+    >(() => {
+      return sortedPlatforms.map(
+        (platform) => ({
+          value:
+            serializeCatalogReference(
+              platform,
+            ),
+
+          label: platform.name,
+
+          description:
+            getCatalogDescription(
+              platform.source,
+            ),
+
+          group: isPriorityPlatform(
+            platform.name,
+            platform.source,
+            platform.id,
+          )
+            ? "Məşhur platformalar"
+            : "Digər platformalar",
+        }),
+      );
+    }, [sortedPlatforms]);
+
+  const genreOptions =
+    useMemo<
+      SearchableSelectOption[]
+    >(() => {
+      return sortedGenres.map(
+        (genre) => ({
+          value:
+            serializeCatalogReference(
+              genre,
+            ),
+
+          label: genre.name,
+
+          description:
+            getCatalogDescription(
+              genre.source,
+            ),
+        }),
+      );
+    }, [sortedGenres]);
+
+  const sortSelectOptions =
+    useMemo<
+      SearchableSelectOption[]
+    >(() => {
+      return sortOptions
+        .filter(
           (option) =>
-            option.value !== "play_asc" &&
-            option.value !== "play_desc",
+            option.value !== "",
         )
-      : sortOptions;
+        .map((option) => ({
+          value: option.value,
+          label: option.label,
+        }));
+    }, []);
+
+  function handleCompanyChange(
+    value: string,
+  ) {
+    const selectedReference =
+      parseCatalogReference(value);
+
+    setCompanyReference(value);
+
+    if (!selectedReference) {
+      return;
+    }
+
+    if (
+      parsedGenre &&
+      parsedGenre.source !==
+        selectedReference.source
+    ) {
+      setGenreReference("");
+    }
+
+    if (
+      parsedPlatform &&
+      parsedPlatform.source !==
+        selectedReference.source
+    ) {
+      setPlatformReference("");
+    }
+  }
+
+  function handleGenreChange(
+    value: string,
+  ) {
+    const selectedReference =
+      parseCatalogReference(value);
+
+    setGenreReference(value);
+
+    if (!selectedReference) {
+      return;
+    }
+
+    if (
+      parsedCompany &&
+      parsedCompany.source !==
+        selectedReference.source
+    ) {
+      setCompanyReference("");
+    }
+
+    if (
+      parsedPlatform &&
+      parsedPlatform.source !==
+        selectedReference.source
+    ) {
+      setPlatformReference("");
+    }
+  }
+
+  function handlePlatformChange(
+    value: string,
+  ) {
+    const selectedReference =
+      parseCatalogReference(value);
+
+    setPlatformReference(value);
+
+    if (!selectedReference) {
+      return;
+    }
+
+    if (
+      parsedCompany &&
+      parsedCompany.source !==
+        selectedReference.source
+    ) {
+      setCompanyReference("");
+    }
+
+    if (
+      parsedGenre &&
+      parsedGenre.source !==
+        selectedReference.source
+    ) {
+      setGenreReference("");
+    }
+  }
 
   const activeFilterCount = [
-    source,
+    searchInput.trim(),
+    companyReference,
     genreReference,
     platformReference,
-    validReleaseYear,
+    releaseYear,
     sortBy,
   ].filter(Boolean).length;
 
   function resetFilters() {
     setSearchInput("");
     setDebouncedSearch("");
-    setSource("");
+    setCompanyReference("");
     setGenreReference("");
     setPlatformReference("");
     setReleaseYear("");
     setSortBy("");
   }
 
-  const gamesError = gamesQuery.isError
-    ? getApiErrorMessage(
-        gamesQuery.error,
-        "Oyunları yükləmək mümkün olmadı.",
-      )
-    : null;
+  function clearSearch() {
+    setSearchInput("");
+    setDebouncedSearch("");
+  }
 
-  const filterContent = (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-      <label className="block">
-        <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          Mənbə
-        </span>
-
-        <div className="relative">
-          <select
-            value={source}
-            onChange={(event) => {
-              setSource(
-                event.target.value as
-                  | CatalogSource
-                  | "",
-              );
-            }}
-            className="h-11 w-full appearance-none rounded-xl border border-white/[0.08] bg-[#111116] px-3 pr-10 text-sm text-zinc-300 outline-none transition focus:border-violet-400/40 focus:ring-4 focus:ring-violet-500/10"
-          >
-            <option value="">
-              Bütün mənbələr
-            </option>
-
-            <option value="Local">
-              Ludora
-            </option>
-
-            <option value="Igdb">
-              IGDB
-            </option>
-          </select>
-
-          <ChevronDown
-            size={16}
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600"
-          />
-        </div>
-      </label>
-
-      <label className="block">
-        <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          Janr
-        </span>
-
-        <div className="relative">
-          <select
-            value={genreReference}
-            onChange={(event) => {
-              setGenreReference(
-                event.target.value,
-              );
-            }}
-            disabled={genresQuery.isLoading}
-            className="h-11 w-full appearance-none rounded-xl border border-white/[0.08] bg-[#111116] px-3 pr-10 text-sm text-zinc-300 outline-none transition focus:border-violet-400/40 focus:ring-4 focus:ring-violet-500/10 disabled:opacity-50"
-          >
-            <option value="">
-              Bütün janrlar
-            </option>
-
-            {visibleGenres.map((genre) => (
-              <option
-                key={serializeCatalogReference(
-                  genre,
-                )}
-                value={serializeCatalogReference(
-                  genre,
-                )}
-              >
-                {genre.name} —{" "}
-                {getSourceLabel(genre.source)}
-              </option>
-            ))}
-          </select>
-
-          <ChevronDown
-            size={16}
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600"
-          />
-        </div>
-      </label>
-
-      <label className="block">
-        <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          Platforma
-        </span>
-
-        <div className="relative">
-          <select
-            value={platformReference}
-            onChange={(event) => {
-              setPlatformReference(
-                event.target.value,
-              );
-            }}
-            disabled={platformsQuery.isLoading}
-            className="h-11 w-full appearance-none rounded-xl border border-white/[0.08] bg-[#111116] px-3 pr-10 text-sm text-zinc-300 outline-none transition focus:border-violet-400/40 focus:ring-4 focus:ring-violet-500/10 disabled:opacity-50"
-          >
-            <option value="">
-              Bütün platformalar
-            </option>
-
-            {visiblePlatforms.map(
-              (platform) => (
-                <option
-                  key={serializeCatalogReference(
-                    platform,
-                  )}
-                  value={serializeCatalogReference(
-                    platform,
-                  )}
-                >
-                  {platform.name} —{" "}
-                  {getSourceLabel(
-                    platform.source,
-                  )}
-                </option>
-              ),
-            )}
-          </select>
-
-          <ChevronDown
-            size={16}
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600"
-          />
-        </div>
-      </label>
-
-      <label className="block">
-        <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          Çıxış ili
-        </span>
-
-        <input
-          type="number"
-          min={1900}
-          max={2200}
-          value={releaseYear}
-          onChange={(event) => {
-            setReleaseYear(
-              event.target.value,
-            );
-          }}
-          placeholder="Məsələn: 2024"
-          className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#111116] px-3 text-sm text-zinc-300 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/40 focus:ring-4 focus:ring-violet-500/10"
-        />
-      </label>
-
-      <label className="block">
-        <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
-          Sıralama
-        </span>
-
-        <div className="relative">
-          <select
-            value={sortBy}
-            onChange={(event) => {
-              setSortBy(
-                event.target.value as GameSort,
-              );
-            }}
-            className="h-11 w-full appearance-none rounded-xl border border-white/[0.08] bg-[#111116] px-3 pr-10 text-sm text-zinc-300 outline-none transition focus:border-violet-400/40 focus:ring-4 focus:ring-violet-500/10"
-          >
-            {visibleSortOptions.map(
-              (option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
-                  {option.label}
-                </option>
-              ),
-            )}
-          </select>
-
-          <ChevronDown
-            size={16}
-            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-zinc-600"
-          />
-        </div>
-      </label>
-    </div>
-  );
+  const gamesError =
+    gamesQuery.isError
+      ? getApiErrorMessage(
+          gamesQuery.error,
+          "Oyunları yükləmək mümkün olmadı.",
+        )
+      : null;
 
   return (
     <div className="min-h-screen bg-[#07070a] text-zinc-100">
@@ -551,8 +622,9 @@ export function GamesPage() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-base leading-8 text-zinc-400">
-                Oyunları ada, janra, platformaya,
-                çıxış ilinə və reytinqə görə axtar.
+                Oyunları ada, şirkətə,
+                janra, platformaya və
+                çıxış ilinə görə axtar.
               </p>
             </div>
 
@@ -577,10 +649,7 @@ export function GamesPage() {
               {searchInput && (
                 <button
                   type="button"
-                  onClick={() => {
-                    setSearchInput("");
-                    setDebouncedSearch("");
-                  }}
+                  onClick={clearSearch}
                   className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-white/5 hover:text-zinc-300"
                   aria-label="Axtarışı təmizlə"
                 >
@@ -598,13 +667,13 @@ export function GamesPage() {
                 type="button"
                 onClick={() => {
                   setIsMobileFiltersOpen(
-                    (current) => !current,
+                    (currentValue) =>
+                      !currentValue,
                   );
                 }}
-                className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-zinc-300"
+                className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.08]"
               >
                 <Filter size={17} />
-
                 Filterlər
 
                 {activeFilterCount > 0 && (
@@ -626,29 +695,138 @@ export function GamesPage() {
               )}
             </div>
 
-            <div className="hidden xl:block">
-              {filterContent}
-            </div>
+            <div
+              className={`${
+                isMobileFiltersOpen
+                  ? "grid"
+                  : "hidden"
+              } mt-5 gap-4 border-t border-white/[0.06] pt-5 md:grid-cols-2 xl:mt-0 xl:grid xl:grid-cols-5 xl:border-t-0 xl:pt-0`}
+            >
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Şirkət
+                </span>
 
-            {isMobileFiltersOpen && (
-              <div className="mt-5 border-t border-white/[0.06] pt-5 xl:hidden">
-                {filterContent}
-              </div>
-            )}
+                <SearchableSelect
+                  value={
+                    companyReference
+                  }
+                  options={companyOptions}
+                  onChange={
+                    handleCompanyChange
+                  }
+                  placeholder="Şirkət seç"
+                  clearLabel="Bütün şirkətlər"
+                  searchPlaceholder="Şirkət axtar..."
+                  emptyMessage="Şirkət tapılmadı."
+                  disabled={
+                    companiesQuery.isLoading
+                  }
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Janr
+                </span>
+
+                <SearchableSelect
+                  value={genreReference}
+                  options={genreOptions}
+                  onChange={
+                    handleGenreChange
+                  }
+                  placeholder="Janr seç"
+                  clearLabel="Bütün janrlar"
+                  searchPlaceholder="Janr axtar..."
+                  emptyMessage="Janr tapılmadı."
+                  disabled={
+                    genresQuery.isLoading
+                  }
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Platforma
+                </span>
+
+                <SearchableSelect
+                  value={
+                    platformReference
+                  }
+                  options={
+                    platformOptions
+                  }
+                  onChange={
+                    handlePlatformChange
+                  }
+                  placeholder="Platforma seç"
+                  clearLabel="Bütün platformalar"
+                  searchPlaceholder="Platforma axtar..."
+                  emptyMessage="Platforma tapılmadı."
+                  disabled={
+                    platformsQuery.isLoading
+                  }
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Çıxış ili
+                </span>
+
+                <input
+                  type="number"
+                  min={1900}
+                  max={2200}
+                  value={releaseYear}
+                  onChange={(event) => {
+                    setReleaseYear(
+                      event.target.value,
+                    );
+                  }}
+                  placeholder="Məsələn: 2026"
+                  className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#111116] px-3 text-sm text-zinc-300 outline-none transition placeholder:text-zinc-700 hover:border-white/[0.15] focus:border-violet-400/50 focus:ring-4 focus:ring-violet-500/10"
+                />
+              </label>
+
+              <label className="block">
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wider text-zinc-500">
+                  Sıralama
+                </span>
+
+                <SearchableSelect
+                  value={sortBy}
+                  options={
+                    sortSelectOptions
+                  }
+                  onChange={(value) => {
+                    setSortBy(
+                      value as GameSort,
+                    );
+                  }}
+                  placeholder="Standart sıralama"
+                  clearLabel="Standart sıralama"
+                  searchable={false}
+                />
+              </label>
+            </div>
           </div>
 
-          {releaseYear &&
-            validReleaseYear === undefined && (
-              <div className="mt-3 rounded-xl border border-amber-400/15 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-200">
-                Çıxış ili 1900–2200 aralığında
-                olmalıdır.
-              </div>
-            )}
+          {!isReleaseYearValid && (
+            <div className="mt-3 rounded-xl border border-amber-400/15 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-200">
+              Çıxış ili 1900–2200
+              aralığında olmalıdır.
+            </div>
+          )}
 
           <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-violet-400">
-                <SlidersHorizontal size={15} />
+                <SlidersHorizontal
+                  size={15}
+                />
                 Nəticələr
               </div>
 
@@ -658,7 +836,8 @@ export function GamesPage() {
 
               {!gamesQuery.isLoading && (
                 <p className="mt-2 text-sm text-zinc-500">
-                  Hazırda {games.length} oyun göstərilir
+                  Hazırda {games.length} uyğun
+                  oyun göstərilir
                 </p>
               )}
             </div>
@@ -680,7 +859,9 @@ export function GamesPage() {
               {Array.from({
                 length: PAGE_SIZE,
               }).map((_, index) => (
-                <GameCardSkeleton key={index} />
+                <GameCardSkeleton
+                  key={index}
+                />
               ))}
             </div>
           ) : gamesError ? (
@@ -694,7 +875,7 @@ export function GamesPage() {
                 onClick={() => {
                   void gamesQuery.refetch();
                 }}
-                className="mx-auto mt-5 flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-200 transition hover:bg-red-500/20"
+                className="mx-auto mt-5 flex items-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-200"
               >
                 <RefreshCcw size={16} />
                 Yenidən yoxla
@@ -708,18 +889,19 @@ export function GamesPage() {
               />
 
               <h3 className="mt-5 text-lg font-semibold text-zinc-300">
-                Oyun tapılmadı
+                Uyğun oyun tapılmadı
               </h3>
 
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-600">
-                Axtarış mətnini və ya filterləri
-                dəyişərək yenidən yoxla.
+                Axtarış mətnini və ya
+                filterləri dəyişərək yenidən
+                yoxla.
               </p>
 
               <button
                 type="button"
                 onClick={resetFilters}
-                className="mt-6 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-500"
+                className="mt-6 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white"
               >
                 Filterləri təmizlə
               </button>
@@ -745,7 +927,7 @@ export function GamesPage() {
                     disabled={
                       gamesQuery.isFetchingNextPage
                     }
-                    className="flex min-w-48 items-center justify-center gap-2 rounded-xl border border-violet-400/20 bg-violet-500/10 px-5 py-3 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="flex min-w-48 items-center justify-center gap-2 rounded-xl border border-violet-400/20 bg-violet-500/10 px-5 py-3 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/20 disabled:opacity-60"
                   >
                     {gamesQuery.isFetchingNextPage ? (
                       <>
@@ -753,7 +935,6 @@ export function GamesPage() {
                           size={17}
                           className="animate-spin"
                         />
-
                         Yüklənir...
                       </>
                     ) : (

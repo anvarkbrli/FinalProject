@@ -1,3 +1,5 @@
+using Ludora.Domain.Enums;
+
 namespace Ludora.Domain.Entities.IGDB;
 
 public class IgdbGameOverride
@@ -9,6 +11,7 @@ public class IgdbGameOverride
     public DateOnly? ReleaseDate { get; set; }
     public string? CoverImageUrl { get; set; }
     public double? Rating { get; set; }
+    public GameType? GameType { get; set; }
     public bool ReplaceGenres { get; set; }
     public bool ReplacePlatforms { get; set; }
     public bool ReplaceCompanies { get; set; }

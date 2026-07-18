@@ -1,14 +1,28 @@
-namespace Ludora.Application.Models;
+using Ludora.Domain.Enums;
 
-public sealed record IgdbGameModel
+namespace Ludora.Application.Models
 {
-    public long Id { get; init; }
-    public string Name { get; init; } = string.Empty;
-    public string? Description { get; init; }
-    public DateOnly? ReleaseDate { get; init; }
-    public string? CoverImageUrl { get; init; }
-    public double? Rating { get; init; }
-    public IReadOnlyList<IgdbGenreModel> Genres { get; init; } = Array.Empty<IgdbGenreModel>();
-    public IReadOnlyList<IgdbPlatformModel> Platforms { get; init; } = Array.Empty<IgdbPlatformModel>();
-    public IReadOnlyList<IgdbCompanyRelationModel> Companies { get; init; } = Array.Empty<IgdbCompanyRelationModel>();
+    public sealed record IgdbGameModel
+    {
+        public long Id { get; init; }
+        public string Name { get; init; } = string.Empty;
+        public string? Description { get; init; }
+        public DateOnly? ReleaseDate { get; init; }
+        public string? CoverImageUrl { get; init; }
+        public double? Rating { get; init; }
+
+        public GameType GameType { get; init; } = GameType.MainGame;
+        public long? ParentGameId { get; init; }
+        public IReadOnlyList<long> DlcIds { get; init; } = [];
+        public IReadOnlyList<long> ExpansionIds { get; init; } = [];
+        public IReadOnlyList<long> StandaloneExpansionIds { get; init; } = [];
+        public IReadOnlyList<long> BundleIds { get; init; } = [];
+        public IReadOnlyList<long> RemakeIds { get; init; } = [];
+        public IReadOnlyList<long> RemasterIds { get; init; } = [];
+        public IReadOnlyList<IgdbGenreModel> Genres { get; init; } = [];
+        public IReadOnlyList<IgdbPlatformModel> Platforms { get; init; } = [];
+        public IReadOnlyList<IgdbCompanyRelationModel> Companies { get; init; } = [];
+    }
 }
+
+

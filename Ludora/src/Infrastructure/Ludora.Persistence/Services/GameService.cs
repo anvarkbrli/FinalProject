@@ -1,4 +1,5 @@
 using Ludora.Application.DTOs;
+using Ludora.Application.DTOs.Game;
 using Ludora.Application.DTOs.GameList;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
@@ -18,6 +19,35 @@ namespace Ludora.Persistence.Services;
 public sealed class GameService : IGameService
 {
     private const int MaxPageSize = 100;
+
+    private static readonly GameType[] MainCatalogGameTypes =
+    [
+        GameType.MainGame,
+        GameType.StandaloneExpansion,
+        GameType.Remake,
+        GameType.Remaster,
+        GameType.ExpandedGame,
+        GameType.Port
+    ];
+
+    private static readonly HashSet<GameType> AllowedRelationTypes =
+    [
+        GameType.DlcAddon,
+        GameType.Expansion,
+        GameType.StandaloneExpansion,
+        GameType.Bundle,
+        GameType.Remake,
+        GameType.Remaster
+    ];
+
+    private static readonly HashSet<GameType> ParentRelationTypes =
+    [
+        GameType.DlcAddon,
+        GameType.Expansion,
+        GameType.StandaloneExpansion,
+        GameType.Remake,
+        GameType.Remaster
+    ];
     private readonly AppDbContext _context;
     private readonly IIgdbClient _igdbClient;
 
@@ -120,15 +150,369 @@ public sealed class GameService : IGameService
                 .FirstOrDefaultAsync(x => x.Id == (int)id, cancellationToken)
                 ?? throw new NotFoundException("Oyun tapılmadı.");
 
-            return (await MapLocalGamesAsync([game], cancellationToken)).Single();
+            var localDetail = (await MapLocalGamesAsync([game], cancellationToken)).Single();
+            var relatedGames = await GetManualRelatedGamesAsync(
+                CatalogSource.Local,
+                id,
+                cancellationToken);
+
+            return localDetail with
+            {
+                RelatedGames = relatedGames
+            };
         }
 
-        var igdbGame = await _igdbClient.GetGameByIdAsync(id, cancellationToken)
+        var igdbGame = await _igdbClient.GetGameByIdAsync(
+            id,
+            cancellationToken)
             ?? throw new NotFoundException("IGDB oyunu tapılmadı.");
 
-        var mapped = await MapIgdbGamesAsync([igdbGame], cancellationToken);
-        return mapped.FirstOrDefault()
-               ?? throw new NotFoundException("Oyun gizlədilib.");
+        var mapped = await MapIgdbGamesAsync(
+            [igdbGame],
+            cancellationToken);
+
+        var detail = mapped.FirstOrDefault()
+            ?? throw new NotFoundException("Oyun gizlədilib.");
+
+        var igdbRelatedGames = await GetIgdbRelatedGamesAsync(
+            igdbGame,
+            cancellationToken);
+
+        var manualRelatedGames = await GetManualRelatedGamesAsync(
+            CatalogSource.Igdb,
+            id,
+            cancellationToken);
+
+        return detail with
+        {
+            RelatedGames = MergeRelatedGames(
+                igdbRelatedGames,
+                manualRelatedGames)
+        };
+    }
+
+    public async Task<int> AddRelationAsync(
+        CatalogSource baseSource,
+        long baseId,
+        GameRelationCreateDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        baseId.EnsureValidCatalogReference(baseSource, "Əsas oyun");
+        dto.RelatedId.EnsureValidCatalogReference(dto.RelatedSource, "Əlaqəli oyun");
+        ValidateRelationType(dto.RelationType);
+
+        if (baseSource == dto.RelatedSource && baseId == dto.RelatedId)
+            throw new BadRequestException("Oyun özü ilə əlaqələndirilə bilməz.");
+
+        var references = new List<CatalogReferenceDTO>
+        {
+            new() { Source = baseSource, Id = baseId },
+            new() { Source = dto.RelatedSource, Id = dto.RelatedId }
+        };
+
+        var resolvedGames = await GetByReferencesAsync(references, cancellationToken);
+
+        if (!resolvedGames.ContainsKey((baseSource, baseId)))
+            throw new NotFoundException("Əsas oyun tapılmadı.");
+
+        if (!resolvedGames.ContainsKey((dto.RelatedSource, dto.RelatedId)))
+            throw new NotFoundException("Əlaqəli oyun tapılmadı.");
+
+        var alreadyExists = await _context.GameRelations.AnyAsync(x =>
+            x.BaseGameSource == baseSource &&
+            x.BaseGameId == baseId &&
+            x.RelatedGameSource == dto.RelatedSource &&
+            x.RelatedGameId == dto.RelatedId &&
+            x.RelationType == dto.RelationType,
+            cancellationToken);
+
+        if (alreadyExists)
+            throw new ConflictException("Bu oyun əlaqəsi artıq mövcuddur.");
+
+        var relation = new GameRelation
+        {
+            BaseGameSource = baseSource,
+            BaseGameId = baseId,
+            RelatedGameSource = dto.RelatedSource,
+            RelatedGameId = dto.RelatedId,
+            RelationType = dto.RelationType,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        await _context.GameRelations.AddAsync(relation, cancellationToken);
+        await SaveChangesAsync(cancellationToken);
+
+        return relation.Id;
+    }
+
+    public async Task RemoveRelationAsync(
+        CatalogSource baseSource,
+        long baseId,
+        CatalogSource relatedSource,
+        long relatedId,
+        GameType relationType,
+        CancellationToken cancellationToken = default)
+    {
+        baseId.EnsureValidCatalogReference(baseSource, "Əsas oyun");
+        relatedId.EnsureValidCatalogReference(relatedSource, "Əlaqəli oyun");
+        ValidateRelationType(relationType);
+
+        var relation = await _context.GameRelations.FirstOrDefaultAsync(x =>
+            x.BaseGameSource == baseSource &&
+            x.BaseGameId == baseId &&
+            x.RelatedGameSource == relatedSource &&
+            x.RelatedGameId == relatedId &&
+            x.RelationType == relationType,
+            cancellationToken)
+            ?? throw new NotFoundException("Oyun əlaqəsi tapılmadı.");
+
+        _context.GameRelations.Remove(relation);
+        await SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<RelatedGamesDTO> GetIgdbRelatedGamesAsync(
+    IgdbGameModel game,
+    CancellationToken cancellationToken)
+    {
+        var relatedIds = game.DlcIds
+            .Concat(game.ExpansionIds)
+            .Concat(game.StandaloneExpansionIds)
+            .Concat(game.BundleIds)
+            .Concat(game.RemakeIds)
+            .Concat(game.RemasterIds)
+            .Concat(
+                game.ParentGameId.HasValue
+                    ? [game.ParentGameId.Value]
+                    : Array.Empty<long>())
+            .Where(x => x > 0)
+            .Distinct()
+            .ToArray();
+
+        if (relatedIds.Length == 0)
+        {
+            return new RelatedGamesDTO();
+        }
+
+        IReadOnlyList<IgdbGameModel> igdbGames;
+
+        try
+        {
+            igdbGames = await _igdbClient.GetGamesByIdsAsync(
+                relatedIds,
+                cancellationToken);
+        }
+        catch (ExternalServiceException)
+        {
+            return new RelatedGamesDTO();
+        }
+
+        var mappedGames = await MapIgdbGamesAsync(
+            igdbGames,
+            cancellationToken);
+
+        var gameMap = mappedGames
+            .ToDictionary(
+                x => x.Id,
+                ToListItem);
+
+        List<GameListItemDTO> Resolve(
+            IEnumerable<long> ids)
+        {
+            return ids
+                .Distinct()
+                .Where(gameMap.ContainsKey)
+                .Select(id => gameMap[id])
+                .ToList();
+        }
+
+        return new RelatedGamesDTO
+        {
+            ParentGame =
+                game.ParentGameId.HasValue &&
+                gameMap.TryGetValue(
+                    game.ParentGameId.Value,
+                    out var parent)
+                        ? parent
+                        : null,
+
+            Dlcs =
+                Resolve(game.DlcIds),
+
+            Expansions =
+                Resolve(game.ExpansionIds),
+
+            StandaloneExpansions =
+                Resolve(game.StandaloneExpansionIds),
+
+            Bundles =
+                Resolve(game.BundleIds),
+
+            Remakes =
+                Resolve(game.RemakeIds),
+
+            Remasters =
+                Resolve(game.RemasterIds)
+        };
+    }
+    private async Task<RelatedGamesDTO> GetManualRelatedGamesAsync(
+        CatalogSource source,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        var outgoingRelations = await _context.GameRelations
+            .AsNoTracking()
+            .Where(x =>
+                x.BaseGameSource == source &&
+                x.BaseGameId == id)
+            .ToListAsync(cancellationToken);
+
+        var incomingRelations = await _context.GameRelations
+            .AsNoTracking()
+            .Where(x =>
+                x.RelatedGameSource == source &&
+                x.RelatedGameId == id)
+            .ToListAsync(cancellationToken);
+
+        if (outgoingRelations.Count == 0 && incomingRelations.Count == 0)
+            return new RelatedGamesDTO();
+
+        var references = outgoingRelations
+            .Select(x => new CatalogReferenceDTO
+            {
+                Source = x.RelatedGameSource,
+                Id = x.RelatedGameId
+            })
+            .Concat(incomingRelations
+                .Where(x => ParentRelationTypes.Contains(x.RelationType))
+                .Select(x => new CatalogReferenceDTO
+                {
+                    Source = x.BaseGameSource,
+                    Id = x.BaseGameId
+                }))
+            .DistinctBy(x => new { x.Source, x.Id })
+            .ToList();
+
+        var gameMap = await ResolveRelationGameReferencesAsync(
+            references,
+            cancellationToken);
+
+        GameListItemDTO? Resolve(CatalogSource gameSource, long gameId)
+        {
+            return gameMap.TryGetValue((gameSource, gameId), out var game)
+                ? ToListItem(game)
+                : null;
+        }
+
+        List<GameListItemDTO> ResolveOutgoing(GameType relationType)
+        {
+            return outgoingRelations
+                .Where(x => x.RelationType == relationType)
+                .Select(x => Resolve(x.RelatedGameSource, x.RelatedGameId))
+                .Where(x => x is not null)
+                .Select(x => x!)
+                .DistinctBy(x => new { x.Source, x.Id })
+                .ToList();
+        }
+
+        var parentGame = incomingRelations
+            .Where(x => ParentRelationTypes.Contains(x.RelationType))
+            .Select(x => Resolve(x.BaseGameSource, x.BaseGameId))
+            .FirstOrDefault(x => x is not null);
+
+        return new RelatedGamesDTO
+        {
+            ParentGame = parentGame,
+            Dlcs = ResolveOutgoing(GameType.DlcAddon),
+            Expansions = ResolveOutgoing(GameType.Expansion),
+            StandaloneExpansions = ResolveOutgoing(GameType.StandaloneExpansion),
+            Bundles = ResolveOutgoing(GameType.Bundle),
+            Remakes = ResolveOutgoing(GameType.Remake),
+            Remasters = ResolveOutgoing(GameType.Remaster)
+        };
+    }
+
+    private async Task<IReadOnlyDictionary<(CatalogSource Source, long Id), GameDetailDTO>>
+        ResolveRelationGameReferencesAsync(
+            IReadOnlyCollection<CatalogReferenceDTO> references,
+            CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<(CatalogSource Source, long Id), GameDetailDTO>();
+
+        var localReferences = references
+            .Where(x => x.Source == CatalogSource.Local)
+            .ToList();
+
+        if (localReferences.Count > 0)
+        {
+            var locals = await GetByReferencesAsync(localReferences, cancellationToken);
+
+            foreach (var item in locals)
+                result[item.Key] = item.Value;
+        }
+
+        var igdbReferences = references
+            .Where(x => x.Source == CatalogSource.Igdb)
+            .ToList();
+
+        if (igdbReferences.Count > 0 && _igdbClient.IsEnabled)
+        {
+            try
+            {
+                var igdbGames = await GetByReferencesAsync(
+                    igdbReferences,
+                    cancellationToken);
+
+                foreach (var item in igdbGames)
+                    result[item.Key] = item.Value;
+            }
+            catch (ExternalServiceException)
+            {
+                // Local oyun səhifəsi IGDB müvəqqəti əlçatmaz olduqda da açılmalıdır.
+            }
+        }
+
+        return result;
+    }
+
+    private static RelatedGamesDTO MergeRelatedGames(
+        RelatedGamesDTO first,
+        RelatedGamesDTO second)
+    {
+        return new RelatedGamesDTO
+        {
+            ParentGame = first.ParentGame ?? second.ParentGame,
+            Dlcs = MergeRelatedList(first.Dlcs, second.Dlcs),
+            Expansions = MergeRelatedList(first.Expansions, second.Expansions),
+            StandaloneExpansions = MergeRelatedList(
+                first.StandaloneExpansions,
+                second.StandaloneExpansions),
+            Bundles = MergeRelatedList(first.Bundles, second.Bundles),
+            Remakes = MergeRelatedList(first.Remakes, second.Remakes),
+            Remasters = MergeRelatedList(first.Remasters, second.Remasters)
+        };
+    }
+
+    private static List<GameListItemDTO> MergeRelatedList(
+        IEnumerable<GameListItemDTO> first,
+        IEnumerable<GameListItemDTO> second)
+    {
+        return first
+            .Concat(second)
+            .DistinctBy(x => new { x.Source, x.Id })
+            .ToList();
+    }
+
+    private static void ValidateRelationType(GameType relationType)
+    {
+        relationType.EnsureDefined("Əlaqə tipi");
+
+        if (!AllowedRelationTypes.Contains(relationType))
+        {
+            throw new BadRequestException(
+                "Əlaqə tipi DLC, expansion, standalone expansion, bundle, remake və ya remaster olmalıdır.");
+        }
     }
 
     public async Task<long> CreateAsync(
@@ -136,6 +520,7 @@ public sealed class GameService : IGameService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dto);
+        dto.GameType.EnsureDefined("Oyun tipi");
 
         var title = dto.Title.NormalizeRequiredText("Oyunun adı", 200);
         var genreReferences = NormalizeCatalogReferences(dto.GenreReferences, "Janr");
@@ -149,6 +534,7 @@ public sealed class GameService : IGameService
         var game = new Game
         {
             Name = title,
+            GameType = dto.GameType,
             Slug = await CreateUniqueSlugAsync(title, cancellationToken: cancellationToken),
             Description = dto.Description.NormalizeOptionalText("Oyunun açıqlaması", 4000),
             ReleaseDate = dto.ReleaseDate,
@@ -186,13 +572,17 @@ public sealed class GameService : IGameService
         id.EnsureValidCatalogReference(source, "Oyun");
         ArgumentNullException.ThrowIfNull(dto);
 
-        var hasChanges = dto.Title is not null ||
+        var hasChanges = dto.GameType.HasValue ||
+                         dto.Title is not null ||
                          dto.Description is not null ||
                          dto.CoverImageUrl is not null ||
                          dto.ReleaseDate.HasValue ||
                          dto.GenreReferences is not null ||
                          dto.PlatformReferences is not null ||
                          dto.CompanyReferences is not null;
+
+        if (dto.GameType.HasValue)
+            dto.GameType.Value.EnsureDefined("Oyun tipi");
 
         var genreReferences = dto.GenreReferences is null
             ? null
@@ -235,6 +625,9 @@ public sealed class GameService : IGameService
 
             if (!hasChanges) return;
                 
+
+            if (dto.GameType.HasValue)
+                game.GameType = dto.GameType.Value;
 
             if (dto.Title is not null)
                 game.Name = dto.Title.NormalizeRequiredText("Oyunun adı", 200);
@@ -299,6 +692,9 @@ public sealed class GameService : IGameService
                 };
                 await _context.IgdbGameOverrides.AddAsync(gameOverride, cancellationToken);
             }
+
+            if (dto.GameType.HasValue)
+                gameOverride.GameType = dto.GameType.Value;
 
             if (dto.Title is not null)
                 gameOverride.Name = dto.Title.NormalizeRequiredText("Oyunun adı", 200);
@@ -485,6 +881,9 @@ public sealed class GameService : IGameService
     {
         var query = _context.Games.AsNoTracking();
 
+        if (!filter.IncludeRelatedContent)
+            query = query.Where(x => MainCatalogGameTypes.Contains(x.GameType));
+
         if (!string.IsNullOrWhiteSpace(filter.SearchName))
         {
             var search = filter.SearchName.Trim();
@@ -603,6 +1002,7 @@ public sealed class GameService : IGameService
             PlayCount = game.PlayCount,
             AverageRating = game.AverageRating,
             IsOverridden = false,
+            GameType = game.GameType,
             Genres = game.GameGenres
                 .Select(x => genreMap.GetValueOrDefault((x.GenreSource, x.GenreSourceId)))
                 .Where(x => x is not null)
@@ -792,6 +1192,7 @@ public sealed class GameService : IGameService
                 PlayCount = 0,
                 AverageRating = gameOverride?.Rating ?? game.Rating,
                 IsOverridden = gameOverride is not null,
+                GameType = gameOverride?.GameType ?? game.GameType,
                 Genres = genres.OrderBy(x => x.Name).ToList(),
                 Platforms = platforms.OrderBy(x => x.Name).ToList(),
                 Companies = companies.OrderBy(x => x.Role).ThenBy(x => x.Name).ToList()
@@ -1348,6 +1749,7 @@ public sealed class GameService : IGameService
             ReleaseDate = game.ReleaseDate,
             AverageRating = game.AverageRating,
             IsOverridden = game.IsOverridden,
+            GameType = game.GameType,
             Genres = game.Genres,
             Platforms = game.Platforms
         };

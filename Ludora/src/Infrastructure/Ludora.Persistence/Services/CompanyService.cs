@@ -102,7 +102,9 @@ public sealed class CompanyService : ICompanyService
         }
 
         return result
-            .OrderBy(x => x.Name)
+            .OrderBy(
+                x => x.Name,
+                StringComparer.OrdinalIgnoreCase)
             .ThenBy(x => x.Source)
             .ToList();
     }

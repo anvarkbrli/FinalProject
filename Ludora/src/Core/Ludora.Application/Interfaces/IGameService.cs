@@ -35,6 +35,20 @@ public interface IGameService
         long id,
         CancellationToken cancellationToken = default);
 
+    Task<int> AddRelationAsync(
+        CatalogSource baseSource,
+        long baseId,
+        GameRelationCreateDTO dto,
+        CancellationToken cancellationToken = default);
+
+    Task RemoveRelationAsync(
+        CatalogSource baseSource,
+        long baseId,
+        CatalogSource relatedSource,
+        long relatedId,
+        GameType relationType,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyDictionary<(CatalogSource Source, long Id), GameDetailDTO>> GetByReferencesAsync(
         IReadOnlyCollection<CatalogReferenceDTO> references,
         CancellationToken cancellationToken = default);

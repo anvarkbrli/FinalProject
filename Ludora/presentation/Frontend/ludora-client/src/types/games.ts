@@ -43,4 +43,5 @@ export interface GameCatalogFilterDTO {
   pageSize: number;
 }
 
-export type GameCatalogItemDTO = GameListItemDTO;
+export type GameCatalogItemDTO =
+  GameListItemDTO;

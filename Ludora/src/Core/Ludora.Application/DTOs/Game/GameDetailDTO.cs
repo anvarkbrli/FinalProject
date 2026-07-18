@@ -1,9 +1,6 @@
-﻿using Ludora.Domain.Enums;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+﻿using Ludora.Application.DTOs.Game;
+using Ludora.Domain.Enums;
+
 
 namespace Ludora.Application.DTOs
 {
@@ -21,5 +18,7 @@ namespace Ludora.Application.DTOs
         public List<CompanyLookupDTO> Companies { get; init; } = [];
         public List<LookupDTO> Genres { get; init; } = [];
         public List<LookupDTO> Platforms { get; init; } = [];
+        public GameType GameType { get; init; } = GameType.MainGame;
+        public RelatedGamesDTO RelatedGames { get; init; } = new();
     }
 }

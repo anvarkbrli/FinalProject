@@ -17,6 +17,17 @@ public sealed class PlatformService : IPlatformService
 {
     private const int MaxNameLength = 100;
     private const int MaxSearchLength = 200;
+
+    private static readonly IReadOnlyDictionary<long, int> IgdbPlatformPriority =
+        new Dictionary<long, int>
+        {
+            [6] = 0,   // PC (Microsoft Windows)
+            [167] = 1, // PlayStation 5
+            [48] = 2,  // PlayStation 4
+            [169] = 3, // Xbox Series X|S
+            [130] = 4  // Nintendo Switch
+        };
+
     private readonly AppDbContext _context;
     private readonly IIgdbClient _igdbClient;
 
@@ -102,9 +113,24 @@ public sealed class PlatformService : IPlatformService
         }
 
         return result
-            .OrderBy(x => x.Name)
+            .OrderBy(GetPlatformPriority)
+            .ThenBy(
+                x => x.Name,
+                StringComparer.OrdinalIgnoreCase)
             .ThenBy(x => x.Source)
             .ToList();
+    }
+
+    private static int GetPlatformPriority(
+        PlatformDetailDTO platform)
+    {
+        if (platform.Source == CatalogSource.Igdb &&
+            IgdbPlatformPriority.TryGetValue(platform.Id, out var priority))
+        {
+            return priority;
+        }
+
+        return int.MaxValue;
     }
 
     public async Task<IReadOnlyList<PlatformDetailDTO>> GetDeletedAsync(
