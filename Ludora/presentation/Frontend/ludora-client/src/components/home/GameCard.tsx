@@ -3,6 +3,7 @@ import {
   Gamepad2,
 } from "lucide-react";
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import {
   getReleaseYear,
   isFutureReleaseDate,
@@ -34,7 +35,11 @@ export function GameCard({
     failedCoverUrl !== coverUrl;
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-white/[0.07] bg-[#111116] transition duration-300 hover:-translate-y-1 hover:border-violet-400/30 hover:shadow-2xl hover:shadow-violet-950/20">
+    <Link
+      to={`/games/${game.source}/${game.id}`}
+      className="block h-full"
+    >
+      <article className="group overflow-hidden rounded-2xl border border-white/[0.07] bg-[#111116] transition duration-300 hover:-translate-y-1 hover:border-violet-400/30 hover:shadow-2xl hover:shadow-violet-950/20">
       <div className="relative aspect-[3/4] overflow-hidden bg-gradient-to-br from-zinc-800 to-zinc-950">
         {isComingSoon && (
           <span className="coming-soon-badge">
@@ -100,6 +105,7 @@ export function GameCard({
           )}
         </div>
       </div>
-    </article>
+      </article>
+    </Link>
   );
 }

@@ -38,22 +38,87 @@ public sealed class IgdbClient : IIgdbClient
 
     public bool IsEnabled => _settings.Enabled;
 
+    public Task<IReadOnlyList<IgdbGameModel>> GetGamesAsync(
+        GameFilterDTO filter,
+        CancellationToken cancellationToken = default)
+    {
+        return GetGamesAsync(
+            filter,
+            Array.Empty<long>(),
+            cancellationToken);
+    }
+
     public async Task<IReadOnlyList<IgdbGameModel>> GetGamesAsync(
         GameFilterDTO filter,
+        IReadOnlyCollection<long> excludedGameIds,
         CancellationToken cancellationToken = default)
     {
         EnsureEnabled();
         ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(excludedGameIds);
 
         var responses = await SendAsync<IgdbGameResponse>(
             "games",
-            IgdbQueryBuilder.BuildGames(filter),
+            IgdbQueryBuilder.BuildGames(
+                filter,
+                excludedGameIds),
             cancellationToken);
 
         return responses
             .Where(IsValidNamedResponse)
             .Select(MapGame)
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<IgdbGameModel>> GetGamesSliceAsync(
+        GameFilterDTO filter,
+        int offset,
+        int limit,
+        IReadOnlyCollection<long> excludedGameIds,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureEnabled();
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(excludedGameIds);
+
+        if (offset < 0)
+            throw new ArgumentOutOfRangeException(nameof(offset));
+
+        if (limit is < 1 or > 500)
+            throw new ArgumentOutOfRangeException(nameof(limit));
+
+        var responses = await SendAsync<IgdbGameResponse>(
+            "games",
+            IgdbQueryBuilder.BuildGames(
+                filter,
+                offset,
+                limit,
+                excludedGameIds),
+            cancellationToken);
+
+        return responses
+            .Where(IsValidNamedResponse)
+            .Select(MapGame)
+            .ToList();
+    }
+
+    public async Task<int> GetGamesCountAsync(
+        GameFilterDTO filter,
+        IReadOnlyCollection<long> excludedGameIds,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureEnabled();
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(excludedGameIds);
+
+        var query = IgdbQueryBuilder.BuildGamesCount(
+            filter,
+            excludedGameIds);
+
+        return await SendCountAsync(
+            "games/count",
+            query,
+            cancellationToken);
     }
 
     public async Task<IgdbGameModel?> GetGameByIdAsync(
@@ -255,33 +320,49 @@ public sealed class IgdbClient : IIgdbClient
         {
             for (var attempt = 0; attempt < 3; attempt++)
             {
-                using var requestLease = await _requestThrottle.EnterAsync(cancellationToken);
-                using var response = await SendCoreAsync(endpoint, query, cancellationToken);
+                using var requestLease =
+                    await _requestThrottle.EnterAsync(cancellationToken);
 
-                if (response.StatusCode == HttpStatusCode.Unauthorized && attempt == 0)
+                using var response = await SendCoreAsync(
+                    endpoint,
+                    query,
+                    cancellationToken);
+
+                if (response.StatusCode == HttpStatusCode.Unauthorized &&
+                    attempt == 0)
                 {
                     _tokenProvider.InvalidateToken();
                     continue;
                 }
 
-                if (response.StatusCode == HttpStatusCode.TooManyRequests && attempt < 2)
+                if (response.StatusCode == HttpStatusCode.TooManyRequests &&
+                    attempt < 2)
                 {
-                    await Task.Delay(GetRetryDelay(response, attempt), cancellationToken);
+                    await Task.Delay(
+                        GetRetryDelay(response, attempt),
+                        cancellationToken);
+
                     continue;
                 }
 
                 if ((int)response.StatusCode >= 500 && attempt < 2)
                 {
-                    await Task.Delay(TimeSpan.FromMilliseconds(300 * (attempt + 1)), cancellationToken);
+                    await Task.Delay(
+                        TimeSpan.FromMilliseconds(300 * (attempt + 1)),
+                        cancellationToken);
+
                     continue;
                 }
 
-                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                var body = await response.Content.ReadAsStringAsync(
+                    cancellationToken);
 
                 if (!response.IsSuccessStatusCode)
                 {
                     var technicalException = new HttpRequestException(
-                        $"IGDB endpoint '{endpoint}' returned {(int)response.StatusCode}: {body}",
+                        $"IGDB endpoint '{endpoint}' returned " +
+                        $"{(int)response.StatusCode}. " +
+                        $"Response: {GetResponsePreview(body)}",
                         null,
                         response.StatusCode);
 
@@ -292,21 +373,29 @@ public sealed class IgdbClient : IIgdbClient
 
                 try
                 {
-                    return JsonSerializer.Deserialize<List<T>>(body, _jsonOptions)
-                           ?? new List<T>();
+                    return JsonSerializer.Deserialize<List<T>>(
+                               body,
+                               _jsonOptions)
+                           ?? [];
                 }
                 catch (JsonException exception)
                 {
-                    throw new ExternalServiceException(
-                        "IGDB cavabı oxuna bilmədi.",
+                    var technicalException = new JsonException(
+                        $"IGDB endpoint '{endpoint}' cavabı oxuna bilmədi. " +
+                        $"Response: {GetResponsePreview(body)}",
                         exception);
+
+                    throw new ExternalServiceException(
+                        $"IGDB '{endpoint}' cavabı oxuna bilmədi.",
+                        technicalException);
                 }
             }
 
             throw new ExternalServiceException(
                 "IGDB xidmətindən məlumat almaq mümkün olmadı.");
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException)
+            when (!cancellationToken.IsCancellationRequested)
         {
             throw new ExternalServiceException(
                 "IGDB sorğusunun vaxtı bitdi.");
@@ -317,6 +406,192 @@ public sealed class IgdbClient : IIgdbClient
                 "IGDB xidmətinə qoşulmaq mümkün olmadı.",
                 exception);
         }
+    }
+
+    private async Task<int> SendCountAsync(
+        string endpoint,
+        string query,
+        CancellationToken cancellationToken)
+    {
+        EnsureEnabled();
+
+        try
+        {
+            for (var attempt = 0; attempt < 3; attempt++)
+            {
+                using var requestLease =
+                    await _requestThrottle.EnterAsync(cancellationToken);
+
+                using var response = await SendCoreAsync(
+                    endpoint,
+                    query,
+                    cancellationToken);
+
+                if (response.StatusCode == HttpStatusCode.Unauthorized &&
+                    attempt == 0)
+                {
+                    _tokenProvider.InvalidateToken();
+                    continue;
+                }
+
+                if (response.StatusCode == HttpStatusCode.TooManyRequests &&
+                    attempt < 2)
+                {
+                    await Task.Delay(
+                        GetRetryDelay(response, attempt),
+                        cancellationToken);
+
+                    continue;
+                }
+
+                if ((int)response.StatusCode >= 500 && attempt < 2)
+                {
+                    await Task.Delay(
+                        TimeSpan.FromMilliseconds(300 * (attempt + 1)),
+                        cancellationToken);
+
+                    continue;
+                }
+
+                var body = await response.Content.ReadAsStringAsync(
+                    cancellationToken);
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    var technicalException = new HttpRequestException(
+                        $"IGDB endpoint '{endpoint}' returned " +
+                        $"{(int)response.StatusCode}. " +
+                        $"Response: {GetResponsePreview(body)}",
+                        null,
+                        response.StatusCode);
+
+                    throw new ExternalServiceException(
+                        "IGDB nəticələrinin sayını almaq mümkün olmadı.",
+                        technicalException);
+                }
+
+                try
+                {
+                    return ParseCountResponse(body);
+                }
+                catch (JsonException exception)
+                {
+                    var technicalException = new JsonException(
+                        $"IGDB endpoint '{endpoint}' count cavabı " +
+                        $"oxuna bilmədi. Response: {GetResponsePreview(body)}",
+                        exception);
+
+                    throw new ExternalServiceException(
+                        "IGDB count cavabı oxuna bilmədi.",
+                        technicalException);
+                }
+            }
+
+            throw new ExternalServiceException(
+                "IGDB nəticələrinin sayını almaq mümkün olmadı.");
+        }
+        catch (OperationCanceledException)
+            when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new ExternalServiceException(
+                "IGDB count sorğusunun vaxtı bitdi.");
+        }
+        catch (HttpRequestException exception)
+        {
+            throw new ExternalServiceException(
+                "IGDB xidmətinə qoşulmaq mümkün olmadı.",
+                exception);
+        }
+    }
+
+    private static int ParseCountResponse(string body)
+    {
+        if (string.IsNullOrWhiteSpace(body))
+        {
+            throw new JsonException(
+                "IGDB count cavabı boşdur.");
+        }
+
+        using var document = JsonDocument.Parse(body);
+        var root = document.RootElement;
+
+        if (root.ValueKind == JsonValueKind.Object &&
+            root.TryGetProperty("count", out var countProperty))
+        {
+            return ReadCountValue(countProperty);
+        }
+
+        if (root.ValueKind == JsonValueKind.Array &&
+            root.GetArrayLength() > 0)
+        {
+            var firstItem = root[0];
+
+            if (firstItem.ValueKind == JsonValueKind.Object &&
+                firstItem.TryGetProperty(
+                    "count",
+                    out var arrayCountProperty))
+            {
+                return ReadCountValue(arrayCountProperty);
+            }
+
+            if (firstItem.ValueKind == JsonValueKind.Number ||
+                firstItem.ValueKind == JsonValueKind.String)
+            {
+                return ReadCountValue(firstItem);
+            }
+        }
+
+        if (root.ValueKind == JsonValueKind.Number ||
+            root.ValueKind == JsonValueKind.String)
+        {
+            return ReadCountValue(root);
+        }
+
+        throw new JsonException(
+            "IGDB count cavabının formatı tanınmadı: " +
+            GetResponsePreview(body));
+    }
+
+    private static int ReadCountValue(JsonElement element)
+    {
+        if (element.ValueKind == JsonValueKind.Number &&
+            element.TryGetInt64(out var numericCount))
+        {
+            return numericCount switch
+            {
+                < 0 => 0,
+                > int.MaxValue => int.MaxValue,
+                _ => (int)numericCount
+            };
+        }
+
+        if (element.ValueKind == JsonValueKind.String &&
+            long.TryParse(element.GetString(), out var stringCount))
+        {
+            return stringCount switch
+            {
+                < 0 => 0,
+                > int.MaxValue => int.MaxValue,
+                _ => (int)stringCount
+            };
+        }
+
+        throw new JsonException(
+            "IGDB count dəyəri rəqəm deyil.");
+    }
+
+    private static string GetResponsePreview(string body)
+    {
+        const int maximumLength = 500;
+
+        if (string.IsNullOrWhiteSpace(body))
+            return "<empty>";
+
+        var normalized = body.Trim();
+
+        return normalized.Length <= maximumLength
+            ? normalized
+            : normalized[..maximumLength] + "...";
     }
 
     private async Task<HttpResponseMessage> SendCoreAsync(

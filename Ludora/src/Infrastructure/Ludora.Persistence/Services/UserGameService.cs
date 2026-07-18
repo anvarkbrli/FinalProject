@@ -108,6 +108,35 @@ public sealed class UserGameService : IUserGameService
         return await SaveOrDeleteAsync(entity, cancellationToken);
     }
 
+    public async Task<UserGameDTO?> SetRatingAsync(
+        Guid userId,
+        CatalogSource source,
+        long gameId,
+        double? rating,
+        CancellationToken cancellationToken = default)
+    {
+        gameId.EnsureValidCatalogReference(source, "Oyun");
+        ValidateRating(rating);
+
+        var entity = await FindAsync(userId, source, gameId, cancellationToken);
+
+        if (entity is null)
+        {
+            if (!rating.HasValue)
+                return null;
+
+            await EnsureGameExistsAsync(source, gameId, cancellationToken);
+            entity = NewEntity(userId, source, gameId);
+            entity.Rating = rating.Value;
+            await _context.UserGames.AddAsync(entity, cancellationToken);
+            await SaveAsync(cancellationToken);
+            return await MapAsync(entity, cancellationToken);
+        }
+
+        entity.Rating = rating;
+        return await SaveOrDeleteAsync(entity, cancellationToken);
+    }
+
     private async Task<UserGameDTO?> SaveOrDeleteAsync(UserGame entity, CancellationToken cancellationToken)
     {
         if (IsEmpty(entity))
@@ -185,10 +214,30 @@ public sealed class UserGameService : IUserGameService
     {
         Source = entity.Source, GameId = entity.GameId, Name = name, Slug = slug, CoverUrl = cover,
         ReleaseDate = releaseDate, Status = entity.Status, IsFavorite = entity.IsFavorite,
-        IsWishlisted = entity.IsWishlisted, CreatedAt = entity.CreatedAt, UpdatedAt = entity.UpdatedAt
+        IsWishlisted = entity.IsWishlisted, Rating = entity.Rating,
+        CreatedAt = entity.CreatedAt, UpdatedAt = entity.UpdatedAt
     };
 
     private static UserGame NewEntity(Guid userId, CatalogSource source, long gameId) => new()
     { UserId = userId, Source = source, GameId = gameId, CreatedAt = DateTime.UtcNow };
-    private static bool IsEmpty(UserGame entity) => entity.Status is null && !entity.IsFavorite && !entity.IsWishlisted;
+    private static bool IsEmpty(UserGame entity) =>
+        entity.Status is null &&
+        !entity.IsFavorite &&
+        !entity.IsWishlisted &&
+        !entity.Rating.HasValue;
+
+    private static void ValidateRating(double? rating)
+    {
+        if (!rating.HasValue)
+            return;
+
+        var value = rating.Value;
+        var isHalfStep = Math.Abs(value * 2 - Math.Round(value * 2)) < 0.000001;
+
+        if (value < 0.5 || value > 5 || !isHalfStep)
+        {
+            throw new BadRequestException(
+                "Reytinq 0.5 ilə 5 arasında və 0.5 addımlarla olmalıdır.");
+        }
+    }
 }

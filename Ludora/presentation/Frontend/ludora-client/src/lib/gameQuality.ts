@@ -1,4 +1,16 @@
-import type { GameListItemDTO } from "../types/home";
+import type {
+  GameListItemDTO,
+  GameType,
+} from "../types/home";
+
+const mainCatalogGameTypes = new Set<GameType>([
+  "MainGame",
+  "StandaloneExpansion",
+  "Remake",
+  "Remaster",
+  "ExpandedGame",
+  "Port",
+]);
 
 const blockedGameTitles = new Set([
   "untitled",
@@ -29,6 +41,10 @@ function normalizeGameTitle(title: string): string {
 export function isDisplayableGame(
   game: GameListItemDTO,
 ): boolean {
+  if (!mainCatalogGameTypes.has(game.gameType)) {
+    return false;
+  }
+
   const title = normalizeGameTitle(game.title);
 
   if (!title) {

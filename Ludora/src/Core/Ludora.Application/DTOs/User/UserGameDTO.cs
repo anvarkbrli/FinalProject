@@ -1,4 +1,4 @@
-﻿using Ludora.Domain.Enums;
+using Ludora.Domain.Enums;
 
 namespace Ludora.Application.DTOs
 {
@@ -13,6 +13,7 @@ namespace Ludora.Application.DTOs
         public UserGameStatus? Status { get; set; }
         public bool IsFavorite { get; set; }
         public bool IsWishlisted { get; set; }
+        public double? Rating { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }

@@ -1,4 +1,4 @@
-﻿using Ludora.Domain.Entities;
+using Ludora.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -15,7 +15,13 @@ namespace Ludora.Persistence.Configurations
             builder.Property(x => x.GameId).IsRequired();
             builder.Property(x => x.IsFavorite).IsRequired().HasDefaultValue(false);
             builder.Property(x => x.IsWishlisted).IsRequired().HasDefaultValue(false);
+            builder.Property(x => x.Rating);
             builder.Property(x => x.CreatedAt).IsRequired();
+
+            builder.ToTable(table =>
+                table.HasCheckConstraint(
+                    "CK_UserGames_Rating",
+                    "[Rating] IS NULL OR ([Rating] >= 0.5 AND [Rating] <= 5 AND [Rating] * 2 = FLOOR([Rating] * 2))"));
 
             builder.HasIndex(x => new
             {

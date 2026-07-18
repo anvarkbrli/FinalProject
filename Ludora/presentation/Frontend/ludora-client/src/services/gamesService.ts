@@ -1,15 +1,18 @@
 import { api } from "../lib/api";
 import type {
+  CatalogEntityKind,
   CatalogFilterItemDTO,
   GameCatalogFilterDTO,
   GameCatalogItemDTO,
+  GameDetailDTO,
+  PagedResultDTO,
 } from "../types/games";
 
 export async function getGames(
   filter: GameCatalogFilterDTO,
-): Promise<GameCatalogItemDTO[]> {
+): Promise<PagedResultDTO<GameCatalogItemDTO>> {
   const response =
-    await api.get<GameCatalogItemDTO[]>(
+    await api.get<PagedResultDTO<GameCatalogItemDTO>>(
       "/games",
       {
         params: {
@@ -38,6 +41,9 @@ export async function getGames(
           sortBy:
             filter.sortBy || undefined,
 
+          includeRelatedContent:
+            filter.includeRelatedContent || undefined,
+
           pageNumber:
             filter.pageNumber,
 
@@ -45,6 +51,18 @@ export async function getGames(
             filter.pageSize,
         },
       },
+    );
+
+  return response.data;
+}
+
+export async function getGameById(
+  source: "Local" | "Igdb",
+  id: number,
+): Promise<GameDetailDTO> {
+  const response =
+    await api.get<GameDetailDTO>(
+      `/games/${source}/${id}`,
     );
 
   return response.data;
@@ -78,6 +96,28 @@ export async function getGamePlatforms(): Promise<
   const response =
     await api.get<CatalogFilterItemDTO[]>(
       "/platforms",
+    );
+
+  return response.data;
+}
+
+export async function getCatalogEntityById(
+  kind: CatalogEntityKind,
+  source: "Local" | "Igdb",
+  id: number,
+): Promise<CatalogFilterItemDTO> {
+  const endpointByKind: Record<
+    CatalogEntityKind,
+    string
+  > = {
+    genre: "genres",
+    platform: "platforms",
+    company: "companies",
+  };
+
+  const response =
+    await api.get<CatalogFilterItemDTO>(
+      `/${endpointByKind[kind]}/${source}/${id}`,
     );
 
   return response.data;

@@ -57,7 +57,9 @@ public sealed class GameService : IGameService
         _igdbClient = igdbClient;
     }
 
-    public async Task<IReadOnlyList<GameListItemDTO>> GetFilteredGamesAsync(GameFilterDTO filter, CancellationToken cancellationToken = default)
+    public async Task<PagedResultDTO<GameListItemDTO>> GetFilteredGamesAsync(
+        GameFilterDTO filter,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(filter);
         ValidateFilter(filter);
@@ -68,7 +70,10 @@ public sealed class GameService : IGameService
 
         if (filter.Source == CatalogSource.Local)
         {
-            var localGames = await ApplyLocalSort(BuildLocalQuery(filter), filter.SortBy)
+            var localQuery = BuildLocalQuery(filter);
+            var localTotalCount = await localQuery.CountAsync(cancellationToken);
+
+            var localGames = await ApplyLocalSort(localQuery, filter.SortBy)
                 .Include(x => x.GameGenres)
                 .Include(x => x.GamePlatforms)
                 .Include(x => x.GameCompanies)
@@ -76,59 +81,197 @@ public sealed class GameService : IGameService
                 .Take(pageSize)
                 .ToListAsync(cancellationToken);
 
-            return (await MapLocalGamesAsync(localGames, cancellationToken)).Select(ToListItem).ToList();
+            var items = (await MapLocalGamesAsync(localGames, cancellationToken))
+                .Select(ToListItem)
+                .ToList();
+
+            return CreatePagedResult(
+                items,
+                pageNumber,
+                pageSize,
+                localTotalCount);
         }
 
         if (filter.Source == CatalogSource.Igdb)
         {
-            var igdbGames = await _igdbClient.GetGamesAsync(filter, cancellationToken);
-            var mappedIgdbGames = await MapIgdbGamesAsync(igdbGames, cancellationToken);
+            var hiddenIgdbGameIds =
+                await GetHiddenIgdbGameIdsAsync(
+                    cancellationToken);
 
-            return SortGames(mappedIgdbGames, filter.SortBy).Select(ToListItem).ToList();
+            var countTask = _igdbClient.GetGamesCountAsync(
+                filter,
+                hiddenIgdbGameIds,
+                cancellationToken);
+
+            var gamesTask = _igdbClient.GetGamesAsync(
+                filter,
+                hiddenIgdbGameIds,
+                cancellationToken);
+
+            await Task.WhenAll(countTask, gamesTask);
+
+            var mappedIgdbGames = await MapIgdbGamesAsync(
+                gamesTask.Result,
+                cancellationToken);
+
+            var items = SortGames(mappedIgdbGames, filter.SortBy)
+                .Select(ToListItem)
+                .ToList();
+
+            return CreatePagedResult(
+                items,
+                pageNumber,
+                pageSize,
+                countTask.Result);
         }
 
-        var requestedEnd = (long)pageNumber * pageSize;
+        var requestedEnd = checked((long)pageNumber * pageSize);
 
-        if (requestedEnd > 500)
+        if (requestedEnd > int.MaxValue)
         {
-            throw new BadRequestException("Bütün mənbələr üzrə birləşdirilmiş axtarışda ilk 500 nəticə dəstəklənir.");
+            throw new BadRequestException(
+                "Sorğu edilən səhifə aralığı çox böyükdür.");
         }
 
         var fetchCount = (int)requestedEnd;
         var details = new List<GameDetailDTO>();
-        var localCombinedGames = await ApplyLocalSort(BuildLocalQuery(filter), filter.SortBy)
+
+        var combinedLocalQuery = BuildLocalQuery(filter);
+        var localCount = await combinedLocalQuery.CountAsync(cancellationToken);
+
+        var localCombinedGames = await ApplyLocalSort(
+                combinedLocalQuery,
+                filter.SortBy)
             .Include(x => x.GameGenres)
             .Include(x => x.GamePlatforms)
             .Include(x => x.GameCompanies)
-            .Take(fetchCount)
+            .Take(Math.Min(fetchCount, localCount))
             .ToListAsync(cancellationToken);
 
-        details.AddRange(await MapLocalGamesAsync(localCombinedGames, cancellationToken));
+        details.AddRange(
+            await MapLocalGamesAsync(
+                localCombinedGames,
+                cancellationToken));
+
+        var igdbCount = 0;
 
         if (_igdbClient.IsEnabled && CanQueryIgdb(filter))
         {
             var igdbFilter = filter with
             {
-                Source = CatalogSource.Igdb,
-                PageNumber = 1,
-                PageSize = fetchCount
+                Source = CatalogSource.Igdb
             };
 
             try
             {
-                var igdbGames = await _igdbClient.GetGamesAsync(igdbFilter, cancellationToken);
-                details.AddRange(await MapIgdbGamesAsync(igdbGames, cancellationToken));
+                var hiddenIgdbGameIds =
+                    await GetHiddenIgdbGameIdsAsync(
+                        cancellationToken);
+
+                var countTask = _igdbClient.GetGamesCountAsync(
+                    igdbFilter,
+                    hiddenIgdbGameIds,
+                    cancellationToken);
+
+                var gamesTask = GetIgdbGamesUpToAsync(
+                    igdbFilter,
+                    fetchCount,
+                    hiddenIgdbGameIds,
+                    cancellationToken);
+
+                await Task.WhenAll(countTask, gamesTask);
+
+                igdbCount = countTask.Result;
+
+                details.AddRange(
+                    await MapIgdbGamesAsync(
+                        gamesTask.Result,
+                        cancellationToken));
             }
             catch (ExternalServiceException)
             {
+                // IGDB müvəqqəti əlçatmazdırsa local nəticələr yenə göstərilir.
             }
         }
 
-        return SortGames(details, filter.SortBy)
+        var itemsForPage = SortGames(details, filter.SortBy)
             .Skip(skip)
             .Take(pageSize)
             .Select(ToListItem)
             .ToList();
+
+        var totalCount = checked(localCount + igdbCount);
+
+        return CreatePagedResult(
+            itemsForPage,
+            pageNumber,
+            pageSize,
+            totalCount);
+    }
+
+    private async Task<IReadOnlyList<IgdbGameModel>> GetIgdbGamesUpToAsync(
+        GameFilterDTO filter,
+        int requestedCount,
+        IReadOnlyCollection<long> excludedGameIds,
+        CancellationToken cancellationToken)
+    {
+        if (requestedCount <= 0)
+            return Array.Empty<IgdbGameModel>();
+
+        const int maximumBatchSize = 500;
+        var games = new List<IgdbGameModel>(requestedCount);
+        var offset = 0;
+
+        while (offset < requestedCount)
+        {
+            var limit = Math.Min(
+                maximumBatchSize,
+                requestedCount - offset);
+
+            var batch = await _igdbClient.GetGamesSliceAsync(
+                filter,
+                offset,
+                limit,
+                excludedGameIds,
+                cancellationToken);
+
+            games.AddRange(batch);
+
+            if (batch.Count < limit)
+                break;
+
+            offset += limit;
+        }
+
+        return games;
+    }
+
+    private async Task<IReadOnlyList<long>> GetHiddenIgdbGameIdsAsync(
+        CancellationToken cancellationToken)
+    {
+        return await _context.IgdbGameOverrides
+            .AsNoTracking()
+            .Where(x => x.IsHidden)
+            .Select(x => x.IgdbGameId)
+            .ToListAsync(cancellationToken);
+    }
+
+    private static PagedResultDTO<GameListItemDTO> CreatePagedResult(
+        IReadOnlyList<GameListItemDTO> items,
+        int pageNumber,
+        int pageSize,
+        int totalCount)
+    {
+        return new PagedResultDTO<GameListItemDTO>
+        {
+            Items = items,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = totalCount == 0
+                ? 0
+                : (int)Math.Ceiling(totalCount / (double)pageSize)
+        };
     }
 
     public async Task<GameDetailDTO> GetByIdAsync(CatalogSource source, long id, CancellationToken cancellationToken = default)
@@ -171,7 +314,7 @@ public sealed class GameService : IGameService
             [igdbGame],
             cancellationToken);
 
-        var detail = mapped.FirstOrDefault()
+        var igdbDetail = mapped.FirstOrDefault()
             ?? throw new NotFoundException("Oyun gizlədilib.");
 
         var igdbRelatedGames = await GetIgdbRelatedGamesAsync(
@@ -183,7 +326,7 @@ public sealed class GameService : IGameService
             id,
             cancellationToken);
 
-        return detail with
+        return igdbDetail with
         {
             RelatedGames = MergeRelatedGames(
                 igdbRelatedGames,
@@ -990,20 +1133,33 @@ public sealed class GameService : IGameService
         var genreMap = await ResolveGenreLookupsAsync(genreRefs, cancellationToken, true);
         var platformMap = await ResolvePlatformLookupsAsync(platformRefs, cancellationToken, true);
         var companyMap = await ResolveCompanyLookupsAsync(companyRefs, cancellationToken, true);
+        var communityStatsMap = await GetCommunityStatsMapAsync(
+            games.Select(game => new CatalogReferenceDTO
+            {
+                Source = CatalogSource.Local,
+                Id = game.Id
+            }).ToList(),
+            cancellationToken);
 
-        return games.Select(game => new GameDetailDTO
+        return games.Select(game =>
         {
-            Source = CatalogSource.Local,
-            Id = game.Id,
-            Title = game.Name,
-            Description = game.Description,
-            ReleaseDate = game.ReleaseDate,
-            CoverImageUrl = game.CoverImageUrl,
-            PlayCount = game.PlayCount,
-            AverageRating = game.AverageRating,
-            IsOverridden = false,
-            GameType = game.GameType,
-            Genres = game.GameGenres
+            var communityStats = communityStatsMap.GetValueOrDefault(
+                (CatalogSource.Local, game.Id)) ?? new GameCommunityStatsDTO();
+
+            return new GameDetailDTO
+            {
+                Source = CatalogSource.Local,
+                Id = game.Id,
+                Title = game.Name,
+                Description = game.Description,
+                ReleaseDate = game.ReleaseDate,
+                CoverImageUrl = game.CoverImageUrl,
+                PlayCount = communityStats.PlayedCount,
+                AverageRating = communityStats.AverageRating,
+                CommunityStats = communityStats,
+                IsOverridden = false,
+                GameType = game.GameType,
+                Genres = game.GameGenres
                 .Select(x => genreMap.GetValueOrDefault((x.GenreSource, x.GenreSourceId)))
                 .Where(x => x is not null)
                 .Select(x => x!)
@@ -1031,6 +1187,7 @@ public sealed class GameService : IGameService
                 .OrderBy(x => x.Role)
                 .ThenBy(x => x.Name)
                 .ToList()
+            };
         }).ToList();
     }
 
@@ -1105,6 +1262,14 @@ public sealed class GameService : IGameService
             .Where(x => baseCompanyIds.Contains(x.IgdbCompanyId))
             .ToDictionaryAsync(x => x.IgdbCompanyId, cancellationToken);
 
+        var communityStatsMap = await GetCommunityStatsMapAsync(
+            games.Select(game => new CatalogReferenceDTO
+            {
+                Source = CatalogSource.Igdb,
+                Id = game.Id
+            }).ToList(),
+            cancellationToken);
+
         var result = new List<GameDetailDTO>();
 
         foreach (var game in games)
@@ -1113,6 +1278,9 @@ public sealed class GameService : IGameService
 
             if (gameOverride?.IsHidden == true)
                 continue;
+
+            var communityStats = communityStatsMap.GetValueOrDefault(
+                (CatalogSource.Igdb, game.Id)) ?? new GameCommunityStatsDTO();
 
             var genres = gameOverride?.ReplaceGenres == true
                 ? gameOverride.Genres
@@ -1189,8 +1357,9 @@ public sealed class GameService : IGameService
                 Description = gameOverride?.Description ?? game.Description,
                 ReleaseDate = gameOverride?.ReleaseDate ?? game.ReleaseDate,
                 CoverImageUrl = gameOverride?.CoverImageUrl ?? game.CoverImageUrl,
-                PlayCount = 0,
-                AverageRating = gameOverride?.Rating ?? game.Rating,
+                PlayCount = communityStats.PlayedCount,
+                AverageRating = communityStats.AverageRating,
+                CommunityStats = communityStats,
                 IsOverridden = gameOverride is not null,
                 GameType = gameOverride?.GameType ?? game.GameType,
                 Genres = genres.OrderBy(x => x.Name).ToList(),
@@ -1200,6 +1369,75 @@ public sealed class GameService : IGameService
         }
 
         return result;
+    }
+
+    private async Task<Dictionary<(CatalogSource Source, long Id), GameCommunityStatsDTO>>
+        GetCommunityStatsMapAsync(
+            IReadOnlyCollection<CatalogReferenceDTO> references,
+            CancellationToken cancellationToken)
+    {
+        var normalizedReferences = references
+            .Where(reference => reference.Id > 0)
+            .DistinctBy(reference => new { reference.Source, reference.Id })
+            .ToList();
+
+        if (normalizedReferences.Count == 0)
+        {
+            return [];
+        }
+
+        var localIds = normalizedReferences
+            .Where(reference => reference.Source == CatalogSource.Local)
+            .Select(reference => reference.Id)
+            .ToArray();
+
+        var igdbIds = normalizedReferences
+            .Where(reference => reference.Source == CatalogSource.Igdb)
+            .Select(reference => reference.Id)
+            .ToArray();
+
+        var rows = await _context.UserGames
+            .AsNoTracking()
+            .Where(userGame =>
+                (userGame.Source == CatalogSource.Local && localIds.Contains(userGame.GameId)) ||
+                (userGame.Source == CatalogSource.Igdb && igdbIds.Contains(userGame.GameId)))
+            .GroupBy(userGame => new
+            {
+                userGame.Source,
+                userGame.GameId
+            })
+            .Select(group => new
+            {
+                group.Key.Source,
+                group.Key.GameId,
+                AverageRating = group.Average(userGame => userGame.Rating),
+                RatingCount = group.Count(userGame => userGame.Rating.HasValue),
+                PlayingCount = group.Count(userGame =>
+                    userGame.Status == UserGameStatus.Playing),
+                PlanToPlayCount = group.Count(userGame =>
+                    userGame.Status == UserGameStatus.PlanToPlay),
+                PlayedCount = group.Count(userGame =>
+                    userGame.Status == UserGameStatus.Played),
+                DroppedCount = group.Count(userGame =>
+                    userGame.Status == UserGameStatus.Dropped),
+                WishlistCount = group.Count(userGame => userGame.IsWishlisted),
+                FavoriteCount = group.Count(userGame => userGame.IsFavorite)
+            })
+            .ToListAsync(cancellationToken);
+
+        return rows.ToDictionary(
+            row => (row.Source, row.GameId),
+            row => new GameCommunityStatsDTO
+            {
+                AverageRating = row.AverageRating,
+                RatingCount = row.RatingCount,
+                PlayingCount = row.PlayingCount,
+                PlanToPlayCount = row.PlanToPlayCount,
+                PlayedCount = row.PlayedCount,
+                DroppedCount = row.DroppedCount,
+                WishlistCount = row.WishlistCount,
+                FavoriteCount = row.FavoriteCount
+            });
     }
 
     private async Task<Dictionary<(CatalogSource Source, long Id), LookupDTO>> ResolveGenreLookupsAsync(

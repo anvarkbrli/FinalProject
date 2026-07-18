@@ -17,7 +17,106 @@ internal static class IgdbQueryBuilder
 
     public static string BuildGames(GameFilterDTO filter)
     {
+        return BuildGames(
+            filter,
+            Array.Empty<long>());
+    }
+
+    public static string BuildGames(
+        GameFilterDTO filter,
+        IReadOnlyCollection<long> excludedGameIds)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(excludedGameIds);
+
+        var pageNumber = Math.Max(1, filter.PageNumber);
+        var pageSize = Math.Clamp(filter.PageSize, 1, 500);
+        var offset = checked((pageNumber - 1) * pageSize);
+
+        return BuildGames(
+            filter,
+            offset,
+            pageSize,
+            excludedGameIds);
+    }
+
+    public static string BuildGames(
+        GameFilterDTO filter,
+        int offset,
+        int limit,
+        IReadOnlyCollection<long> excludedGameIds)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(excludedGameIds);
+
+        if (offset < 0)
+            throw new ArgumentOutOfRangeException(nameof(offset));
+
         var builder = new StringBuilder(GameFields);
+        AppendGameFilters(
+            builder,
+            filter,
+            excludedGameIds);
+        AppendGameSort(builder, filter);
+
+        builder.Append(" limit ")
+            .Append(Math.Clamp(limit, 1, 500).ToString(CultureInfo.InvariantCulture))
+            .Append(';');
+
+        builder.Append(" offset ")
+            .Append(offset.ToString(CultureInfo.InvariantCulture))
+            .Append(';');
+
+        return builder.ToString();
+    }
+
+    public static string BuildGamesCount(
+        GameFilterDTO filter,
+        IReadOnlyCollection<long> excludedGameIds)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(excludedGameIds);
+
+        var builder = new StringBuilder();
+        AppendGameFilters(
+            builder,
+            filter,
+            excludedGameIds);
+        return builder.ToString();
+    }
+
+    public static string BuildGamesByIds(IReadOnlyCollection<long> ids)
+    {
+        return BuildByIds(GameFields, ids);
+    }
+
+    public static string BuildNamedList(string? search, int limit = 200)
+    {
+        var builder = new StringBuilder("fields id,name;");
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            builder.Append(" where name ~ *\"")
+                .Append(Escape(search.Trim()))
+                .Append("\"*;");
+        }
+
+        builder.Append(" sort name asc;");
+        builder.Append(" limit ").Append(Math.Clamp(limit, 1, 500)).Append(';');
+
+        return builder.ToString();
+    }
+
+    public static string BuildNamedByIds(IReadOnlyCollection<long> ids)
+    {
+        return BuildByIds("fields id,name;", ids);
+    }
+
+    private static void AppendGameFilters(
+        StringBuilder builder,
+        GameFilterDTO filter,
+        IReadOnlyCollection<long> excludedGameIds)
+    {
         var where = new List<string>
         {
             "version_parent = null"
@@ -25,15 +124,26 @@ internal static class IgdbQueryBuilder
 
         if (!filter.IncludeRelatedContent)
         {
-            where.Add(
-                "game_type = (0,4,8,9,10,11)"
-            );
+            where.Add("game_type = (0,4,8,9,10,11)");
         }
 
+        var excludedIds = excludedGameIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToArray();
 
+        if (excludedIds.Length > 0)
+        {
+            where.Add(
+                $"id != ({string.Join(',', excludedIds)})");
+        }
 
         if (!string.IsNullOrWhiteSpace(filter.SearchName))
-            builder.Append(" search \"").Append(Escape(filter.SearchName.Trim())).Append("\";");
+        {
+            builder.Append(" search \"")
+                .Append(Escape(filter.SearchName.Trim()))
+                .Append("\";");
+        }
 
         if (filter.GenreId.HasValue &&
             (!filter.GenreSource.HasValue || filter.GenreSource == CatalogSource.Igdb))
@@ -77,8 +187,15 @@ internal static class IgdbQueryBuilder
             where.Add($"first_release_date < {end}");
         }
 
-        builder.Append(" where ").Append(string.Join(" & ", where)).Append(';');
+        builder.Append(" where ")
+            .Append(string.Join(" & ", where))
+            .Append(';');
+    }
 
+    private static void AppendGameSort(
+        StringBuilder builder,
+        GameFilterDTO filter)
+    {
         var sort = filter.SortBy?.Trim().ToLowerInvariant() switch
         {
             "name_asc" => "name asc",
@@ -93,42 +210,6 @@ internal static class IgdbQueryBuilder
 
         if (sort is not null)
             builder.Append(" sort ").Append(sort).Append(';');
-
-        var pageNumber = Math.Max(1, filter.PageNumber);
-        var pageSize = Math.Clamp(filter.PageSize, 1, 500);
-        var offset = (pageNumber - 1) * pageSize;
-
-        builder.Append(" limit ").Append(pageSize.ToString(CultureInfo.InvariantCulture)).Append(';');
-        builder.Append(" offset ").Append(offset.ToString(CultureInfo.InvariantCulture)).Append(';');
-
-        return builder.ToString();
-    }
-
-    public static string BuildGamesByIds(IReadOnlyCollection<long> ids)
-    {
-        return BuildByIds(GameFields, ids);
-    }
-
-    public static string BuildNamedList(string? search, int limit = 200)
-    {
-        var builder = new StringBuilder("fields id,name;");
-
-        if (!string.IsNullOrWhiteSpace(search))
-        {
-            builder.Append(" where name ~ *\"")
-                .Append(Escape(search.Trim()))
-                .Append("\"*;");
-        }
-
-        builder.Append(" sort name asc;");
-        builder.Append(" limit ").Append(Math.Clamp(limit, 1, 500)).Append(';');
-
-        return builder.ToString();
-    }
-
-    public static string BuildNamedByIds(IReadOnlyCollection<long> ids)
-    {
-        return BuildByIds("fields id,name;", ids);
     }
 
     private static string BuildByIds(string fields, IReadOnlyCollection<long> ids)

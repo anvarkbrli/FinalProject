@@ -5,6 +5,8 @@ import { LoginPage } from "./pages/LoginPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { GamesPage } from "./pages/GamesPage";
+import { GameDetailPage } from "./pages/GameDetailPage";
+import { CatalogEntityPage } from "./pages/CatalogEntityPage";
 
 function App() {
   return (
@@ -26,6 +28,26 @@ function App() {
       <Route
         path="/games"
         element={<GamesPage />}
+      />
+
+      <Route
+        path="/games/:source/:id"
+        element={<GameDetailPage />}
+      />
+
+      <Route
+        path="/genres/:source/:id"
+        element={<CatalogEntityPage kind="genre" />}
+      />
+
+      <Route
+        path="/platforms/:source/:id"
+        element={<CatalogEntityPage kind="platform" />}
+      />
+
+      <Route
+        path="/companies/:source/:id"
+        element={<CatalogEntityPage kind="company" />}
       />
       
       <Route

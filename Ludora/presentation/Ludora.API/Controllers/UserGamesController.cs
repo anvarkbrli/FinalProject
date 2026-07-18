@@ -1,4 +1,4 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
@@ -115,6 +115,28 @@ namespace Ludora.API.Controllers
                     gameId,
                     dto.IsWishlisted,
                     cancellationToken);
+
+            if (result is null)
+            {
+                return NoContent();
+            }
+
+            return Ok(result);
+        }
+
+        [HttpPut("{source}/{gameId:long}/rating")]
+        public async Task<ActionResult<UserGameDTO?>> SetRating(
+            CatalogSource source,
+            long gameId,
+            [FromBody] SetUserGameRatingDTO dto,
+            CancellationToken cancellationToken)
+        {
+            var result = await _userGameService.SetRatingAsync(
+                GetCurrentUserId(),
+                source,
+                gameId,
+                dto.Rating,
+                cancellationToken);
 
             if (result is null)
             {

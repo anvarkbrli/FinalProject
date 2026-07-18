@@ -1,8 +1,7 @@
+import { useQuery } from "@tanstack/react-query";
 import {
-  useInfiniteQuery,
-  useQuery,
-} from "@tanstack/react-query";
-import {
+  ChevronLeft,
+  ChevronRight,
   Filter,
   Gamepad2,
   LoaderCircle,
@@ -30,7 +29,6 @@ import {
   isPriorityPlatform,
   sortPlatformsByCurrentRelevance,
 } from "../lib/catalogPriority";
-import { isDisplayableGame } from "../lib/gameQuality";
 import {
   getGameCompanies,
   getGameGenres,
@@ -46,7 +44,7 @@ import type {
   GameSort,
 } from "../types/games";
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 16;
 
 const sortOptions: Array<{
   value: GameSort;
@@ -152,6 +150,57 @@ function sortAlphabetically(
   );
 }
 
+type PaginationItem =
+  | number
+  | "left-ellipsis"
+  | "right-ellipsis";
+
+function getPaginationItems(
+  currentPage: number,
+  totalPages: number,
+): PaginationItem[] {
+  if (totalPages <= 7) {
+    return Array.from(
+      { length: totalPages },
+      (_, index) => index + 1,
+    );
+  }
+
+  if (currentPage <= 4) {
+    return [
+      1,
+      2,
+      3,
+      4,
+      5,
+      "right-ellipsis",
+      totalPages,
+    ];
+  }
+
+  if (currentPage >= totalPages - 3) {
+    return [
+      1,
+      "left-ellipsis",
+      totalPages - 4,
+      totalPages - 3,
+      totalPages - 2,
+      totalPages - 1,
+      totalPages,
+    ];
+  }
+
+  return [
+    1,
+    "left-ellipsis",
+    currentPage - 1,
+    currentPage,
+    currentPage + 1,
+    "right-ellipsis",
+    totalPages,
+  ];
+}
+
 export function GamesPage() {
   const [
     searchInput,
@@ -185,6 +234,9 @@ export function GamesPage() {
 
   const [sortBy, setSortBy] =
     useState<GameSort>("");
+
+  const [pageNumber, setPageNumber] =
+    useState(1);
 
   const [
     isMobileFiltersOpen,
@@ -267,7 +319,7 @@ export function GamesPage() {
       ? releaseYearNumber
       : undefined;
 
-  const gamesQuery = useInfiniteQuery({
+  const gamesQuery = useQuery({
     queryKey: [
       "game-catalog",
       "games",
@@ -277,11 +329,10 @@ export function GamesPage() {
       platformReference,
       validReleaseYear,
       sortBy,
+      pageNumber,
     ],
 
-    initialPageParam: 1,
-
-    queryFn: ({ pageParam }) => {
+    queryFn: () => {
       return getGames({
         searchName:
           debouncedSearch ||
@@ -310,68 +361,37 @@ export function GamesPage() {
 
         sortBy,
 
-        pageNumber:
-          pageParam,
+        includeRelatedContent: false,
+
+        pageNumber,
 
         pageSize:
           PAGE_SIZE,
       });
     },
 
-    getNextPageParam: (
-      lastPage,
-      allPages,
-    ) => {
-      if (
-        lastPage.length <
-        PAGE_SIZE
-      ) {
-        return undefined;
-      }
-
-      const nextPageNumber =
-        allPages.length + 1;
-
-      if (
-        nextPageNumber *
-          PAGE_SIZE >
-        500
-      ) {
-        return undefined;
-      }
-
-      return nextPageNumber;
-    },
+    placeholderData: (
+      previousData,
+    ) => previousData,
   });
 
-  const games = useMemo<
-    GameCatalogItemDTO[]
-  >(() => {
-    const uniqueGames = new Map<
-      string,
-      GameCatalogItemDTO
-    >();
+  const games: GameCatalogItemDTO[] =
+    gamesQuery.data?.items ?? [];
 
-    const pages =
-      gamesQuery.data?.pages ?? [];
+  const totalCount =
+    gamesQuery.data?.totalCount ?? 0;
 
-    for (const page of pages) {
-      for (const game of page) {
-        if (!isDisplayableGame(game)) {
-          continue;
-        }
+  const totalPages =
+    gamesQuery.data?.totalPages ?? 0;
 
-        uniqueGames.set(
-          `${game.source}-${game.id}`,
-          game,
-        );
-      }
-    }
-
-    return Array.from(
-      uniqueGames.values(),
-    );
-  }, [gamesQuery.data]);
+  const paginationItems = useMemo(
+    () =>
+      getPaginationItems(
+        pageNumber,
+        totalPages,
+      ),
+    [pageNumber, totalPages],
+  );
 
   const sortedCompanies =
     useMemo(() => {
@@ -484,6 +504,8 @@ export function GamesPage() {
   function handleCompanyChange(
     value: string,
   ) {
+    setPageNumber(1);
+
     const selectedReference =
       parseCatalogReference(value);
 
@@ -513,6 +535,8 @@ export function GamesPage() {
   function handleGenreChange(
     value: string,
   ) {
+    setPageNumber(1);
+
     const selectedReference =
       parseCatalogReference(value);
 
@@ -542,6 +566,8 @@ export function GamesPage() {
   function handlePlatformChange(
     value: string,
   ) {
+    setPageNumber(1);
+
     const selectedReference =
       parseCatalogReference(value);
 
@@ -585,11 +611,38 @@ export function GamesPage() {
     setPlatformReference("");
     setReleaseYear("");
     setSortBy("");
+    setPageNumber(1);
   }
 
   function clearSearch() {
     setSearchInput("");
     setDebouncedSearch("");
+    setPageNumber(1);
+  }
+
+  function handlePageChange(
+    nextPage: number,
+  ) {
+    if (
+      nextPage < 1 ||
+      nextPage > totalPages ||
+      nextPage === pageNumber
+    ) {
+      return;
+    }
+
+    setPageNumber(nextPage);
+
+    window.requestAnimationFrame(() => {
+      document
+        .getElementById(
+          "game-results",
+        )
+        ?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+    });
   }
 
   const gamesError =
@@ -641,6 +694,7 @@ export function GamesPage() {
                   setSearchInput(
                     event.target.value,
                   );
+                  setPageNumber(1);
                 }}
                 placeholder="Oyun adı ilə axtar..."
                 className="h-14 w-full rounded-2xl border border-white/[0.09] bg-black/25 pl-12 pr-12 text-sm text-white outline-none backdrop-blur transition placeholder:text-zinc-600 focus:border-violet-400/50 focus:bg-black/35 focus:ring-4 focus:ring-violet-500/10"
@@ -785,6 +839,7 @@ export function GamesPage() {
                     setReleaseYear(
                       event.target.value,
                     );
+                    setPageNumber(1);
                   }}
                   placeholder="Məsələn: 2026"
                   className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#111116] px-3 text-sm text-zinc-300 outline-none transition placeholder:text-zinc-700 hover:border-white/[0.15] focus:border-violet-400/50 focus:ring-4 focus:ring-violet-500/10"
@@ -805,6 +860,7 @@ export function GamesPage() {
                     setSortBy(
                       value as GameSort,
                     );
+                    setPageNumber(1);
                   }}
                   placeholder="Standart sıralama"
                   clearLabel="Standart sıralama"
@@ -821,7 +877,10 @@ export function GamesPage() {
             </div>
           )}
 
-          <div className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div
+            id="game-results"
+            className="mt-10 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+          >
             <div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-violet-400">
                 <SlidersHorizontal
@@ -836,8 +895,18 @@ export function GamesPage() {
 
               {!gamesQuery.isLoading && (
                 <p className="mt-2 text-sm text-zinc-500">
-                  Hazırda {games.length} uyğun
-                  oyun göstərilir
+                  {gamesQuery.isFetching && (
+                    <LoaderCircle
+                      size={14}
+                      className="mr-2 inline animate-spin"
+                    />
+                  )}
+
+                  Ümumi{" "}
+                  {totalCount.toLocaleString(
+                    "az-AZ",
+                  )}{" "}
+                  uyğun oyun tapıldı
                 </p>
               )}
             </div>
@@ -917,31 +986,101 @@ export function GamesPage() {
                 ))}
               </div>
 
-              {gamesQuery.hasNextPage && (
-                <div className="mt-10 flex justify-center">
+              {totalPages > 1 && (
+                <nav
+                  className="mt-10 flex flex-wrap items-center justify-center gap-2"
+                  aria-label="Oyun səhifələri"
+                >
                   <button
                     type="button"
                     onClick={() => {
-                      void gamesQuery.fetchNextPage();
+                      handlePageChange(
+                        pageNumber - 1,
+                      );
                     }}
                     disabled={
-                      gamesQuery.isFetchingNextPage
+                      pageNumber === 1 ||
+                      gamesQuery.isFetching
                     }
-                    className="flex min-w-48 items-center justify-center gap-2 rounded-xl border border-violet-400/20 bg-violet-500/10 px-5 py-3 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/20 disabled:opacity-60"
+                    className="flex h-10 items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-sm font-semibold text-zinc-400 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Əvvəlki səhifə"
                   >
-                    {gamesQuery.isFetchingNextPage ? (
-                      <>
-                        <LoaderCircle
-                          size={17}
-                          className="animate-spin"
-                        />
-                        Yüklənir...
-                      </>
-                    ) : (
-                      "Daha çox göstər"
-                    )}
+                    <ChevronLeft size={17} />
+                    <span className="hidden sm:inline">
+                      Əvvəlki
+                    </span>
                   </button>
-                </div>
+
+                  {paginationItems.map(
+                    (item) => {
+                      if (
+                        typeof item !==
+                        "number"
+                      ) {
+                        return (
+                          <span
+                            key={item}
+                            className="flex h-10 w-8 items-center justify-center text-sm text-zinc-600"
+                            aria-hidden="true"
+                          >
+                            …
+                          </span>
+                        );
+                      }
+
+                      const isCurrentPage =
+                        item === pageNumber;
+
+                      return (
+                        <button
+                          key={item}
+                          type="button"
+                          onClick={() => {
+                            handlePageChange(
+                              item,
+                            );
+                          }}
+                          disabled={
+                            gamesQuery.isFetching
+                          }
+                          aria-current={
+                            isCurrentPage
+                              ? "page"
+                              : undefined
+                          }
+                          className={`flex h-10 min-w-10 items-center justify-center rounded-xl border px-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                            isCurrentPage
+                              ? "border-violet-400/30 bg-violet-600 text-white"
+                              : "border-white/[0.08] bg-white/[0.035] text-zinc-400 hover:bg-white/[0.07] hover:text-white"
+                          }`}
+                        >
+                          {item}
+                        </button>
+                      );
+                    },
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handlePageChange(
+                        pageNumber + 1,
+                      );
+                    }}
+                    disabled={
+                      pageNumber ===
+                        totalPages ||
+                      gamesQuery.isFetching
+                    }
+                    className="flex h-10 items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-sm font-semibold text-zinc-400 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Növbəti səhifə"
+                  >
+                    <span className="hidden sm:inline">
+                      Növbəti
+                    </span>
+                    <ChevronRight size={17} />
+                  </button>
+                </nav>
               )}
             </>
           )}

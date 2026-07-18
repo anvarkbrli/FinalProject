@@ -1084,6 +1084,9 @@ namespace Ludora.Persistence.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(false);
 
+                    b.Property<double?>("Rating")
+                        .HasColumnType("float");
+
                     b.Property<int>("Source")
                         .HasColumnType("int");
 
@@ -1101,7 +1104,10 @@ namespace Ludora.Persistence.Migrations
                     b.HasIndex("UserId", "Source", "GameId")
                         .IsUnique();
 
-                    b.ToTable("UserGames");
+                    b.ToTable("UserGames", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserGames_Rating", "[Rating] IS NULL OR ([Rating] >= 0.5 AND [Rating] <= 5 AND [Rating] * 2 = FLOOR([Rating] * 2))");
+                        });
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole<System.Guid>", b =>

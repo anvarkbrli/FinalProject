@@ -6,7 +6,7 @@ namespace Ludora.Application.Interfaces;
 
 public interface IGameService
 {
-    Task<IReadOnlyList<GameListItemDTO>> GetFilteredGamesAsync(
+    Task<PagedResultDTO<GameListItemDTO>> GetFilteredGamesAsync(
         GameFilterDTO filter,
         CancellationToken cancellationToken = default);
 

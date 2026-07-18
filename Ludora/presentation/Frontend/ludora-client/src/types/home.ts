@@ -1,5 +1,22 @@
 export type CatalogSource = "Local" | "Igdb";
 
+export type GameType =
+  | "MainGame"
+  | "DlcAddon"
+  | "Expansion"
+  | "Bundle"
+  | "StandaloneExpansion"
+  | "Mod"
+  | "Episode"
+  | "Season"
+  | "Remake"
+  | "Remaster"
+  | "ExpandedGame"
+  | "Port"
+  | "Fork"
+  | "Pack"
+  | "Update";
+
 export interface LookupDTO {
   source: CatalogSource;
   id: number;
@@ -15,6 +32,7 @@ export interface GameListItemDTO {
   releaseDate: string | null;
   averageRating: number | null;
   isOverridden: boolean;
+  gameType: GameType;
   genres: LookupDTO[];
   platforms: LookupDTO[];
 }

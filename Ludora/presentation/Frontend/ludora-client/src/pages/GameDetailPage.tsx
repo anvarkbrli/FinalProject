@@ -1,0 +1,1263 @@
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
+import {
+  ArrowLeft,
+  Bookmark,
+  Building2,
+  CheckCircle2,
+  Clock3,
+  Database,
+  Gamepad2,
+  Heart,
+  Layers3,
+  LoaderCircle,
+  PlayCircle,
+  Star,
+  XCircle,
+} from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link, useParams } from "react-router-dom";
+import { Footer } from "../components/layout/Footer";
+import { Navbar } from "../components/layout/Navbar";
+import { getApiErrorMessage } from "../lib/api";
+import {
+  isFutureReleaseDate,
+  resolveAssetUrl,
+} from "../lib/helpers";
+import { getGameById } from "../services/gamesService";
+import {
+  getUserGameState,
+  removeUserGameStatus,
+  setUserGameFavorite,
+  setUserGameRating,
+  setUserGameStatus,
+  setUserGameWishlist,
+} from "../services/userGamesService";
+import {
+  isAuthSessionValid,
+  useAuthStore,
+} from "../stores/authStore";
+import type {
+  CatalogSource,
+  GameListItemDTO,
+  GameType,
+} from "../types/home";
+import type {
+  GameCommunityStatsDTO,
+  GameDetailDTO,
+  RelatedGamesDTO,
+} from "../types/games";
+import type {
+  UserGameDTO,
+  UserGameStatus,
+} from "../types/userGames";
+
+interface RelatedSection {
+  key: keyof Omit<
+    RelatedGamesDTO,
+    "parentGame"
+  >;
+  title: string;
+  shortTitle: string;
+}
+
+interface RelatedTab {
+  key: string;
+  title: string;
+  games: GameListItemDTO[];
+}
+
+const relatedSections: RelatedSection[] = [
+  {
+    key: "dlcs",
+    title: "DLC-lər",
+    shortTitle: "DLC",
+  },
+  {
+    key: "expansions",
+    title: "Expansion-lar",
+    shortTitle: "Expansion",
+  },
+  {
+    key: "standaloneExpansions",
+    title: "Müstəqil expansion-lar",
+    shortTitle: "Standalone",
+  },
+  {
+    key: "bundles",
+    title: "Bundle-lar",
+    shortTitle: "Bundle",
+  },
+  {
+    key: "remakes",
+    title: "Remake-lər",
+    shortTitle: "Remake",
+  },
+  {
+    key: "remasters",
+    title: "Remaster-lər",
+    shortTitle: "Remaster",
+  },
+];
+
+const gameTypeLabels: Record<GameType, string> = {
+  MainGame: "Əsas oyun",
+  DlcAddon: "DLC",
+  Expansion: "Expansion",
+  Bundle: "Bundle",
+  StandaloneExpansion: "Müstəqil expansion",
+  Mod: "Mod",
+  Episode: "Epizod",
+  Season: "Sezon",
+  Remake: "Remake",
+  Remaster: "Remaster",
+  ExpandedGame: "Genişləndirilmiş oyun",
+  Port: "Port",
+  Fork: "Fork",
+  Pack: "Paket",
+  Update: "Yeniləmə",
+};
+
+function parseRouteSource(
+  value: string | undefined,
+): CatalogSource | null {
+  if (value === "Local" || value === "Igdb") {
+    return value;
+  }
+
+  return null;
+}
+
+function formatReleaseDate(
+  value: string | null,
+): string {
+  if (!value) {
+    return "Tarix qeyd edilməyib";
+  }
+
+  const [year, month, day] = value
+    .slice(0, 10)
+    .split("-")
+    .map(Number);
+
+  const date = new Date(year, month - 1, day);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat("az-AZ", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatCount(value: number): string {
+  return new Intl.NumberFormat("az-AZ").format(
+    Math.max(0, value),
+  );
+}
+
+
+
+type TrackingAction =
+  | {
+      type: "status";
+      status: UserGameStatus;
+    }
+  | {
+      type: "remove-status";
+    }
+  | {
+      type: "favorite";
+      value: boolean;
+    }
+  | {
+      type: "wishlist";
+      value: boolean;
+    }
+  | {
+      type: "rating";
+      value: number | null;
+    };
+
+const trackingStatusOptions: Array<{
+  value: UserGameStatus;
+  label: string;
+  icon: typeof PlayCircle;
+}> = [
+  {
+    value: "Playing",
+    label: "Oynayıram",
+    icon: PlayCircle,
+  },
+  {
+    value: "PlanToPlay",
+    label: "Oynayacağam",
+    icon: Clock3,
+  },
+  {
+    value: "Played",
+    label: "Oynamışam",
+    icon: CheckCircle2,
+  },
+  {
+    value: "Dropped",
+    label: "Yarımçıq qoydum",
+    icon: XCircle,
+  },
+];
+
+function CommunityStatsGrid({
+  stats,
+}: {
+  stats: GameCommunityStatsDTO;
+}) {
+  const cards = [
+    {
+      key: "rating",
+      label: "Orta reytinq",
+      value:
+        stats.averageRating !== null
+          ? stats.averageRating.toFixed(1)
+          : "—",
+      detail:
+        stats.ratingCount > 0
+          ? `${formatCount(stats.ratingCount)} istifadəçi reytinqi`
+          : "Hələ reytinq verilməyib",
+      icon: Star,
+      iconClassName: "text-amber-300",
+    },
+    {
+      key: "played",
+      label: "Oynayıb",
+      value: formatCount(stats.playedCount),
+      detail: "Oyunu tamamlayan və ya oynayanlar",
+      icon: CheckCircle2,
+      iconClassName: "text-emerald-300",
+    },
+    {
+      key: "playing",
+      label: "Oynayır",
+      value: formatCount(stats.playingCount),
+      detail: "Hazırda oynayan istifadəçilər",
+      icon: PlayCircle,
+      iconClassName: "text-violet-300",
+    },
+    {
+      key: "plan-to-play",
+      label: "Oynayacaq",
+      value: formatCount(stats.planToPlayCount),
+      detail: "Sonra oynamağı planlaşdıranlar",
+      icon: Clock3,
+      iconClassName: "text-sky-300",
+    },
+    {
+      key: "wishlist",
+      label: "Wishlist",
+      value: formatCount(stats.wishlistCount),
+      detail: "İstək siyahısına əlavə edənlər",
+      icon: Bookmark,
+      iconClassName: "text-fuchsia-300",
+    },
+    {
+      key: "favorite",
+      label: "Favori",
+      value: formatCount(stats.favoriteCount),
+      detail: "Favori oyun kimi işarələyənlər",
+      icon: Heart,
+      iconClassName: "text-rose-300",
+    },
+  ];
+
+  return (
+    <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {cards.map((card) => {
+        const Icon = card.icon;
+
+        return (
+          <div
+            key={card.key}
+            className="rounded-2xl border border-white/[0.09] bg-[#181921] p-5"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold text-zinc-500">
+                {card.label}
+              </span>
+              <Icon
+                size={19}
+                className={card.iconClassName}
+              />
+            </div>
+
+            <p className="mt-5 text-4xl font-black tracking-tight text-white">
+              {card.value}
+            </p>
+
+            <p className="mt-2 text-xs leading-5 text-zinc-600">
+              {card.detail}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function GameTrackingPanel({
+  game,
+}: {
+  game: GameDetailDTO;
+}) {
+  const queryClient = useQueryClient();
+  const accessToken = useAuthStore(
+    (state) => state.accessToken,
+  );
+  const expiresAtUtc = useAuthStore(
+    (state) => state.expiresAtUtc,
+  );
+  const isAuthenticated = isAuthSessionValid(
+    accessToken,
+    expiresAtUtc,
+  );
+  const [actionError, setActionError] =
+    useState<string | null>(null);
+  const [hoveredRating, setHoveredRating] =
+    useState<number | null>(null);
+
+  const userStateKey = [
+    "user-game-state",
+    game.source,
+    game.id,
+  ] as const;
+
+  const stateQuery = useQuery({
+    queryKey: userStateKey,
+    queryFn: () =>
+      getUserGameState(game.source, game.id),
+    enabled: isAuthenticated,
+  });
+
+  const actionMutation = useMutation<
+    UserGameDTO | null,
+    unknown,
+    TrackingAction
+  >({
+    mutationFn: (action) => {
+      switch (action.type) {
+        case "status":
+          return setUserGameStatus(
+            game.source,
+            game.id,
+            action.status,
+          );
+        case "remove-status":
+          return removeUserGameStatus(
+            game.source,
+            game.id,
+          );
+        case "favorite":
+          return setUserGameFavorite(
+            game.source,
+            game.id,
+            action.value,
+          );
+        case "wishlist":
+          return setUserGameWishlist(
+            game.source,
+            game.id,
+            action.value,
+          );
+        case "rating":
+          return setUserGameRating(
+            game.source,
+            game.id,
+            action.value,
+          );
+      }
+    },
+    onSuccess: (state) => {
+      queryClient.setQueryData(
+        userStateKey,
+        state,
+      );
+      void queryClient.invalidateQueries({
+        queryKey: [
+          "game-detail",
+          game.source,
+          game.id,
+        ],
+      });
+    },
+    onError: (error) => {
+      setActionError(
+        getApiErrorMessage(
+          error,
+          "Oyun məlumatını yeniləmək mümkün olmadı.",
+        ),
+      );
+    },
+  });
+
+  const runAction = (action: TrackingAction) => {
+    setActionError(null);
+    actionMutation.mutate(action);
+  };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="rounded-2xl border border-violet-400/15 bg-violet-500/[0.07] p-5">
+        <p className="text-sm font-bold text-zinc-100">
+          Oyunu öz profilində izlə
+        </p>
+        <p className="mt-2 text-sm leading-6 text-zinc-500">
+          Status, wishlist, favori və şəxsi reytinq əlavə etmək üçün hesabına daxil ol.
+        </p>
+        <Link
+          to="/login"
+          className="mt-4 inline-flex rounded-lg bg-violet-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-violet-400"
+        >
+          Daxil ol
+        </Link>
+      </div>
+    );
+  }
+
+  const userState = stateQuery.data;
+  const selectedRating =
+    hoveredRating ?? userState?.rating ?? 0;
+  const isPending = actionMutation.isPending;
+
+  return (
+    <div className="rounded-2xl border border-white/[0.08] bg-[#15161c] p-5">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold text-zinc-100">
+            Mənim oyun vəziyyətim
+          </p>
+          <p className="mt-1 text-xs text-zinc-600">
+            Statusunu və reytinqini idarə et
+          </p>
+        </div>
+        {isPending && (
+          <LoaderCircle
+            size={18}
+            className="animate-spin text-violet-300"
+          />
+        )}
+      </div>
+
+      {stateQuery.isLoading ? (
+        <div className="mt-5 space-y-3 animate-pulse">
+          <div className="h-10 rounded-lg bg-white/[0.05]" />
+          <div className="h-10 rounded-lg bg-white/[0.05]" />
+          <div className="h-12 rounded-lg bg-white/[0.05]" />
+        </div>
+      ) : (
+        <>
+          <div className="mt-5 grid gap-2">
+            {trackingStatusOptions.map(
+              (option) => {
+                const Icon = option.icon;
+                const isActive =
+                  userState?.status === option.value;
+
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => {
+                      runAction(
+                        isActive
+                          ? { type: "remove-status" }
+                          : {
+                              type: "status",
+                              status: option.value,
+                            },
+                      );
+                    }}
+                    className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                      isActive
+                        ? "border-violet-400/45 bg-violet-500/15 text-violet-100"
+                        : "border-white/[0.08] bg-white/[0.025] text-zinc-400 hover:border-white/15 hover:text-zinc-100"
+                    }`}
+                  >
+                    <Icon size={17} />
+                    {option.label}
+                  </button>
+                );
+              },
+            )}
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => {
+                runAction({
+                  type: "wishlist",
+                  value: !userState?.isWishlisted,
+                });
+              }}
+              className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                userState?.isWishlisted
+                  ? "border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-100"
+                  : "border-white/[0.08] bg-white/[0.025] text-zinc-400 hover:text-zinc-100"
+              }`}
+            >
+              <Bookmark
+                size={17}
+                className={
+                  userState?.isWishlisted
+                    ? "fill-current"
+                    : ""
+                }
+              />
+              Wishlist
+            </button>
+
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => {
+                runAction({
+                  type: "favorite",
+                  value: !userState?.isFavorite,
+                });
+              }}
+              className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                userState?.isFavorite
+                  ? "border-rose-400/40 bg-rose-500/15 text-rose-100"
+                  : "border-white/[0.08] bg-white/[0.025] text-zinc-400 hover:text-zinc-100"
+              }`}
+            >
+              <Heart
+                size={17}
+                className={
+                  userState?.isFavorite
+                    ? "fill-current"
+                    : ""
+                }
+              />
+              Favori
+            </button>
+          </div>
+
+          <div className="mt-5 border-t border-white/[0.08] pt-5">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-sm font-semibold text-zinc-300">
+                Mənim reytinqim
+              </span>
+              {userState?.rating !== null &&
+                userState?.rating !== undefined && (
+                  <button
+                    type="button"
+                    disabled={isPending}
+                    onClick={() => {
+                      runAction({
+                        type: "rating",
+                        value: null,
+                      });
+                    }}
+                    className="text-xs font-semibold text-zinc-600 transition hover:text-red-300 disabled:opacity-50"
+                  >
+                    Sil
+                  </button>
+                )}
+            </div>
+
+            <div
+              className="mt-3 flex items-center gap-1"
+              onMouseLeave={() => {
+                setHoveredRating(null);
+              }}
+            >
+              {[1, 2, 3, 4, 5].map(
+                (rating) => (
+                  <button
+                    key={rating}
+                    type="button"
+                    disabled={isPending}
+                    aria-label={`${rating} ulduz reytinq ver`}
+                    onMouseEnter={() => {
+                      setHoveredRating(rating);
+                    }}
+                    onFocus={() => {
+                      setHoveredRating(rating);
+                    }}
+                    onBlur={() => {
+                      setHoveredRating(null);
+                    }}
+                    onClick={() => {
+                      runAction({
+                        type: "rating",
+                        value: rating,
+                      });
+                    }}
+                    className="rounded-md p-1 transition hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Star
+                      size={25}
+                      className={
+                        rating <= selectedRating
+                          ? "fill-amber-300 text-amber-300"
+                          : "text-zinc-700"
+                      }
+                    />
+                  </button>
+                ),
+              )}
+            </div>
+
+            <p className="mt-2 text-xs text-zinc-600">
+              {userState?.rating
+                ? `${userState.rating.toFixed(1)} / 5`
+                : "Hələ reytinq verməmisən"}
+            </p>
+          </div>
+        </>
+      )}
+
+      {(actionError || stateQuery.isError) && (
+        <p className="mt-4 rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-200">
+          {actionError ??
+            getApiErrorMessage(
+              stateQuery.error,
+              "İstifadəçi vəziyyəti yüklənmədi.",
+            )}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function RelatedGameCard({
+  game,
+}: {
+  game: GameListItemDTO;
+}) {
+  const coverUrl = resolveAssetUrl(
+    game.coverImageUrl,
+  );
+
+  const [failedCoverUrl, setFailedCoverUrl] =
+    useState<string | null>(null);
+
+  const shouldShowCover =
+    coverUrl !== null &&
+    failedCoverUrl !== coverUrl;
+
+  return (
+    <Link
+      to={`/games/${game.source}/${game.id}`}
+      className="group block min-w-0"
+    >
+      <article className="overflow-hidden rounded-xl border border-white/[0.09] bg-[#111218] transition duration-300 hover:-translate-y-1 hover:border-violet-400/40 hover:shadow-2xl hover:shadow-violet-950/20">
+        <div className="relative aspect-[3/4] overflow-hidden bg-gradient-to-br from-zinc-800 to-zinc-950">
+          {shouldShowCover ? (
+            <img
+              src={coverUrl}
+              alt={`${game.title} oyun örtüyü`}
+              loading="lazy"
+              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+              onError={() => {
+                setFailedCoverUrl(coverUrl);
+              }}
+            />
+          ) : (
+            <div className="flex h-full flex-col items-center justify-center gap-3 px-5 text-center text-zinc-600">
+              <Gamepad2 size={32} />
+              <span className="line-clamp-3 text-sm font-medium">
+                {game.title}
+              </span>
+            </div>
+          )}
+
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#09090d] via-transparent to-transparent" />
+
+          <div className="absolute inset-x-0 bottom-0 p-3">
+            <span className="inline-flex rounded-md border border-white/10 bg-black/45 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 backdrop-blur-sm">
+              {gameTypeLabels[game.gameType]}
+            </span>
+          </div>
+        </div>
+
+        <div className="p-3.5">
+          <h3
+            className="line-clamp-2 min-h-11 text-sm font-semibold leading-5 text-zinc-100 transition group-hover:text-violet-200"
+            title={game.title}
+          >
+            {game.title}
+          </h3>
+
+          <p className="mt-2 text-xs text-zinc-600">
+            {game.source === "Local"
+              ? "Ludora"
+              : "IGDB"}
+          </p>
+        </div>
+      </article>
+    </Link>
+  );
+}
+
+function GameDetailContent({
+  game,
+}: {
+  game: GameDetailDTO;
+}) {
+  const coverUrl = resolveAssetUrl(
+    game.coverImageUrl,
+  );
+
+  const [failedCoverUrl, setFailedCoverUrl] =
+    useState<string | null>(null);
+
+  const shouldShowCover =
+    coverUrl !== null &&
+    failedCoverUrl !== coverUrl;
+
+  const isComingSoon = isFutureReleaseDate(
+    game.releaseDate,
+  );
+
+  const developers = game.companies.filter(
+    (company) => company.role === "Developer",
+  );
+
+  const publishers = game.companies.filter(
+    (company) => company.role === "Publisher",
+  );
+
+  const relatedTabs = useMemo<RelatedTab[]>(
+    () => {
+      const tabs: RelatedTab[] = [];
+
+      if (game.relatedGames.parentGame) {
+        tabs.push({
+          key: "parentGame",
+          title: "Əsas oyun",
+          games: [game.relatedGames.parentGame],
+        });
+      }
+
+      for (const section of relatedSections) {
+        const games =
+          game.relatedGames[section.key];
+
+        if (games.length > 0) {
+          tabs.push({
+            key: section.key,
+            title: section.shortTitle,
+            games,
+          });
+        }
+      }
+
+      return tabs;
+    }, [game.relatedGames],
+  );
+
+  const [activeRelatedTab, setActiveRelatedTab] =
+    useState("");
+
+  const effectiveRelatedTab =
+    relatedTabs.some(
+      (tab) => tab.key === activeRelatedTab,
+    )
+      ? activeRelatedTab
+      : (relatedTabs[0]?.key ?? "");
+
+  const selectedRelatedTab =
+    relatedTabs.find(
+      (tab) => tab.key === effectiveRelatedTab,
+    ) ?? relatedTabs[0];
+
+  const relatedGameCount = relatedTabs.reduce(
+    (total, tab) => total + tab.games.length,
+    0,
+  );
+
+  const companyByline =
+    developers.length > 0
+      ? developers
+      : publishers;
+
+  return (
+    <>
+      <section className="relative isolate border-b border-white/[0.08] bg-[#0a0a0e]">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          {coverUrl && (
+            <div
+              className="absolute -inset-12 scale-110 bg-cover bg-center opacity-35 blur-xl"
+              style={{
+                backgroundImage: `url(${coverUrl})`,
+              }}
+            />
+          )}
+
+          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(7,7,10,0.3),rgba(7,7,10,0.72)_45%,#0a0a0e_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,#07070a_0%,rgba(7,7,10,0.45)_45%,rgba(7,7,10,0.82)_100%)]" />
+        </div>
+
+        <div className="relative mx-auto max-w-7xl px-5 pb-8 pt-8 lg:px-8 lg:pb-0 lg:pt-10">
+          <Link
+            to="/games"
+            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-2 text-sm font-semibold text-zinc-300 backdrop-blur-md transition hover:border-violet-400/30 hover:text-white"
+          >
+            <ArrowLeft size={16} />
+            Oyun kataloqu
+          </Link>
+
+          <div className="mt-14 grid items-end gap-8 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-12">
+            <div className="lg:translate-y-16">
+              <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/15 bg-gradient-to-br from-zinc-800 to-zinc-950 shadow-2xl shadow-black/50">
+                {isComingSoon && (
+                  <span className="coming-soon-badge">
+                    Coming Soon
+                  </span>
+                )}
+
+                {shouldShowCover ? (
+                  <img
+                    src={coverUrl}
+                    alt={`${game.title} oyun örtüyü`}
+                    className="h-full w-full object-cover"
+                    onError={() => {
+                      setFailedCoverUrl(coverUrl);
+                    }}
+                  />
+                ) : (
+                  <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center text-zinc-600">
+                    <Gamepad2 size={46} />
+                    <span className="font-semibold">
+                      {game.title}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="min-w-0 pb-2 lg:pb-8">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full border border-violet-400/25 bg-violet-500/15 px-3 py-1.5 text-xs font-bold text-violet-100 backdrop-blur-sm">
+                  {gameTypeLabels[game.gameType]}
+                </span>
+
+                <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1.5 text-xs font-semibold text-zinc-300 backdrop-blur-sm">
+                  {game.source === "Local"
+                    ? "Ludora"
+                    : "IGDB"}
+                </span>
+
+                {game.isOverridden && (
+                  <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-200">
+                    Redaktə edilib
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-5 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                <div className="min-w-0">
+                  <h1 className="max-w-4xl text-4xl font-black tracking-[-0.045em] text-white sm:text-5xl lg:text-6xl">
+                    {game.title}
+                  </h1>
+
+                  {companyByline.length > 0 && (
+                    <p className="mt-4 text-base text-zinc-300 sm:text-lg">
+                      <span className="text-zinc-500">
+                        tərəfindən
+                      </span>{" "}
+                      {companyByline.map(
+                        (company, index) => (
+                          <span
+                            key={`${company.source}-${company.id}-${company.role}`}
+                          >
+                            {index > 0 && ", "}
+                            <Link
+                              to={`/companies/${company.source}/${company.id}`}
+                              className="font-semibold text-zinc-200 underline decoration-white/20 underline-offset-4 transition hover:text-violet-200 hover:decoration-violet-300"
+                            >
+                              {company.name}
+                            </Link>
+                          </span>
+                        ),
+                      )}
+                    </p>
+                  )}
+                </div>
+
+                <div className="inline-flex w-fit shrink-0 items-center gap-3 rounded-xl border border-white/10 bg-[#1a1b22]/85 px-4 py-3 text-sm backdrop-blur-md">
+                  <span className="font-bold text-zinc-100">
+                    {isComingSoon
+                      ? "Coming Soon"
+                      : "Çıxış tarixi"}
+                  </span>
+                  <span className="text-zinc-400">
+                    {formatReleaseDate(
+                      game.releaseDate,
+                    )}
+                  </span>
+                </div>
+              </div>
+
+              <p className="mt-6 max-w-4xl whitespace-pre-line text-base leading-8 text-zinc-300 sm:text-lg sm:leading-8">
+                {game.description ??
+                  "Bu oyun üçün açıqlama əlavə edilməyib."}
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-b border-white/[0.07] bg-[#0d0e12]">
+        <div className="mx-auto grid max-w-7xl gap-8 px-5 pb-10 pt-10 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8 lg:pb-12 lg:pt-24">
+          <aside className="space-y-4">
+            <div className="rounded-2xl border border-white/[0.08] bg-[#15161c] p-5">
+              <div className="flex items-center gap-2 text-sm font-semibold text-zinc-200">
+                <Database
+                  size={17}
+                  className="text-violet-300"
+                />
+                Kataloq məlumatı
+              </div>
+
+              <dl className="mt-5 space-y-4 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-zinc-500">
+                    Mənbə
+                  </dt>
+                  <dd className="font-semibold text-zinc-200">
+                    {game.source === "Local"
+                      ? "Ludora"
+                      : "IGDB"}
+                  </dd>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-zinc-500">
+                    Növ
+                  </dt>
+                  <dd className="text-right font-semibold text-zinc-200">
+                    {gameTypeLabels[game.gameType]}
+                  </dd>
+                </div>
+
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-zinc-500">
+                    Əlaqəli məzmun
+                  </dt>
+                  <dd className="font-semibold text-zinc-200">
+                    {relatedGameCount}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+
+            <GameTrackingPanel game={game} />
+          </aside>
+
+          <div className="min-w-0">
+            <div className="space-y-6 border-b border-white/[0.08] pb-8">
+              <div className="grid gap-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-start">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500">
+                  Janrlar
+                </h2>
+
+                <div className="flex flex-wrap gap-x-3 gap-y-2">
+                  {game.genres.length > 0 ? (
+                    game.genres.map((genre) => (
+                      <Link
+                        key={`${genre.source}-${genre.id}`}
+                        to={`/genres/${genre.source}/${genre.id}`}
+                        className="border-b border-zinc-500 pb-1 text-sm font-medium text-zinc-300 transition hover:border-violet-300 hover:text-violet-200"
+                      >
+                        {genre.name}
+                      </Link>
+                    ))
+                  ) : (
+                    <span className="text-sm text-zinc-600">
+                      Janr qeyd edilməyib.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-start">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500">
+                  Platformalar
+                </h2>
+
+                <div className="flex flex-wrap gap-2">
+                  {game.platforms.length > 0 ? (
+                    game.platforms.map(
+                      (platform) => (
+                        <Link
+                          key={`${platform.source}-${platform.id}`}
+                          to={`/platforms/${platform.source}/${platform.id}`}
+                          className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-zinc-300 transition hover:border-violet-400/40 hover:bg-violet-500/10 hover:text-violet-100"
+                        >
+                          <Gamepad2 size={15} />
+                          {platform.name}
+                        </Link>
+                      ),
+                    )
+                  ) : (
+                    <span className="text-sm text-zinc-600">
+                      Platforma qeyd edilməyib.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-start">
+                <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-500">
+                  Şirkətlər
+                </h2>
+
+                <div className="flex flex-wrap gap-2">
+                  {game.companies.length > 0 ? (
+                    game.companies.map(
+                      (company) => (
+                        <Link
+                          key={`${company.source}-${company.id}-${company.role}`}
+                          to={`/companies/${company.source}/${company.id}`}
+                          className="inline-flex items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+                        >
+                          <Building2 size={15} />
+                          <span>{company.name}</span>
+                          <span className="text-xs text-zinc-600">
+                            {company.role ===
+                            "Developer"
+                              ? "Developer"
+                              : "Publisher"}
+                          </span>
+                        </Link>
+                      ),
+                    )
+                  ) : (
+                    <span className="text-sm text-zinc-600">
+                      Şirkət qeyd edilməyib.
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <CommunityStatsGrid
+              stats={game.communityStats}
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="bg-[#0a0a0e]">
+        <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8 lg:py-18">
+          <div className="flex flex-col gap-4 border-b border-white/[0.09] md:flex-row md:items-end md:justify-between">
+            <div>
+              <div className="flex items-center gap-2">
+                <Layers3
+                  size={20}
+                  className="text-violet-300"
+                />
+                <h2 className="text-2xl font-black tracking-tight text-white">
+                  Əlaqəli oyunlar
+                </h2>
+              </div>
+
+              <p className="mt-2 text-sm text-zinc-600">
+                DLC, expansion, bundle, remake və digər əlaqəli buraxılışlar.
+              </p>
+            </div>
+
+            {relatedTabs.length > 0 && (
+              <span className="pb-4 text-sm font-semibold text-zinc-500">
+                {relatedGameCount} nəticə
+              </span>
+            )}
+          </div>
+
+          {relatedTabs.length > 0 ? (
+            <>
+              <div className="flex gap-7 overflow-x-auto border-b border-white/[0.08] pt-6">
+                {relatedTabs.map((tab) => {
+                  const isActive =
+                    tab.key === effectiveRelatedTab;
+
+                  return (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => {
+                        setActiveRelatedTab(tab.key);
+                      }}
+                      className={`relative shrink-0 pb-4 text-sm font-bold transition ${
+                        isActive
+                          ? "text-white"
+                          : "text-zinc-500 hover:text-zinc-200"
+                      }`}
+                    >
+                      {tab.title}
+                      <span className="ml-2 rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-zinc-400">
+                        {tab.games.length}
+                      </span>
+
+                      {isActive && (
+                        <span className="absolute inset-x-0 bottom-0 h-0.5 rounded-full bg-violet-400" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedRelatedTab && (
+                <div className="mt-7 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                  {selectedRelatedTab.games.map(
+                    (relatedGame) => (
+                      <RelatedGameCard
+                        key={`${relatedGame.source}-${relatedGame.id}`}
+                        game={relatedGame}
+                      />
+                    ),
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="mt-8 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
+              <Layers3
+                size={32}
+                className="mx-auto text-zinc-700"
+              />
+
+              <p className="mt-4 font-bold text-zinc-300">
+                Əlaqəli məzmun yoxdur
+              </p>
+
+              <p className="mt-2 text-sm text-zinc-600">
+                Bu oyun üçün DLC, expansion, bundle və ya başqa versiya tapılmadı.
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
+    </>
+  );
+}
+
+export function GameDetailPage() {
+  const { source: sourceValue, id: idValue } =
+    useParams();
+
+  const source = parseRouteSource(sourceValue);
+  const id = Number(idValue);
+
+  const isValidRoute =
+    source !== null &&
+    Number.isSafeInteger(id) &&
+    id > 0;
+
+  const gameQuery = useQuery({
+    queryKey: ["game-detail", source, id],
+    queryFn: () => getGameById(source!, id),
+    enabled: isValidRoute,
+  });
+
+  const errorMessage = gameQuery.isError
+    ? getApiErrorMessage(
+        gameQuery.error,
+        "Oyun məlumatlarını yükləmək mümkün olmadı.",
+      )
+    : null;
+
+  return (
+    <div className="min-h-screen bg-[#07070a] text-zinc-100">
+      <Navbar />
+
+      <main>
+        {!isValidRoute ? (
+          <div className="mx-auto max-w-3xl px-5 py-24 text-center">
+            <Gamepad2
+              size={36}
+              className="mx-auto text-zinc-600"
+            />
+            <h1 className="mt-5 text-2xl font-bold text-white">
+              Oyun ünvanı yanlışdır
+            </h1>
+            <Link
+              to="/games"
+              className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-violet-300 transition hover:text-violet-200"
+            >
+              <ArrowLeft size={17} />
+              Kataloqa qayıt
+            </Link>
+          </div>
+        ) : gameQuery.isLoading ? (
+          <div className="animate-pulse">
+            <div className="min-h-[540px] border-b border-white/[0.06] bg-white/[0.025]">
+              <div className="mx-auto max-w-7xl px-5 pb-10 pt-10 lg:px-8">
+                <div className="h-10 w-40 rounded-full bg-white/[0.05]" />
+                <div className="mt-16 grid items-end gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
+                  <div className="aspect-[3/4] rounded-2xl bg-white/[0.06]" />
+                  <div className="space-y-5 pb-8">
+                    <div className="h-7 w-36 rounded-full bg-white/[0.05]" />
+                    <div className="h-14 max-w-3xl rounded bg-white/[0.07]" />
+                    <div className="h-6 max-w-lg rounded bg-white/[0.05]" />
+                    <div className="h-28 max-w-4xl rounded bg-white/[0.04]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mx-auto grid max-w-7xl gap-8 px-5 py-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8 lg:pt-24">
+              <div className="h-48 rounded-2xl bg-white/[0.04]" />
+              <div>
+                <div className="h-32 rounded-2xl bg-white/[0.04]" />
+                <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  {Array.from({ length: 4 }).map(
+                    (_, index) => (
+                      <div
+                        key={index}
+                        className="h-40 rounded-2xl bg-white/[0.04]"
+                      />
+                    ),
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : errorMessage ? (
+          <div className="mx-auto max-w-3xl px-5 py-24 text-center">
+            <Gamepad2
+              size={36}
+              className="mx-auto text-red-300"
+            />
+            <h1 className="mt-5 text-2xl font-bold text-white">
+              Oyun yüklənmədi
+            </h1>
+            <p className="mt-3 text-sm text-zinc-500">
+              {errorMessage}
+            </p>
+            <Link
+              to="/games"
+              className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-violet-300 transition hover:text-violet-200"
+            >
+              <ArrowLeft size={17} />
+              Kataloqa qayıt
+            </Link>
+          </div>
+        ) : gameQuery.data ? (
+          <GameDetailContent game={gameQuery.data} />
+        ) : null}
+      </main>
+
+      <Footer />
+    </div>
+  );
+}

@@ -1,4 +1,4 @@
-﻿using Ludora.Application.DTOs.Game;
+using Ludora.Application.DTOs.Game;
 using Ludora.Domain.Enums;
 
 
@@ -19,6 +19,7 @@ namespace Ludora.Application.DTOs
         public List<LookupDTO> Genres { get; init; } = [];
         public List<LookupDTO> Platforms { get; init; } = [];
         public GameType GameType { get; init; } = GameType.MainGame;
+        public GameCommunityStatsDTO CommunityStats { get; init; } = new();
         public RelatedGamesDTO RelatedGames { get; init; } = new();
     }
 }

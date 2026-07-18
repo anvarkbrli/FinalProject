@@ -1,4 +1,4 @@
-﻿using Ludora.Application.DTOs;
+using Ludora.Application.DTOs;
 using Ludora.Domain.Enums;
 
 
@@ -44,6 +44,13 @@ namespace Ludora.Application.Interfaces
             CatalogSource source,
             long gameId,
             bool isWishlisted,
+            CancellationToken cancellationToken = default);
+
+        Task<UserGameDTO?> SetRatingAsync(
+            Guid userId,
+            CatalogSource source,
+            long gameId,
+            double? rating,
             CancellationToken cancellationToken = default);
     }
 }

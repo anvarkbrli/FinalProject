@@ -11,23 +11,20 @@ import type {
 export async function getFeaturedGames(): Promise<
   GameListItemDTO[]
 > {
-  /*
-   * Bəzi nəticələr keyfiyyət filtrindən keçməyə
-   * bilər. Buna görə 6 yox, 24 nəticə gətiririk
-   * və uyğun ilk 6 oyunu saxlayırıq.
-   */
+ 
   const response = await api.get<
-    GameListItemDTO[]
+    PagedResultDTO<GameListItemDTO>
   >("/games", {
     params: {
       sortBy: "rating_desc",
+      includeRelatedContent: false,
       pageNumber: 1,
       pageSize: 24,
     },
   });
 
   return filterDisplayableGames(
-    response.data,
+    response.data.items,
   ).slice(0, 6);
 }
 

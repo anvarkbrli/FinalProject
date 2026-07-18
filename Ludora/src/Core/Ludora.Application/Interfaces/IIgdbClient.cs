@@ -10,6 +10,23 @@ public interface IIgdbClient
         GameFilterDTO filter,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<IgdbGameModel>> GetGamesAsync(
+        GameFilterDTO filter,
+        IReadOnlyCollection<long> excludedGameIds,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<IgdbGameModel>> GetGamesSliceAsync(
+        GameFilterDTO filter,
+        int offset,
+        int limit,
+        IReadOnlyCollection<long> excludedGameIds,
+        CancellationToken cancellationToken = default);
+
+    Task<int> GetGamesCountAsync(
+        GameFilterDTO filter,
+        IReadOnlyCollection<long> excludedGameIds,
+        CancellationToken cancellationToken = default);
+
     Task<IgdbGameModel?> GetGameByIdAsync(
         long id,
         CancellationToken cancellationToken = default);
