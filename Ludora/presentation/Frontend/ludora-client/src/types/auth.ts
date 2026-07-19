@@ -10,10 +10,15 @@ export interface RegisterRequestDTO {
   confirmPassword: string;
 }
 
+export interface ResendEmailConfirmationRequestDTO {
+  email: string;
+}
+
 export interface CurrentUserDTO {
   id: string;
   userName: string;
   email: string;
+  emailConfirmed: boolean;
   bio: string | null;
   profileImageUrl: string | null;
   isPrivate: boolean;
@@ -27,4 +32,13 @@ export interface AuthResponseDTO {
   accessToken: string;
   expiresAtUtc: string;
   user: CurrentUserDTO;
+}
+
+export interface RegisterResultDTO {
+  message: string;
+  emailVerificationRequired: boolean;
+}
+
+export interface EmailOperationResultDTO {
+  message: string;
 }

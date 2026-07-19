@@ -1,16 +1,24 @@
-﻿using Ludora.Application.DTOs;
+using Ludora.Application.DTOs;
 
-namespace Ludora.Application.Interfaces
+namespace Ludora.Application.Interfaces;
+
+public interface IUserService
 {
-    public interface IUserService
-    {
-        Task<CurrentUserDTO> GetCurrentUserAsync(Guid userId);
-        Task<UserProfileDTO> GetByUserNameAsync(string userName, Guid? currentUserId);
-        Task<CurrentUserDTO> UpdateProfileAsync(Guid userId, UpdateProfileDTO DTO);
-        Task<CurrentUserDTO> UpdateProfileImageAsync(Guid userId, ProfileImageUploadDTO DTO);
-        Task<UserSettingsDTO> GetSettingsAsync(Guid userId);
-        Task<UserSettingsDTO> UpdateSettingsAsync(Guid userId, UpdateUserSettingsDTO dto);
+    Task<CurrentUserDTO> GetCurrentUserAsync(Guid userId);
+    Task<UserProfileDTO> GetByUserNameAsync(string userName, Guid? currentUserId);
+    Task<CurrentUserDTO> UpdateProfileAsync(Guid userId, UpdateProfileDTO dto);
+    Task<CurrentUserDTO> UpdateProfileImageAsync(Guid userId, ProfileImageUploadDTO dto);
+    Task<UserSettingsDTO> GetSettingsAsync(Guid userId);
+    Task<UserSettingsDTO> UpdateSettingsAsync(Guid userId, UpdateUserSettingsDTO dto);
 
+    Task<EmailOperationResultDTO> RequestEmailChangeAsync(
+        Guid userId,
+        ChangeEmailRequestDTO dto,
+        CancellationToken cancellationToken = default);
 
-    }
+    Task<EmailOperationResultDTO> ConfirmEmailChangeAsync(
+        Guid userId,
+        string newEmail,
+        string token,
+        CancellationToken cancellationToken = default);
 }

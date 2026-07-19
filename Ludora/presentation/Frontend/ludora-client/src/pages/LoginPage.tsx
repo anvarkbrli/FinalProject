@@ -17,6 +17,7 @@ import { useForm } from "react-hook-form";
 import {
   Link,
   Navigate,
+  useLocation,
   useNavigate,
 } from "react-router-dom";
 import { z } from "zod";
@@ -66,6 +67,7 @@ const featureItems = [
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [isPasswordVisible, setIsPasswordVisible] =
     useState(false);
@@ -95,7 +97,16 @@ export function LoginPage() {
 
     onSuccess: (response) => {
       setSession(response);
-      navigate("/", {
+
+      const destination =
+        typeof location.state === "object" &&
+        location.state !== null &&
+        "from" in location.state &&
+        typeof location.state.from === "string"
+          ? location.state.from
+          : "/";
+
+      navigate(destination, {
         replace: true,
       });
     },
@@ -389,7 +400,14 @@ export function LoginPage() {
               </button>
             </form>
 
-           <div className="mt-6 text-center text-sm text-zinc-500">
+            <Link
+              to="/resend-email-confirmation"
+              className="mx-auto mt-5 flex w-fit items-center gap-2 text-sm text-zinc-500 transition hover:text-violet-300"
+            >
+              Təsdiq emailini yenidən göndər
+            </Link>
+
+            <div className="mt-6 text-center text-sm text-zinc-500">
             Hesabın yoxdur?
 
             <Link

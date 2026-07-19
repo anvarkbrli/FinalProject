@@ -20,6 +20,7 @@ public static class ServiceRegistration
         services.AddIdentityCore<AppUser>(options =>
         {
             options.User.RequireUniqueEmail = true;
+            options.SignIn.RequireConfirmedEmail = true;
             options.Password.RequiredLength = 6;
             options.Password.RequireDigit = true;
             options.Password.RequireUppercase = true;
@@ -35,6 +36,9 @@ public static class ServiceRegistration
         .AddSignInManager()
         .AddDefaultTokenProviders();
 
+        services.Configure<DataProtectionTokenProviderOptions>(options =>
+            options.TokenLifespan = TimeSpan.FromHours(24));
+
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
         services.AddScoped<IAdminUserService, AdminUserService>();
@@ -47,7 +51,10 @@ public static class ServiceRegistration
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddScoped<IUserGameService, UserGameService>();
+        services.AddScoped<IUserActivityService, UserActivityService>();
         services.AddScoped<IPostService, PostService>();
+        services.AddScoped<IReviewService, ReviewService>();
+        services.AddScoped<IReviewInteractionService, ReviewInteractionService>();
         services.AddScoped<IForumCategoryService, ForumCategoryService>();
         services.AddScoped<IDiscussionService, DiscussionService>();
         services.AddScoped<IDiscussionReplyService, DiscussionReplyService>();

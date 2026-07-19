@@ -150,6 +150,14 @@ public sealed class GameListService : IGameListService
 
         await _context.GameLists.AddAsync(gameList, cancellationToken);
         await SaveListChangesAsync(cancellationToken);
+
+        _context.AddUserActivity(
+            userId,
+            UserActivityType.GameListCreated,
+            gameListId: gameList.Id,
+            subjectTitle: gameList.Name);
+
+        await SaveListChangesAsync(cancellationToken);
         return gameList.Id;
     }
 
@@ -190,6 +198,13 @@ public sealed class GameListService : IGameListService
             return;
 
         gameList.UpdatedAt = DateTime.UtcNow;
+
+        _context.AddUserActivity(
+            userId,
+            UserActivityType.GameListUpdated,
+            gameListId: gameList.Id,
+            subjectTitle: gameList.Name);
+
         await SaveListChangesAsync(cancellationToken);
     }
 
@@ -201,6 +216,13 @@ public sealed class GameListService : IGameListService
         var gameList = await GetUserGameListAsync(id, userId, cancellationToken);
         gameList.IsDeleted = true;
         gameList.UpdatedAt = DateTime.UtcNow;
+
+        _context.AddUserActivity(
+            userId,
+            UserActivityType.GameListDeleted,
+            gameListId: gameList.Id,
+            subjectTitle: gameList.Name);
+
         await _context.SaveChangesAsync(cancellationToken);
     }
 

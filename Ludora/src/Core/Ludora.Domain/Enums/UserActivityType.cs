@@ -1,0 +1,33 @@
+namespace Ludora.Domain.Enums;
+
+public enum UserActivityType
+{
+    GameStatusChanged = 1,
+    GameStatusRemoved = 2,
+    GameAddedToFavorites = 3,
+    GameRemovedFromFavorites = 4,
+    GameAddedToWishlist = 5,
+    GameRemovedFromWishlist = 6,
+    GameRated = 7,
+    GameRatingRemoved = 8,
+    ReviewCreated = 9,
+    ReviewUpdated = 10,
+    ReviewDeleted = 11,
+    ReviewLiked = 12,
+    ReviewUnliked = 13,
+    ReviewCommented = 14,
+    ReviewCommentUpdated = 15,
+    ReviewCommentDeleted = 16,
+    UserFollowRequested = 17,
+    UserFollowed = 18,
+    UserUnfollowed = 19,
+    FollowRequestCancelled = 20,
+    UserBlocked = 21,
+    UserUnblocked = 22,
+    PostCreated = 23,
+    PostUpdated = 24,
+    PostDeleted = 25,
+    GameListCreated = 26,
+    GameListUpdated = 27,
+    GameListDeleted = 28
+}

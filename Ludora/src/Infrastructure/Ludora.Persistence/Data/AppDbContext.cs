@@ -27,6 +27,10 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<UserBlock> UserBlocks { get; set; }
     public DbSet<UserGame> UserGames { get; set; }
     public DbSet<UserPost> UserPosts { get; set; }
+    public DbSet<Review> Reviews { get; set; }
+    public DbSet<ReviewLike> ReviewLikes { get; set; }
+    public DbSet<ReviewComment> ReviewComments { get; set; }
+    public DbSet<UserActivity> UserActivities { get; set; }
     public DbSet<ForumCategory> ForumCategories { get; set; }
     public DbSet<Discussion> Discussions { get; set; }
     public DbSet<DiscussionReply> DiscussionReplies { get; set; }

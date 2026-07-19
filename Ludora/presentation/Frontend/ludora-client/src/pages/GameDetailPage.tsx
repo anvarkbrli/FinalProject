@@ -19,6 +19,7 @@ import {
   Smartphone,
   Layers3,
   LoaderCircle,
+  PenLine,
   PlayCircle,
   Star,
   TabletSmartphone,
@@ -31,6 +32,8 @@ import {
   useParams,
 } from "react-router-dom";
 import { GameCommunityStats } from "../components/game/GameCommunityStats";
+import { GameReviewsSection } from "../components/reviews/GameReviewsSection";
+import { LogGameModal } from "../components/reviews/LogGameModal";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
 import { getApiErrorMessage } from "../lib/api";
@@ -423,6 +426,11 @@ function GameTrackingPanel({
     setHoveredRating,
   ] = useState<number | null>(null);
 
+  const [
+    isLogModalOpen,
+    setIsLogModalOpen,
+  ] = useState(false);
+
   const userStateKey = [
     "user-game-state",
     game.source,
@@ -548,7 +556,8 @@ function GameTrackingPanel({
     actionMutation.isPending;
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-[#15161c] p-5">
+    <>
+      <div className="rounded-2xl border border-white/[0.08] bg-[#15161c] p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-zinc-100">
@@ -740,6 +749,18 @@ function GameTrackingPanel({
                   )} / 5`
                 : "Hələ reytinq verməmisən"}
             </p>
+
+            <button
+              type="button"
+              disabled={isPending}
+              onClick={() => {
+                setIsLogModalOpen(true);
+              }}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <PenLine size={17} />
+              Oyunu log et
+            </button>
           </div>
         </>
       )}
@@ -754,7 +775,16 @@ function GameTrackingPanel({
             )}
         </p>
       )}
-    </div>
+      </div>
+
+      <LogGameModal
+        open={isLogModalOpen}
+        game={game}
+        onClose={() => {
+          setIsLogModalOpen(false);
+        }}
+      />
+    </>
   );
 }
 
@@ -967,7 +997,7 @@ function GameDetailContent({
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#07070a_0%,rgba(7,7,10,0.45)_45%,rgba(7,7,10,0.82)_100%)]" />
         </div>
 
-        <div className="relative mx-auto max-w-7xl px-5 pb-8 pt-8 lg:px-8 lg:pb-0 lg:pt-10">
+        <div className="relative mx-auto max-w-7xl px-5 pb-12 pt-8 lg:px-8 lg:pb-14 lg:pt-10">
           <Link
             to="/games"
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-2 text-sm font-semibold text-zinc-300 backdrop-blur-md transition hover:border-violet-400/30 hover:text-white"
@@ -976,8 +1006,8 @@ function GameDetailContent({
             Oyun kataloqu
           </Link>
 
-          <div className="mt-14 grid items-end gap-8 lg:grid-cols-[260px_minmax(0,1fr)] lg:gap-12">
-            <div className="lg:translate-y-16">
+          <div className="mt-12 grid items-center gap-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-12">
+            <div className="mx-auto w-full max-w-[280px] lg:mx-0">
               <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/15 bg-gradient-to-br from-zinc-800 to-zinc-950 shadow-2xl shadow-black/50">
                 {isComingSoon && (
                   <span className="coming-soon-badge">
@@ -1008,7 +1038,7 @@ function GameDetailContent({
               </div>
             </div>
 
-            <div className="min-w-0 pb-2 lg:pb-8">
+            <div className="min-w-0 py-2 lg:py-6">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-violet-400/25 bg-violet-500/15 px-3 py-1.5 text-xs font-bold text-violet-100 backdrop-blur-sm">
                   {
@@ -1106,7 +1136,7 @@ function GameDetailContent({
       </section>
 
       <section className="border-b border-white/[0.07] bg-[#0d0e12]">
-        <div className="mx-auto grid max-w-7xl gap-8 px-5 pb-10 pt-10 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8 lg:pb-12 lg:pt-24">
+        <div className="mx-auto grid max-w-7xl gap-8 px-5 pb-10 pt-10 lg:grid-cols-[280px_minmax(0,1fr)] lg:px-8 lg:pb-12 lg:pt-12">
           <aside className="space-y-4">
             <div className="rounded-2xl border border-white/[0.08] bg-[#15161c] p-5">
               <div className="flex items-center gap-2 text-sm font-semibold text-zinc-200">
@@ -1400,6 +1430,8 @@ function GameDetailContent({
           )}
         </div>
       </section>
+
+      <GameReviewsSection game={game} />
     </>
   );
 }

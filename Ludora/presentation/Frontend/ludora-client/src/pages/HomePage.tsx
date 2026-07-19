@@ -12,6 +12,7 @@ import { DiscussionCard } from "../components/home/DiscussionCard";
 import { DiscussionCardSkeleton } from "../components/home/DiscussionCardSkeleton";
 import { GameCard } from "../components/home/GameCard";
 import { GameCardSkeleton } from "../components/home/GameCardSkeleton";
+import { UserWelcomePanel } from "../components/home/UserWelcomePanel";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
 import { resolveAssetUrl } from "../lib/helpers";
@@ -134,6 +135,8 @@ export function HomePage() {
             </div>
           </section>
         )}
+
+        <UserWelcomePanel />
 
         <section
           id="home"

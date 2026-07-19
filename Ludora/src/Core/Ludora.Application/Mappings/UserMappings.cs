@@ -1,4 +1,4 @@
-﻿namespace Ludora.Application.Mappings;
+namespace Ludora.Application.Mappings;
 
 using Ludora.Application.DTOs;
 using Ludora.Domain.Entities.User;
@@ -14,6 +14,7 @@ public static class UserMappings
             Id = user.Id,
             UserName = user.UserName ?? string.Empty,
             Email = user.Email ?? string.Empty,
+            EmailConfirmed = user.EmailConfirmed,
             Bio = user.Bio,
             ProfileImageUrl = user.ProfileImageUrl,
             IsPrivate = user.IsPrivate,

@@ -2,6 +2,9 @@ import { api } from "../lib/api";
 import type { CurrentUserDTO } from "../types/auth";
 import type {
   BlockedUserDTO,
+  ChangeEmailRequestDTO,
+  EmailOperationResultDTO,
+  FollowRequestDTO,
   UpdateProfileRequestDTO,
   UpdateUserSettingsRequestDTO,
   UserSettingsDTO,
@@ -81,4 +84,41 @@ export async function unblockUser(
   userId: string,
 ): Promise<void> {
   await api.delete(`/users/${userId}/unblock`);
+}
+
+export async function requestEmailChange(
+  request: ChangeEmailRequestDTO,
+): Promise<EmailOperationResultDTO> {
+  const response =
+    await api.post<EmailOperationResultDTO>(
+      "/users/me/email-change",
+      request,
+    );
+
+  return response.data;
+}
+
+export async function getFollowRequests(): Promise<FollowRequestDTO[]> {
+  const response =
+    await api.get<FollowRequestDTO[]>(
+      "/users/me/follow-requests",
+    );
+
+  return response.data;
+}
+
+export async function acceptFollowRequest(
+  requesterId: string,
+): Promise<void> {
+  await api.post(
+    `/users/me/follow-requests/${requesterId}/accept-follow`,
+  );
+}
+
+export async function rejectFollowRequest(
+  requesterId: string,
+): Promise<void> {
+  await api.delete(
+    `/users/me/follow-requests/${requesterId}/reject-follow`,
+  );
 }

@@ -6,6 +6,7 @@ using Ludora.API.Middlewares;
 using Ludora.Application.Common;
 using Ludora.Application.Settings;
 using Ludora.Domain.Entities.User;
+using Ludora.Infrastructure.Email;
 using Ludora.Infrastructure.IGDB;
 using Ludora.Persistence.ServiceRegistration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -114,6 +115,12 @@ public class Program
                                    (user.BannedUntilUtc.HasValue &&
                                     user.BannedUntilUtc > now);
 
+                    if (!user.EmailConfirmed)
+                    {
+                        context.Fail("Hesabın email ünvanı təsdiqlənməyib.");
+                        return;
+                    }
+
                     if (isBanned)
                         context.Fail("Hesab admin tərəfindən bloklanıb.");
                 }
@@ -136,6 +143,7 @@ public class Program
         });
 
         builder.Services.AddPersistenceServices(builder.Configuration);
+        builder.Services.AddEmailInfrastructure(builder.Configuration);
         builder.Services.AddIgdbIntegration(builder.Configuration);
 
         var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];

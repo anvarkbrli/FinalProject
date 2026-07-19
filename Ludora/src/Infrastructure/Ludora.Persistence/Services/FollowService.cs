@@ -4,6 +4,7 @@ using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
+using Ludora.Persistence.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ludora.Persistence.Services;
@@ -57,6 +58,14 @@ public class FollowService : IFollowService
         };
 
         await _context.UserFollows.AddAsync(userFollow);
+
+        _context.AddUserActivity(
+            followerId,
+            status == FollowStatus.Accepted
+                ? UserActivityType.UserFollowed
+                : UserActivityType.UserFollowRequested,
+            targetUserId: followingId);
+
         await _context.SaveChangesAsync();
 
         return new FollowStatusDTO
@@ -75,6 +84,14 @@ public class FollowService : IFollowService
         if (userFollow is null) throw new NotFoundException("İzləmə və ya izləmə sorğusu tapılmadı.");
 
         _context.UserFollows.Remove(userFollow);
+
+        _context.AddUserActivity(
+            followerId,
+            userFollow.Status == FollowStatus.Pending
+                ? UserActivityType.FollowRequestCancelled
+                : UserActivityType.UserUnfollowed,
+            targetUserId: followingId);
+
         await _context.SaveChangesAsync();
     }
 
@@ -90,6 +107,11 @@ public class FollowService : IFollowService
 
         followRequest.Status = FollowStatus.Accepted;
         followRequest.AcceptedAt = DateTime.UtcNow;
+
+        _context.AddUserActivity(
+            requesterId,
+            UserActivityType.UserFollowed,
+            targetUserId: currentUserId);
 
         await _context.SaveChangesAsync();
     }

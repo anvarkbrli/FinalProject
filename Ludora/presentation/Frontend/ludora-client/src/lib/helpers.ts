@@ -39,6 +39,49 @@ export function getReleaseYear(
   return value.slice(0, 4);
 }
 
+export function formatDate(
+  value: string | null | undefined,
+): string {
+  if (!value) {
+    return "";
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(
+    value,
+  );
+
+  if (!match) {
+    return value;
+  }
+
+  const [, year, month, day] = match;
+
+  return `${day}.${month}.${year}`;
+}
+
+export function formatDateTime(
+  value: string | null | undefined,
+): string {
+  if (!value) {
+    return "";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return formatDate(value);
+  }
+
+  return new Intl.DateTimeFormat("az-AZ", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
 function parseDateOnly(
   value: string | null,
 ): Date | null {

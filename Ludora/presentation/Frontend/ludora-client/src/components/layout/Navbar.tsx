@@ -4,9 +4,11 @@ import {
   LogIn,
   LogOut,
   Menu,
+  PenLine,
   Search,
   Settings,
   UserPlus,
+  UserRound,
   X,
 } from "lucide-react";
 import {
@@ -18,6 +20,7 @@ import {
   Link,
   useLocation,
 } from "react-router-dom";
+import { LogGameModal } from "../reviews/LogGameModal";
 import { resolveAssetUrl } from "../../lib/helpers";
 import {
   isAuthSessionValid,
@@ -51,10 +54,13 @@ export function Navbar() {
   const [isUserMenuOpen, setIsUserMenuOpen] =
     useState(false);
 
+  const [isLogModalOpen, setIsLogModalOpen] =
+    useState(false);
+
   const [
-    hasProfileImageFailed,
-    setHasProfileImageFailed,
-  ] = useState(false);
+    failedProfileImageUrl,
+    setFailedProfileImageUrl,
+  ] = useState<string | null>(null);
 
   const user = useAuthStore(
     (state) => state.user,
@@ -134,15 +140,6 @@ export function Navbar() {
     };
   }, []);
 
-  useEffect(() => {
-    setHasProfileImageFailed(false);
-  }, [profileImageUrl]);
-
-  useEffect(() => {
-    setIsMobileMenuOpen(false);
-    setIsUserMenuOpen(false);
-  }, [location.pathname, location.hash]);
-
   function closeMenus() {
     setIsMobileMenuOpen(false);
     setIsUserMenuOpen(false);
@@ -185,13 +182,13 @@ export function Navbar() {
         className={`flex shrink-0 items-center justify-center overflow-hidden bg-violet-500/15 font-bold text-violet-300 ${sizeClassName}`}
       >
         {profileImageUrl &&
-        !hasProfileImageFailed ? (
+        profileImageUrl !== failedProfileImageUrl ? (
           <img
             src={profileImageUrl}
             alt={`${user?.userName ?? "İstifadəçi"} profil şəkli`}
             className="h-full w-full object-cover"
             onError={() => {
-              setHasProfileImageFailed(true);
+              setFailedProfileImageUrl(profileImageUrl);
             }}
           />
         ) : (
@@ -202,7 +199,8 @@ export function Navbar() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-white/5 bg-[#08080b]/85 backdrop-blur-xl">
+    <>
+      <header className="sticky top-0 z-50 border-b border-white/5 bg-[#08080b]/85 backdrop-blur-xl">
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 lg:px-8">
         <Link
           to="/"
@@ -263,6 +261,20 @@ export function Navbar() {
             Kəşf et
           </Link>
 
+          {hasValidSession && (
+            <button
+              type="button"
+              onClick={() => {
+                closeMenus();
+                setIsLogModalOpen(true);
+              }}
+              className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-violet-950/30 transition hover:bg-violet-500"
+            >
+              <PenLine size={17} />
+              Log et
+            </button>
+          )}
+
           {hasValidSession && user ? (
             <div
               ref={userMenuRef}
@@ -320,6 +332,16 @@ export function Navbar() {
                   </div>
 
                   <div className="py-2">
+                    <Link
+                      to={`/users/${user.userName}`}
+                      onClick={closeMenus}
+                      role="menuitem"
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                    >
+                      <UserRound size={17} />
+                      Profilim
+                    </Link>
+
                     <Link
                       to="/settings"
                       onClick={closeMenus}
@@ -449,6 +471,29 @@ export function Navbar() {
 
             {hasValidSession ? (
               <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    closeMenus();
+                    setIsLogModalOpen(true);
+                  }}
+                  className="mt-2 flex items-center justify-center gap-3 rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-violet-500"
+                >
+                  <PenLine size={17} />
+                  Oyunu log et
+                </button>
+
+                {user && (
+                  <Link
+                    to={`/users/${user.userName}`}
+                    onClick={closeMenus}
+                    className="mt-2 flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.07]"
+                  >
+                    <UserRound size={17} />
+                    Profilim
+                  </Link>
+                )}
+
                 <Link
                   to="/settings"
                   onClick={closeMenus}
@@ -491,6 +536,14 @@ export function Navbar() {
           </div>
         </nav>
       )}
-    </header>
+      </header>
+
+      <LogGameModal
+        open={isLogModalOpen}
+        onClose={() => {
+          setIsLogModalOpen(false);
+        }}
+      />
+    </>
   );
 }

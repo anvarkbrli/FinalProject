@@ -1,4 +1,4 @@
-﻿namespace Ludora.Application.DTOs;
+namespace Ludora.Application.DTOs;
 
 public record CurrentUserDTO
 {
@@ -7,6 +7,8 @@ public record CurrentUserDTO
     public string UserName { get; set; } = string.Empty;
 
     public string Email { get; set; } = string.Empty;
+
+    public bool EmailConfirmed { get; set; }
 
     public string? Bio { get; set; }
 

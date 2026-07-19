@@ -5,6 +5,14 @@ import type {
   UserGameStatus,
 } from "../types/userGames";
 
+export async function getMyUserGames(): Promise<UserGameDTO[]> {
+  const response = await api.get<UserGameDTO[]>(
+    "/usergames",
+  );
+
+  return response.data;
+}
+
 function resolveNullableState(
   status: number,
   data: UserGameDTO | null,

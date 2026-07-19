@@ -9,16 +9,16 @@ import {
   LoaderCircle,
   LockKeyhole,
   Mail,
+  MailCheck,
   ShieldCheck,
   UserPlus,
   UserRound,
 } from "lucide-react";
 import { useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import {
   Link,
   Navigate,
-  useNavigate,
 } from "react-router-dom";
 import { z } from "zod";
 import { getApiErrorMessage } from "../lib/api";
@@ -134,8 +134,6 @@ function PasswordRule({
 }
 
 export function RegisterPage() {
-  const navigate = useNavigate();
-
   const [isPasswordVisible, setIsPasswordVisible] =
     useState(false);
 
@@ -152,10 +150,6 @@ export function RegisterPage() {
     (state) => state.expiresAtUtc,
   );
 
-  const setSession = useAuthStore(
-    (state) => state.setSession,
-  );
-
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
 
@@ -169,16 +163,14 @@ export function RegisterPage() {
     mode: "onTouched",
   });
 
+  const passwordValue =
+    useWatch({
+      control: form.control,
+      name: "password",
+    }) ?? "";
+
   const registerMutation = useMutation({
     mutationFn: register,
-
-    onSuccess: (response) => {
-      setSession(response);
-
-      navigate("/", {
-        replace: true,
-      });
-    },
   });
 
   const hasValidSession = isAuthSessionValid(
@@ -195,8 +187,73 @@ export function RegisterPage() {
     );
   }
 
-  const passwordValue =
-    form.watch("password") ?? "";
+  if (registerMutation.isSuccess) {
+    const registeredEmail =
+      registerMutation.variables.email.trim();
+
+    return (
+      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#07070a] px-5 py-10 text-zinc-100">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.20),transparent_30%),radial-gradient(circle_at_85%_75%,rgba(217,70,239,0.10),transparent_28%)]" />
+
+        <div className="relative w-full max-w-lg rounded-3xl border border-white/[0.08] bg-[#101015]/95 p-7 shadow-2xl shadow-black/40 sm:p-9">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-3"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600">
+              <Gamepad2 size={20} />
+            </span>
+
+            <span className="font-bold text-white">
+              Ludora
+            </span>
+          </Link>
+
+          <span className="mt-8 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-300">
+            <MailCheck size={27} />
+          </span>
+
+          <p className="mt-6 text-xs font-bold uppercase tracking-[0.23em] text-emerald-400">
+            Qeydiyyat tamamlandı
+          </p>
+
+          <h1 className="mt-3 text-3xl font-bold tracking-tight text-white">
+            Email ünvanını təsdiqlə
+          </h1>
+
+          <p className="mt-4 text-sm leading-7 text-zinc-400">
+            {registerMutation.data.message}
+          </p>
+
+          <div className="mt-6 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
+            <p className="text-xs text-zinc-600">
+              Təsdiq emaili göndərilən ünvan
+            </p>
+
+            <p className="mt-1 break-all text-sm font-semibold text-zinc-200">
+              {registeredEmail}
+            </p>
+          </div>
+
+          <div className="mt-7 grid gap-3 sm:grid-cols-2">
+            <Link
+              to="/login"
+              className="flex h-12 items-center justify-center rounded-xl bg-violet-600 px-5 text-sm font-semibold text-white transition hover:bg-violet-500"
+            >
+              Daxil ol
+            </Link>
+
+            <Link
+              to={`/resend-email-confirmation?email=${encodeURIComponent(registeredEmail)}`}
+              className="flex h-12 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.04] px-5 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            >
+              Emaili yenidən göndər
+            </Link>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   const passwordRequirements = {
     hasMinimumLength: passwordValue.length >= 8,

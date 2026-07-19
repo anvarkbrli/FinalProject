@@ -9,11 +9,14 @@ import {
   Camera,
   Check,
   Gamepad2,
+  KeyRound,
   LoaderCircle,
   Lock,
   Mail,
   Shield,
   User,
+  UserCheck,
+  UserX,
   Users,
   X,
 } from "lucide-react";
@@ -22,9 +25,7 @@ import {
   useRef,
   useState,
 } from "react";
-import {
-  useForm,
-} from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { Link } from "react-router-dom";
 import { z } from "zod";
 import { getApiErrorMessage } from "../lib/api";
@@ -33,9 +34,13 @@ import {
   resolveAssetUrl,
 } from "../lib/helpers";
 import {
+  acceptFollowRequest,
   getBlockedUsers,
   getCurrentUser,
+  getFollowRequests,
   getUserSettings,
+  rejectFollowRequest,
+  requestEmailChange,
   unblockUser,
   updateProfile,
   updateProfileImage,
@@ -61,7 +66,6 @@ const profileSchema = z.object({
       /^[a-zA-Z0-9_.]+$/,
       "Yalnız hərf, rəqəm, nöqtə və alt xətt istifadə edilə bilər.",
     ),
-
   bio: z
     .string()
     .max(
@@ -70,8 +74,28 @@ const profileSchema = z.object({
     ),
 });
 
-type ProfileFormValues =
-  z.infer<typeof profileSchema>;
+const emailChangeSchema = z.object({
+  newEmail: z
+    .string()
+    .trim()
+    .min(1, "Yeni email ünvanını daxil et.")
+    .email("Düzgün email ünvanı daxil et.")
+    .max(
+      128,
+      "Email maksimum 128 simvol ola bilər.",
+    ),
+  currentPassword: z
+    .string()
+    .min(1, "Cari şifrəni daxil et."),
+});
+
+type ProfileFormValues = z.infer<
+  typeof profileSchema
+>;
+
+type EmailChangeFormValues = z.infer<
+  typeof emailChangeSchema
+>;
 
 interface NoticeState {
   type: "success" | "error";
@@ -84,38 +108,41 @@ const allowedImageTypes = [
   "image/webp",
 ];
 
-const maximumImageSize =
-  5 * 1024 * 1024;
+const maximumImageSize = 5 * 1024 * 1024;
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
-
   const fileInputRef =
     useRef<HTMLInputElement>(null);
 
   const storedUser = useAuthStore(
     (state) => state.user,
   );
-
   const setUser = useAuthStore(
     (state) => state.setUser,
   );
 
   const [notice, setNotice] =
     useState<NoticeState | null>(null);
-
   const [selectedImage, setSelectedImage] =
     useState<File | null>(null);
-
   const [imagePreviewUrl, setImagePreviewUrl] =
     useState<string | null>(null);
 
-  const profileForm =
-    useForm<ProfileFormValues>({
-      resolver: zodResolver(profileSchema),
+  const profileForm = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: {
+      userName: storedUser?.userName ?? "",
+      bio: storedUser?.bio ?? "",
+    },
+  });
+
+  const emailChangeForm =
+    useForm<EmailChangeFormValues>({
+      resolver: zodResolver(emailChangeSchema),
       defaultValues: {
-        userName: storedUser?.userName ?? "",
-        bio: storedUser?.bio ?? "",
+        newEmail: "",
+        currentPassword: "",
       },
     });
 
@@ -133,76 +160,68 @@ export function SettingsPage() {
     queryKey: ["blocked-users"],
     queryFn: getBlockedUsers,
   });
-    const isProfileFormDirty =
+
+  const followRequestsQuery = useQuery({
+    queryKey: ["follow-requests"],
+    queryFn: getFollowRequests,
+  });
+
+  const isProfileFormDirty =
     profileForm.formState.isDirty;
+  const resetProfileForm = profileForm.reset;
 
-    const resetProfileForm =
-    profileForm.reset;
-
-    useEffect(() => {
-    const currentUser =
-        currentUserQuery.data;
+  useEffect(() => {
+    const currentUser = currentUserQuery.data;
 
     if (!currentUser) {
-        return;
+      return;
     }
 
     setUser(currentUser);
 
     if (isProfileFormDirty) {
-        return;
+      return;
     }
 
     resetProfileForm({
-        userName: currentUser.userName,
-        bio: currentUser.bio ?? "",
+      userName: currentUser.userName,
+      bio: currentUser.bio ?? "",
     });
-    }, [
+  }, [
     currentUserQuery.data,
     isProfileFormDirty,
     resetProfileForm,
     setUser,
-    ]);
+  ]);
 
   useEffect(() => {
-    if (!selectedImage) {
-      setImagePreviewUrl(null);
+    if (!imagePreviewUrl) {
       return;
     }
 
-    const previewUrl =
-      URL.createObjectURL(selectedImage);
-
-    setImagePreviewUrl(previewUrl);
-
     return () => {
-      URL.revokeObjectURL(previewUrl);
+      URL.revokeObjectURL(imagePreviewUrl);
     };
-  }, [selectedImage]);
+  }, [imagePreviewUrl]);
 
   const profileMutation = useMutation({
     mutationFn: updateProfile,
-
     onSuccess: (updatedUser) => {
       setUser(updatedUser);
-
       queryClient.setQueryData(
         ["current-user"],
         updatedUser,
       );
-
       profileForm.reset({
         userName: updatedUser.userName,
         bio: updatedUser.bio ?? "",
       });
-
       setNotice({
         type: "success",
         message:
           "Profil məlumatları uğurla yeniləndi.",
       });
     },
-
     onError: (error) => {
       setNotice({
         type: "error",
@@ -216,16 +235,14 @@ export function SettingsPage() {
 
   const profileImageMutation = useMutation({
     mutationFn: updateProfileImage,
-
     onSuccess: (updatedUser) => {
       setUser(updatedUser);
-
       queryClient.setQueryData(
         ["current-user"],
         updatedUser,
       );
-
       setSelectedImage(null);
+      setImagePreviewUrl(null);
 
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -237,7 +254,6 @@ export function SettingsPage() {
           "Profil şəkli uğurla yeniləndi.",
       });
     },
-
     onError: (error) => {
       setNotice({
         type: "error",
@@ -251,7 +267,6 @@ export function SettingsPage() {
 
   const settingsMutation = useMutation({
     mutationFn: updateUserSettings,
-
     onSuccess: (updatedSettings) => {
       queryClient.setQueryData(
         ["user-settings"],
@@ -267,12 +282,9 @@ export function SettingsPage() {
 
           const updatedUser = {
             ...currentUser,
-            isPrivate:
-              updatedSettings.isPrivate,
+            isPrivate: updatedSettings.isPrivate,
           };
-
           setUser(updatedUser);
-
           return updatedUser;
         },
       );
@@ -283,7 +295,6 @@ export function SettingsPage() {
           "Məxfilik ayarları yeniləndi.",
       });
     },
-
     onError: (error) => {
       setNotice({
         type: "error",
@@ -295,21 +306,38 @@ export function SettingsPage() {
     },
   });
 
+  const emailChangeMutation = useMutation({
+    mutationFn: requestEmailChange,
+    onSuccess: (result) => {
+      emailChangeForm.reset();
+      setNotice({
+        type: "success",
+        message: result.message,
+      });
+    },
+    onError: (error) => {
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(
+          error,
+          "Email dəyişiklik sorğusu göndərilmədi.",
+        ),
+      });
+    },
+  });
+
   const unblockMutation = useMutation({
     mutationFn: unblockUser,
-
     onSuccess: async () => {
       await queryClient.invalidateQueries({
         queryKey: ["blocked-users"],
       });
-
       setNotice({
         type: "success",
         message:
           "İstifadəçi blokdan çıxarıldı.",
       });
     },
-
     onError: (error) => {
       setNotice({
         type: "error",
@@ -321,9 +349,57 @@ export function SettingsPage() {
     },
   });
 
+  const acceptRequestMutation = useMutation({
+    mutationFn: acceptFollowRequest,
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["follow-requests"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["current-user"],
+        }),
+      ]);
+      setNotice({
+        type: "success",
+        message: "İzləmə sorğusu qəbul edildi.",
+      });
+    },
+    onError: (error) => {
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(
+          error,
+          "İzləmə sorğusunu qəbul etmək mümkün olmadı.",
+        ),
+      });
+    },
+  });
+
+  const rejectRequestMutation = useMutation({
+    mutationFn: rejectFollowRequest,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ["follow-requests"],
+      });
+      setNotice({
+        type: "success",
+        message: "İzləmə sorğusu rədd edildi.",
+      });
+    },
+    onError: (error) => {
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(
+          error,
+          "İzləmə sorğusunu rədd etmək mümkün olmadı.",
+        ),
+      });
+    },
+  });
+
   const currentUser =
     currentUserQuery.data ?? storedUser;
-
   const settings =
     settingsQuery.data ??
     ({
@@ -336,70 +412,76 @@ export function SettingsPage() {
     resolveAssetUrl(
       currentUser?.profileImageUrl,
     );
-
   const userInitial =
     currentUser?.userName
       .trim()
       .charAt(0)
       .toUpperCase() || "?";
-
   const bioValue =
-    profileForm.watch("bio") ?? "";
+    useWatch({
+      control: profileForm.control,
+      name: "bio",
+    }) ?? "";
 
   function handleProfileSubmit(
     values: ProfileFormValues,
   ) {
     setNotice(null);
-
     profileMutation.mutate({
       userName: values.userName.trim(),
       bio: values.bio.trim() || null,
     });
   }
 
+  function handleEmailChangeSubmit(
+    values: EmailChangeFormValues,
+  ) {
+    setNotice(null);
+    emailChangeMutation.mutate({
+      newEmail: values.newEmail.trim(),
+      currentPassword: values.currentPassword,
+    });
+  }
+
   function handleImageSelection(
     event: React.ChangeEvent<HTMLInputElement>,
   ) {
-    const file =
-      event.target.files?.[0];
-
+    const file = event.target.files?.[0] ?? null;
     setNotice(null);
 
     if (!file) {
       return;
     }
 
-    if (
-      !allowedImageTypes.includes(file.type)
-    ) {
+    if (!allowedImageTypes.includes(file.type)) {
       event.target.value = "";
-
       setNotice({
         type: "error",
         message:
           "Yalnız JPEG, PNG və WEBP şəkilləri qəbul edilir.",
       });
-
       return;
     }
 
     if (file.size > maximumImageSize) {
       event.target.value = "";
-
       setNotice({
         type: "error",
         message:
           "Profil şəkli maksimum 5 MB ola bilər.",
       });
-
       return;
     }
 
     setSelectedImage(file);
+    setImagePreviewUrl(
+      URL.createObjectURL(file),
+    );
   }
 
   function cancelSelectedImage() {
     setSelectedImage(null);
+    setImagePreviewUrl(null);
 
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
@@ -408,15 +490,13 @@ export function SettingsPage() {
 
   function handlePrivacyChange() {
     setNotice(null);
-
     settingsMutation.mutate({
       isPrivate: !settings.isPrivate,
     });
   }
 
   const isInitialLoading =
-    currentUserQuery.isLoading &&
-    !currentUser;
+    currentUserQuery.isLoading && !currentUser;
 
   if (isInitialLoading) {
     return (
@@ -426,7 +506,6 @@ export function SettingsPage() {
             size={20}
             className="animate-spin"
           />
-
           Ayarlar yüklənir...
         </div>
       </main>
@@ -444,18 +523,21 @@ export function SettingsPage() {
             <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600">
               <Gamepad2 size={20} />
             </span>
-
             <span className="font-bold text-white">
               Ludora
             </span>
           </Link>
 
           <Link
-            to="/"
+            to={
+              currentUser
+                ? `/users/${currentUser.userName}`
+                : "/"
+            }
             className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
           >
             <ArrowLeft size={17} />
-            Ana səhifə
+            Profilə qayıt
           </Link>
         </div>
       </header>
@@ -465,15 +547,13 @@ export function SettingsPage() {
           <p className="text-xs font-bold uppercase tracking-[0.24em] text-violet-400">
             Hesab idarəetməsi
           </p>
-
           <h1 className="mt-3 text-3xl font-bold tracking-tight text-white sm:text-4xl">
             Ayarlar
           </h1>
-
           <p className="mt-3 max-w-2xl text-sm leading-7 text-zinc-500">
-            Profil məlumatlarını, şəklini,
-            məxfilik seçimlərini və blokladığın
-            istifadəçiləri idarə et.
+            Profil məlumatlarını, email ünvanını,
+            məxfilik seçimlərini və istifadəçi
+            əlaqələrini idarə et.
           </p>
         </div>
 
@@ -496,7 +576,6 @@ export function SettingsPage() {
                 className="mt-0.5 shrink-0"
               />
             )}
-
             <span>{notice.message}</span>
           </div>
         )}
@@ -507,12 +586,10 @@ export function SettingsPage() {
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
                 <Camera size={20} />
               </span>
-
               <div>
                 <h2 className="font-semibold text-white">
                   Profil şəkli
                 </h2>
-
                 <p className="mt-1 text-sm text-zinc-500">
                   JPEG, PNG və ya WEBP. Maksimum 5 MB.
                 </p>
@@ -540,7 +617,6 @@ export function SettingsPage() {
                   onChange={handleImageSelection}
                   className="hidden"
                 />
-
                 <button
                   type="button"
                   onClick={() => {
@@ -571,10 +647,8 @@ export function SettingsPage() {
                           className="animate-spin"
                         />
                       )}
-
                       Şəkli yüklə
                     </button>
-
                     <button
                       type="button"
                       onClick={cancelSelectedImage}
@@ -596,12 +670,10 @@ export function SettingsPage() {
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-fuchsia-500/10 text-fuchsia-300">
                 <User size={20} />
               </span>
-
               <div>
                 <h2 className="font-semibold text-white">
                   Profil məlumatları
                 </h2>
-
                 <p className="mt-1 text-sm text-zinc-500">
                   İstifadəçi adını və bio hissəsini yenilə.
                 </p>
@@ -622,7 +694,6 @@ export function SettingsPage() {
                 >
                   İstifadəçi adı
                 </label>
-
                 <input
                   id="settings-user-name"
                   type="text"
@@ -630,7 +701,6 @@ export function SettingsPage() {
                   {...profileForm.register("userName")}
                   className="h-12 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] px-4 text-sm text-zinc-100 outline-none transition focus:border-violet-400/50 focus:ring-4 focus:ring-violet-500/10"
                 />
-
                 {profileForm.formState.errors
                   .userName && (
                   <p className="mt-2 text-xs text-red-300">
@@ -643,37 +713,6 @@ export function SettingsPage() {
               </div>
 
               <div>
-                <label
-                  htmlFor="settings-email"
-                  className="mb-2 block text-sm font-medium text-zinc-300"
-                >
-                  Email
-                </label>
-
-                <div className="relative">
-                  <Mail
-                    size={17}
-                    className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600"
-                  />
-
-                  <input
-                    id="settings-email"
-                    type="email"
-                    value={
-                      currentUser?.email ?? ""
-                    }
-                    disabled
-                    className="h-12 w-full cursor-not-allowed rounded-xl border border-white/[0.06] bg-white/[0.02] pl-11 pr-4 text-sm text-zinc-600"
-                  />
-                </div>
-
-                <p className="mt-2 text-xs text-zinc-600">
-                  Email dəyişdirmək üçün backend endpointi
-                  hazırda mövcud deyil.
-                </p>
-              </div>
-
-              <div>
                 <div className="mb-2 flex items-center justify-between gap-3">
                   <label
                     htmlFor="settings-bio"
@@ -681,12 +720,10 @@ export function SettingsPage() {
                   >
                     Bio
                   </label>
-
                   <span className="text-xs text-zinc-600">
                     {bioValue.length}/500
                   </span>
                 </div>
-
                 <textarea
                   id="settings-bio"
                   rows={5}
@@ -694,12 +731,11 @@ export function SettingsPage() {
                   {...profileForm.register("bio")}
                   className="w-full resize-none rounded-xl border border-white/[0.08] bg-white/[0.035] px-4 py-3 text-sm leading-6 text-zinc-100 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/50 focus:ring-4 focus:ring-violet-500/10"
                 />
-
                 {profileForm.formState.errors.bio && (
                   <p className="mt-2 text-xs text-red-300">
                     {
-                      profileForm.formState.errors
-                        .bio.message
+                      profileForm.formState.errors.bio
+                        .message
                     }
                   </p>
                 )}
@@ -720,8 +756,130 @@ export function SettingsPage() {
                       className="animate-spin"
                     />
                   )}
-
                   Dəyişiklikləri yadda saxla
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-6 sm:p-8">
+            <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-sky-500/10 text-sky-300">
+                <Mail size={20} />
+              </span>
+              <div>
+                <h2 className="font-semibold text-white">
+                  Email ünvanı
+                </h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Yeni email təsdiqlənənədək cari email aktiv qalır.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-7 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4">
+              <p className="text-xs text-zinc-600">
+                Cari email
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-3">
+                <p className="break-all text-sm font-semibold text-zinc-200">
+                  {currentUser?.email ?? ""}
+                </p>
+                {currentUser?.emailConfirmed && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+                    <Check size={12} />
+                    Təsdiqlənib
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <form
+              onSubmit={emailChangeForm.handleSubmit(
+                handleEmailChangeSubmit,
+              )}
+              className="mt-5 grid gap-5 md:grid-cols-2"
+              noValidate
+            >
+              <div>
+                <label
+                  htmlFor="new-email"
+                  className="mb-2 block text-sm font-medium text-zinc-300"
+                >
+                  Yeni email
+                </label>
+                <div className="relative">
+                  <Mail
+                    size={17}
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600"
+                  />
+                  <input
+                    id="new-email"
+                    type="email"
+                    autoComplete="email"
+                    {...emailChangeForm.register(
+                      "newEmail",
+                    )}
+                    className="h-12 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-11 pr-4 text-sm text-zinc-100 outline-none transition focus:border-violet-400/50 focus:ring-4 focus:ring-violet-500/10"
+                  />
+                </div>
+                {emailChangeForm.formState.errors
+                  .newEmail && (
+                  <p className="mt-2 text-xs text-red-300">
+                    {
+                      emailChangeForm.formState.errors
+                        .newEmail.message
+                    }
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label
+                  htmlFor="current-password"
+                  className="mb-2 block text-sm font-medium text-zinc-300"
+                >
+                  Cari şifrə
+                </label>
+                <div className="relative">
+                  <KeyRound
+                    size={17}
+                    className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600"
+                  />
+                  <input
+                    id="current-password"
+                    type="password"
+                    autoComplete="current-password"
+                    {...emailChangeForm.register(
+                      "currentPassword",
+                    )}
+                    className="h-12 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-11 pr-4 text-sm text-zinc-100 outline-none transition focus:border-violet-400/50 focus:ring-4 focus:ring-violet-500/10"
+                  />
+                </div>
+                {emailChangeForm.formState.errors
+                  .currentPassword && (
+                  <p className="mt-2 text-xs text-red-300">
+                    {
+                      emailChangeForm.formState.errors
+                        .currentPassword.message
+                    }
+                  </p>
+                )}
+              </div>
+
+              <div className="flex justify-end md:col-span-2">
+                <button
+                  type="submit"
+                  disabled={emailChangeMutation.isPending}
+                  className="flex items-center gap-2 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
+                >
+                  {emailChangeMutation.isPending && (
+                    <LoaderCircle
+                      size={17}
+                      className="animate-spin"
+                    />
+                  )}
+                  Təsdiq linki göndər
                 </button>
               </div>
             </form>
@@ -732,12 +890,10 @@ export function SettingsPage() {
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-300">
                 <Shield size={20} />
               </span>
-
               <div>
                 <h2 className="font-semibold text-white">
                   Məxfilik
                 </h2>
-
                 <p className="mt-1 text-sm text-zinc-500">
                   Profilini kimlərin görə biləcəyini idarə et.
                 </p>
@@ -749,13 +905,11 @@ export function SettingsPage() {
                 <p className="text-sm font-semibold text-zinc-200">
                   Private profil
                 </p>
-
                 <p className="mt-1 max-w-xl text-sm leading-6 text-zinc-500">
                   Aktiv olduqda digər istifadəçilərin səni
                   izləməsi üçün sorğu göndərməsi tələb olunur.
                 </p>
               </div>
-
               <button
                 type="button"
                 role="switch"
@@ -784,15 +938,134 @@ export function SettingsPage() {
 
           <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-6 sm:p-8">
             <div className="flex items-center gap-3">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <Users size={20} />
+              </span>
+              <div>
+                <h2 className="font-semibold text-white">
+                  İzləmə sorğuları
+                </h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Private profil üçün gələn sorğuları idarə et.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-7">
+              {followRequestsQuery.isLoading ? (
+                <div className="flex items-center gap-3 py-6 text-sm text-zinc-500">
+                  <LoaderCircle
+                    size={18}
+                    className="animate-spin"
+                  />
+                  Sorğular yüklənir...
+                </div>
+              ) : followRequestsQuery.isError ? (
+                <div className="rounded-xl border border-red-400/15 bg-red-500/[0.06] p-4 text-sm text-red-200">
+                  İzləmə sorğuları yüklənmədi.
+                </div>
+              ) : !followRequestsQuery.data?.length ? (
+                <div className="rounded-2xl border border-dashed border-white/[0.08] p-8 text-center">
+                  <Users
+                    size={27}
+                    className="mx-auto text-zinc-700"
+                  />
+                  <p className="mt-3 text-sm text-zinc-500">
+                    Gözləyən izləmə sorğusu yoxdur.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {followRequestsQuery.data.map(
+                    (request) => {
+                      const requestImageUrl =
+                        resolveAssetUrl(
+                          request.profileImageUrl,
+                        );
+                      const requestIsPending =
+                        acceptRequestMutation.isPending ||
+                        rejectRequestMutation.isPending;
+
+                      return (
+                        <div
+                          key={request.userId}
+                          className="flex flex-col gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.025] p-4 sm:flex-row sm:items-center sm:justify-between"
+                        >
+                          <Link
+                            to={`/users/${request.userName}`}
+                            className="flex min-w-0 items-center gap-3"
+                          >
+                            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-violet-500/10 font-semibold text-violet-300">
+                              {requestImageUrl ? (
+                                <img
+                                  src={requestImageUrl}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                request.userName
+                                  .charAt(0)
+                                  .toUpperCase()
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-zinc-200">
+                                {request.userName}
+                              </p>
+                              <p className="mt-1 text-xs text-zinc-600">
+                                {formatRelativeDate(
+                                  request.requestedAt,
+                                )}
+                              </p>
+                            </div>
+                          </Link>
+
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                acceptRequestMutation.mutate(
+                                  request.userId,
+                                );
+                              }}
+                              disabled={requestIsPending}
+                              className="flex items-center gap-2 rounded-xl bg-emerald-600/90 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-50"
+                            >
+                              <UserCheck size={15} />
+                              Qəbul et
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                rejectRequestMutation.mutate(
+                                  request.userId,
+                                );
+                              }}
+                              disabled={requestIsPending}
+                              className="flex items-center gap-2 rounded-xl border border-red-400/15 bg-red-500/[0.06] px-4 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/15 disabled:opacity-50"
+                            >
+                              <UserX size={15} />
+                              Rədd et
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    },
+                  )}
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-6 sm:p-8">
+            <div className="flex items-center gap-3">
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-red-500/10 text-red-300">
                 <Lock size={20} />
               </span>
-
               <div>
                 <h2 className="font-semibold text-white">
                   Bloklanmış istifadəçilər
                 </h2>
-
                 <p className="mt-1 text-sm text-zinc-500">
                   Blokladığın hesabları gör və blokdan çıxar.
                 </p>
@@ -806,7 +1079,6 @@ export function SettingsPage() {
                     size={18}
                     className="animate-spin"
                   />
-
                   Siyahı yüklənir...
                 </div>
               ) : blockedUsersQuery.isError ? (
@@ -819,7 +1091,6 @@ export function SettingsPage() {
                     size={27}
                     className="mx-auto text-zinc-700"
                   />
-
                   <p className="mt-3 text-sm text-zinc-500">
                     Heç kimi bloklamamısan.
                   </p>
@@ -852,12 +1123,10 @@ export function SettingsPage() {
                                   .toUpperCase()
                               )}
                             </div>
-
                             <div className="min-w-0">
                               <p className="truncate text-sm font-semibold text-zinc-200">
                                 {blockedUser.userName}
                               </p>
-
                               <p className="mt-1 text-xs text-zinc-600">
                                 {formatRelativeDate(
                                   blockedUser.blockedAt,

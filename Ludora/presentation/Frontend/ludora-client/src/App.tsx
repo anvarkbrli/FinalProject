@@ -4,6 +4,8 @@ import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { RegisterPage } from "./pages/RegisterPage";
+import { ResendEmailConfirmationPage } from "./pages/ResendEmailConfirmationPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { GamesPage } from "./pages/GamesPage";
 import { GameDetailPage } from "./pages/GameDetailPage";
 
@@ -23,6 +25,16 @@ function App() {
       <Route
         path="/register"
         element={<RegisterPage />}
+      />
+
+      <Route
+        path="/resend-email-confirmation"
+        element={<ResendEmailConfirmationPage />}
+      />
+
+      <Route
+        path="/users/:userName"
+        element={<ProfilePage />}
       />
       <Route
         path="/games"

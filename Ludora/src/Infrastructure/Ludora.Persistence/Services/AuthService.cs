@@ -1,37 +1,53 @@
 namespace Ludora.Persistence.Services;
 
+using System.Text;
 using Ludora.Application.Common;
+using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.JWT;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Mappings;
+using Ludora.Application.Settings;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Microsoft.EntityFrameworkCore;
 using Ludora.Persistence.Extensions;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 
 public class AuthService : IAuthService
 {
+    private const string VerificationMessage =
+        "Qeydiyyat tamamlandı. Hesabı aktivləşdirmək üçün email ünvanınıza göndərilən təsdiq linkinə keçin.";
+
+    private const string ResendMessage =
+        "Bu email ilə təsdiqlənməmiş hesab mövcuddursa, yeni təsdiq linki göndərildi.";
+
     private readonly UserManager<AppUser> _userManager;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly AppDbContext _context;
-    private readonly SignInManager<AppUser> _signInManager;
+    private readonly IEmailService _emailService;
+    private readonly EmailSettings _emailSettings;
 
     public AuthService(
         UserManager<AppUser> userManager,
         IJwtTokenService jwtTokenService,
         AppDbContext context,
-        SignInManager<AppUser> signInManager)
+        IEmailService emailService,
+        IOptions<EmailSettings> emailOptions)
     {
         _userManager = userManager;
         _jwtTokenService = jwtTokenService;
         _context = context;
-        _signInManager = signInManager;
+        _emailService = emailService;
+        _emailSettings = emailOptions.Value;
     }
 
-    public async Task<AuthResponseDTO> RegisterAsync(RegisterDTO dto)
+    public async Task<RegisterResultDTO> RegisterAsync(
+        RegisterDTO dto,
+        CancellationToken cancellationToken = default)
     {
         var email = dto.Email.Trim();
         var userName = dto.UserName.Trim();
@@ -39,7 +55,7 @@ public class AuthService : IAuthService
         if (await _userManager.FindByEmailAsync(email) is not null)
         {
             throw new ConflictException(
-                "Bu email artıq istifadə olunur.");
+                "Bu email artıq istifadə olunur. Hesab təsdiqlənməyibsə, təsdiq emailini yenidən göndər endpoint-indən istifadə edin.");
         }
 
         if (await _userManager.FindByNameAsync(userName) is not null)
@@ -53,15 +69,14 @@ public class AuthService : IAuthService
             Id = Guid.NewGuid(),
             UserName = userName,
             Email = email,
+            EmailConfirmed = false,
             CreatedAt = DateTime.UtcNow
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);
-
         result.ThrowIfFailed();
 
-        var roleResult =
-            await _userManager.AddToRoleAsync(user, RoleNames.User);
+        var roleResult = await _userManager.AddToRoleAsync(user, RoleNames.User);
 
         if (!roleResult.Succeeded)
         {
@@ -74,62 +89,215 @@ public class AuthService : IAuthService
                     roleResult.Errors.Select(x => x.Description)));
         }
 
-        return await CreateAuthResponseAsync(user);
+        try
+        {
+            await SendConfirmationEmailAsync(user, cancellationToken);
+        }
+        catch
+        {
+            await _userManager.DeleteAsync(user);
+            throw;
+        }
+
+        return new RegisterResultDTO
+        {
+            Message = VerificationMessage,
+            EmailVerificationRequired = true
+        };
     }
 
-    public async Task<AuthResponseDTO> LoginAsync(LoginDTO dto)
+    public async Task<AuthResponseDTO> LoginAsync(
+        LoginDTO dto,
+        CancellationToken cancellationToken = default)
     {
         var value = dto.EmailOrUserName.Trim();
 
-        var user = value.Contains('@') ? await _userManager.FindByEmailAsync(value) : await _userManager.FindByNameAsync(value);
+        var user = value.Contains('@')
+            ? await _userManager.FindByEmailAsync(value)
+            : await _userManager.FindByNameAsync(value);
 
         if (user is null)
         {
-            throw new UnauthorizedException("Email, istifadəçi adı və ya şifrə yanlışdır.");
+            throw new UnauthorizedException(
+                "Email, istifadəçi adı və ya şifrə yanlışdır.");
         }
 
-        var signInResult = await _signInManager.CheckPasswordSignInAsync(user, dto.Password, lockoutOnFailure: true);
+        if (await _userManager.IsLockedOutAsync(user))
+        {
+            throw new UnauthorizedException(
+                "Çox sayda uğursuz giriş cəhdi edildi. Bir müddət sonra yenidən yoxlayın.");
+        }
 
-        if (signInResult.IsLockedOut)
-            throw new UnauthorizedException("Çox sayda uğursuz giriş cəhdi edildi. Bir müddət sonra yenidən yoxlayın.");
+        var passwordIsCorrect = await _userManager.CheckPasswordAsync(
+            user,
+            dto.Password);
 
-        if (!signInResult.Succeeded)
-            throw new UnauthorizedException("Email, istifadəçi adı və ya şifrə yanlışdır.");
+        if (!passwordIsCorrect)
+        {
+            var failedResult = await _userManager.AccessFailedAsync(user);
+            failedResult.ThrowIfFailed();
+
+            if (await _userManager.IsLockedOutAsync(user))
+            {
+                throw new UnauthorizedException(
+                    "Çox sayda uğursuz giriş cəhdi edildi. Bir müddət sonra yenidən yoxlayın.");
+            }
+
+            throw new UnauthorizedException(
+                "Email, istifadəçi adı və ya şifrə yanlışdır.");
+        }
+
+        var resetResult = await _userManager.ResetAccessFailedCountAsync(user);
+        resetResult.ThrowIfFailed();
+
+        if (!user.EmailConfirmed)
+        {
+            throw new UnauthorizedException(
+                "Hesabın email ünvanı təsdiqlənməyib. Emailinizdəki təsdiq linkinə keçin.");
+        }
 
         EnsureUserIsNotBanned(user);
 
-        return await CreateAuthResponseAsync(user);
+        return await CreateAuthResponseAsync(user, cancellationToken);
+    }
+
+    public async Task<EmailOperationResultDTO> ConfirmEmailAsync(
+        Guid userId,
+        string token,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (userId == Guid.Empty || string.IsNullOrWhiteSpace(token))
+            throw new BadRequestException("Email təsdiq məlumatları düzgün deyil.");
+
+        var user = await _userManager.FindByIdAsync(userId.ToString())
+            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
+
+        if (user.EmailConfirmed)
+        {
+            return new EmailOperationResultDTO
+            {
+                Message = "Email ünvanı artıq təsdiqlənib. Hesaba daxil ola bilərsiniz."
+            };
+        }
+
+        var decodedToken = DecodeToken(token);
+        var result = await _userManager.ConfirmEmailAsync(user, decodedToken);
+        result.ThrowIfFailed();
+
+        var stampResult = await _userManager.UpdateSecurityStampAsync(user);
+        stampResult.ThrowIfFailed();
+
+        return new EmailOperationResultDTO
+        {
+            Message = "Email ünvanı uğurla təsdiqləndi. İndi hesaba daxil ola bilərsiniz."
+        };
+    }
+
+    public async Task<EmailOperationResultDTO> ResendEmailConfirmationAsync(
+        ResendEmailConfirmationDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        var email = dto.Email.Trim();
+        var user = await _userManager.FindByEmailAsync(email);
+
+        if (user is not null && !user.EmailConfirmed)
+            await SendConfirmationEmailAsync(user, cancellationToken);
+
+        return new EmailOperationResultDTO
+        {
+            Message = ResendMessage
+        };
+    }
+
+    private async Task SendConfirmationEmailAsync(
+        AppUser user,
+        CancellationToken cancellationToken)
+    {
+        var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+        var encodedToken = EncodeToken(token);
+        var confirmationLink = BuildConfirmationLink(user.Id, encodedToken);
+
+        await _emailService.SendEmailConfirmationAsync(
+            user.Email ?? throw new InvalidOperationException("İstifadəçi emaili tapılmadı."),
+            user.UserName ?? "Ludora istifadəçisi",
+            confirmationLink,
+            cancellationToken);
+    }
+
+    private string BuildConfirmationLink(Guid userId, string token)
+    {
+        var endpoint =
+            $"{_emailSettings.PublicApiBaseUrl.TrimEnd('/')}/api/auth/confirm-email";
+
+        return QueryHelpers.AddQueryString(
+            endpoint,
+            new Dictionary<string, string?>
+            {
+                ["userId"] = userId.ToString(),
+                ["token"] = token
+            });
+    }
+
+    private static string EncodeToken(string token)
+    {
+        return WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(token));
+    }
+
+    private static string DecodeToken(string token)
+    {
+        try
+        {
+            return Encoding.UTF8.GetString(
+                WebEncoders.Base64UrlDecode(token));
+        }
+        catch (FormatException)
+        {
+            throw new BadRequestException(
+                "Email təsdiq tokeni düzgün formatda deyil.");
+        }
     }
 
     private static void EnsureUserIsNotBanned(AppUser user)
     {
         var now = DateTime.UtcNow;
         var isBanned = user.IsPermanentlyBanned ||
-                       (user.BannedUntilUtc.HasValue && user.BannedUntilUtc > now);
+                       (user.BannedUntilUtc.HasValue &&
+                        user.BannedUntilUtc > now);
 
         if (!isBanned)
             return;
 
         if (user.IsPermanentlyBanned)
-            throw new UnauthorizedException("Hesabınız admin tərəfindən müddətsiz bloklanıb.");
+        {
+            throw new UnauthorizedException(
+                "Hesabınız admin tərəfindən müddətsiz bloklanıb.");
+        }
 
         throw new UnauthorizedException(
             $"Hesabınız {user.BannedUntilUtc:yyyy-MM-dd HH:mm} UTC tarixinədək bloklanıb.");
     }
 
-    private async Task<AuthResponseDTO> CreateAuthResponseAsync(AppUser user)
+    private async Task<AuthResponseDTO> CreateAuthResponseAsync(
+        AppUser user,
+        CancellationToken cancellationToken)
     {
         var roles = await _userManager.GetRolesAsync(user);
         var token = _jwtTokenService.CreateToken(user, roles);
 
         var userDto = user.ToCurrentUserDTO();
-        userDto.FollowerCount = await _context.UserFollows.CountAsync(x =>
-            x.FollowingId == user.Id &&
-            x.Status == FollowStatus.Accepted);
-        userDto.FollowingCount = await _context.UserFollows.CountAsync(x =>
-            x.FollowerId == user.Id &&
-            x.Status == FollowStatus.Accepted);
-        userDto.PostCount = await _context.UserPosts.CountAsync(x => x.UserId == user.Id);
+        userDto.FollowerCount = await _context.UserFollows.CountAsync(
+            x => x.FollowingId == user.Id &&
+                 x.Status == FollowStatus.Accepted,
+            cancellationToken);
+        userDto.FollowingCount = await _context.UserFollows.CountAsync(
+            x => x.FollowerId == user.Id &&
+                 x.Status == FollowStatus.Accepted,
+            cancellationToken);
+        userDto.PostCount = await _context.UserPosts.CountAsync(
+            x => x.UserId == user.Id,
+            cancellationToken);
 
         return new AuthResponseDTO
         {

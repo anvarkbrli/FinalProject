@@ -23,6 +23,10 @@ public class AppUser : IdentityUser<Guid>
     public ICollection<UserBlock> BlockedByUsers { get; set; } = new List<UserBlock>();
     public ICollection<UserGame> UserGames { get; set; } = new HashSet<UserGame>();
     public ICollection<UserPost> Posts { get; set; } = new List<UserPost>();
+    public ICollection<Review> Reviews { get; set; } = new List<Review>();
+    public ICollection<ReviewLike> ReviewLikes { get; set; } = new List<ReviewLike>();
+    public ICollection<ReviewComment> ReviewComments { get; set; } = new List<ReviewComment>();
+    public ICollection<UserActivity> Activities { get; set; } = new List<UserActivity>();
     public ICollection<Discussion> Discussions { get; set; } = new List<Discussion>();
     public ICollection<DiscussionReply> DiscussionReplies { get; set; } = new List<DiscussionReply>();
     public ICollection<DiscussionLike> DiscussionLikes { get; set; } = new List<DiscussionLike>();

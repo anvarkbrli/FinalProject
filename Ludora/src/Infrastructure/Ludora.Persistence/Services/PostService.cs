@@ -5,6 +5,7 @@ using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
+using Ludora.Persistence.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ludora.Persistence.Services
@@ -39,6 +40,13 @@ namespace Ludora.Persistence.Services
             };
 
             await _context.UserPosts.AddAsync(post, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            _context.AddUserActivity(
+                userId,
+                UserActivityType.PostCreated,
+                postId: post.Id);
+
             await _context.SaveChangesAsync(cancellationToken);
 
             return await GetByIdAsync(post.Id, userId, cancellationToken);
@@ -166,6 +174,11 @@ namespace Ludora.Persistence.Services
             post.Content = dto.Content.NormalizeRequiredText("Post mətni", 2000);
             post.UpdatedAt = DateTime.UtcNow;
 
+            _context.AddUserActivity(
+                userId,
+                UserActivityType.PostUpdated,
+                postId: post.Id);
+
             await _context.SaveChangesAsync(cancellationToken);
 
             return await GetByIdAsync(post.Id, userId, cancellationToken);
@@ -188,6 +201,11 @@ namespace Ludora.Persistence.Services
             post.DeletedByUserId = userId;
             post.DeleteReason = null;
             post.UpdatedAt = DateTime.UtcNow;
+
+            _context.AddUserActivity(
+                userId,
+                UserActivityType.PostDeleted,
+                postId: post.Id);
 
             await _context.SaveChangesAsync(cancellationToken);
         }

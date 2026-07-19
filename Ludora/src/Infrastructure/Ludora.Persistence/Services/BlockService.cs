@@ -2,7 +2,9 @@
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities.User;
+using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
+using Ludora.Persistence.Extensions;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ludora.Persistence.Services;
@@ -49,6 +51,12 @@ public class BlockService : IBlockService
         };
 
         await _context.UserBlocks.AddAsync(userBlock);
+
+        _context.AddUserActivity(
+            blockerId,
+            UserActivityType.UserBlocked,
+            targetUserId: blockedUserId);
+
         await _context.SaveChangesAsync();
     }
 
@@ -61,6 +69,12 @@ public class BlockService : IBlockService
             throw new NotFoundException("Bloklama əlaqəsi tapılmadı.");
 
         _context.UserBlocks.Remove(userBlock);
+
+        _context.AddUserActivity(
+            blockerId,
+            UserActivityType.UserUnblocked,
+            targetUserId: blockedUserId);
+
         await _context.SaveChangesAsync();
     }
 

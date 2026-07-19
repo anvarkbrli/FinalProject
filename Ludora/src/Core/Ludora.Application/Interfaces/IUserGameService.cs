@@ -13,6 +13,12 @@ namespace Ludora.Application.Interfaces
             bool? isWishlisted = null,
             CancellationToken cancellationToken = default);
 
+        Task<PagedResultDTO<UserGameDTO>> GetByUserAsync(
+            Guid userId,
+            UserGameFilterDTO filter,
+            Guid? currentUserId,
+            CancellationToken cancellationToken = default);
+
         Task<UserGameDTO?> GetStateAsync(
             Guid userId,
             CatalogSource source,

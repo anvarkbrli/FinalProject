@@ -17,3 +17,18 @@ export interface BlockedUserDTO {
   profileImageUrl: string | null;
   blockedAt: string;
 }
+export interface ChangeEmailRequestDTO {
+  newEmail: string;
+  currentPassword: string;
+}
+
+export interface EmailOperationResultDTO {
+  message: string;
+}
+
+export interface FollowRequestDTO {
+  userId: string;
+  userName: string;
+  profileImageUrl: string | null;
+  requestedAt: string;
+}
