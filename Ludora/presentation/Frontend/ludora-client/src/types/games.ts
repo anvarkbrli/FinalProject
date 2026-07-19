@@ -70,9 +70,15 @@ export interface RelatedGamesDTO {
 }
 
 
+export interface GameRatingDistributionItemDTO {
+  rating: number;
+  count: number;
+}
+
 export interface GameCommunityStatsDTO {
   averageRating: number | null;
   ratingCount: number;
+  ratingDistribution: GameRatingDistributionItemDTO[];
   playingCount: number;
   planToPlayCount: number;
   playedCount: number;

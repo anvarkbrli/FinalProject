@@ -6,7 +6,7 @@ using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Ludora.API.Controllers;
+namespace Ludora.API.Controllers.Admin;
 
 [Authorize(Roles = RoleNames.Admin)]
 [Route("api/admin/users")]

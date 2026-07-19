@@ -17,6 +17,10 @@ import {
   useState,
 } from "react";
 import {
+  useLocation,
+  useSearchParams,
+} from "react-router-dom";
+import {
   SearchableSelect,
   type SearchableSelectOption,
 } from "../components/common/SearchableSelect";
@@ -25,19 +29,20 @@ import { GameCardSkeleton } from "../components/home/GameCardSkeleton";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
 import { getApiErrorMessage } from "../lib/api";
+import { canViewCatalogSources } from "../lib/authRoles";
 import {
   isPriorityPlatform,
   sortPlatformsByCurrentRelevance,
 } from "../lib/catalogPriority";
 import {
+  getCatalogEntityById,
   getGameCompanies,
   getGameGenres,
   getGamePlatforms,
   getGames,
 } from "../services/gamesService";
-import type {
-  CatalogSource,
-} from "../types/home";
+import { useAuthStore } from "../stores/authStore";
+import type { CatalogSource } from "../types/home";
 import type {
   CatalogFilterItemDTO,
   GameCatalogItemDTO,
@@ -56,11 +61,11 @@ const sortOptions: Array<{
   },
   {
     value: "rating_desc",
-    label: "Reytinq: yüksəkdən aşağı",
+    label: "İstifadəçi reytinqi: yüksəkdən aşağı",
   },
   {
     value: "rating_asc",
-    label: "Reytinq: aşağıdan yüksək",
+    label: "İstifadəçi reytinqi: aşağıdan yüksək",
   },
   {
     value: "play_desc",
@@ -104,16 +109,11 @@ function parseCatalogReference(
     return null;
   }
 
-  const [sourceValue, idValue] =
-    value.split(":");
-
+  const [sourceValue, idValue] = value.split(":");
   const id = Number(idValue);
 
   if (
-    (
-      sourceValue !== "Local" &&
-      sourceValue !== "Igdb"
-    ) ||
+    (sourceValue !== "Local" && sourceValue !== "Igdb") ||
     !Number.isInteger(id) ||
     id < 1
   ) {
@@ -126,6 +126,24 @@ function parseCatalogReference(
   };
 }
 
+function getInitialCatalogReference(
+  searchParams: URLSearchParams,
+  prefix: "company" | "genre" | "platform",
+): string {
+  const source = searchParams.get(`${prefix}Source`);
+  const id = Number(searchParams.get(`${prefix}Id`));
+
+  if (
+    (source !== "Local" && source !== "Igdb") ||
+    !Number.isInteger(id) ||
+    id < 1
+  ) {
+    return "";
+  }
+
+  return `${source}:${id}`;
+}
+
 function getCatalogDescription(
   source: CatalogSource,
 ): string {
@@ -134,19 +152,82 @@ function getCatalogDescription(
     : "IGDB kataloqu";
 }
 
+function normalizeCatalogName(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("az-AZ")
+    .trim();
+}
+
+function mergeCatalogItems(
+  currentItems: CatalogFilterItemDTO[],
+  incomingItems: CatalogFilterItemDTO[],
+): CatalogFilterItemDTO[] {
+  const result = new Map<string, CatalogFilterItemDTO>();
+
+  for (const item of [...currentItems, ...incomingItems]) {
+    result.set(serializeCatalogReference(item), item);
+  }
+
+  return Array.from(result.values());
+}
+
+function prepareCatalogItems(
+  items: CatalogFilterItemDTO[],
+  canViewSources: boolean,
+  selectedReference: string,
+): CatalogFilterItemDTO[] {
+  if (canViewSources) {
+    return items;
+  }
+
+  const byName = new Map<string, CatalogFilterItemDTO>();
+
+  for (const item of items) {
+    const normalizedName = normalizeCatalogName(item.name);
+    const current = byName.get(normalizedName);
+    const itemReference = serializeCatalogReference(item);
+
+    if (
+      !current ||
+      itemReference === selectedReference ||
+      (current.source === "Local" && item.source === "Igdb")
+    ) {
+      byName.set(normalizedName, item);
+    }
+  }
+
+  return Array.from(byName.values());
+}
+
+function findPreferredCatalogItemByName(
+  items: CatalogFilterItemDTO[],
+  name: string | null,
+): CatalogFilterItemDTO | null {
+  if (!name?.trim()) {
+    return null;
+  }
+
+  const normalizedName = normalizeCatalogName(name);
+  const matches = items.filter(
+    (item) => normalizeCatalogName(item.name) === normalizedName,
+  );
+
+  return (
+    matches.find((item) => item.source === "Igdb") ??
+    matches[0] ??
+    null
+  );
+}
+
 function sortAlphabetically(
   items: CatalogFilterItemDTO[],
 ): CatalogFilterItemDTO[] {
-  return [...items].sort(
-    (firstItem, secondItem) => {
-      return firstItem.name.localeCompare(
-        secondItem.name,
-        "az-AZ",
-        {
-          sensitivity: "base",
-        },
-      );
-    },
+  return [...items].sort((firstItem, secondItem) =>
+    firstItem.name.localeCompare(secondItem.name, "az-AZ", {
+      sensitivity: "base",
+    }),
   );
 }
 
@@ -167,15 +248,7 @@ function getPaginationItems(
   }
 
   if (currentPage <= 4) {
-    return [
-      1,
-      2,
-      3,
-      4,
-      5,
-      "right-ellipsis",
-      totalPages,
-    ];
+    return [1, 2, 3, 4, 5, "right-ellipsis", totalPages];
   }
 
   if (currentPage >= totalPages - 3) {
@@ -201,102 +274,229 @@ function getPaginationItems(
   ];
 }
 
+interface CatalogFilterNavigationState {
+  catalogFilter?: {
+    kind: "company" | "genre" | "platform";
+    source: CatalogSource;
+    id: number;
+    name: string;
+  };
+}
+
 export function GamesPage() {
-  const [
-    searchInput,
-    setSearchInput,
-  ] = useState("");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
 
-  const [
-    debouncedSearch,
-    setDebouncedSearch,
-  ] = useState("");
+  const navigationState =
+    location.state as CatalogFilterNavigationState | null;
 
-  const [
-    companyReference,
-    setCompanyReference,
-  ] = useState("");
+  const navigationCompany =
+    navigationState?.catalogFilter?.kind === "company"
+      ? navigationState.catalogFilter
+      : null;
 
-  const [
-    genreReference,
-    setGenreReference,
-  ] = useState("");
+  const accessToken = useAuthStore(
+    (state) => state.accessToken,
+  );
 
-  const [
-    platformReference,
-    setPlatformReference,
-  ] = useState("");
+  const canViewSources =
+    canViewCatalogSources(accessToken);
 
-  const [
-    releaseYear,
-    setReleaseYear,
-  ] = useState("");
+  const [searchInput, setSearchInput] = useState(
+    searchParams.get("search") ?? "",
+  );
 
-  const [sortBy, setSortBy] =
-    useState<GameSort>("");
+  const [debouncedSearch, setDebouncedSearch] = useState(
+    searchParams.get("search")?.trim() ?? "",
+  );
 
-  const [pageNumber, setPageNumber] =
-    useState(1);
+  const [companyReference, setCompanyReference] = useState(
+    () => {
+      const referenceFromUrl =
+        getInitialCatalogReference(
+          searchParams,
+          "company",
+        );
+
+      if (referenceFromUrl) {
+        return referenceFromUrl;
+      }
+
+      return navigationCompany
+        ? `${navigationCompany.source}:${navigationCompany.id}`
+        : "";
+    },
+  );
+
+  const [genreReference, setGenreReference] = useState(
+    () =>
+      getInitialCatalogReference(
+        searchParams,
+        "genre",
+      ),
+  );
+
+  const [platformReference, setPlatformReference] =
+    useState(() =>
+      getInitialCatalogReference(
+        searchParams,
+        "platform",
+      ),
+    );
+
+  const [releaseYear, setReleaseYear] = useState(
+    searchParams.get("releaseYear") ?? "",
+  );
+
+  const [sortBy, setSortBy] = useState<GameSort>(() => {
+    const value = searchParams.get("sortBy") ?? "";
+
+    return sortOptions.some(
+      (option) => option.value === value,
+    )
+      ? (value as GameSort)
+      : "";
+  });
+
+  const [pageNumber, setPageNumber] = useState(1);
 
   const [
     isMobileFiltersOpen,
     setIsMobileFiltersOpen,
   ] = useState(false);
 
-  useEffect(() => {
-    const timeoutId =
-      window.setTimeout(() => {
-        setDebouncedSearch(
-          searchInput.trim(),
-        );
-      }, 350);
+  const routeCompanyName =
+    searchParams.get("companyName")?.trim() ?? "";
 
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
+  const [companySearch, setCompanySearch] =
+    useState("");
+
+  const [
+    debouncedCompanySearch,
+    setDebouncedCompanySearch,
+  ] = useState("");
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedSearch(searchInput.trim());
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
   }, [searchInput]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedCompanySearch(
+        companySearch.trim(),
+      );
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [companySearch]);
+
+  const companyQuerySearch =
+    debouncedCompanySearch ||
+    (!companyReference ? routeCompanyName : "");
+
+  const selectedCompanyReference =
+    parseCatalogReference(companyReference);
 
   const companiesQuery = useQuery({
     queryKey: [
       "game-catalog",
       "companies",
+      companyQuerySearch,
     ],
-    queryFn: getGameCompanies,
+    queryFn: () =>
+      getGameCompanies(
+        companyQuerySearch || undefined,
+      ),
+    staleTime: 5 * 60_000,
+  });
+
+  const selectedCompanyQuery = useQuery({
+    queryKey: [
+      "game-catalog",
+      "selected-company",
+      selectedCompanyReference?.source,
+      selectedCompanyReference?.id,
+    ],
+    queryFn: () =>
+      getCatalogEntityById(
+        "company",
+        selectedCompanyReference!.source,
+        selectedCompanyReference!.id,
+      ),
+    enabled: selectedCompanyReference !== null,
     staleTime: 5 * 60_000,
   });
 
   const genresQuery = useQuery({
-    queryKey: [
-      "game-catalog",
-      "genres",
-    ],
+    queryKey: ["game-catalog", "genres"],
     queryFn: getGameGenres,
     staleTime: 5 * 60_000,
   });
 
   const platformsQuery = useQuery({
-    queryKey: [
-      "game-catalog",
-      "platforms",
-    ],
+    queryKey: ["game-catalog", "platforms"],
     queryFn: getGamePlatforms,
     staleTime: 5 * 60_000,
   });
 
-  const parsedCompany =
-    parseCatalogReference(
-      companyReference,
+  const knownCompanies = mergeCatalogItems(
+    companiesQuery.data ?? [],
+    selectedCompanyQuery.data
+      ? [selectedCompanyQuery.data]
+      : [],
+  );
+
+  const companyFromName =
+    findPreferredCatalogItemByName(
+      knownCompanies,
+      routeCompanyName,
     );
 
-  const parsedGenre =
-    parseCatalogReference(
-      genreReference,
+  const genreFromName =
+    findPreferredCatalogItemByName(
+      genresQuery.data ?? [],
+      searchParams.get("genreName"),
     );
 
-  const parsedPlatform =
-    parseCatalogReference(
-      platformReference,
+  const platformFromName =
+    findPreferredCatalogItemByName(
+      platformsQuery.data ?? [],
+      searchParams.get("platformName"),
     );
+
+  const effectiveCompanyReference =
+    companyReference ||
+    (companyFromName
+      ? serializeCatalogReference(companyFromName)
+      : "");
+
+  const effectiveGenreReference =
+    genreReference ||
+    (genreFromName
+      ? serializeCatalogReference(genreFromName)
+      : "");
+
+  const effectivePlatformReference =
+    platformReference ||
+    (platformFromName
+      ? serializeCatalogReference(platformFromName)
+      : "");
+
+  const parsedCompany = parseCatalogReference(
+    effectiveCompanyReference,
+  );
+
+  const parsedGenre = parseCatalogReference(
+    effectiveGenreReference,
+  );
+
+  const parsedPlatform = parseCatalogReference(
+    effectivePlatformReference,
+  );
 
   const releaseYearNumber =
     releaseYear.trim() === ""
@@ -305,74 +505,43 @@ export function GamesPage() {
 
   const isReleaseYearValid =
     releaseYear.trim() === "" ||
-    (
-      releaseYearNumber !== undefined &&
-      Number.isInteger(
-        releaseYearNumber,
-      ) &&
+    (releaseYearNumber !== undefined &&
+      Number.isInteger(releaseYearNumber) &&
       releaseYearNumber >= 1900 &&
-      releaseYearNumber <= 2200
-    );
+      releaseYearNumber <= 2200);
 
-  const validReleaseYear =
-    isReleaseYearValid
-      ? releaseYearNumber
-      : undefined;
+  const validReleaseYear = isReleaseYearValid
+    ? releaseYearNumber
+    : undefined;
 
   const gamesQuery = useQuery({
     queryKey: [
       "game-catalog",
       "games",
       debouncedSearch,
-      companyReference,
-      genreReference,
-      platformReference,
+      effectiveCompanyReference,
+      effectiveGenreReference,
+      effectivePlatformReference,
       validReleaseYear,
       sortBy,
       pageNumber,
     ],
-
-    queryFn: () => {
-      return getGames({
-        searchName:
-          debouncedSearch ||
-          undefined,
-
-        companySource:
-          parsedCompany?.source,
-
-        companyId:
-          parsedCompany?.id,
-
-        genreSource:
-          parsedGenre?.source,
-
-        genreId:
-          parsedGenre?.id,
-
-        platformSource:
-          parsedPlatform?.source,
-
-        platformId:
-          parsedPlatform?.id,
-
-        releaseYear:
-          validReleaseYear,
-
+    queryFn: () =>
+      getGames({
+        searchName: debouncedSearch || undefined,
+        companySource: parsedCompany?.source,
+        companyId: parsedCompany?.id,
+        genreSource: parsedGenre?.source,
+        genreId: parsedGenre?.id,
+        platformSource: parsedPlatform?.source,
+        platformId: parsedPlatform?.id,
+        releaseYear: validReleaseYear,
         sortBy,
-
         includeRelatedContent: false,
-
         pageNumber,
-
-        pageSize:
-          PAGE_SIZE,
-      });
-    },
-
-    placeholderData: (
-      previousData,
-    ) => previousData,
+        pageSize: PAGE_SIZE,
+      }),
+    placeholderData: (previousData) => previousData,
   });
 
   const games: GameCatalogItemDTO[] =
@@ -393,67 +562,72 @@ export function GamesPage() {
     [pageNumber, totalPages],
   );
 
-  const sortedCompanies =
-    useMemo(() => {
-      return sortAlphabetically(
-        companiesQuery.data ?? [],
-      );
-    }, [companiesQuery.data]);
+  const sortedCompanies = useMemo(() => {
+    return sortAlphabetically(
+      prepareCatalogItems(
+        knownCompanies,
+        canViewSources,
+        effectiveCompanyReference,
+      ),
+    );
+  }, [
+    knownCompanies,
+    canViewSources,
+    effectiveCompanyReference,
+  ]);
 
-  const sortedPlatforms =
-    useMemo(() => {
-      return sortPlatformsByCurrentRelevance(
+  const sortedPlatforms = useMemo(() => {
+    return sortPlatformsByCurrentRelevance(
+      prepareCatalogItems(
         platformsQuery.data ?? [],
-      );
-    }, [platformsQuery.data]);
+        canViewSources,
+        effectivePlatformReference,
+      ),
+    );
+  }, [
+    platformsQuery.data,
+    canViewSources,
+    effectivePlatformReference,
+  ]);
 
-  const sortedGenres =
-    useMemo(() => {
-      return sortAlphabetically(
+  const sortedGenres = useMemo(() => {
+    return sortAlphabetically(
+      prepareCatalogItems(
         genresQuery.data ?? [],
-      );
-    }, [genresQuery.data]);
+        canViewSources,
+        effectiveGenreReference,
+      ),
+    );
+  }, [
+    genresQuery.data,
+    canViewSources,
+    effectiveGenreReference,
+  ]);
 
   const companyOptions =
-    useMemo<
-      SearchableSelectOption[]
-    >(() => {
-      return sortedCompanies.map(
-        (company) => ({
+    useMemo<SearchableSelectOption[]>(
+      () =>
+        sortedCompanies.map((company) => ({
           value:
-            serializeCatalogReference(
-              company,
-            ),
-
+            serializeCatalogReference(company),
           label: company.name,
-
-          description:
-            getCatalogDescription(
-              company.source,
-            ),
-
-        }),
-      );
-    }, [sortedCompanies]);
+          description: canViewSources
+            ? getCatalogDescription(company.source)
+            : undefined,
+        })),
+      [sortedCompanies, canViewSources],
+    );
 
   const platformOptions =
-    useMemo<
-      SearchableSelectOption[]
-    >(() => {
-      return sortedPlatforms.map(
-        (platform) => ({
+    useMemo<SearchableSelectOption[]>(
+      () =>
+        sortedPlatforms.map((platform) => ({
           value:
-            serializeCatalogReference(
-              platform,
-            ),
-
+            serializeCatalogReference(platform),
           label: platform.name,
-
-          description:
-            getCatalogDescription(
-              platform.source,
-            ),
-
+          description: canViewSources
+            ? getCatalogDescription(platform.source)
+            : undefined,
           group: isPriorityPlatform(
             platform.name,
             platform.source,
@@ -461,144 +635,91 @@ export function GamesPage() {
           )
             ? "Məşhur platformalar"
             : "Digər platformalar",
-        }),
-      );
-    }, [sortedPlatforms]);
+        })),
+      [sortedPlatforms, canViewSources],
+    );
 
   const genreOptions =
-    useMemo<
-      SearchableSelectOption[]
-    >(() => {
-      return sortedGenres.map(
-        (genre) => ({
+    useMemo<SearchableSelectOption[]>(
+      () =>
+        sortedGenres.map((genre) => ({
           value:
-            serializeCatalogReference(
-              genre,
-            ),
-
+            serializeCatalogReference(genre),
           label: genre.name,
-
-          description:
-            getCatalogDescription(
-              genre.source,
-            ),
-        }),
-      );
-    }, [sortedGenres]);
+          description: canViewSources
+            ? getCatalogDescription(genre.source)
+            : undefined,
+        })),
+      [sortedGenres, canViewSources],
+    );
 
   const sortSelectOptions =
-    useMemo<
-      SearchableSelectOption[]
-    >(() => {
-      return sortOptions
-        .filter(
-          (option) =>
-            option.value !== "",
-        )
-        .map((option) => ({
-          value: option.value,
-          label: option.label,
-        }));
-    }, []);
+    useMemo<SearchableSelectOption[]>(
+      () =>
+        sortOptions
+          .filter(
+            (option) => option.value !== "",
+          )
+          .map((option) => ({
+            value: option.value,
+            label: option.label,
+          })),
+      [],
+    );
 
-  function handleCompanyChange(
-    value: string,
-  ) {
+  function handleCompanyChange(value: string) {
     setPageNumber(1);
-
-    const selectedReference =
-      parseCatalogReference(value);
-
     setCompanyReference(value);
 
-    if (!selectedReference) {
-      return;
-    }
+    const nextSearchParams =
+      new URLSearchParams(searchParams);
 
-    if (
-      parsedGenre &&
-      parsedGenre.source !==
-        selectedReference.source
-    ) {
-      setGenreReference("");
-    }
+    nextSearchParams.delete("companyName");
+    nextSearchParams.delete("companySource");
+    nextSearchParams.delete("companyId");
 
-    if (
-      parsedPlatform &&
-      parsedPlatform.source !==
-        selectedReference.source
-    ) {
-      setPlatformReference("");
-    }
+    setSearchParams(nextSearchParams, {
+      replace: true,
+    });
   }
 
-  function handleGenreChange(
-    value: string,
-  ) {
+  function handleGenreChange(value: string) {
     setPageNumber(1);
-
-    const selectedReference =
-      parseCatalogReference(value);
-
     setGenreReference(value);
 
-    if (!selectedReference) {
-      return;
-    }
+    const nextSearchParams =
+      new URLSearchParams(searchParams);
 
-    if (
-      parsedCompany &&
-      parsedCompany.source !==
-        selectedReference.source
-    ) {
-      setCompanyReference("");
-    }
+    nextSearchParams.delete("genreName");
+    nextSearchParams.delete("genreSource");
+    nextSearchParams.delete("genreId");
 
-    if (
-      parsedPlatform &&
-      parsedPlatform.source !==
-        selectedReference.source
-    ) {
-      setPlatformReference("");
-    }
+    setSearchParams(nextSearchParams, {
+      replace: true,
+    });
   }
 
-  function handlePlatformChange(
-    value: string,
-  ) {
+  function handlePlatformChange(value: string) {
     setPageNumber(1);
-
-    const selectedReference =
-      parseCatalogReference(value);
-
     setPlatformReference(value);
 
-    if (!selectedReference) {
-      return;
-    }
+    const nextSearchParams =
+      new URLSearchParams(searchParams);
 
-    if (
-      parsedCompany &&
-      parsedCompany.source !==
-        selectedReference.source
-    ) {
-      setCompanyReference("");
-    }
+    nextSearchParams.delete("platformName");
+    nextSearchParams.delete("platformSource");
+    nextSearchParams.delete("platformId");
 
-    if (
-      parsedGenre &&
-      parsedGenre.source !==
-        selectedReference.source
-    ) {
-      setGenreReference("");
-    }
+    setSearchParams(nextSearchParams, {
+      replace: true,
+    });
   }
 
   const activeFilterCount = [
     searchInput.trim(),
-    companyReference,
-    genreReference,
-    platformReference,
+    effectiveCompanyReference,
+    effectiveGenreReference,
+    effectivePlatformReference,
     releaseYear,
     sortBy,
   ].filter(Boolean).length;
@@ -612,6 +733,10 @@ export function GamesPage() {
     setReleaseYear("");
     setSortBy("");
     setPageNumber(1);
+
+    setSearchParams({}, {
+      replace: true,
+    });
   }
 
   function clearSearch() {
@@ -635,9 +760,7 @@ export function GamesPage() {
 
     window.requestAnimationFrame(() => {
       document
-        .getElementById(
-          "game-results",
-        )
+        .getElementById("game-results")
         ?.scrollIntoView({
           behavior: "smooth",
           block: "start",
@@ -645,13 +768,12 @@ export function GamesPage() {
     });
   }
 
-  const gamesError =
-    gamesQuery.isError
-      ? getApiErrorMessage(
-          gamesQuery.error,
-          "Oyunları yükləmək mümkün olmadı.",
-        )
-      : null;
+  const gamesError = gamesQuery.isError
+    ? getApiErrorMessage(
+        gamesQuery.error,
+        "Oyunları yükləmək mümkün olmadı.",
+      )
+    : null;
 
   return (
     <div className="min-h-screen bg-[#07070a] text-zinc-100">
@@ -675,9 +797,9 @@ export function GamesPage() {
               </h1>
 
               <p className="mt-4 max-w-2xl text-base leading-8 text-zinc-400">
-                Oyunları ada, şirkətə,
-                janra, platformaya və
-                çıxış ilinə görə axtar.
+                Oyunları ada, şirkətə, janra,
+                platformaya və çıxış ilinə görə
+                axtar.
               </p>
             </div>
 
@@ -694,6 +816,7 @@ export function GamesPage() {
                   setSearchInput(
                     event.target.value,
                   );
+
                   setPageNumber(1);
                 }}
                 placeholder="Oyun adı ilə axtar..."
@@ -763,7 +886,7 @@ export function GamesPage() {
 
                 <SearchableSelect
                   value={
-                    companyReference
+                    effectiveCompanyReference
                   }
                   options={companyOptions}
                   onChange={
@@ -773,8 +896,15 @@ export function GamesPage() {
                   clearLabel="Bütün şirkətlər"
                   searchPlaceholder="Şirkət axtar..."
                   emptyMessage="Şirkət tapılmadı."
+                  onSearchChange={
+                    setCompanySearch
+                  }
+                  isSearching={
+                    companiesQuery.isFetching
+                  }
                   disabled={
-                    companiesQuery.isLoading
+                    companiesQuery.isLoading &&
+                    knownCompanies.length === 0
                   }
                 />
               </label>
@@ -785,7 +915,9 @@ export function GamesPage() {
                 </span>
 
                 <SearchableSelect
-                  value={genreReference}
+                  value={
+                    effectiveGenreReference
+                  }
                   options={genreOptions}
                   onChange={
                     handleGenreChange
@@ -807,11 +939,9 @@ export function GamesPage() {
 
                 <SearchableSelect
                   value={
-                    platformReference
+                    effectivePlatformReference
                   }
-                  options={
-                    platformOptions
-                  }
+                  options={platformOptions}
                   onChange={
                     handlePlatformChange
                   }
@@ -839,6 +969,7 @@ export function GamesPage() {
                     setReleaseYear(
                       event.target.value,
                     );
+
                     setPageNumber(1);
                   }}
                   placeholder="Məsələn: 2026"
@@ -860,6 +991,7 @@ export function GamesPage() {
                     setSortBy(
                       value as GameSort,
                     );
+
                     setPageNumber(1);
                   }}
                   placeholder="Standart sıralama"
@@ -872,8 +1004,8 @@ export function GamesPage() {
 
           {!isReleaseYearValid && (
             <div className="mt-3 rounded-xl border border-amber-400/15 bg-amber-500/[0.06] px-4 py-3 text-sm text-amber-200">
-              Çıxış ili 1900–2200
-              aralığında olmalıdır.
+              Çıxış ili 1900–2200 aralığında
+              olmalıdır.
             </div>
           )}
 
@@ -883,9 +1015,7 @@ export function GamesPage() {
           >
             <div>
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-violet-400">
-                <SlidersHorizontal
-                  size={15}
-                />
+                <SlidersHorizontal size={15} />
                 Nəticələr
               </div>
 
@@ -928,9 +1058,7 @@ export function GamesPage() {
               {Array.from({
                 length: PAGE_SIZE,
               }).map((_, index) => (
-                <GameCardSkeleton
-                  key={index}
-                />
+                <GameCardSkeleton key={index} />
               ))}
             </div>
           ) : gamesError ? (
@@ -1014,8 +1142,7 @@ export function GamesPage() {
                   {paginationItems.map(
                     (item) => {
                       if (
-                        typeof item !==
-                        "number"
+                        typeof item !== "number"
                       ) {
                         return (
                           <span
@@ -1036,9 +1163,7 @@ export function GamesPage() {
                           key={item}
                           type="button"
                           onClick={() => {
-                            handlePageChange(
-                              item,
-                            );
+                            handlePageChange(item);
                           }}
                           disabled={
                             gamesQuery.isFetching
@@ -1068,8 +1193,7 @@ export function GamesPage() {
                       );
                     }}
                     disabled={
-                      pageNumber ===
-                        totalPages ||
+                      pageNumber === totalPages ||
                       gamesQuery.isFetching
                     }
                     className="flex h-10 items-center gap-1 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-sm font-semibold text-zinc-400 transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
@@ -1078,6 +1202,7 @@ export function GamesPage() {
                     <span className="hidden sm:inline">
                       Növbəti
                     </span>
+
                     <ChevronRight size={17} />
                   </button>
                 </nav>

@@ -68,12 +68,18 @@ export async function getGameById(
   return response.data;
 }
 
-export async function getGameCompanies(): Promise<
-  CatalogFilterItemDTO[]
-> {
+export async function getGameCompanies(
+  searchName?: string,
+): Promise<CatalogFilterItemDTO[]> {
   const response =
     await api.get<CatalogFilterItemDTO[]>(
       "/companies",
+      {
+        params: {
+          searchName:
+            searchName?.trim() || undefined,
+        },
+      },
     );
 
   return response.data;

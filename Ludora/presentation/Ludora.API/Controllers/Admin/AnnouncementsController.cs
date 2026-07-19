@@ -2,7 +2,7 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Ludora.API.Controllers;
+namespace Ludora.API.Controllers.Admin;
 
 [Route("api/announcements")]
 [ApiController]

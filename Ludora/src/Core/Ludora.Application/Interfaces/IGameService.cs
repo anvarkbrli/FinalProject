@@ -1,4 +1,5 @@
 using Ludora.Application.DTOs;
+using Ludora.Application.DTOs.Game;
 using Ludora.Application.DTOs.GameList;
 using Ludora.Domain.Enums;
 

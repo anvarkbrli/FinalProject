@@ -53,6 +53,7 @@ public static class ServiceRegistration
         services.AddScoped<IDiscussionReplyService, DiscussionReplyService>();
 
         services.AddScoped<IGameService, GameService>();
+        services.AddScoped<IGameCommunityService, GameCommunityService>();
         services.AddScoped<IGenreService, GenreService>();
         services.AddScoped<IPlatformService, PlatformService>();
         services.AddScoped<ICompanyService, CompanyService>();

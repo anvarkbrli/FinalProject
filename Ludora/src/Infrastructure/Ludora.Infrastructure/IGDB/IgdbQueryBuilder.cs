@@ -90,7 +90,7 @@ internal static class IgdbQueryBuilder
         return BuildByIds(GameFields, ids);
     }
 
-    public static string BuildNamedList(string? search, int limit = 200)
+    public static string BuildNamedList(string? search, int limit = 500)
     {
         var builder = new StringBuilder("fields id,name;");
 
@@ -196,6 +196,14 @@ internal static class IgdbQueryBuilder
         StringBuilder builder,
         GameFilterDTO filter)
     {
+        // IGDB search sorğusu relevance sıralamasını özü tətbiq edir.
+        // `search` ilə əlavə `sort` göndərmək bəzi kombinə edilmiş
+        // filter sorğularının 400 qaytarmasına səbəb olur.
+        if (!string.IsNullOrWhiteSpace(filter.SearchName))
+        {
+            return;
+        }
+
         var sort = filter.SortBy?.Trim().ToLowerInvariant() switch
         {
             "name_asc" => "name asc",

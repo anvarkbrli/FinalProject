@@ -1,3 +1,5 @@
+using System.Globalization;
+using System.Text;
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Game;
 using Ludora.Application.DTOs.GameList;
@@ -19,6 +21,13 @@ namespace Ludora.Persistence.Services;
 public sealed class GameService : IGameService
 {
     private const int MaxPageSize = 100;
+    private const string SqlLetterStartPattern =
+        "[A-Za-zƏĞİÖŞÜÇəğıöşüç]%";
+
+    private static readonly StringComparer GameTitleComparer =
+        StringComparer.Create(
+            CultureInfo.GetCultureInfo("az-AZ"),
+            ignoreCase: true);
 
     private static readonly GameType[] MainCatalogGameTypes =
     [
@@ -48,6 +57,16 @@ public sealed class GameService : IGameService
         GameType.Remake,
         GameType.Remaster
     ];
+
+    private sealed record CommunityRankRow
+    {
+        public CatalogSource Source { get; init; }
+        public long GameId { get; init; }
+        public double? AverageRating { get; init; }
+        public int RatingCount { get; init; }
+        public int PlayedCount { get; init; }
+    }
+
     private readonly AppDbContext _context;
     private readonly IIgdbClient _igdbClient;
 
@@ -67,6 +86,13 @@ public sealed class GameService : IGameService
         var pageNumber = filter.PageNumber;
         var pageSize = filter.PageSize;
         var skip = checked((pageNumber - 1) * pageSize);
+
+        if (IsCommunitySort(filter.SortBy))
+        {
+            return await GetCommunitySortedGamesAsync(
+                filter,
+                cancellationToken);
+        }
 
         if (filter.Source == CatalogSource.Local)
         {
@@ -98,20 +124,34 @@ public sealed class GameService : IGameService
                 await GetHiddenIgdbGameIdsAsync(
                     cancellationToken);
 
-            var countTask = _igdbClient.GetGamesCountAsync(
+            var igdbTotalCount = await _igdbClient.GetGamesCountAsync(
                 filter,
                 hiddenIgdbGameIds,
                 cancellationToken);
 
-            var gamesTask = _igdbClient.GetGamesAsync(
-                filter,
-                hiddenIgdbGameIds,
-                cancellationToken);
+            IReadOnlyList<IgdbGameModel> igdbGames;
 
-            await Task.WhenAll(countTask, gamesTask);
+            if (IsAscendingNameSort(filter.SortBy) &&
+                string.IsNullOrWhiteSpace(filter.SearchName))
+            {
+                igdbGames = await GetIgdbLetterFirstNameSliceAsync(
+                    filter,
+                    skip,
+                    pageSize,
+                    igdbTotalCount,
+                    hiddenIgdbGameIds,
+                    cancellationToken);
+            }
+            else
+            {
+                igdbGames = await _igdbClient.GetGamesAsync(
+                    filter,
+                    hiddenIgdbGameIds,
+                    cancellationToken);
+            }
 
             var mappedIgdbGames = await MapIgdbGamesAsync(
-                gamesTask.Result,
+                igdbGames,
                 cancellationToken);
 
             var items = SortGames(mappedIgdbGames, filter.SortBy)
@@ -122,7 +162,7 @@ public sealed class GameService : IGameService
                 items,
                 pageNumber,
                 pageSize,
-                countTask.Result);
+                igdbTotalCount);
         }
 
         var requestedEnd = checked((long)pageNumber * pageSize);
@@ -168,24 +208,36 @@ public sealed class GameService : IGameService
                     await GetHiddenIgdbGameIdsAsync(
                         cancellationToken);
 
-                var countTask = _igdbClient.GetGamesCountAsync(
+                igdbCount = await _igdbClient.GetGamesCountAsync(
                     igdbFilter,
                     hiddenIgdbGameIds,
                     cancellationToken);
 
-                var gamesTask = GetIgdbGamesUpToAsync(
-                    igdbFilter,
-                    fetchCount,
-                    hiddenIgdbGameIds,
-                    cancellationToken);
+                IReadOnlyList<IgdbGameModel> igdbGames;
 
-                await Task.WhenAll(countTask, gamesTask);
-
-                igdbCount = countTask.Result;
+                if (IsAscendingNameSort(filter.SortBy) &&
+                    string.IsNullOrWhiteSpace(filter.SearchName))
+                {
+                    igdbGames = await GetIgdbLetterFirstNameSliceAsync(
+                        igdbFilter,
+                        0,
+                        Math.Min(fetchCount, igdbCount),
+                        igdbCount,
+                        hiddenIgdbGameIds,
+                        cancellationToken);
+                }
+                else
+                {
+                    igdbGames = await GetIgdbGamesUpToAsync(
+                        igdbFilter,
+                        fetchCount,
+                        hiddenIgdbGameIds,
+                        cancellationToken);
+                }
 
                 details.AddRange(
                     await MapIgdbGamesAsync(
-                        gamesTask.Result,
+                        igdbGames,
                         cancellationToken));
             }
             catch (ExternalServiceException)
@@ -207,6 +259,484 @@ public sealed class GameService : IGameService
             pageNumber,
             pageSize,
             totalCount);
+    }
+
+    private static bool IsCommunitySort(string? sortBy)
+    {
+        return sortBy?.Trim().ToLowerInvariant() is
+            "rating_asc" or
+            "rating_desc" or
+            "play_asc" or
+            "play_desc";
+    }
+
+    private static bool IsAscendingNameSort(string? sortBy)
+    {
+        return string.Equals(
+            sortBy?.Trim(),
+            "name_asc",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<PagedResultDTO<GameListItemDTO>> GetCommunitySortedGamesAsync(
+        GameFilterDTO filter,
+        CancellationToken cancellationToken)
+    {
+        var pageNumber = filter.PageNumber;
+        var pageSize = filter.PageSize;
+        var skip = checked((pageNumber - 1) * pageSize);
+
+        var rankedGames = await GetCommunityRankedGamesAsync(
+            filter,
+            cancellationToken);
+
+        var localCount = 0;
+        var igdbCount = 0;
+        IReadOnlyList<long> hiddenIgdbGameIds = Array.Empty<long>();
+
+        if (filter.Source != CatalogSource.Igdb)
+        {
+            localCount = await BuildLocalQuery(filter)
+                .CountAsync(cancellationToken);
+        }
+
+        if (
+            filter.Source != CatalogSource.Local &&
+            _igdbClient.IsEnabled &&
+            CanQueryIgdb(filter))
+        {
+            hiddenIgdbGameIds = await GetHiddenIgdbGameIdsAsync(
+                cancellationToken);
+
+            var igdbFilter = filter with
+            {
+                Source = CatalogSource.Igdb,
+                SortBy = null
+            };
+
+            igdbCount = await _igdbClient.GetGamesCountAsync(
+                igdbFilter,
+                hiddenIgdbGameIds,
+                cancellationToken);
+        }
+
+        var totalCount = checked(localCount + igdbCount);
+        var items = rankedGames
+            .Skip(skip)
+            .Take(pageSize)
+            .ToList();
+
+        var missingItemCount = pageSize - items.Count;
+
+        if (missingItemCount > 0)
+        {
+            var fallbackSkip = Math.Max(0, skip - rankedGames.Count);
+            var fallbackEnd = checked(fallbackSkip + missingItemCount);
+            var fallbackGames = new List<GameDetailDTO>();
+
+            var rankedLocalIds = rankedGames
+                .Where(game => game.Source == CatalogSource.Local)
+                .Select(game => game.Id)
+                .Where(id => id <= int.MaxValue)
+                .Select(id => (int)id)
+                .Distinct()
+                .ToArray();
+
+            if (filter.Source != CatalogSource.Igdb && fallbackEnd > 0)
+            {
+                var localQuery = BuildLocalQuery(filter);
+
+                if (rankedLocalIds.Length > 0)
+                {
+                    localQuery = localQuery.Where(
+                        game => !rankedLocalIds.Contains(game.Id));
+                }
+
+                var localGames = await ApplyLocalSort(localQuery, null)
+                    .Include(game => game.GameGenres)
+                    .Include(game => game.GamePlatforms)
+                    .Include(game => game.GameCompanies)
+                    .Take(fallbackEnd)
+                    .ToListAsync(cancellationToken);
+
+                fallbackGames.AddRange(
+                    await MapLocalGamesAsync(
+                        localGames,
+                        cancellationToken));
+            }
+
+            if (
+                filter.Source != CatalogSource.Local &&
+                fallbackEnd > 0 &&
+                _igdbClient.IsEnabled &&
+                CanQueryIgdb(filter))
+            {
+                var rankedIgdbIds = rankedGames
+                    .Where(game => game.Source == CatalogSource.Igdb)
+                    .Select(game => game.Id)
+                    .Distinct()
+                    .ToArray();
+
+                var excludedIgdbIds = hiddenIgdbGameIds
+                    .Concat(rankedIgdbIds)
+                    .Distinct()
+                    .ToArray();
+
+                var igdbFilter = filter with
+                {
+                    Source = CatalogSource.Igdb,
+                    SortBy = null,
+                    PageNumber = 1
+                };
+
+                var igdbGames = await GetIgdbGamesUpToAsync(
+                    igdbFilter,
+                    fallbackEnd,
+                    excludedIgdbIds,
+                    cancellationToken);
+
+                fallbackGames.AddRange(
+                    await MapIgdbGamesAsync(
+                        igdbGames,
+                        cancellationToken));
+            }
+
+            items.AddRange(
+                SortGames(fallbackGames, null)
+                    .Skip(fallbackSkip)
+                    .Take(missingItemCount));
+        }
+
+        return CreatePagedResult(
+            items.Select(ToListItem).ToList(),
+            pageNumber,
+            pageSize,
+            totalCount);
+    }
+
+    private async Task<IReadOnlyList<GameDetailDTO>> GetCommunityRankedGamesAsync(
+        GameFilterDTO filter,
+        CancellationToken cancellationToken)
+    {
+        var normalizedSort = filter.SortBy!
+            .Trim()
+            .ToLowerInvariant();
+
+        var userGamesQuery = _context.UserGames.AsNoTracking();
+
+        if (filter.Source.HasValue)
+        {
+            userGamesQuery = userGamesQuery.Where(
+                userGame => userGame.Source == filter.Source.Value);
+        }
+
+        userGamesQuery = normalizedSort.StartsWith(
+            "rating_",
+            StringComparison.Ordinal)
+            ? userGamesQuery.Where(userGame => userGame.Rating.HasValue)
+            : userGamesQuery.Where(
+                userGame => userGame.Status == UserGameStatus.Played);
+
+        var rows = await userGamesQuery
+            .GroupBy(userGame => new
+            {
+                userGame.Source,
+                userGame.GameId
+            })
+            .Select(group => new CommunityRankRow
+            {
+                Source = group.Key.Source,
+                GameId = group.Key.GameId,
+                AverageRating = group.Average(
+                    userGame => userGame.Rating),
+                RatingCount = group.Count(
+                    userGame => userGame.Rating.HasValue),
+                PlayedCount = group.Count(
+                    userGame => userGame.Status == UserGameStatus.Played)
+            })
+            .ToListAsync(cancellationToken);
+
+        if (rows.Count == 0)
+        {
+            return Array.Empty<GameDetailDTO>();
+        }
+
+        IEnumerable<CommunityRankRow> orderedRows = normalizedSort switch
+        {
+            "rating_asc" => rows
+                .OrderBy(row => row.AverageRating ?? double.MaxValue)
+                .ThenByDescending(row => row.RatingCount)
+                .ThenBy(row => row.GameId),
+            "rating_desc" => rows
+                .OrderByDescending(row => row.AverageRating ?? double.MinValue)
+                .ThenByDescending(row => row.RatingCount)
+                .ThenBy(row => row.GameId),
+            "play_asc" => rows
+                .OrderBy(row => row.PlayedCount)
+                .ThenByDescending(row => row.AverageRating ?? double.MinValue)
+                .ThenBy(row => row.GameId),
+            _ => rows
+                .OrderByDescending(row => row.PlayedCount)
+                .ThenByDescending(row => row.AverageRating ?? double.MinValue)
+                .ThenBy(row => row.GameId)
+        };
+
+        var orderedRowList = orderedRows.ToList();
+        var references = orderedRowList
+            .Select(row => new CatalogReferenceDTO
+            {
+                Source = row.Source,
+                Id = row.GameId
+            })
+            .ToList();
+
+        var gameMap = await GetByReferencesAsync(
+            references,
+            cancellationToken);
+
+        return orderedRowList
+            .Select(row => gameMap.GetValueOrDefault(
+                (row.Source, row.GameId)))
+            .Where(game => game is not null)
+            .Select(game => game!)
+            .Where(game => MatchesFilter(game, filter))
+            .ToList();
+    }
+
+    private static bool MatchesFilter(
+        GameDetailDTO game,
+        GameFilterDTO filter)
+    {
+        if (filter.Source.HasValue && game.Source != filter.Source.Value)
+        {
+            return false;
+        }
+
+        if (
+            !filter.IncludeRelatedContent &&
+            !MainCatalogGameTypes.Contains(game.GameType))
+        {
+            return false;
+        }
+
+        if (
+            !string.IsNullOrWhiteSpace(filter.SearchName) &&
+            !MatchesSearchText(game.Title, filter.SearchName))
+        {
+            return false;
+        }
+
+        if (
+            filter.CompanyId.HasValue &&
+            !game.Companies.Any(company =>
+                company.Source == filter.CompanySource &&
+                company.Id == filter.CompanyId.Value))
+        {
+            return false;
+        }
+
+        if (
+            filter.GenreId.HasValue &&
+            !game.Genres.Any(genre =>
+                genre.Source == filter.GenreSource &&
+                genre.Id == filter.GenreId.Value))
+        {
+            return false;
+        }
+
+        if (
+            filter.PlatformId.HasValue &&
+            !game.Platforms.Any(platform =>
+                platform.Source == filter.PlatformSource &&
+                platform.Id == filter.PlatformId.Value))
+        {
+            return false;
+        }
+
+        if (
+            filter.ReleaseYear.HasValue &&
+            game.ReleaseDate?.Year != filter.ReleaseYear.Value)
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool MatchesSearchText(
+        string title,
+        string searchText)
+    {
+        var normalizedTitle = NormalizeSearchText(title);
+        var normalizedSearch = NormalizeSearchText(searchText);
+
+        if (normalizedSearch.Length == 0)
+        {
+            return true;
+        }
+
+        if (normalizedTitle.Contains(
+            normalizedSearch,
+            StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var acronym = string.Concat(
+            title.Split(
+                    [' ', '-', '_', ':', '.', ',', '/', '\\', '(', ')', '[', ']'],
+                    StringSplitOptions.RemoveEmptyEntries)
+                .Where(word => word.Any(char.IsLetterOrDigit))
+                .Select(word => char.ToLowerInvariant(
+                    word.First(char.IsLetterOrDigit))));
+
+        return acronym.StartsWith(
+            normalizedSearch,
+            StringComparison.Ordinal);
+    }
+
+    private static string NormalizeSearchText(string value)
+    {
+        return new string(
+            value
+                .Normalize(NormalizationForm.FormD)
+                .Where(character =>
+                    CharUnicodeInfo.GetUnicodeCategory(character) !=
+                    UnicodeCategory.NonSpacingMark)
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToLowerInvariant)
+                .ToArray());
+    }
+
+    private async Task<IReadOnlyList<IgdbGameModel>>
+        GetIgdbLetterFirstNameSliceAsync(
+            GameFilterDTO filter,
+            int virtualOffset,
+            int limit,
+            int totalCount,
+            IReadOnlyCollection<long> excludedGameIds,
+            CancellationToken cancellationToken)
+    {
+        if (limit <= 0 || virtualOffset >= totalCount)
+        {
+            return Array.Empty<IgdbGameModel>();
+        }
+
+        var alphabeticalFilter = filter with
+        {
+            Source = CatalogSource.Igdb,
+            SortBy = "name_asc",
+            PageNumber = 1,
+            PageSize = Math.Clamp(limit, 1, 500)
+        };
+
+        var nonLetterPrefixCount =
+            await GetIgdbLeadingNonLetterCountAsync(
+                alphabeticalFilter,
+                totalCount,
+                excludedGameIds,
+                cancellationToken);
+
+        var letterCount = Math.Max(
+            0,
+            totalCount - nonLetterPrefixCount);
+
+        var remaining = Math.Min(
+            limit,
+            totalCount - virtualOffset);
+
+        var result = new List<IgdbGameModel>(remaining);
+        var currentVirtualOffset = virtualOffset;
+
+        if (currentVirtualOffset < letterCount && remaining > 0)
+        {
+            var letterTake = Math.Min(
+                remaining,
+                letterCount - currentVirtualOffset);
+
+            var letterGames = await _igdbClient.GetGamesSliceAsync(
+                alphabeticalFilter,
+                nonLetterPrefixCount + currentVirtualOffset,
+                letterTake,
+                excludedGameIds,
+                cancellationToken);
+
+            result.AddRange(letterGames);
+            remaining -= letterGames.Count;
+            currentVirtualOffset += letterGames.Count;
+        }
+
+        if (remaining > 0)
+        {
+            var nonLetterOffset = Math.Max(
+                0,
+                currentVirtualOffset - letterCount);
+
+            var nonLetterTake = Math.Min(
+                remaining,
+                nonLetterPrefixCount - nonLetterOffset);
+
+            if (nonLetterTake > 0)
+            {
+                var nonLetterGames =
+                    await _igdbClient.GetGamesSliceAsync(
+                        alphabeticalFilter,
+                        nonLetterOffset,
+                        nonLetterTake,
+                        excludedGameIds,
+                        cancellationToken);
+
+                result.AddRange(nonLetterGames);
+            }
+        }
+
+        return result;
+    }
+
+    private async Task<int> GetIgdbLeadingNonLetterCountAsync(
+        GameFilterDTO filter,
+        int totalCount,
+        IReadOnlyCollection<long> excludedGameIds,
+        CancellationToken cancellationToken)
+    {
+        const int batchSize = 500;
+        var offset = 0;
+
+        while (offset < totalCount)
+        {
+            var limit = Math.Min(
+                batchSize,
+                totalCount - offset);
+
+            var batch = await _igdbClient.GetGamesSliceAsync(
+                filter,
+                offset,
+                limit,
+                excludedGameIds,
+                cancellationToken);
+
+            if (batch.Count == 0)
+            {
+                break;
+            }
+
+            for (var index = 0; index < batch.Count; index++)
+            {
+                if (StartsWithLetter(batch[index].Name))
+                {
+                    return offset + index;
+                }
+            }
+
+            offset += batch.Count;
+
+            if (batch.Count < limit)
+            {
+                break;
+            }
+        }
+
+        return Math.Min(offset, totalCount);
     }
 
     private async Task<IReadOnlyList<IgdbGameModel>> GetIgdbGamesUpToAsync(
@@ -767,7 +1297,7 @@ public sealed class GameService : IGameService
                 ?? throw new NotFoundException("Oyun tapılmadı.");
 
             if (!hasChanges) return;
-                
+
 
             if (dto.GameType.HasValue)
                 game.GameType = dto.GameType.Value;
@@ -785,7 +1315,7 @@ public sealed class GameService : IGameService
             {
                 game.ReleaseDate = dto.ReleaseDate;
             }
-                
+
             if (genreReferences is not null)
             {
                 SyncLocalGenres(game, genreReferences);
@@ -818,7 +1348,7 @@ public sealed class GameService : IGameService
                 ?? throw new NotFoundException("IGDB oyunu tapılmadı.");
 
             if (!hasChanges) return;
-                
+
 
             var gameOverride = await _context.IgdbGameOverrides
                 .Include(x => x.Genres)
@@ -1070,8 +1600,18 @@ public sealed class GameService : IGameService
     {
         return sortBy?.Trim().ToLowerInvariant() switch
         {
-            "name_asc" => query.OrderBy(x => x.Name),
-            "name_desc" => query.OrderByDescending(x => x.Name),
+            "name_asc" => query
+                .OrderByDescending(game =>
+                    EF.Functions.Like(
+                        game.Name,
+                        SqlLetterStartPattern))
+                .ThenBy(game => game.Name),
+            "name_desc" => query
+                .OrderByDescending(game =>
+                    EF.Functions.Like(
+                        game.Name,
+                        SqlLetterStartPattern))
+                .ThenByDescending(game => game.Name),
             "rating_asc" => query.OrderBy(x => x.AverageRating),
             "rating_desc" => query.OrderByDescending(x => x.AverageRating),
             "play_asc" => query.OrderBy(x => x.PlayCount),
@@ -1090,8 +1630,12 @@ public sealed class GameService : IGameService
     {
         return sortBy?.Trim().ToLowerInvariant() switch
         {
-            "name_asc" => games.OrderBy(x => x.Title),
-            "name_desc" => games.OrderByDescending(x => x.Title),
+            "name_asc" => games
+                .OrderByDescending(game => StartsWithLetter(game.Title))
+                .ThenBy(game => game.Title, GameTitleComparer),
+            "name_desc" => games
+                .OrderByDescending(game => StartsWithLetter(game.Title))
+                .ThenByDescending(game => game.Title, GameTitleComparer),
             "rating_asc" => games.OrderBy(x => x.AverageRating ?? double.MaxValue),
             "rating_desc" => games.OrderByDescending(x => x.AverageRating ?? double.MinValue),
             "play_asc" => games.OrderBy(x => x.PlayCount),
@@ -1100,8 +1644,28 @@ public sealed class GameService : IGameService
             "year_desc" => games.OrderByDescending(x => x.ReleaseDate ?? DateOnly.MinValue),
             _ => games
                 .OrderByDescending(x => x.ReleaseDate ?? DateOnly.MinValue)
-                .ThenBy(x => x.Title)
+                .ThenBy(x => x.Title, GameTitleComparer)
         };
+    }
+
+    private static bool StartsWithLetter(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return false;
+        }
+
+        foreach (var character in value)
+        {
+            if (char.IsWhiteSpace(character))
+            {
+                continue;
+            }
+
+            return char.IsLetter(character);
+        }
+
+        return false;
     }
 
     private static bool CanQueryIgdb(GameFilterDTO filter)
@@ -1165,13 +1729,13 @@ public sealed class GameService : IGameService
                 .Select(x => x!)
                 .OrderBy(x => x.Name)
                 .ToList(),
-            Platforms = game.GamePlatforms
+                Platforms = game.GamePlatforms
                 .Select(x => platformMap.GetValueOrDefault((x.PlatformSource, x.PlatformSourceId)))
                 .Where(x => x is not null)
                 .Select(x => x!)
                 .OrderBy(x => x.Name)
                 .ToList(),
-            Companies = game.GameCompanies
+                Companies = game.GameCompanies
                 .Select(x => companyMap.TryGetValue((x.CompanySource, x.CompanySourceId), out var company)
                     ? new CompanyLookupDTO
                     {
@@ -1378,7 +1942,11 @@ public sealed class GameService : IGameService
     {
         var normalizedReferences = references
             .Where(reference => reference.Id > 0)
-            .DistinctBy(reference => new { reference.Source, reference.Id })
+            .DistinctBy(reference => new
+            {
+                reference.Source,
+                reference.Id
+            })
             .ToList();
 
         if (normalizedReferences.Count == 0)
@@ -1387,20 +1955,26 @@ public sealed class GameService : IGameService
         }
 
         var localIds = normalizedReferences
-            .Where(reference => reference.Source == CatalogSource.Local)
+            .Where(reference =>
+                reference.Source == CatalogSource.Local)
             .Select(reference => reference.Id)
             .ToArray();
 
         var igdbIds = normalizedReferences
-            .Where(reference => reference.Source == CatalogSource.Igdb)
+            .Where(reference =>
+                reference.Source == CatalogSource.Igdb)
             .Select(reference => reference.Id)
             .ToArray();
 
-        var rows = await _context.UserGames
+        var userGamesQuery = _context.UserGames
             .AsNoTracking()
             .Where(userGame =>
-                (userGame.Source == CatalogSource.Local && localIds.Contains(userGame.GameId)) ||
-                (userGame.Source == CatalogSource.Igdb && igdbIds.Contains(userGame.GameId)))
+                (userGame.Source == CatalogSource.Local &&
+                 localIds.Contains(userGame.GameId)) ||
+                (userGame.Source == CatalogSource.Igdb &&
+                 igdbIds.Contains(userGame.GameId)));
+
+        var summaryRows = await userGamesQuery
             .GroupBy(userGame => new
             {
                 userGame.Source,
@@ -1410,33 +1984,95 @@ public sealed class GameService : IGameService
             {
                 group.Key.Source,
                 group.Key.GameId,
-                AverageRating = group.Average(userGame => userGame.Rating),
-                RatingCount = group.Count(userGame => userGame.Rating.HasValue),
-                PlayingCount = group.Count(userGame =>
-                    userGame.Status == UserGameStatus.Playing),
-                PlanToPlayCount = group.Count(userGame =>
-                    userGame.Status == UserGameStatus.PlanToPlay),
-                PlayedCount = group.Count(userGame =>
-                    userGame.Status == UserGameStatus.Played),
-                DroppedCount = group.Count(userGame =>
-                    userGame.Status == UserGameStatus.Dropped),
-                WishlistCount = group.Count(userGame => userGame.IsWishlisted),
-                FavoriteCount = group.Count(userGame => userGame.IsFavorite)
+                AverageRating = group.Average(
+                    userGame => userGame.Rating),
+                RatingCount = group.Count(
+                    userGame => userGame.Rating.HasValue),
+                PlayingCount = group.Count(
+                    userGame =>
+                        userGame.Status == UserGameStatus.Playing),
+                PlanToPlayCount = group.Count(
+                    userGame =>
+                        userGame.Status == UserGameStatus.PlanToPlay),
+                PlayedCount = group.Count(
+                    userGame =>
+                        userGame.Status == UserGameStatus.Played),
+                DroppedCount = group.Count(
+                    userGame =>
+                        userGame.Status == UserGameStatus.Dropped),
+                WishlistCount = group.Count(
+                    userGame => userGame.IsWishlisted),
+                FavoriteCount = group.Count(
+                    userGame => userGame.IsFavorite)
             })
             .ToListAsync(cancellationToken);
 
-        return rows.ToDictionary(
-            row => (row.Source, row.GameId),
-            row => new GameCommunityStatsDTO
+        var ratingRows = await userGamesQuery
+            .Where(userGame => userGame.Rating.HasValue)
+            .GroupBy(userGame => new
             {
-                AverageRating = row.AverageRating,
-                RatingCount = row.RatingCount,
-                PlayingCount = row.PlayingCount,
-                PlanToPlayCount = row.PlanToPlayCount,
-                PlayedCount = row.PlayedCount,
-                DroppedCount = row.DroppedCount,
-                WishlistCount = row.WishlistCount,
-                FavoriteCount = row.FavoriteCount
+                userGame.Source,
+                userGame.GameId,
+                Rating = userGame.Rating!.Value
+            })
+            .Select(group => new
+            {
+                group.Key.Source,
+                group.Key.GameId,
+                group.Key.Rating,
+                Count = group.Count()
+            })
+            .ToListAsync(cancellationToken);
+
+        var summaryMap = summaryRows.ToDictionary(
+            row => (row.Source, row.GameId));
+
+        var ratingCountMap = ratingRows.ToDictionary(
+            row =>
+                (row.Source, row.GameId, row.Rating),
+            row => row.Count);
+
+        return normalizedReferences.ToDictionary(
+            reference =>
+                (reference.Source, reference.Id),
+            reference =>
+            {
+                summaryMap.TryGetValue(
+                    (reference.Source, reference.Id),
+                    out var summary);
+
+                var distribution = Enumerable
+                    .Range(1, 10)
+                    .Reverse()
+                    .Select(step =>
+                    {
+                        var rating = step / 2d;
+
+                        return new GameRatingDistributionItemDTO
+                        {
+                            Rating = rating,
+                            Count = ratingCountMap.GetValueOrDefault(
+                                (
+                                    reference.Source,
+                                    reference.Id,
+                                    rating
+                                ))
+                        };
+                    })
+                    .ToList();
+
+                return new GameCommunityStatsDTO
+                {
+                    AverageRating = summary?.AverageRating,
+                    RatingCount = summary?.RatingCount ?? 0,
+                    RatingDistribution = distribution,
+                    PlayingCount = summary?.PlayingCount ?? 0,
+                    PlanToPlayCount = summary?.PlanToPlayCount ?? 0,
+                    PlayedCount = summary?.PlayedCount ?? 0,
+                    DroppedCount = summary?.DroppedCount ?? 0,
+                    WishlistCount = summary?.WishlistCount ?? 0,
+                    FavoriteCount = summary?.FavoriteCount ?? 0
+                };
             });
     }
 
@@ -2099,12 +2735,6 @@ public sealed class GameService : IGameService
                 "IGDB oyunlarını local kataloq istinadı ilə filterləmək mümkün deyil.");
         }
 
-        if (filter.Source == CatalogSource.Igdb &&
-            filter.SortBy?.StartsWith("play_", StringComparison.OrdinalIgnoreCase) == true)
-        {
-            throw new BadRequestException(
-                "IGDB oyunlarında oynanma sayına görə sıralama dəstəklənmir.");
-        }
     }
 
     private static void ValidateFilterReference(

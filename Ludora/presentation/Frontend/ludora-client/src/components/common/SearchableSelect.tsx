@@ -1,6 +1,7 @@
 import {
   Check,
   ChevronDown,
+  LoaderCircle,
   Search,
   X,
 } from "lucide-react";
@@ -31,6 +32,8 @@ interface SearchableSelectProps {
 
   searchable?: boolean;
   disabled?: boolean;
+  isSearching?: boolean;
+  onSearchChange?: (value: string) => void;
 }
 
 function normalizeSearchValue(value: string): string {
@@ -51,6 +54,8 @@ export function SearchableSelect({
   emptyMessage = "Nəticə tapılmadı.",
   searchable = true,
   disabled = false,
+  isSearching = false,
+  onSearchChange,
 }: SearchableSelectProps) {
   const searchInputId = useId();
 
@@ -78,6 +83,7 @@ export function SearchableSelect({
         )
       ) {
         setIsOpen(false);
+        setSearchValue("");
       }
     }
 
@@ -86,6 +92,7 @@ export function SearchableSelect({
     ) {
       if (event.key === "Escape") {
         setIsOpen(false);
+        setSearchValue("");
       }
     }
 
@@ -113,10 +120,8 @@ export function SearchableSelect({
   }, []);
 
   useEffect(() => {
-    if (!isOpen) {
-      setSearchValue("");
-    }
-  }, [isOpen]);
+    onSearchChange?.(searchValue);
+  }, [onSearchChange, searchValue]);
 
   const filteredOptions = useMemo(() => {
     const normalizedSearch =
@@ -163,6 +168,7 @@ export function SearchableSelect({
   ) {
     onChange(selectedValue);
     setIsOpen(false);
+    setSearchValue("");
   }
 
   return (
@@ -174,10 +180,11 @@ export function SearchableSelect({
         type="button"
         disabled={disabled}
         onClick={() => {
-          setIsOpen(
-            (currentValue) =>
-              !currentValue,
-          );
+          if (isOpen) {
+            setSearchValue("");
+          }
+
+          setIsOpen(!isOpen);
         }}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
@@ -280,7 +287,15 @@ export function SearchableSelect({
               )}
             </button>
 
-            {filteredOptions.length === 0 ? (
+            {isSearching ? (
+              <div className="flex items-center justify-center gap-2 px-4 py-10 text-sm text-zinc-600">
+                <LoaderCircle
+                  size={16}
+                  className="animate-spin"
+                />
+                Axtarılır...
+              </div>
+            ) : filteredOptions.length === 0 ? (
               <div className="px-4 py-10 text-center text-sm text-zinc-600">
                 {emptyMessage}
               </div>

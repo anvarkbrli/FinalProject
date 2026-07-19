@@ -5,7 +5,7 @@ using Ludora.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Ludora.API.Controllers
+namespace Ludora.API.Controllers.User
 {
     [Route("api/[controller]")]
     [ApiController]

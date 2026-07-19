@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace Ludora.API.Controllers
+namespace Ludora.API.Controllers.User
 {
     [Route("api/[controller]")]
     [ApiController]

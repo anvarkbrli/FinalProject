@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Security.Claims;
 
-namespace Ludora.API.Controllers
+namespace Ludora.API.Controllers.User
 {
     [Route("api/[controller]")]
     [ApiController]

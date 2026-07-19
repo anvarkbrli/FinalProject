@@ -11,18 +11,30 @@ import {
   Clock3,
   Database,
   Gamepad2,
+  Glasses,
+  Globe2,
   Heart,
+  Joystick,
+  MousePointer2,
+  Smartphone,
   Layers3,
   LoaderCircle,
   PlayCircle,
   Star,
+  TabletSmartphone,
+  Tv,
   XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import {
+  Link,
+  useParams,
+} from "react-router-dom";
+import { GameCommunityStats } from "../components/game/GameCommunityStats";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
 import { getApiErrorMessage } from "../lib/api";
+import { canViewCatalogSources } from "../lib/authRoles";
 import {
   isFutureReleaseDate,
   resolveAssetUrl,
@@ -46,7 +58,6 @@ import type {
   GameType,
 } from "../types/home";
 import type {
-  GameCommunityStatsDTO,
   GameDetailDTO,
   RelatedGamesDTO,
 } from "../types/games";
@@ -103,12 +114,16 @@ const relatedSections: RelatedSection[] = [
   },
 ];
 
-const gameTypeLabels: Record<GameType, string> = {
+const gameTypeLabels: Record<
+  GameType,
+  string
+> = {
   MainGame: "Əsas oyun",
   DlcAddon: "DLC",
   Expansion: "Expansion",
   Bundle: "Bundle",
-  StandaloneExpansion: "Müstəqil expansion",
+  StandaloneExpansion:
+    "Müstəqil expansion",
   Mod: "Mod",
   Episode: "Epizod",
   Season: "Sezon",
@@ -138,31 +153,198 @@ function formatReleaseDate(
     return "Tarix qeyd edilməyib";
   }
 
-  const [year, month, day] = value
-    .slice(0, 10)
-    .split("-")
-    .map(Number);
+  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(
+    value,
+  );
 
-  const date = new Date(year, month - 1, day);
-
-  if (Number.isNaN(date.getTime())) {
+  if (!match) {
     return value;
   }
 
-  return new Intl.DateTimeFormat("az-AZ", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
+  const [, year, month, day] = match;
+
+  return `${day}.${month}.${year}`;
 }
 
-function formatCount(value: number): string {
-  return new Intl.NumberFormat("az-AZ").format(
-    Math.max(0, value),
+type CatalogFilterKind =
+  | "company"
+  | "genre"
+  | "platform";
+
+function buildCatalogFilterUrl(
+  kind: CatalogFilterKind,
+  name: string,
+): string {
+  const searchParams = new URLSearchParams({
+    [`${kind}Name`]: name,
+  });
+
+  return `/games?${searchParams.toString()}`;
+}
+
+function buildCatalogFilterState(
+  kind: CatalogFilterKind,
+  source: CatalogSource,
+  id: number,
+  name: string,
+) {
+  return {
+    catalogFilter: {
+      kind,
+      source,
+      id,
+      name,
+    },
+  };
+}
+
+function getPlatformIcon(
+  platformName: string,
+): typeof Gamepad2 {
+  const normalizedName = platformName
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase();
+
+  if (
+    normalizedName.includes("windows") ||
+    normalizedName.includes("pc") ||
+    normalizedName.includes("linux") ||
+    normalizedName.includes("mac") ||
+    normalizedName.includes("computer")
+  ) {
+    return MousePointer2;
+  }
+
+  if (
+    normalizedName.includes("android") ||
+    normalizedName.includes("ios") ||
+    normalizedName.includes("mobile") ||
+    normalizedName.includes("phone")
+  ) {
+    return Smartphone;
+  }
+
+  if (
+    normalizedName.includes("tablet") ||
+    normalizedName.includes("ipad")
+  ) {
+    return TabletSmartphone;
+  }
+
+  if (
+    normalizedName.includes("web") ||
+    normalizedName.includes("browser")
+  ) {
+    return Globe2;
+  }
+
+  if (normalizedName.includes("arcade")) {
+    return Joystick;
+  }
+
+  if (
+    normalizedName.includes("vr") ||
+    normalizedName.includes(
+      "virtual reality",
+    )
+  ) {
+    return Glasses;
+  }
+
+  if (
+    normalizedName.includes("tv") ||
+    normalizedName.includes("television")
+  ) {
+    return Tv;
+  }
+
+  return Gamepad2;
+}
+
+function InteractiveRatingStar({
+  starNumber,
+  selectedRating,
+  disabled,
+  onPreview,
+  onSelect,
+}: {
+  starNumber: number;
+  selectedRating: number;
+  disabled: boolean;
+  onPreview: (
+    value: number | null,
+  ) => void;
+  onSelect: (value: number) => void;
+}) {
+  const halfValue = starNumber - 0.5;
+
+  const fillPercent =
+    selectedRating >= starNumber
+      ? 100
+      : selectedRating >= halfValue
+        ? 50
+        : 0;
+
+  return (
+    <div className="relative h-8 w-8 shrink-0">
+      <Star
+        size={28}
+        className="absolute inset-0 m-auto text-zinc-700"
+      />
+
+      <span
+        className="pointer-events-none absolute inset-y-0 left-0 overflow-hidden"
+        style={{
+          width: `${fillPercent}%`,
+        }}
+      >
+        <Star
+          size={28}
+          className="absolute left-0 top-1/2 -translate-y-1/2 fill-amber-300 text-amber-300"
+        />
+      </span>
+
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={`${halfValue.toFixed(
+          1,
+        )} ulduz reytinq ver`}
+        onMouseEnter={() =>
+          onPreview(halfValue)
+        }
+        onFocus={() =>
+          onPreview(halfValue)
+        }
+        onBlur={() => onPreview(null)}
+        onClick={() =>
+          onSelect(halfValue)
+        }
+        className="absolute inset-y-0 left-0 z-10 w-1/2 rounded-l-md outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:cursor-not-allowed"
+      />
+
+      <button
+        type="button"
+        disabled={disabled}
+        aria-label={`${starNumber.toFixed(
+          1,
+        )} ulduz reytinq ver`}
+        onMouseEnter={() =>
+          onPreview(starNumber)
+        }
+        onFocus={() =>
+          onPreview(starNumber)
+        }
+        onBlur={() => onPreview(null)}
+        onClick={() =>
+          onSelect(starNumber)
+        }
+        className="absolute inset-y-0 right-0 z-10 w-1/2 rounded-r-md outline-none focus-visible:ring-2 focus-visible:ring-amber-300 disabled:cursor-not-allowed"
+      />
+    </div>
   );
 }
-
-
 
 type TrackingAction =
   | {
@@ -212,122 +394,34 @@ const trackingStatusOptions: Array<{
   },
 ];
 
-function CommunityStatsGrid({
-  stats,
-}: {
-  stats: GameCommunityStatsDTO;
-}) {
-  const cards = [
-    {
-      key: "rating",
-      label: "Orta reytinq",
-      value:
-        stats.averageRating !== null
-          ? stats.averageRating.toFixed(1)
-          : "—",
-      detail:
-        stats.ratingCount > 0
-          ? `${formatCount(stats.ratingCount)} istifadəçi reytinqi`
-          : "Hələ reytinq verilməyib",
-      icon: Star,
-      iconClassName: "text-amber-300",
-    },
-    {
-      key: "played",
-      label: "Oynayıb",
-      value: formatCount(stats.playedCount),
-      detail: "Oyunu tamamlayan və ya oynayanlar",
-      icon: CheckCircle2,
-      iconClassName: "text-emerald-300",
-    },
-    {
-      key: "playing",
-      label: "Oynayır",
-      value: formatCount(stats.playingCount),
-      detail: "Hazırda oynayan istifadəçilər",
-      icon: PlayCircle,
-      iconClassName: "text-violet-300",
-    },
-    {
-      key: "plan-to-play",
-      label: "Oynayacaq",
-      value: formatCount(stats.planToPlayCount),
-      detail: "Sonra oynamağı planlaşdıranlar",
-      icon: Clock3,
-      iconClassName: "text-sky-300",
-    },
-    {
-      key: "wishlist",
-      label: "Wishlist",
-      value: formatCount(stats.wishlistCount),
-      detail: "İstək siyahısına əlavə edənlər",
-      icon: Bookmark,
-      iconClassName: "text-fuchsia-300",
-    },
-    {
-      key: "favorite",
-      label: "Favori",
-      value: formatCount(stats.favoriteCount),
-      detail: "Favori oyun kimi işarələyənlər",
-      icon: Heart,
-      iconClassName: "text-rose-300",
-    },
-  ];
-
-  return (
-    <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-      {cards.map((card) => {
-        const Icon = card.icon;
-
-        return (
-          <div
-            key={card.key}
-            className="rounded-2xl border border-white/[0.09] bg-[#181921] p-5"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-semibold text-zinc-500">
-                {card.label}
-              </span>
-              <Icon
-                size={19}
-                className={card.iconClassName}
-              />
-            </div>
-
-            <p className="mt-5 text-4xl font-black tracking-tight text-white">
-              {card.value}
-            </p>
-
-            <p className="mt-2 text-xs leading-5 text-zinc-600">
-              {card.detail}
-            </p>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function GameTrackingPanel({
   game,
 }: {
   game: GameDetailDTO;
 }) {
   const queryClient = useQueryClient();
+
   const accessToken = useAuthStore(
     (state) => state.accessToken,
   );
+
   const expiresAtUtc = useAuthStore(
     (state) => state.expiresAtUtc,
   );
-  const isAuthenticated = isAuthSessionValid(
-    accessToken,
-    expiresAtUtc,
-  );
+
+  const isAuthenticated =
+    isAuthSessionValid(
+      accessToken,
+      expiresAtUtc,
+    );
+
   const [actionError, setActionError] =
     useState<string | null>(null);
-  const [hoveredRating, setHoveredRating] =
-    useState<number | null>(null);
+
+  const [
+    hoveredRating,
+    setHoveredRating,
+  ] = useState<number | null>(null);
 
   const userStateKey = [
     "user-game-state",
@@ -338,7 +432,10 @@ function GameTrackingPanel({
   const stateQuery = useQuery({
     queryKey: userStateKey,
     queryFn: () =>
-      getUserGameState(game.source, game.id),
+      getUserGameState(
+        game.source,
+        game.id,
+      ),
     enabled: isAuthenticated,
   });
 
@@ -355,23 +452,27 @@ function GameTrackingPanel({
             game.id,
             action.status,
           );
+
         case "remove-status":
           return removeUserGameStatus(
             game.source,
             game.id,
           );
+
         case "favorite":
           return setUserGameFavorite(
             game.source,
             game.id,
             action.value,
           );
+
         case "wishlist":
           return setUserGameWishlist(
             game.source,
             game.id,
             action.value,
           );
+
         case "rating":
           return setUserGameRating(
             game.source,
@@ -380,11 +481,13 @@ function GameTrackingPanel({
           );
       }
     },
+
     onSuccess: (state) => {
       queryClient.setQueryData(
         userStateKey,
         state,
       );
+
       void queryClient.invalidateQueries({
         queryKey: [
           "game-detail",
@@ -393,6 +496,7 @@ function GameTrackingPanel({
         ],
       });
     },
+
     onError: (error) => {
       setActionError(
         getApiErrorMessage(
@@ -403,7 +507,9 @@ function GameTrackingPanel({
     },
   });
 
-  const runAction = (action: TrackingAction) => {
+  const runAction = (
+    action: TrackingAction,
+  ) => {
     setActionError(null);
     actionMutation.mutate(action);
   };
@@ -414,9 +520,13 @@ function GameTrackingPanel({
         <p className="text-sm font-bold text-zinc-100">
           Oyunu öz profilində izlə
         </p>
+
         <p className="mt-2 text-sm leading-6 text-zinc-500">
-          Status, wishlist, favori və şəxsi reytinq əlavə etmək üçün hesabına daxil ol.
+          Status, wishlist, favori və
+          şəxsi reytinq əlavə etmək üçün
+          hesabına daxil ol.
         </p>
+
         <Link
           to="/login"
           className="mt-4 inline-flex rounded-lg bg-violet-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-violet-400"
@@ -428,9 +538,14 @@ function GameTrackingPanel({
   }
 
   const userState = stateQuery.data;
+
   const selectedRating =
-    hoveredRating ?? userState?.rating ?? 0;
-  const isPending = actionMutation.isPending;
+    hoveredRating ??
+    userState?.rating ??
+    0;
+
+  const isPending =
+    actionMutation.isPending;
 
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-[#15161c] p-5">
@@ -439,10 +554,13 @@ function GameTrackingPanel({
           <p className="text-sm font-bold text-zinc-100">
             Mənim oyun vəziyyətim
           </p>
+
           <p className="mt-1 text-xs text-zinc-600">
-            Statusunu və reytinqini idarə et
+            Statusunu və reytinqini
+            idarə et
           </p>
         </div>
+
         {isPending && (
           <LoaderCircle
             size={18}
@@ -463,8 +581,10 @@ function GameTrackingPanel({
             {trackingStatusOptions.map(
               (option) => {
                 const Icon = option.icon;
+
                 const isActive =
-                  userState?.status === option.value;
+                  userState?.status ===
+                  option.value;
 
                 return (
                   <button
@@ -474,10 +594,14 @@ function GameTrackingPanel({
                     onClick={() => {
                       runAction(
                         isActive
-                          ? { type: "remove-status" }
+                          ? {
+                              type:
+                                "remove-status",
+                            }
                           : {
                               type: "status",
-                              status: option.value,
+                              status:
+                                option.value,
                             },
                       );
                     }}
@@ -502,7 +626,8 @@ function GameTrackingPanel({
               onClick={() => {
                 runAction({
                   type: "wishlist",
-                  value: !userState?.isWishlisted,
+                  value:
+                    !userState?.isWishlisted,
                 });
               }}
               className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
@@ -519,6 +644,7 @@ function GameTrackingPanel({
                     : ""
                 }
               />
+
               Wishlist
             </button>
 
@@ -528,7 +654,8 @@ function GameTrackingPanel({
               onClick={() => {
                 runAction({
                   type: "favorite",
-                  value: !userState?.isFavorite,
+                  value:
+                    !userState?.isFavorite,
                 });
               }}
               className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
@@ -545,6 +672,7 @@ function GameTrackingPanel({
                     : ""
                 }
               />
+
               Favori
             </button>
           </div>
@@ -554,8 +682,10 @@ function GameTrackingPanel({
               <span className="text-sm font-semibold text-zinc-300">
                 Mənim reytinqim
               </span>
+
               {userState?.rating !== null &&
-                userState?.rating !== undefined && (
+                userState?.rating !==
+                  undefined && (
                   <button
                     type="button"
                     disabled={isPending}
@@ -579,52 +709,43 @@ function GameTrackingPanel({
               }}
             >
               {[1, 2, 3, 4, 5].map(
-                (rating) => (
-                  <button
-                    key={rating}
-                    type="button"
+                (starNumber) => (
+                  <InteractiveRatingStar
+                    key={starNumber}
+                    starNumber={
+                      starNumber
+                    }
+                    selectedRating={
+                      selectedRating
+                    }
                     disabled={isPending}
-                    aria-label={`${rating} ulduz reytinq ver`}
-                    onMouseEnter={() => {
-                      setHoveredRating(rating);
-                    }}
-                    onFocus={() => {
-                      setHoveredRating(rating);
-                    }}
-                    onBlur={() => {
-                      setHoveredRating(null);
-                    }}
-                    onClick={() => {
+                    onPreview={
+                      setHoveredRating
+                    }
+                    onSelect={(rating) => {
                       runAction({
                         type: "rating",
                         value: rating,
                       });
                     }}
-                    className="rounded-md p-1 transition hover:scale-110 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    <Star
-                      size={25}
-                      className={
-                        rating <= selectedRating
-                          ? "fill-amber-300 text-amber-300"
-                          : "text-zinc-700"
-                      }
-                    />
-                  </button>
+                  />
                 ),
               )}
             </div>
 
             <p className="mt-2 text-xs text-zinc-600">
               {userState?.rating
-                ? `${userState.rating.toFixed(1)} / 5`
+                ? `${userState.rating.toFixed(
+                    1,
+                  )} / 5`
                 : "Hələ reytinq verməmisən"}
             </p>
           </div>
         </>
       )}
 
-      {(actionError || stateQuery.isError) && (
+      {(actionError ||
+        stateQuery.isError) && (
         <p className="mt-4 rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-200">
           {actionError ??
             getApiErrorMessage(
@@ -642,12 +763,21 @@ function RelatedGameCard({
 }: {
   game: GameListItemDTO;
 }) {
+  const accessToken = useAuthStore(
+    (state) => state.accessToken,
+  );
+
+  const canViewSources =
+    canViewCatalogSources(accessToken);
+
   const coverUrl = resolveAssetUrl(
     game.coverImageUrl,
   );
 
-  const [failedCoverUrl, setFailedCoverUrl] =
-    useState<string | null>(null);
+  const [
+    failedCoverUrl,
+    setFailedCoverUrl,
+  ] = useState<string | null>(null);
 
   const shouldShowCover =
     coverUrl !== null &&
@@ -667,12 +797,15 @@ function RelatedGameCard({
               loading="lazy"
               className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
               onError={() => {
-                setFailedCoverUrl(coverUrl);
+                setFailedCoverUrl(
+                  coverUrl,
+                );
               }}
             />
           ) : (
             <div className="flex h-full flex-col items-center justify-center gap-3 px-5 text-center text-zinc-600">
               <Gamepad2 size={32} />
+
               <span className="line-clamp-3 text-sm font-medium">
                 {game.title}
               </span>
@@ -683,7 +816,11 @@ function RelatedGameCard({
 
           <div className="absolute inset-x-0 bottom-0 p-3">
             <span className="inline-flex rounded-md border border-white/10 bg-black/45 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 backdrop-blur-sm">
-              {gameTypeLabels[game.gameType]}
+              {
+                gameTypeLabels[
+                  game.gameType
+                ]
+              }
             </span>
           </div>
         </div>
@@ -696,11 +833,13 @@ function RelatedGameCard({
             {game.title}
           </h3>
 
-          <p className="mt-2 text-xs text-zinc-600">
-            {game.source === "Local"
-              ? "Ludora"
-              : "IGDB"}
-          </p>
+          {canViewSources && (
+            <p className="mt-2 text-xs text-zinc-600">
+              {game.source === "Local"
+                ? "Ludora"
+                : "IGDB"}
+            </p>
+          )}
         </div>
       </article>
     </Link>
@@ -712,42 +851,58 @@ function GameDetailContent({
 }: {
   game: GameDetailDTO;
 }) {
+  const accessToken = useAuthStore(
+    (state) => state.accessToken,
+  );
+
+  const canViewSources =
+    canViewCatalogSources(accessToken);
+
   const coverUrl = resolveAssetUrl(
     game.coverImageUrl,
   );
 
-  const [failedCoverUrl, setFailedCoverUrl] =
-    useState<string | null>(null);
+  const [
+    failedCoverUrl,
+    setFailedCoverUrl,
+  ] = useState<string | null>(null);
 
   const shouldShowCover =
     coverUrl !== null &&
     failedCoverUrl !== coverUrl;
 
-  const isComingSoon = isFutureReleaseDate(
-    game.releaseDate,
-  );
+  const isComingSoon =
+    isFutureReleaseDate(
+      game.releaseDate,
+    );
 
   const developers = game.companies.filter(
-    (company) => company.role === "Developer",
+    (company) =>
+      company.role === "Developer",
   );
 
   const publishers = game.companies.filter(
-    (company) => company.role === "Publisher",
+    (company) =>
+      company.role === "Publisher",
   );
 
-  const relatedTabs = useMemo<RelatedTab[]>(
-    () => {
+  const relatedTabs =
+    useMemo<RelatedTab[]>(() => {
       const tabs: RelatedTab[] = [];
 
       if (game.relatedGames.parentGame) {
         tabs.push({
           key: "parentGame",
           title: "Əsas oyun",
-          games: [game.relatedGames.parentGame],
+          games: [
+            game.relatedGames.parentGame,
+          ],
         });
       }
 
-      for (const section of relatedSections) {
+      for (
+        const section of relatedSections
+      ) {
         const games =
           game.relatedGames[section.key];
 
@@ -761,28 +916,33 @@ function GameDetailContent({
       }
 
       return tabs;
-    }, [game.relatedGames],
-  );
+    }, [game.relatedGames]);
 
-  const [activeRelatedTab, setActiveRelatedTab] =
-    useState("");
+  const [
+    activeRelatedTab,
+    setActiveRelatedTab,
+  ] = useState("");
 
   const effectiveRelatedTab =
     relatedTabs.some(
-      (tab) => tab.key === activeRelatedTab,
+      (tab) =>
+        tab.key === activeRelatedTab,
     )
       ? activeRelatedTab
       : (relatedTabs[0]?.key ?? "");
 
   const selectedRelatedTab =
     relatedTabs.find(
-      (tab) => tab.key === effectiveRelatedTab,
+      (tab) =>
+        tab.key === effectiveRelatedTab,
     ) ?? relatedTabs[0];
 
-  const relatedGameCount = relatedTabs.reduce(
-    (total, tab) => total + tab.games.length,
-    0,
-  );
+  const relatedGameCount =
+    relatedTabs.reduce(
+      (total, tab) =>
+        total + tab.games.length,
+      0,
+    );
 
   const companyByline =
     developers.length > 0
@@ -803,6 +963,7 @@ function GameDetailContent({
           )}
 
           <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(7,7,10,0.3),rgba(7,7,10,0.72)_45%,#0a0a0e_100%)]" />
+
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#07070a_0%,rgba(7,7,10,0.45)_45%,rgba(7,7,10,0.82)_100%)]" />
         </div>
 
@@ -830,12 +991,15 @@ function GameDetailContent({
                     alt={`${game.title} oyun örtüyü`}
                     className="h-full w-full object-cover"
                     onError={() => {
-                      setFailedCoverUrl(coverUrl);
+                      setFailedCoverUrl(
+                        coverUrl,
+                      );
                     }}
                   />
                 ) : (
                   <div className="flex h-full flex-col items-center justify-center gap-4 px-6 text-center text-zinc-600">
                     <Gamepad2 size={46} />
+
                     <span className="font-semibold">
                       {game.title}
                     </span>
@@ -847,20 +1011,27 @@ function GameDetailContent({
             <div className="min-w-0 pb-2 lg:pb-8">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-violet-400/25 bg-violet-500/15 px-3 py-1.5 text-xs font-bold text-violet-100 backdrop-blur-sm">
-                  {gameTypeLabels[game.gameType]}
+                  {
+                    gameTypeLabels[
+                      game.gameType
+                    ]
+                  }
                 </span>
 
-                <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1.5 text-xs font-semibold text-zinc-300 backdrop-blur-sm">
-                  {game.source === "Local"
-                    ? "Ludora"
-                    : "IGDB"}
-                </span>
-
-                {game.isOverridden && (
-                  <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-200">
-                    Redaktə edilib
+                {canViewSources && (
+                  <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1.5 text-xs font-semibold text-zinc-300 backdrop-blur-sm">
+                    {game.source === "Local"
+                      ? "Ludora"
+                      : "IGDB"}
                   </span>
                 )}
+
+                {canViewSources &&
+                  game.isOverridden && (
+                    <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-200">
+                      Redaktə edilib
+                    </span>
+                  )}
               </div>
 
               <div className="mt-5 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
@@ -869,26 +1040,43 @@ function GameDetailContent({
                     {game.title}
                   </h1>
 
-                  {companyByline.length > 0 && (
+                  {companyByline.length >
+                    0 && (
                     <p className="mt-4 text-base text-zinc-300 sm:text-lg">
-                      <span className="text-zinc-500">
-                        tərəfindən
-                      </span>{" "}
                       {companyByline.map(
-                        (company, index) => (
+                        (
+                          company,
+                          index,
+                        ) => (
                           <span
                             key={`${company.source}-${company.id}-${company.role}`}
                           >
-                            {index > 0 && ", "}
+                            {index > 0 &&
+                              ", "}
+
                             <Link
-                              to={`/companies/${company.source}/${company.id}`}
+                              to={buildCatalogFilterUrl(
+                                "company",
+                                company.name,
+                              )}
+                              state={buildCatalogFilterState(
+                                "company",
+                                company.source,
+                                company.id,
+                                company.name,
+                              )}
                               className="font-semibold text-zinc-200 underline decoration-white/20 underline-offset-4 transition hover:text-violet-200 hover:decoration-violet-300"
                             >
-                              {company.name}
+                              {
+                                company.name
+                              }
                             </Link>
                           </span>
                         ),
-                      )}
+                      )}{" "}
+                      <span className="text-zinc-500">
+                        tərəfindən
+                      </span>
                     </p>
                   )}
                 </div>
@@ -899,6 +1087,7 @@ function GameDetailContent({
                       ? "Coming Soon"
                       : "Çıxış tarixi"}
                   </span>
+
                   <span className="text-zinc-400">
                     {formatReleaseDate(
                       game.releaseDate,
@@ -929,23 +1118,32 @@ function GameDetailContent({
               </div>
 
               <dl className="mt-5 space-y-4 text-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <dt className="text-zinc-500">
-                    Mənbə
-                  </dt>
-                  <dd className="font-semibold text-zinc-200">
-                    {game.source === "Local"
-                      ? "Ludora"
-                      : "IGDB"}
-                  </dd>
-                </div>
+                {canViewSources && (
+                  <div className="flex items-center justify-between gap-4">
+                    <dt className="text-zinc-500">
+                      Mənbə
+                    </dt>
+
+                    <dd className="font-semibold text-zinc-200">
+                      {game.source ===
+                      "Local"
+                        ? "Ludora"
+                        : "IGDB"}
+                    </dd>
+                  </div>
+                )}
 
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-zinc-500">
                     Növ
                   </dt>
+
                   <dd className="text-right font-semibold text-zinc-200">
-                    {gameTypeLabels[game.gameType]}
+                    {
+                      gameTypeLabels[
+                        game.gameType
+                      ]
+                    }
                   </dd>
                 </div>
 
@@ -953,6 +1151,7 @@ function GameDetailContent({
                   <dt className="text-zinc-500">
                     Əlaqəli məzmun
                   </dt>
+
                   <dd className="font-semibold text-zinc-200">
                     {relatedGameCount}
                   </dd>
@@ -960,7 +1159,9 @@ function GameDetailContent({
               </dl>
             </div>
 
-            <GameTrackingPanel game={game} />
+            <GameTrackingPanel
+              game={game}
+            />
           </aside>
 
           <div className="min-w-0">
@@ -972,15 +1173,20 @@ function GameDetailContent({
 
                 <div className="flex flex-wrap gap-x-3 gap-y-2">
                   {game.genres.length > 0 ? (
-                    game.genres.map((genre) => (
-                      <Link
-                        key={`${genre.source}-${genre.id}`}
-                        to={`/genres/${genre.source}/${genre.id}`}
-                        className="border-b border-zinc-500 pb-1 text-sm font-medium text-zinc-300 transition hover:border-violet-300 hover:text-violet-200"
-                      >
-                        {genre.name}
-                      </Link>
-                    ))
+                    game.genres.map(
+                      (genre) => (
+                        <Link
+                          key={`${genre.source}-${genre.id}`}
+                          to={buildCatalogFilterUrl(
+                            "genre",
+                            genre.name,
+                          )}
+                          className="border-b border-zinc-500 pb-1 text-sm font-medium text-zinc-300 transition hover:border-violet-300 hover:text-violet-200"
+                        >
+                          {genre.name}
+                        </Link>
+                      ),
+                    )
                   ) : (
                     <span className="text-sm text-zinc-600">
                       Janr qeyd edilməyib.
@@ -995,22 +1201,39 @@ function GameDetailContent({
                 </h2>
 
                 <div className="flex flex-wrap gap-2">
-                  {game.platforms.length > 0 ? (
+                  {game.platforms.length >
+                  0 ? (
                     game.platforms.map(
-                      (platform) => (
-                        <Link
-                          key={`${platform.source}-${platform.id}`}
-                          to={`/platforms/${platform.source}/${platform.id}`}
-                          className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-zinc-300 transition hover:border-violet-400/40 hover:bg-violet-500/10 hover:text-violet-100"
-                        >
-                          <Gamepad2 size={15} />
-                          {platform.name}
-                        </Link>
-                      ),
+                      (platform) => {
+                        const PlatformIcon =
+                          getPlatformIcon(
+                            platform.name,
+                          );
+
+                        return (
+                          <Link
+                            key={`${platform.source}-${platform.id}`}
+                            to={buildCatalogFilterUrl(
+                              "platform",
+                              platform.name,
+                            )}
+                            className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-zinc-300 transition hover:border-violet-400/40 hover:bg-violet-500/10 hover:text-violet-100"
+                          >
+                            <PlatformIcon
+                              size={15}
+                            />
+
+                            {
+                              platform.name
+                            }
+                          </Link>
+                        );
+                      },
                     )
                   ) : (
                     <span className="text-sm text-zinc-600">
-                      Platforma qeyd edilməyib.
+                      Platforma qeyd
+                      edilməyib.
                     </span>
                   )}
                 </div>
@@ -1022,16 +1245,32 @@ function GameDetailContent({
                 </h2>
 
                 <div className="flex flex-wrap gap-2">
-                  {game.companies.length > 0 ? (
+                  {game.companies.length >
+                  0 ? (
                     game.companies.map(
                       (company) => (
                         <Link
                           key={`${company.source}-${company.id}-${company.role}`}
-                          to={`/companies/${company.source}/${company.id}`}
+                          to={buildCatalogFilterUrl(
+                            "company",
+                            company.name,
+                          )}
+                          state={buildCatalogFilterState(
+                            "company",
+                            company.source,
+                            company.id,
+                            company.name,
+                          )}
                           className="inline-flex items-center gap-2 rounded-lg bg-white/[0.04] px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
                         >
-                          <Building2 size={15} />
-                          <span>{company.name}</span>
+                          <Building2
+                            size={15}
+                          />
+
+                          <span>
+                            {company.name}
+                          </span>
+
                           <span className="text-xs text-zinc-600">
                             {company.role ===
                             "Developer"
@@ -1043,14 +1282,17 @@ function GameDetailContent({
                     )
                   ) : (
                     <span className="text-sm text-zinc-600">
-                      Şirkət qeyd edilməyib.
+                      Şirkət qeyd
+                      edilməyib.
                     </span>
                   )}
                 </div>
               </div>
             </div>
 
-            <CommunityStatsGrid
+            <GameCommunityStats
+              source={game.source}
+              gameId={game.id}
               stats={game.communityStats}
             />
           </div>
@@ -1066,13 +1308,16 @@ function GameDetailContent({
                   size={20}
                   className="text-violet-300"
                 />
+
                 <h2 className="text-2xl font-black tracking-tight text-white">
                   Əlaqəli oyunlar
                 </h2>
               </div>
 
               <p className="mt-2 text-sm text-zinc-600">
-                DLC, expansion, bundle, remake və digər əlaqəli buraxılışlar.
+                DLC, expansion, bundle,
+                remake və digər əlaqəli
+                buraxılışlar.
               </p>
             </div>
 
@@ -1088,14 +1333,17 @@ function GameDetailContent({
               <div className="flex gap-7 overflow-x-auto border-b border-white/[0.08] pt-6">
                 {relatedTabs.map((tab) => {
                   const isActive =
-                    tab.key === effectiveRelatedTab;
+                    tab.key ===
+                    effectiveRelatedTab;
 
                   return (
                     <button
                       key={tab.key}
                       type="button"
                       onClick={() => {
-                        setActiveRelatedTab(tab.key);
+                        setActiveRelatedTab(
+                          tab.key,
+                        );
                       }}
                       className={`relative shrink-0 pb-4 text-sm font-bold transition ${
                         isActive
@@ -1104,6 +1352,7 @@ function GameDetailContent({
                       }`}
                     >
                       {tab.title}
+
                       <span className="ml-2 rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] text-zinc-400">
                         {tab.games.length}
                       </span>
@@ -1122,7 +1371,9 @@ function GameDetailContent({
                     (relatedGame) => (
                       <RelatedGameCard
                         key={`${relatedGame.source}-${relatedGame.id}`}
-                        game={relatedGame}
+                        game={
+                          relatedGame
+                        }
                       />
                     ),
                   )}
@@ -1141,7 +1392,9 @@ function GameDetailContent({
               </p>
 
               <p className="mt-2 text-sm text-zinc-600">
-                Bu oyun üçün DLC, expansion, bundle və ya başqa versiya tapılmadı.
+                Bu oyun üçün DLC,
+                expansion, bundle və ya
+                başqa versiya tapılmadı.
               </p>
             </div>
           )}
@@ -1152,10 +1405,14 @@ function GameDetailContent({
 }
 
 export function GameDetailPage() {
-  const { source: sourceValue, id: idValue } =
-    useParams();
+  const {
+    source: sourceValue,
+    id: idValue,
+  } = useParams();
 
-  const source = parseRouteSource(sourceValue);
+  const source =
+    parseRouteSource(sourceValue);
+
   const id = Number(idValue);
 
   const isValidRoute =
@@ -1164,8 +1421,13 @@ export function GameDetailPage() {
     id > 0;
 
   const gameQuery = useQuery({
-    queryKey: ["game-detail", source, id],
-    queryFn: () => getGameById(source!, id),
+    queryKey: [
+      "game-detail",
+      source,
+      id,
+    ],
+    queryFn: () =>
+      getGameById(source!, id),
     enabled: isValidRoute,
   });
 
@@ -1187,9 +1449,11 @@ export function GameDetailPage() {
               size={36}
               className="mx-auto text-zinc-600"
             />
+
             <h1 className="mt-5 text-2xl font-bold text-white">
               Oyun ünvanı yanlışdır
             </h1>
+
             <Link
               to="/games"
               className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-violet-300 transition hover:text-violet-200"
@@ -1203,12 +1467,17 @@ export function GameDetailPage() {
             <div className="min-h-[540px] border-b border-white/[0.06] bg-white/[0.025]">
               <div className="mx-auto max-w-7xl px-5 pb-10 pt-10 lg:px-8">
                 <div className="h-10 w-40 rounded-full bg-white/[0.05]" />
+
                 <div className="mt-16 grid items-end gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
                   <div className="aspect-[3/4] rounded-2xl bg-white/[0.06]" />
+
                   <div className="space-y-5 pb-8">
                     <div className="h-7 w-36 rounded-full bg-white/[0.05]" />
+
                     <div className="h-14 max-w-3xl rounded bg-white/[0.07]" />
+
                     <div className="h-6 max-w-lg rounded bg-white/[0.05]" />
+
                     <div className="h-28 max-w-4xl rounded bg-white/[0.04]" />
                   </div>
                 </div>
@@ -1217,17 +1486,19 @@ export function GameDetailPage() {
 
             <div className="mx-auto grid max-w-7xl gap-8 px-5 py-12 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8 lg:pt-24">
               <div className="h-48 rounded-2xl bg-white/[0.04]" />
+
               <div>
                 <div className="h-32 rounded-2xl bg-white/[0.04]" />
+
                 <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  {Array.from({ length: 4 }).map(
-                    (_, index) => (
-                      <div
-                        key={index}
-                        className="h-40 rounded-2xl bg-white/[0.04]"
-                      />
-                    ),
-                  )}
+                  {Array.from({
+                    length: 4,
+                  }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="h-40 rounded-2xl bg-white/[0.04]"
+                    />
+                  ))}
                 </div>
               </div>
             </div>
@@ -1238,12 +1509,15 @@ export function GameDetailPage() {
               size={36}
               className="mx-auto text-red-300"
             />
+
             <h1 className="mt-5 text-2xl font-bold text-white">
               Oyun yüklənmədi
             </h1>
+
             <p className="mt-3 text-sm text-zinc-500">
               {errorMessage}
             </p>
+
             <Link
               to="/games"
               className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-violet-300 transition hover:text-violet-200"
@@ -1253,7 +1527,9 @@ export function GameDetailPage() {
             </Link>
           </div>
         ) : gameQuery.data ? (
-          <GameDetailContent game={gameQuery.data} />
+          <GameDetailContent
+            game={gameQuery.data}
+          />
         ) : null}
       </main>
 
