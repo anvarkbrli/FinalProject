@@ -49,4 +49,12 @@ public interface IGameListService
         long gameId,
         Guid userId,
         CancellationToken cancellationToken = default);
+
+    Task UpdateGamePositionAsync(
+        int listId,
+        CatalogSource source,
+        long gameId,
+        int position,
+        Guid userId,
+        CancellationToken cancellationToken = default);
 }

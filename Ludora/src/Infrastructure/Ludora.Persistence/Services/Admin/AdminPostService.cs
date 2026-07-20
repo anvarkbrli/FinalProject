@@ -36,7 +36,7 @@ public sealed class AdminPostService : IAdminPostService
         if (search is not null)
         {
             query = query.Where(x =>
-                x.Content.Contains(search) ||
+                (x.Content != null && x.Content.Contains(search)) ||
                 (x.User.UserName != null && x.User.UserName.Contains(search)));
         }
 
@@ -149,6 +149,7 @@ public sealed class AdminPostService : IAdminPostService
             UserName = x.User.UserName ?? string.Empty,
             ProfileImageUrl = x.User.ProfileImageUrl,
             Content = x.Content,
+            ImageUrl = x.ImageUrl,
             IsDeleted = x.IsDeleted,
             DeletedAtUtc = x.DeletedAtUtc,
             DeletedByUserId = x.DeletedByUserId,

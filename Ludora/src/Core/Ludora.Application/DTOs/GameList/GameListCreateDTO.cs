@@ -1,4 +1,4 @@
-﻿using Ludora.Domain.Enums;
+using Ludora.Domain.Enums;
 
 namespace Ludora.Application.DTOs
 {
@@ -9,5 +9,7 @@ namespace Ludora.Application.DTOs
         public string? Description { get; set; }
 
         public ListVisibility Visibility { get; set; } = ListVisibility.Public;
+
+        public bool IsRanked { get; set; }
     }
 }

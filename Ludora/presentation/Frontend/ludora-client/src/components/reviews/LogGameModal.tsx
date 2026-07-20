@@ -670,6 +670,7 @@ export function LogGameModal({
                 />
                 <input
                   type="search"
+                  autoComplete="off"
                   value={searchTerm}
                   onChange={(event) => {
                     setSearchTerm(

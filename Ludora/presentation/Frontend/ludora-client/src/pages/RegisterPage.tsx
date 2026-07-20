@@ -445,7 +445,7 @@ export function RegisterPage() {
                     id="register-user-name"
                     type="text"
                     autoComplete="username"
-                    placeholder="Məsələn: Synox111"
+                    placeholder="İstifadəçi adın"
                     {...form.register("userName")}
                     className="h-12 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-11 pr-4 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/50 focus:bg-white/[0.055] focus:ring-4 focus:ring-violet-500/10"
                   />

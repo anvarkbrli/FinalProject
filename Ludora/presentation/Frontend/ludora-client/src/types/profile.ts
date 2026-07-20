@@ -40,18 +40,25 @@ export interface PostDTO {
   userId: string;
   userName: string;
   profileImageUrl: string | null;
-  content: string;
+  content: string | null;
+  imageUrl: string | null;
   createdAt: string;
   updatedAt: string | null;
   isMine: boolean;
+  likeCount: number;
+  commentCount: number;
+  isLikedByCurrentUser: boolean;
 }
 
 export interface PostCreateDTO {
   content: string;
+  image: File | null;
 }
 
 export interface PostUpdateDTO {
   content: string;
+  image: File | null;
+  removeImage: boolean;
 }
 
 export type ListVisibility =
@@ -64,11 +71,15 @@ export interface GameListSummaryDTO {
   name: string;
   description: string | null;
   visibility: ListVisibility;
+  isRanked: boolean;
   ownerId: string;
   ownerUserName: string;
   gameCount: number;
   createdAt: string;
   updatedAt: string | null;
+  likeCount: number;
+  commentCount: number;
+  isLikedByCurrentUser: boolean;
 }
 
 export interface ReviewDTO {
@@ -128,7 +139,20 @@ export type UserActivityType =
   | "PostDeleted"
   | "GameListCreated"
   | "GameListUpdated"
-  | "GameListDeleted";
+  | "GameListDeleted"
+  | "GameAddedToList"
+  | "GameRemovedFromList"
+  | "GameListGameReordered"
+  | "PostLiked"
+  | "PostUnliked"
+  | "PostCommented"
+  | "PostCommentUpdated"
+  | "PostCommentDeleted"
+  | "GameListLiked"
+  | "GameListUnliked"
+  | "GameListCommented"
+  | "GameListCommentUpdated"
+  | "GameListCommentDeleted";
 
 export interface UserActivityDTO {
   id: number;

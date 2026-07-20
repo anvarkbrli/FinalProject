@@ -21,6 +21,19 @@ public class ReviewInteractionsController : ControllerBase
     public async Task<IActionResult> Unlike(long reviewId, CancellationToken ct)
     { await _service.UnlikeAsync(reviewId, CurrentUserId(), ct); return NoContent(); }
 
+    [HttpGet("{reviewId:long}/likes")]
+    public async Task<ActionResult<PagedResultDTO<ReviewLikeUserDTO>>> GetLikes(
+        long reviewId,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 50,
+        CancellationToken ct = default)
+        => Ok(await _service.GetLikesAsync(
+            reviewId,
+            pageNumber,
+            pageSize,
+            OptionalUserId(),
+            ct));
+
     [Authorize, HttpPost("{reviewId:long}/comments")]
     public async Task<ActionResult<ReviewCommentDTO>> CreateComment(long reviewId, ReviewCommentCreateDTO dto, CancellationToken ct)
     {

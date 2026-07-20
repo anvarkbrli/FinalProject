@@ -63,6 +63,55 @@ public sealed class ReviewInteractionService : IReviewInteractionService
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task<PagedResultDTO<ReviewLikeUserDTO>> GetLikesAsync(
+        long reviewId,
+        int pageNumber,
+        int pageSize,
+        Guid? currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePagination(pageNumber, pageSize);
+        _ = await GetAccessibleReviewAsync(reviewId, currentUserId, cancellationToken);
+
+        var query = _context.ReviewLikes
+            .AsNoTracking()
+            .Where(x => x.ReviewId == reviewId);
+
+        if (currentUserId.HasValue)
+        {
+            query = query.Where(x => !_context.UserBlocks.Any(block =>
+                (block.BlockerId == currentUserId.Value && block.BlockedUserId == x.UserId) ||
+                (block.BlockerId == x.UserId && block.BlockedUserId == currentUserId.Value)));
+        }
+
+        var totalCount = await query.CountAsync(cancellationToken);
+
+        var items = await query
+            .OrderByDescending(x => x.CreatedAt)
+            .ThenBy(x => x.User.UserName)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => new ReviewLikeUserDTO
+            {
+                UserId = x.UserId,
+                UserName = x.User.UserName ?? string.Empty,
+                ProfileImageUrl = x.User.ProfileImageUrl,
+                LikedAt = x.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        return new PagedResultDTO<ReviewLikeUserDTO>
+        {
+            Items = items,
+            PageNumber = pageNumber,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            TotalPages = totalCount == 0
+                ? 0
+                : (int)Math.Ceiling(totalCount / (double)pageSize)
+        };
+    }
+
     public async Task<ReviewCommentDTO> CreateCommentAsync(long reviewId, Guid userId, ReviewCommentCreateDTO dto, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dto);
@@ -212,7 +261,15 @@ public sealed class ReviewInteractionService : IReviewInteractionService
 
     private static void ValidateFilter(ReviewCommentFilterDTO filter)
     {
-        if (filter.PageNumber < 1) throw new BadRequestException("Səhifə nömrəsi 1-dən kiçik ola bilməz.");
-        if (filter.PageSize < 1 || filter.PageSize > MaxPageSize) throw new BadRequestException($"Səhifə ölçüsü 1-{MaxPageSize} aralığında olmalıdır.");
+        ValidatePagination(filter.PageNumber, filter.PageSize);
+    }
+
+    private static void ValidatePagination(int pageNumber, int pageSize)
+    {
+        if (pageNumber < 1)
+            throw new BadRequestException("Səhifə nömrəsi 1-dən kiçik ola bilməz.");
+
+        if (pageSize < 1 || pageSize > MaxPageSize)
+            throw new BadRequestException($"Səhifə ölçüsü 1-{MaxPageSize} aralığında olmalıdır.");
     }
 }

@@ -281,7 +281,7 @@ export function LoginPage() {
                     id="emailOrUserName"
                     type="text"
                     autoComplete="username"
-                    placeholder="omar və ya omar@email.com"
+                    placeholder="Email və ya istifadəçi adınız"
                     {...form.register(
                       "emailOrUserName",
                     )}
@@ -328,7 +328,7 @@ export function LoginPage() {
                         : "password"
                     }
                     autoComplete="current-password"
-                    placeholder="Şifrən"
+                    placeholder="Şifrəniz"
                     {...form.register("password")}
                     className="h-12 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-11 pr-12 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/50 focus:bg-white/[0.055] focus:ring-4 focus:ring-violet-500/10"
                   />

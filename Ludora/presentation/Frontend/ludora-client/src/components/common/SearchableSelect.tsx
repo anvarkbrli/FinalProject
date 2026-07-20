@@ -234,6 +234,7 @@ export function SearchableSelect({
                 <input
                   id={searchInputId}
                   type="search"
+                  autoComplete="off"
                   value={searchValue}
                   onChange={(event) => {
                     setSearchValue(

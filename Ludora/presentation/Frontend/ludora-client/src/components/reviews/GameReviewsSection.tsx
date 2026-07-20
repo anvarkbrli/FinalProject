@@ -12,13 +12,15 @@ import {
   LoaderCircle,
   MessageCircle,
   Monitor,
-  PenLine,
   Star,
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { getApiErrorMessage } from "../../lib/api";
-import { resolveAssetUrl } from "../../lib/helpers";
+import {
+  formatDateTime,
+  resolveAssetUrl,
+} from "../../lib/helpers";
 import {
   getGameReviews,
   likeReview,
@@ -33,7 +35,8 @@ import type {
   ReviewDTO,
   ReviewSort,
 } from "../../types/reviews";
-import { LogGameModal } from "./LogGameModal";
+import { ReviewCommentsPanel } from "./ReviewCommentsPanel";
+import { ReviewLikesModal } from "./ReviewLikesModal";
 
 const sortOptions: Array<{
   value: ReviewSort;
@@ -56,23 +59,6 @@ const sortOptions: Array<{
     label: "Aşağı puan",
   },
 ];
-
-function formatDateTime(value: string): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("az-AZ", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
-}
 
 function formatPlaytime(
   totalMinutes: number | null,
@@ -136,10 +122,16 @@ export function GameReviewsSection({
   const [page, setPage] = useState(1);
   const [sort, setSort] =
     useState<ReviewSort>("Newest");
-  const [isLogModalOpen, setIsLogModalOpen] =
-    useState(false);
   const [revealedSpoilers, setRevealedSpoilers] =
     useState<Set<number>>(() => new Set());
+  const [likesReview, setLikesReview] = useState<{
+    id: number;
+    count: number;
+  } | null>(null);
+  const [openCommentReviewIds, setOpenCommentReviewIds] =
+    useState<Set<number>>(() => new Set());
+  const [interactionError, setInteractionError] =
+    useState<string | null>(null);
 
   const accessToken = useAuthStore(
     (state) => state.accessToken,
@@ -180,13 +172,30 @@ export function GameReviewsSection({
       }
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: [
-          "game-reviews",
-          game.source,
-          game.id,
-        ],
-      });
+      setInteractionError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [
+            "game-reviews",
+            game.source,
+            game.id,
+          ],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["user-reviews"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["review-likes"],
+        }),
+      ]);
+    },
+    onError: (error) => {
+      setInteractionError(
+        getApiErrorMessage(
+          error,
+          "Rəy bəyənmə əməliyyatı tamamlanmadı.",
+        ),
+      );
     },
   });
 
@@ -196,7 +205,7 @@ export function GameReviewsSection({
   const totalPages = result?.totalPages ?? 0;
 
   return (
-    <section className="border-t border-white/[0.07] bg-[#08090d]">
+    <section id="reviews" className="scroll-mt-24 border-t border-white/[0.07] bg-[#08090d]">
       <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8 lg:py-18">
         <div className="flex flex-col gap-5 border-b border-white/[0.09] pb-6 md:flex-row md:items-end md:justify-between">
           <div>
@@ -214,48 +223,25 @@ export function GameReviewsSection({
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <select
-              value={sort}
-              onChange={(event) => {
-                setSort(
-                  event.target.value as ReviewSort,
-                );
-                setPage(1);
-              }}
-              className="h-11 rounded-xl border border-white/[0.09] bg-[#15161c] px-4 text-sm font-semibold text-zinc-300 outline-none transition focus:border-violet-400/40"
-            >
-              {sortOptions.map((option) => (
-                <option
-                  key={option.value}
-                  value={option.value}
-                >
-                  {option.label}
-                </option>
-              ))}
-            </select>
-
-            {isAuthenticated ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setIsLogModalOpen(true);
-                }}
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white transition hover:bg-violet-500"
+          <select
+            value={sort}
+            onChange={(event) => {
+              setSort(
+                event.target.value as ReviewSort,
+              );
+              setPage(1);
+            }}
+            className="h-11 rounded-xl border border-white/[0.09] bg-[#15161c] px-4 text-sm font-semibold text-zinc-300 outline-none transition focus:border-violet-400/40"
+          >
+            {sortOptions.map((option) => (
+              <option
+                key={option.value}
+                value={option.value}
               >
-                <PenLine size={17} />
-                Rəy yaz / Log et
-              </button>
-            ) : (
-              <Link
-                to="/login"
-                className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white transition hover:bg-violet-500"
-              >
-                <PenLine size={17} />
-                Rəy yazmaq üçün daxil ol
-              </Link>
-            )}
-          </div>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="mt-7 flex items-center justify-between gap-4">
@@ -270,6 +256,12 @@ export function GameReviewsSection({
               />
             )}
         </div>
+
+        {interactionError && (
+          <div className="mt-4 rounded-2xl border border-red-400/15 bg-red-500/[0.05] px-4 py-3 text-sm text-red-200">
+            {interactionError}
+          </div>
+        )}
 
         {reviewsQuery.isLoading ? (
           <div className="flex min-h-64 items-center justify-center gap-3 text-sm text-zinc-500">
@@ -362,6 +354,7 @@ export function GameReviewsSection({
 
                   <div className="flex flex-1 p-5 pt-4">
                     {review.containsSpoilers &&
+                    !review.isMine &&
                     !isSpoilerRevealed ? (
                       <button
                         type="button"
@@ -400,52 +393,79 @@ export function GameReviewsSection({
                   </div>
 
                   <div className="flex items-center gap-5 border-t border-white/[0.06] px-5 py-4 text-xs text-zinc-600">
-                    <button
-                      type="button"
-                      disabled={
-                        !isAuthenticated ||
-                        review.isMine ||
-                        likeMutation.isPending
-                      }
-                      onClick={() => {
-                        likeMutation.mutate(
-                          review,
-                        );
-                      }}
-                      className={`inline-flex items-center gap-2 font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
-                        review.isLikedByCurrentUser
-                          ? "text-rose-300"
-                          : "hover:text-rose-300"
-                      }`}
-                    >
-                      <Heart
-                        size={15}
-                        fill={
-                          review.isLikedByCurrentUser
-                            ? "currentColor"
-                            : "none"
-                        }
-                      />
-                      {review.likeCount}
-                    </button>
-
                     <span className="inline-flex items-center gap-2">
-                      <MessageCircle size={15} />
-                      {review.commentCount}
-                    </span>
-
-                    {review.isMine && (
+                      <button
+                        type="button"
+                        disabled={
+                          !isAuthenticated ||
+                          review.isMine ||
+                          likeMutation.isPending
+                        }
+                        onClick={() => {
+                          likeMutation.mutate(review);
+                        }}
+                        className={`group inline-flex items-center font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
+                          review.isLikedByCurrentUser
+                            ? "text-rose-300"
+                            : "hover:text-rose-300"
+                        }`}
+                        aria-label="Rəyi bəyən"
+                      >
+                        <Heart
+                          size={15}
+                          className={`transition ${
+                            review.isLikedByCurrentUser
+                              ? "fill-current"
+                              : "fill-transparent group-hover:fill-current"
+                          }`}
+                        />
+                      </button>
                       <button
                         type="button"
                         onClick={() => {
-                          setIsLogModalOpen(true);
+                          setLikesReview({
+                            id: review.id,
+                            count: review.likeCount,
+                          });
                         }}
-                        className="ml-auto font-semibold text-violet-300 transition hover:text-violet-200"
+                        className="font-semibold transition hover:text-rose-300"
                       >
-                        Redaktə et
+                        {review.likeCount} bəyəni
                       </button>
-                    )}
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenCommentReviewIds((currentValue) => {
+                          const nextValue = new Set(currentValue);
+                          if (nextValue.has(review.id)) {
+                            nextValue.delete(review.id);
+                          } else {
+                            nextValue.add(review.id);
+                          }
+                          return nextValue;
+                        });
+                      }}
+                      className={`inline-flex items-center gap-2 font-semibold transition hover:text-violet-300 ${
+                        openCommentReviewIds.has(review.id)
+                          ? "text-violet-300"
+                          : ""
+                      }`}
+                    >
+                      <MessageCircle size={15} />
+                      {review.commentCount}
+                      <span className="sr-only">Şərhləri göstər</span>
+                    </button>
+
                   </div>
+
+                  {openCommentReviewIds.has(review.id) && (
+                    <ReviewCommentsPanel
+                      reviewId={review.id}
+                      isAuthenticated={isAuthenticated}
+                    />
+                  )}
                 </article>
               );
             })}
@@ -492,13 +512,12 @@ export function GameReviewsSection({
         )}
       </div>
 
-      <LogGameModal
-        open={isLogModalOpen}
-        game={game}
-        onClose={() => {
-          setIsLogModalOpen(false);
-        }}
+      <ReviewLikesModal
+        reviewId={likesReview?.id ?? null}
+        likeCount={likesReview?.count ?? 0}
+        onClose={() => setLikesReview(null)}
       />
+
     </section>
   );
 }

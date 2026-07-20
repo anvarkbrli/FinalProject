@@ -4,24 +4,30 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import {
+  ArrowDown,
+  ArrowUp,
   Ban,
   Bookmark,
   CalendarDays,
   Check,
+  ChevronDown,
   Clock3,
   Eye,
   Gamepad2,
   Heart,
   History,
+  ImagePlus,
   ListChecks,
+  ListOrdered,
   LoaderCircle,
   LockKeyhole,
   MessageCircle,
   MessageSquareText,
   Pencil,
+  Plus,
   Send,
   Settings,
-  Shield,
+  SlidersHorizontal,
   Star,
   Trash2,
   UserCheck,
@@ -31,6 +37,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  useEffect,
   useMemo,
   useState,
 } from "react";
@@ -38,10 +45,16 @@ import {
   Link,
   useNavigate,
   useParams,
+  useSearchParams,
 } from "react-router-dom";
+import { InteractionCommentsPanel } from "../components/interactions/InteractionCommentsPanel";
+import { InteractionLikesModal } from "../components/interactions/InteractionLikesModal";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
+import { GameListEditorModal } from "../components/lists/GameListEditorModal";
 import { ProfileActivityJournal } from "../components/profile/ProfileActivityJournal";
+import { ReviewCommentsPanel } from "../components/reviews/ReviewCommentsPanel";
+import { ReviewLikesModal } from "../components/reviews/ReviewLikesModal";
 import { ProfileGameCollection } from "../components/profile/ProfileGameCollection";
 import { getApiErrorMessage } from "../lib/api";
 import {
@@ -49,6 +62,15 @@ import {
   formatRelativeDate,
   resolveAssetUrl,
 } from "../lib/helpers";
+import { createGameList } from "../services/gameListsService";
+import {
+  likeContent,
+  unlikeContent,
+} from "../services/contentInteractionsService";
+import {
+  likeReview,
+  unlikeReview,
+} from "../services/reviewsService";
 import {
   blockUser,
   createPost,
@@ -73,8 +95,10 @@ import {
 } from "../stores/authStore";
 import type {
   PostDTO,
+  ReviewDTO as ProfileReviewDTO,
   UserListItemDTO,
 } from "../types/profile";
+import type { ReviewSort } from "../types/reviews";
 
 type ProfileTab =
   | "posts"
@@ -133,11 +157,163 @@ const profileTabs: Array<{
   },
 ];
 
+type ReviewSortCategory =
+  | "date"
+  | "comments"
+  | "rating";
+
+type ReviewSortDirection = "asc" | "desc";
+
+const reviewSortCategories: Array<{
+  value: ReviewSortCategory;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: "date",
+    label: "Tarix",
+    description: "Rəylərin paylaşılma tarixinə görə",
+  },
+  {
+    value: "comments",
+    label: "Şərh sayı",
+    description: "Rəylərə yazılan şərhlərin sayına görə",
+  },
+  {
+    value: "rating",
+    label: "Ulduz",
+    description: "Dəqiq ulduz dəyərini slider ilə seç",
+  },
+];
+
+const validReviewSorts: ReviewSort[] = [
+  "Newest",
+  "Oldest",
+  "HighestRated",
+  "LowestRated",
+  "MostLiked",
+  "LeastLiked",
+  "MostCommented",
+  "LeastCommented",
+];
+
+const reviewRatingSteps = [
+  0.5,
+  1,
+  1.5,
+  2,
+  2.5,
+  3,
+  3.5,
+  4,
+  4.5,
+  5,
+];
+
+const reviewRatingScaleLabels = [
+  0.5,
+  1,
+  2,
+  3,
+  4,
+  5,
+] as const;
+
+function parseProfileTab(value: string | null): ProfileTab | null {
+  return profileTabs.some((tab) => tab.id === value)
+    ? (value as ProfileTab)
+    : null;
+}
+
+function parseReviewSort(value: string | null): ReviewSort {
+  return validReviewSorts.includes(value as ReviewSort)
+    ? (value as ReviewSort)
+    : "Newest";
+}
+
+function getReviewSortState(sort: ReviewSort): {
+  category: ReviewSortCategory;
+  direction: ReviewSortDirection;
+} {
+  switch (sort) {
+    case "Oldest":
+      return { category: "date", direction: "asc" };
+    case "HighestRated":
+      return { category: "rating", direction: "desc" };
+    case "LowestRated":
+      return { category: "rating", direction: "asc" };
+    case "MostCommented":
+      return { category: "comments", direction: "desc" };
+    case "LeastCommented":
+      return { category: "comments", direction: "asc" };
+    default:
+      return { category: "date", direction: "desc" };
+  }
+}
+
+function resolveReviewSort(
+  category: ReviewSortCategory,
+  direction: ReviewSortDirection,
+): ReviewSort {
+  if (category === "comments") {
+    return direction === "desc"
+      ? "MostCommented"
+      : "LeastCommented";
+  }
+
+  if (category === "rating") {
+    return direction === "desc"
+      ? "HighestRated"
+      : "LowestRated";
+  }
+
+  return direction === "desc" ? "Newest" : "Oldest";
+}
+
+function parseReviewRating(value: string | null): number | null {
+  if (!value) {
+    return null;
+  }
+
+  const rating = Number(value);
+
+  return reviewRatingSteps.includes(rating)
+    ? rating
+    : null;
+}
+
+function formatReviewRating(value: number): string {
+  return Number.isInteger(value)
+    ? value.toFixed(0)
+    : value.toFixed(1);
+}
+
+function getReviewRatingPosition(value: number): number {
+  return ((value - 0.5) / (5 - 0.5)) * 100;
+}
+
 const visibilityLabels = {
   Public: "Hamı üçün",
   Private: "Gizli",
   FollowersOnly: "Yalnız izləyicilər",
 } as const;
+
+function useObjectUrl(file: File | null): string | null {
+  const objectUrl = useMemo(
+    () => (file ? URL.createObjectURL(file) : null),
+    [file],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [objectUrl]);
+
+  return objectUrl;
+}
 
 function UserAvatar({
   userName,
@@ -196,6 +372,7 @@ function ProfileLoadingState() {
 export function ProfilePage() {
   const { userName = "" } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
 
   const storedUser = useAuthStore(
@@ -208,19 +385,50 @@ export function ProfilePage() {
     (state) => state.expiresAtUtc,
   );
 
-  const [activeTab, setActiveTab] =
-    useState<ProfileTab>("posts");
+  const activeTab =
+    parseProfileTab(searchParams.get("tab")) ?? "posts";
+  const reviewSort = parseReviewSort(
+    searchParams.get("sort"),
+  );
+  const reviewRating = parseReviewRating(
+    searchParams.get("rating"),
+  );
+  const reviewSortState = getReviewSortState(reviewSort);
+  const activeReviewSortCategory: ReviewSortCategory =
+    reviewRating !== null
+      ? "rating"
+      : reviewSortState.category;
   const [connectionModal, setConnectionModal] =
     useState<ConnectionModal>(null);
   const [notice, setNotice] =
     useState<NoticeState | null>(null);
   const [newPostContent, setNewPostContent] =
     useState("");
+  const [newPostImage, setNewPostImage] =
+    useState<File | null>(null);
   const [editingPostId, setEditingPostId] =
     useState<number | null>(null);
   const [editingPostContent, setEditingPostContent] =
     useState("");
+  const [editingPostImage, setEditingPostImage] =
+    useState<File | null>(null);
+  const [removeEditingPostImage, setRemoveEditingPostImage] =
+    useState(false);
+  const [isCreateListOpen, setIsCreateListOpen] =
+    useState(false);
   const [revealedSpoilers, setRevealedSpoilers] =
+    useState<Set<number>>(() => new Set());
+  const [likesReview, setLikesReview] = useState<{
+    id: number;
+    count: number;
+  } | null>(null);
+  const [likesPost, setLikesPost] = useState<{
+    id: number;
+    count: number;
+  } | null>(null);
+  const [openPostCommentIds, setOpenPostCommentIds] =
+    useState<Set<number>>(() => new Set());
+  const [openReviewCommentIds, setOpenReviewCommentIds] =
     useState<Set<number>>(() => new Set());
   const [wishlistPage, setWishlistPage] =
     useState(1);
@@ -228,6 +436,11 @@ export function ProfilePage() {
     useState(1);
   const [journalPage, setJournalPage] =
     useState(1);
+  const [isReviewFilterOpen, setIsReviewFilterOpen] =
+    useState(false);
+
+  const newPostImagePreview = useObjectUrl(newPostImage);
+  const editingPostImagePreview = useObjectUrl(editingPostImage);
 
   const isAuthenticated =
     isAuthSessionValid(
@@ -281,8 +494,19 @@ export function ProfilePage() {
   });
 
   const reviewsQuery = useQuery({
-    queryKey: ["user-reviews", profile?.id],
-    queryFn: () => getUserReviews(profile!.id),
+    queryKey: [
+      "user-reviews",
+      profile?.id,
+      reviewSort,
+      reviewRating,
+    ],
+    queryFn: () =>
+      getUserReviews(profile!.id, {
+        sortBy: reviewSort,
+        rating: reviewRating,
+        pageNumber: 1,
+        pageSize: 100,
+      }),
     enabled:
       profile !== undefined &&
       visibleActiveTab === "reviews",
@@ -472,6 +696,7 @@ export function ProfilePage() {
     mutationFn: createPost,
     onSuccess: async () => {
       setNewPostContent("");
+      setNewPostImage(null);
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: ["user-posts", profile?.id],
@@ -504,16 +729,24 @@ export function ProfilePage() {
     mutationFn: ({
       postId,
       content,
+      image,
+      removeImage,
     }: {
       postId: number;
       content: string;
+      image: File | null;
+      removeImage: boolean;
     }) =>
       updatePost(postId, {
         content,
+        image,
+        removeImage,
       }),
     onSuccess: async () => {
       setEditingPostId(null);
       setEditingPostContent("");
+      setEditingPostImage(null);
+      setRemoveEditingPostImage(false);
       await queryClient.invalidateQueries({
         queryKey: ["user-posts", profile?.id],
       });
@@ -564,6 +797,166 @@ export function ProfilePage() {
       });
     },
   });
+
+  const postLikeMutation = useMutation({
+    mutationFn: async (post: PostDTO) => {
+      if (post.isLikedByCurrentUser) {
+        await unlikeContent("post", post.id);
+      } else {
+        await likeContent("post", post.id);
+      }
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["user-posts", profile?.id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["content-likes", "post"],
+        }),
+      ]);
+    },
+    onError: (error) => {
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(
+          error,
+          "Post bəyənmə əməliyyatı tamamlanmadı.",
+        ),
+      });
+    },
+  });
+
+  const createListMutation = useMutation({
+    mutationFn: createGameList,
+    onSuccess: async (listId) => {
+      setIsCreateListOpen(false);
+      await queryClient.invalidateQueries({
+        queryKey: ["user-game-lists", profile?.id],
+      });
+      navigate(`/lists/${listId}`);
+    },
+  });
+
+
+  const reviewLikeMutation = useMutation({
+    mutationFn: async (review: ProfileReviewDTO) => {
+      if (review.isLikedByCurrentUser) {
+        await unlikeReview(review.id);
+      } else {
+        await likeReview(review.id);
+      }
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["user-reviews", profile?.id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["game-reviews"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["review-likes"],
+        }),
+      ]);
+    },
+    onError: (error) => {
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(
+          error,
+          "Rəy bəyənmə əməliyyatı tamamlanmadı.",
+        ),
+      });
+    },
+  });
+
+  function updateProfileTab(tab: ProfileTab) {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", tab);
+
+    if (tab !== "reviews") {
+      nextParams.delete("sort");
+      nextParams.delete("rating");
+    }
+
+    setSearchParams(nextParams);
+  }
+
+  function updateReviewSort(sort: ReviewSort) {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", "reviews");
+
+    if (sort === "Newest") {
+      nextParams.delete("sort");
+    } else {
+      nextParams.set("sort", sort);
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  }
+
+  function updateReviewSortCategory(
+    category: ReviewSortCategory,
+  ) {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", "reviews");
+
+    if (category === "rating") {
+      // Ulduz kateqoriyası sıralama deyil, dəqiq puan filtridir.
+      // Buna görə artan/azalan istiqaməti deaktiv edilir və
+      // nəticələr standart olaraq ən yeni tarixə görə göstərilir.
+      nextParams.delete("sort");
+
+      if (reviewRating === null) {
+        nextParams.set("rating", "2.5");
+      }
+    } else {
+      nextParams.delete("rating");
+
+      const nextSort = resolveReviewSort(
+        category,
+        reviewSortState.direction,
+      );
+
+      if (nextSort === "Newest") {
+        nextParams.delete("sort");
+      } else {
+        nextParams.set("sort", nextSort);
+      }
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  }
+
+  function toggleReviewSortDirection() {
+    if (activeReviewSortCategory === "rating") {
+      return;
+    }
+
+    const nextDirection: ReviewSortDirection =
+      reviewSortState.direction === "desc" ? "asc" : "desc";
+
+    updateReviewSort(
+      resolveReviewSort(
+        activeReviewSortCategory,
+        nextDirection,
+      ),
+    );
+  }
+
+  function updateReviewRating(rating: number | null) {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", "reviews");
+
+    if (rating === null) {
+      nextParams.delete("rating");
+    } else {
+      nextParams.set("rating", rating.toString());
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  }
 
   const visibleProfileTabs = useMemo(
     () =>
@@ -678,42 +1071,59 @@ export function ProfilePage() {
   }
 
   function handleCreatePost() {
-    const normalizedContent =
-      newPostContent.trim();
+    const normalizedContent = newPostContent.trim();
 
-    if (!normalizedContent) {
+    if (!normalizedContent && !newPostImage) {
       setNotice({
         type: "error",
-        message: "Post mətni boş ola bilməz.",
+        message: "Post üçün mətn və ya şəkil əlavə et.",
       });
       return;
     }
 
     createPostMutation.mutate({
       content: normalizedContent,
+      image: newPostImage,
     });
   }
 
   function beginPostEdit(post: PostDTO) {
     setEditingPostId(post.id);
-    setEditingPostContent(post.content);
+    setEditingPostContent(post.content ?? "");
+    setEditingPostImage(null);
+    setRemoveEditingPostImage(false);
   }
 
-  function handlePostUpdate(postId: number) {
-    const normalizedContent =
-      editingPostContent.trim();
+  function cancelPostEdit() {
+    setEditingPostId(null);
+    setEditingPostContent("");
+    setEditingPostImage(null);
+    setRemoveEditingPostImage(false);
+  }
 
-    if (!normalizedContent) {
+  function handlePostUpdate(post: PostDTO) {
+    const normalizedContent = editingPostContent.trim();
+    const keepsExistingImage =
+      Boolean(post.imageUrl) && !removeEditingPostImage;
+
+    if (
+      !normalizedContent &&
+      !editingPostImage &&
+      !keepsExistingImage
+    ) {
       setNotice({
         type: "error",
-        message: "Post mətni boş ola bilməz.",
+        message: "Post üçün mətn və ya şəkil saxlanmalıdır.",
       });
       return;
     }
 
     updatePostMutation.mutate({
-      postId,
+      postId: post.id,
       content: normalizedContent,
+      image: editingPostImage,
+      removeImage:
+        removeEditingPostImage && !editingPostImage,
     });
   }
 
@@ -766,12 +1176,6 @@ export function ProfilePage() {
                       {profile.userName}
                     </h1>
 
-                    {profile.isPrivate && (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold text-amber-200">
-                        <LockKeyhole size={13} />
-                        Private
-                      </span>
-                    )}
                   </div>
 
                   <p className="mt-4 max-w-2xl whitespace-pre-wrap text-sm leading-7 text-zinc-400">
@@ -788,12 +1192,6 @@ export function ProfilePage() {
                       tarixindən üzvdür
                     </span>
 
-                    {profile.isPrivate && (
-                      <span className="inline-flex items-center gap-2">
-                        <Shield size={15} />
-                        Məxfi hesab
-                      </span>
-                    )}
                   </div>
                 </div>
               </div>
@@ -932,7 +1330,7 @@ export function ProfilePage() {
                   key={tab.id}
                   type="button"
                   onClick={() => {
-                    setActiveTab(tab.id);
+                    updateProfileTab(tab.id);
                   }}
                   className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
                     isActive
@@ -975,19 +1373,59 @@ export function ProfilePage() {
                           className="w-full resize-none rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm leading-7 text-zinc-100 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/50 focus:ring-4 focus:ring-violet-500/10"
                         />
 
-                        <div className="mt-3 flex items-center justify-between gap-4">
-                          <span className="text-xs text-zinc-600">
-                            {newPostContent.length}/2000
-                          </span>
+                        {newPostImagePreview && (
+                          <div className="relative mt-3 overflow-hidden rounded-2xl border border-white/[0.08] bg-black/20">
+                            <img
+                              src={newPostImagePreview}
+                              alt="Post şəkli önizləməsi"
+                              className="max-h-[28rem] w-full object-contain"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewPostImage(null);
+                              }}
+                              className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/70 text-zinc-200 backdrop-blur transition hover:bg-red-500/80 hover:text-white"
+                              aria-label="Seçilmiş şəkli sil"
+                            >
+                              <X size={17} />
+                            </button>
+                          </div>
+                        )}
+
+                        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                          <div className="flex flex-wrap items-center gap-3">
+                            <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.07] hover:text-white">
+                              <ImagePlus size={17} />
+                              {newPostImage
+                                ? "Şəkli dəyiş"
+                                : "Şəkil əlavə et"}
+                              <input
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                className="hidden"
+                                onChange={(event) => {
+                                  setNewPostImage(
+                                    event.target.files?.[0] ?? null,
+                                  );
+                                  event.currentTarget.value = "";
+                                }}
+                              />
+                            </label>
+                            <span className="text-xs text-zinc-600">
+                              {newPostContent.length}/2000 · maksimum 10 MB
+                            </span>
+                          </div>
 
                           <button
                             type="button"
                             onClick={handleCreatePost}
                             disabled={
                               createPostMutation.isPending ||
-                              newPostContent.trim().length === 0
+                              (newPostContent.trim().length === 0 &&
+                                !newPostImage)
                             }
-                            className="flex h-10 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="flex h-10 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {createPostMutation.isPending ? (
                               <LoaderCircle
@@ -1110,46 +1548,188 @@ export function ProfilePage() {
                             }}
                             rows={5}
                             maxLength={2000}
-                            className="w-full resize-none rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm leading-7 text-zinc-100 outline-none transition focus:border-violet-400/50 focus:ring-4 focus:ring-violet-500/10"
+                            placeholder="Post mətni"
+                            className="w-full resize-none rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-3 text-sm leading-7 text-zinc-100 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/50 focus:ring-4 focus:ring-violet-500/10"
                           />
 
-                          <div className="mt-3 flex justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingPostId(null);
-                                setEditingPostContent("");
-                              }}
-                              className="rounded-xl px-4 py-2 text-sm font-medium text-zinc-500 transition hover:bg-white/[0.05] hover:text-zinc-300"
-                            >
-                              Ləğv et
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                handlePostUpdate(post.id);
-                              }}
-                              disabled={
-                                updatePostMutation.isPending ||
-                                editingPostContent.trim()
-                                  .length === 0
-                              }
-                              className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
-                            >
-                              {updatePostMutation.isPending && (
-                                <LoaderCircle
-                                  size={15}
-                                  className="animate-spin"
+                          {(editingPostImagePreview ||
+                            (!removeEditingPostImage &&
+                              resolveAssetUrl(post.imageUrl))) && (
+                            <div className="relative mt-3 overflow-hidden rounded-2xl border border-white/[0.08] bg-black/20">
+                              <img
+                                src={
+                                  editingPostImagePreview ??
+                                  resolveAssetUrl(post.imageUrl) ??
+                                  undefined
+                                }
+                                alt="Post şəkli"
+                                className="max-h-[28rem] w-full object-contain"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingPostImage(null);
+                                  setRemoveEditingPostImage(true);
+                                }}
+                                className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/70 text-zinc-200 backdrop-blur transition hover:bg-red-500/80 hover:text-white"
+                                aria-label="Post şəklini sil"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
+                          )}
+
+                          <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.07] hover:text-white">
+                                <ImagePlus size={17} />
+                                {editingPostImage ||
+                                (!removeEditingPostImage && post.imageUrl)
+                                  ? "Şəkli dəyiş"
+                                  : "Şəkil əlavə et"}
+                                <input
+                                  type="file"
+                                  accept="image/jpeg,image/png,image/webp"
+                                  className="hidden"
+                                  onChange={(event) => {
+                                    const nextFile =
+                                      event.target.files?.[0] ?? null;
+                                    setEditingPostImage(nextFile);
+                                    if (nextFile) {
+                                      setRemoveEditingPostImage(false);
+                                    }
+                                    event.currentTarget.value = "";
+                                  }}
                                 />
-                              )}
-                              Yadda saxla
-                            </button>
+                              </label>
+                              <span className="text-xs text-zinc-600">
+                                {editingPostContent.length}/2000
+                              </span>
+                            </div>
+
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={cancelPostEdit}
+                                className="rounded-xl px-4 py-2 text-sm font-medium text-zinc-500 transition hover:bg-white/[0.05] hover:text-zinc-300"
+                              >
+                                Ləğv et
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handlePostUpdate(post);
+                                }}
+                                disabled={updatePostMutation.isPending}
+                                className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
+                              >
+                                {updatePostMutation.isPending && (
+                                  <LoaderCircle
+                                    size={15}
+                                    className="animate-spin"
+                                  />
+                                )}
+                                Yadda saxla
+                              </button>
+                            </div>
                           </div>
                         </div>
                       ) : (
-                        <p className="mt-5 whitespace-pre-wrap break-words text-sm leading-7 text-zinc-300">
-                          {post.content}
-                        </p>
+                        <div className="mt-5 space-y-4">
+                          {post.content && (
+                            <p className="whitespace-pre-wrap break-words text-sm leading-7 text-zinc-300">
+                              {post.content}
+                            </p>
+                          )}
+                          {resolveAssetUrl(post.imageUrl) && (
+                            <img
+                              src={resolveAssetUrl(post.imageUrl) ?? undefined}
+                              alt={`${post.userName} post şəkli`}
+                              className="max-h-[36rem] w-full rounded-2xl border border-white/[0.07] bg-black/20 object-contain"
+                            />
+                          )}
+                        </div>
+                      )}
+
+                      <div className="mt-5 flex items-center gap-5 border-t border-white/[0.06] pt-4 text-xs text-zinc-600">
+                        <span className="inline-flex items-center gap-2">
+                          <button
+                            type="button"
+                            disabled={
+                              !isAuthenticated ||
+                              post.isMine ||
+                              postLikeMutation.isPending
+                            }
+                            onClick={() => {
+                              postLikeMutation.mutate(post);
+                            }}
+                            className={`group inline-flex items-center font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                              post.isLikedByCurrentUser
+                                ? "text-rose-300"
+                                : "hover:text-rose-300"
+                            }`}
+                            aria-label="Postu bəyən"
+                          >
+                            <Heart
+                              size={15}
+                              className={`transition ${
+                                post.isLikedByCurrentUser
+                                  ? "fill-current"
+                                  : "fill-transparent group-hover:fill-current"
+                              }`}
+                            />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setLikesPost({
+                                id: post.id,
+                                count: post.likeCount,
+                              });
+                            }}
+                            className="font-semibold transition hover:text-rose-300"
+                          >
+                            {post.likeCount} bəyəni
+                          </button>
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenPostCommentIds((currentValue) => {
+                              const nextValue = new Set(currentValue);
+                              if (nextValue.has(post.id)) {
+                                nextValue.delete(post.id);
+                              } else {
+                                nextValue.add(post.id);
+                              }
+                              return nextValue;
+                            });
+                          }}
+                          className={`inline-flex items-center gap-2 font-semibold transition hover:text-violet-300 ${
+                            openPostCommentIds.has(post.id)
+                              ? "text-violet-300"
+                              : ""
+                          }`}
+                        >
+                          <MessageCircle size={15} />
+                          {post.commentCount}
+                        </button>
+                      </div>
+
+                      {openPostCommentIds.has(post.id) && (
+                        <div className="-mx-5 -mb-5 mt-4 overflow-hidden rounded-b-3xl sm:-mx-6 sm:-mb-6">
+                          <InteractionCommentsPanel
+                            contentType="post"
+                            contentId={post.id}
+                            isAuthenticated={isAuthenticated}
+                            placeholder="Posta şərh yaz..."
+                            emptyText="Bu posta hələ şərh yazılmayıb."
+                            invalidateQueryKeys={[
+                              ["user-posts", profile?.id],
+                            ]}
+                          />
+                        </div>
                       )}
                     </article>
                   ))
@@ -1159,6 +1739,40 @@ export function ProfilePage() {
 
             {visibleActiveTab === "lists" && (
               <div>
+                <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h2 className="text-xl font-bold text-white">
+                      Oyun siyahıları
+                    </h2>
+                    <p className="mt-1 text-sm text-zinc-600">
+                      Ranklanmış siyahılar şəxsi sıralamanı, sırasız siyahılar isə kolleksiyanı göstərir.
+                    </p>
+                  </div>
+
+                  {isOwnProfile && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        createListMutation.reset();
+                        setIsCreateListOpen(true);
+                      }}
+                      className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-500"
+                    >
+                      <Plus size={17} />
+                      Yeni siyahı
+                    </button>
+                  )}
+                </div>
+
+                {createListMutation.isError && (
+                  <div className="mb-5 rounded-2xl border border-red-400/15 bg-red-500/[0.06] px-4 py-3 text-sm text-red-200">
+                    {getApiErrorMessage(
+                      createListMutation.error,
+                      "Siyahını yaratmaq mümkün olmadı.",
+                    )}
+                  </div>
+                )}
+
                 {listsQuery.isLoading ? (
                   <div className="flex items-center justify-center gap-3 py-16 text-sm text-zinc-500">
                     <LoaderCircle
@@ -1181,31 +1795,53 @@ export function ProfilePage() {
                       className="mx-auto text-zinc-700"
                     />
                     <p className="mt-4 text-sm text-zinc-500">
-                      Görünən oyun siyahısı yoxdur.
+                      {isOwnProfile
+                        ? "Hələ oyun siyahısı yaratmamısan."
+                        : "Görünən oyun siyahısı yoxdur."}
                     </p>
+                    {isOwnProfile && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          createListMutation.reset();
+                          setIsCreateListOpen(true);
+                        }}
+                        className="mx-auto mt-5 inline-flex h-10 items-center gap-2 rounded-xl border border-violet-300/20 bg-violet-500/10 px-4 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/20"
+                      >
+                        <Plus size={16} />
+                        İlk siyahını yarat
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
                     {gameLists.map((list) => (
-                      <article
+                      <Link
                         key={list.id}
-                        className="rounded-3xl border border-white/[0.07] bg-[#101015] p-6"
+                        to={`/lists/${list.id}`}
+                        className="group rounded-3xl border border-white/[0.07] bg-[#101015] p-6 transition hover:-translate-y-0.5 hover:border-violet-300/20 hover:bg-[#13131a]"
                       >
                         <div className="flex items-start justify-between gap-4">
                           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
-                            <ListChecks size={20} />
+                            {list.isRanked ? (
+                              <ListOrdered size={20} />
+                            ) : (
+                              <ListChecks size={20} />
+                            )}
                           </span>
 
                           <span className="rounded-full border border-white/[0.07] bg-white/[0.03] px-3 py-1 text-[11px] font-semibold text-zinc-500">
-                            {
-                              visibilityLabels[
-                                list.visibility
-                              ]
-                            }
+                            {visibilityLabels[list.visibility]}
                           </span>
                         </div>
 
-                        <h2 className="mt-5 text-lg font-semibold text-white">
+                        <div className="mt-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-violet-300/80">
+                          {list.isRanked
+                            ? "Ranklanmış"
+                            : "Sırasız"}
+                        </div>
+
+                        <h2 className="mt-2 text-lg font-semibold text-white transition group-hover:text-violet-200">
                           {list.name}
                         </h2>
 
@@ -1214,18 +1850,26 @@ export function ProfilePage() {
                             "Açıqlama əlavə edilməyib."}
                         </p>
 
-                        <div className="mt-5 flex items-center justify-between border-t border-white/[0.06] pt-4 text-xs text-zinc-600">
-                          <span className="inline-flex items-center gap-2">
-                            <Gamepad2 size={15} />
-                            {list.gameCount} oyun
-                          </span>
+                        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-4 text-xs text-zinc-600">
+                          <div className="flex flex-wrap items-center gap-4">
+                            <span className="inline-flex items-center gap-2">
+                              <Gamepad2 size={15} />
+                              {list.gameCount} oyun
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <Heart size={14} />
+                              {list.likeCount}
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                              <MessageCircle size={14} />
+                              {list.commentCount}
+                            </span>
+                          </div>
                           <span>
-                            {formatRelativeDate(
-                              list.createdAt,
-                            )}
+                            {formatRelativeDate(list.createdAt)}
                           </span>
                         </div>
-                      </article>
+                      </Link>
                     ))}
                   </div>
                 )}
@@ -1233,7 +1877,238 @@ export function ProfilePage() {
             )}
 
             {visibleActiveTab === "reviews" && (
-              <div className="mx-auto max-w-4xl space-y-5">
+              <div className="mx-auto max-w-6xl space-y-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsReviewFilterOpen((currentValue) =>
+                          !currentValue,
+                        );
+                      }}
+                      aria-expanded={isReviewFilterOpen}
+                      className={`group inline-flex h-11 items-center gap-2 rounded-xl border px-4 text-sm font-bold transition ${
+                        isReviewFilterOpen
+                          ? "border-violet-400/30 bg-violet-500/15 text-violet-200"
+                          : "border-white/[0.08] bg-[#101015] text-zinc-300 hover:border-white/[0.14] hover:text-white"
+                      }`}
+                    >
+                      <SlidersHorizontal size={17} />
+                      Filtr
+                      <ChevronDown
+                        size={16}
+                        className={`transition-transform duration-300 ${
+                          isReviewFilterOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {reviewRating !== null && (
+                      <div className="inline-flex h-11 items-center gap-2 rounded-xl border border-amber-300/15 bg-amber-500/[0.08] px-3 text-sm font-bold text-amber-300">
+                        <Star size={14} fill="currentColor" />
+                        {formatReviewRating(reviewRating)} ulduz
+                        <button
+                          type="button"
+                          onClick={() => {
+                            updateReviewRating(null);
+                          }}
+                          className="ml-1 flex h-6 w-6 items-center justify-center rounded-md text-amber-200/65 transition hover:bg-amber-400/10 hover:text-amber-100"
+                          aria-label="Ulduz filtrini sil"
+                        >
+                          <X size={13} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <span className="rounded-full border border-white/[0.07] bg-white/[0.035] px-3 py-1.5 text-xs font-semibold text-zinc-400">
+                    {reviewsQuery.data?.totalCount ?? 0} rəy
+                  </span>
+                </div>
+
+                <div
+                  className={`grid items-start gap-5 transition-[grid-template-columns] duration-300 ease-out ${
+                    isReviewFilterOpen
+                      ? "lg:grid-cols-[18rem_minmax(0,1fr)]"
+                      : "lg:grid-cols-[0px_minmax(0,1fr)]"
+                  }`}
+                >
+                  <aside
+                    className={`overflow-hidden transition-[max-height,opacity,transform] duration-300 ease-out ${
+                      isReviewFilterOpen
+                        ? "max-h-[40rem] translate-y-0 opacity-100 lg:translate-x-0"
+                        : "max-h-0 -translate-y-2 opacity-0 lg:max-h-[40rem] lg:-translate-x-3"
+                    }`}
+                  >
+                    <div className="rounded-3xl border border-white/[0.07] bg-[#101015] p-4 sm:p-5">
+                      <div>
+                        <p className="text-sm font-black text-white">
+                          Sıralama meyarı
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-zinc-600">
+                          Tarix və şərh sayı üçün sıra istiqamətini seç. Ulduz bölməsində isə dəqiq puanı slider ilə müəyyən et.
+                        </p>
+                      </div>
+
+                      <div className="mt-4 space-y-2">
+                        {reviewSortCategories.map((option) => {
+                          const isActive =
+                            activeReviewSortCategory === option.value;
+
+                          return (
+                            <button
+                              key={option.value}
+                              type="button"
+                              onClick={() => {
+                                updateReviewSortCategory(option.value);
+                              }}
+                              className={`w-full rounded-2xl border px-4 py-3 text-left transition ${
+                                isActive
+                                  ? "border-violet-400/30 bg-violet-500/15"
+                                  : "border-white/[0.07] bg-white/[0.025] hover:border-white/[0.12] hover:bg-white/[0.04]"
+                              }`}
+                            >
+                              <span
+                                className={`block text-sm font-bold ${
+                                  isActive
+                                    ? "text-violet-200"
+                                    : "text-zinc-300"
+                                }`}
+                              >
+                                {option.label}
+                              </span>
+                              <span className="mt-1 block text-[11px] leading-5 text-zinc-600">
+                                {option.description}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {activeReviewSortCategory === "rating" ? (
+                        <div className="mt-5 border-t border-white/[0.06] pt-5">
+                          <div className="flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-bold uppercase tracking-[0.12em] text-zinc-600">
+                                Ulduz seçimi
+                              </p>
+                              <p className="mt-1 text-[11px] leading-5 text-zinc-600">
+                                Sürüşdürərək yalnız seçdiyin puana aid rəyləri göstər.
+                              </p>
+                            </div>
+                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/15 bg-amber-500/[0.08] px-3 py-2 text-sm font-black text-amber-300">
+                              <Star size={14} fill="currentColor" />
+                              {formatReviewRating(reviewRating ?? 2.5)}
+                            </span>
+                          </div>
+
+                          <div className="mt-5">
+                            <input
+                              type="range"
+                              min="0.5"
+                              max="5"
+                              step="0.5"
+                              value={reviewRating ?? 2.5}
+                              onChange={(event) => {
+                                updateReviewRating(
+                                  Number(event.target.value),
+                                );
+                              }}
+                              aria-label="Ulduza görə rəy filtri"
+                              className="block h-5 w-full cursor-pointer accent-violet-500"
+                            />
+
+                            <div className="pointer-events-none relative mx-[9px] mt-1 h-5 text-[10px] font-semibold text-zinc-700">
+                              {reviewRatingScaleLabels.map(
+                                (rating, index) => {
+                                  const isFirst = index === 0;
+                                  const isLast =
+                                    index ===
+                                    reviewRatingScaleLabels.length - 1;
+
+                                  return (
+                                    <span
+                                      key={rating}
+                                      className={`absolute top-0 whitespace-nowrap ${
+                                        isFirst
+                                          ? "left-0"
+                                          : isLast
+                                            ? "right-0"
+                                            : "-translate-x-1/2"
+                                      }`}
+                                      style={
+                                        isFirst || isLast
+                                          ? undefined
+                                          : {
+                                              left: `${getReviewRatingPosition(
+                                                rating,
+                                              )}%`,
+                                            }
+                                      }
+                                    >
+                                      {formatReviewRating(rating)} ★
+                                    </span>
+                                  );
+                                },
+                              )}
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextParams = new URLSearchParams(
+                                searchParams,
+                              );
+                              nextParams.set("tab", "reviews");
+                              nextParams.delete("rating");
+                              nextParams.delete("sort");
+                              setSearchParams(nextParams, {
+                                replace: true,
+                              });
+                            }}
+                            className="mt-4 h-10 w-full rounded-xl border border-white/[0.08] bg-white/[0.025] text-xs font-bold text-zinc-500 transition hover:border-white/[0.14] hover:bg-white/[0.05] hover:text-white"
+                          >
+                            Ulduz filtrini təmizlə
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mt-5 border-t border-white/[0.06] pt-5">
+                          <p className="text-xs font-bold uppercase tracking-[0.12em] text-zinc-600">
+                            Sıra istiqaməti
+                          </p>
+                          <button
+                            type="button"
+                            onClick={toggleReviewSortDirection}
+                            className="mt-3 flex h-11 w-full items-center justify-between rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm font-bold text-zinc-200 transition hover:border-violet-400/25 hover:bg-violet-500/[0.08] hover:text-violet-200"
+                          >
+                            <span>
+                              {reviewSortState.direction === "desc"
+                                ? "Azalan sıra"
+                                : "Artan sıra"}
+                            </span>
+                            {reviewSortState.direction === "desc" ? (
+                              <ArrowDown size={18} />
+                            ) : (
+                              <ArrowUp size={18} />
+                            )}
+                          </button>
+                          <p className="mt-2 text-[11px] leading-5 text-zinc-600">
+                            {activeReviewSortCategory === "date"
+                              ? reviewSortState.direction === "desc"
+                                ? "Ən son yazılmış rəylər əvvəl göstərilir."
+                                : "Ən köhnə rəylər əvvəl göstərilir."
+                              : reviewSortState.direction === "desc"
+                                ? "Ən çox şərh alan rəylər əvvəl göstərilir."
+                                : "Ən az şərh alan rəylər əvvəl göstərilir."}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </aside>
+
+                  <div className="min-w-0 space-y-5">
                 {reviewsQuery.isLoading ? (
                   <div className="flex items-center justify-center gap-3 py-16 text-sm text-zinc-500">
                     <LoaderCircle
@@ -1256,7 +2131,9 @@ export function ProfilePage() {
                       className="mx-auto text-zinc-700"
                     />
                     <p className="mt-4 text-sm text-zinc-500">
-                      Hələ heç bir rəy yoxdur.
+                      {reviewRating === null
+                        ? "Hələ heç bir rəy yoxdur."
+                        : `${formatReviewRating(reviewRating)} ulduza uyğun rəy tapılmadı.`}
                     </p>
                   </div>
                 ) : (
@@ -1314,6 +2191,7 @@ export function ProfilePage() {
 
                         <div className="p-5 sm:p-6">
                           {review.containsSpoilers &&
+                          !review.isMine &&
                           !spoilerIsRevealed ? (
                             <button
                               type="button"
@@ -1338,19 +2216,83 @@ export function ProfilePage() {
 
                           <div className="mt-5 flex items-center gap-5 border-t border-white/[0.06] pt-4 text-xs text-zinc-600">
                             <span className="inline-flex items-center gap-2">
-                              <Heart size={15} />
-                              {review.likeCount}
+                              <button
+                                type="button"
+                                disabled={
+                                  !isAuthenticated ||
+                                  review.isMine ||
+                                  reviewLikeMutation.isPending
+                                }
+                                onClick={() => {
+                                  reviewLikeMutation.mutate(review);
+                                }}
+                                className={`group inline-flex items-center font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                                  review.isLikedByCurrentUser
+                                    ? "text-rose-300"
+                                    : "hover:text-rose-300"
+                                }`}
+                                aria-label="Rəyi bəyən"
+                              >
+                                <Heart
+                                  size={15}
+                                  className={`transition ${
+                                    review.isLikedByCurrentUser
+                                      ? "fill-current"
+                                      : "fill-transparent group-hover:fill-current"
+                                  }`}
+                                />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setLikesReview({
+                                    id: review.id,
+                                    count: review.likeCount,
+                                  });
+                                }}
+                                className="font-semibold transition hover:text-rose-300"
+                              >
+                                {review.likeCount} bəyəni
+                              </button>
                             </span>
-                            <span className="inline-flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenReviewCommentIds((currentValue) => {
+                                  const nextValue = new Set(currentValue);
+                                  if (nextValue.has(review.id)) {
+                                    nextValue.delete(review.id);
+                                  } else {
+                                    nextValue.add(review.id);
+                                  }
+                                  return nextValue;
+                                });
+                              }}
+                              className={`inline-flex items-center gap-2 font-semibold transition hover:text-violet-300 ${
+                                openReviewCommentIds.has(review.id)
+                                  ? "text-violet-300"
+                                  : ""
+                              }`}
+                            >
                               <MessageCircle size={15} />
                               {review.commentCount}
-                            </span>
+                            </button>
                           </div>
                         </div>
+
+                        {openReviewCommentIds.has(review.id) && (
+                          <ReviewCommentsPanel
+                            reviewId={review.id}
+                            isAuthenticated={isAuthenticated}
+                          />
+                        )}
                       </article>
                     );
                   })
                 )}
+
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1394,6 +2336,44 @@ export function ProfilePage() {
       </main>
 
       <Footer />
+
+      <ReviewLikesModal
+        reviewId={likesReview?.id ?? null}
+        likeCount={likesReview?.count ?? 0}
+        onClose={() => setLikesReview(null)}
+      />
+
+      <InteractionLikesModal
+        contentType="post"
+        contentId={likesPost?.id ?? null}
+        likeCount={likesPost?.count ?? 0}
+        onClose={() => setLikesPost(null)}
+      />
+
+      {isCreateListOpen && (
+        <GameListEditorModal
+          open
+          title="Yeni oyun siyahısı"
+          submitLabel="Siyahını yarat"
+          isPending={createListMutation.isPending}
+          errorMessage={
+            createListMutation.isError
+              ? getApiErrorMessage(
+                  createListMutation.error,
+                  "Siyahını yaratmaq mümkün olmadı.",
+                )
+              : null
+          }
+          onClose={() => {
+            if (!createListMutation.isPending) {
+              setIsCreateListOpen(false);
+            }
+          }}
+          onSubmit={(values) => {
+            createListMutation.mutate(values);
+          }}
+        />
+      )}
 
       {connectionModal && (
         <div

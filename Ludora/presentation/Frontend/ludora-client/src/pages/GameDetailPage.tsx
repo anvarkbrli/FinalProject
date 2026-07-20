@@ -43,6 +43,7 @@ import {
   resolveAssetUrl,
 } from "../lib/helpers";
 import { getGameById } from "../services/gamesService";
+import { getMyGameReview } from "../services/reviewsService";
 import {
   getUserGameState,
   removeUserGameStatus,
@@ -447,6 +448,20 @@ function GameTrackingPanel({
     enabled: isAuthenticated,
   });
 
+  const myReviewQuery = useQuery({
+    queryKey: [
+      "my-game-review",
+      game.source,
+      game.id,
+    ],
+    queryFn: () =>
+      getMyGameReview(
+        game.source,
+        game.id,
+      ),
+    enabled: isAuthenticated,
+  });
+
   const actionMutation = useMutation<
     UserGameDTO | null,
     unknown,
@@ -752,14 +767,28 @@ function GameTrackingPanel({
 
             <button
               type="button"
-              disabled={isPending}
+              disabled={
+                isPending ||
+                myReviewQuery.isLoading
+              }
               onClick={() => {
                 setIsLogModalOpen(true);
               }}
               className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <PenLine size={17} />
-              Oyunu log et
+              {myReviewQuery.isLoading ? (
+                <LoaderCircle
+                  size={17}
+                  className="animate-spin"
+                />
+              ) : (
+                <PenLine size={17} />
+              )}
+              {myReviewQuery.isLoading
+                ? "Rəy yoxlanılır..."
+                : myReviewQuery.data
+                  ? "Rəyi redaktə et"
+                  : "Rəy əlavə et"}
             </button>
           </div>
         </>

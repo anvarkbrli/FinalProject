@@ -1,4 +1,5 @@
 import { api } from "../lib/api";
+import { deduplicateGames } from "../lib/deduplicateGames";
 import type {
   CatalogEntityKind,
   CatalogFilterItemDTO,
@@ -53,7 +54,14 @@ export async function getGames(
       },
     );
 
-  return response.data;
+  if (!filter.searchName?.trim()) {
+    return response.data;
+  }
+
+  return {
+    ...response.data,
+    items: deduplicateGames(response.data.items),
+  };
 }
 
 export async function getGameById(

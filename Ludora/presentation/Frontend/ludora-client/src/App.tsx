@@ -8,6 +8,8 @@ import { ResendEmailConfirmationPage } from "./pages/ResendEmailConfirmationPage
 import { ProfilePage } from "./pages/ProfilePage";
 import { GamesPage } from "./pages/GamesPage";
 import { GameDetailPage } from "./pages/GameDetailPage";
+import { GameListDetailPage } from "./pages/GameListDetailPage";
+import { SearchPage } from "./pages/SearchPage";
 
 function App() {
   return (
@@ -44,6 +46,16 @@ function App() {
       <Route
         path="/games/:source/:id"
         element={<GameDetailPage />}
+      />
+
+      <Route
+        path="/lists/:id"
+        element={<GameListDetailPage />}
+      />
+
+      <Route
+        path="/search"
+        element={<SearchPage />}
       />
       
       <Route

@@ -7,6 +7,7 @@ import {
   Heart,
   History,
   ListChecks,
+  ListOrdered,
   LoaderCircle,
   MessageCircle,
   MessageSquareText,
@@ -38,10 +39,10 @@ interface ProfileActivityJournalProps {
 }
 
 const statusLabels = {
-  Played: "Oynayıb",
-  Playing: "Oynayır",
-  PlanToPlay: "Oynayacaq",
-  Dropped: "Yarım qoyub",
+  Played: "Oynadın",
+  Playing: "Oynayırsan",
+  PlanToPlay: "Oynayacaqsan",
+  Dropped: "Yarım qoydun",
 } as const;
 
 function GameLink({
@@ -116,7 +117,7 @@ function getActivityPresentation(
                 ? statusLabels[activity.status]
                 : "yeni"}
             </span>{" "}
-            statusuna keçirdi.
+            statusuna keçirdin.
           </>
         ),
         accent: "bg-sky-500/10 text-sky-300",
@@ -124,31 +125,31 @@ function getActivityPresentation(
     case "GameStatusRemoved":
       return {
         icon: Gamepad2,
-        content: <>{game} oyununun statusunu sildi.</>,
+        content: <>{game} oyununun statusunu sildin.</>,
         accent: "bg-zinc-500/10 text-zinc-400",
       };
     case "GameAddedToFavorites":
       return {
         icon: Heart,
-        content: <>{game} oyununu favorilərə əlavə etdi.</>,
+        content: <>{game} oyununu favorilərə əlavə etdin.</>,
         accent: "bg-rose-500/10 text-rose-300",
       };
     case "GameRemovedFromFavorites":
       return {
         icon: Heart,
-        content: <>{game} oyununu favorilərdən çıxardı.</>,
+        content: <>{game} oyununu favorilərdən çıxardın.</>,
         accent: "bg-zinc-500/10 text-zinc-400",
       };
     case "GameAddedToWishlist":
       return {
         icon: Bookmark,
-        content: <>{game} oyununu wishlist-ə əlavə etdi.</>,
+        content: <>{game} oyununu wishlist-ə əlavə etdin.</>,
         accent: "bg-violet-500/10 text-violet-300",
       };
     case "GameRemovedFromWishlist":
       return {
         icon: Bookmark,
-        content: <>{game} oyununu wishlist-dən çıxardı.</>,
+        content: <>{game} oyununu wishlist-dən çıxardın.</>,
         accent: "bg-zinc-500/10 text-zinc-400",
       };
     case "GameRated":
@@ -160,7 +161,7 @@ function getActivityPresentation(
             <span className="font-semibold text-amber-300">
               {activity.rating?.toFixed(1)}
             </span>{" "}
-            puan verdi.
+            puan verdin.
           </>
         ),
         accent: "bg-amber-500/10 text-amber-300",
@@ -168,25 +169,25 @@ function getActivityPresentation(
     case "GameRatingRemoved":
       return {
         icon: Star,
-        content: <>{game} oyununa verdiyi puanı sildi.</>,
+        content: <>{game} oyununa verdiyin puanı sildin.</>,
         accent: "bg-zinc-500/10 text-zinc-400",
       };
     case "ReviewCreated":
       return {
         icon: MessageSquareText,
-        content: <>{game} oyunu üçün rəy yazdı.</>,
+        content: <>{game} oyunu üçün rəy yazdın.</>,
         accent: "bg-emerald-500/10 text-emerald-300",
       };
     case "ReviewUpdated":
       return {
         icon: Pencil,
-        content: <>{game} oyunundakı rəyini yenilədi.</>,
+        content: <>{game} oyunundakı rəyini yenilədin.</>,
         accent: "bg-blue-500/10 text-blue-300",
       };
     case "ReviewDeleted":
       return {
         icon: Trash2,
-        content: <>{game} oyunundakı rəyini sildi.</>,
+        content: <>{game} oyunundakı rəyini sildin.</>,
         accent: "bg-red-500/10 text-red-300",
       };
     case "ReviewLiked":
@@ -195,7 +196,7 @@ function getActivityPresentation(
         content: (
           <>
             {user} tərəfindən {game} oyunu üçün yazılan rəyi
-            bəyəndi.
+            bəyəndin.
           </>
         ),
         accent: "bg-rose-500/10 text-rose-300",
@@ -206,7 +207,7 @@ function getActivityPresentation(
         content: (
           <>
             {user} tərəfindən {game} oyunu üçün yazılan rəydən
-            bəyənməni götürdü.
+            bəyənməni götürdün.
           </>
         ),
         accent: "bg-zinc-500/10 text-zinc-400",
@@ -217,7 +218,7 @@ function getActivityPresentation(
         content: (
           <>
             {user} tərəfindən {game} oyunu üçün yazılan rəyə
-            şərh yazdı.
+            şərh yazdın.
           </>
         ),
         accent: "bg-cyan-500/10 text-cyan-300",
@@ -225,67 +226,97 @@ function getActivityPresentation(
     case "ReviewCommentUpdated":
       return {
         icon: Pencil,
-        content: <>{game} oyunundakı rəyə yazdığı şərhi yenilədi.</>,
+        content: <>{game} oyunundakı rəyə yazdığın şərhi yenilədin.</>,
         accent: "bg-blue-500/10 text-blue-300",
       };
     case "ReviewCommentDeleted":
       return {
         icon: Trash2,
-        content: <>{game} oyunundakı rəyə yazdığı şərhi sildi.</>,
+        content: <>{game} oyunundakı rəyə yazdığın şərhi sildin.</>,
         accent: "bg-red-500/10 text-red-300",
       };
     case "UserFollowRequested":
       return {
         icon: UserPlus,
-        content: <>{user} istifadəçisinə izləmə sorğusu göndərdi.</>,
+        content: <>{user} istifadəçisinə izləmə sorğusu göndərdin.</>,
         accent: "bg-violet-500/10 text-violet-300",
       };
     case "UserFollowed":
       return {
         icon: UserPlus,
-        content: <>{user} istifadəçisini izləməyə başladı.</>,
+        content: <>{user} istifadəçisini izləməyə başladın.</>,
         accent: "bg-emerald-500/10 text-emerald-300",
       };
     case "UserUnfollowed":
       return {
         icon: UserMinus,
-        content: <>{user} istifadəçisini izləməyi dayandırdı.</>,
+        content: <>{user} istifadəçisini izləməyi dayandırdın.</>,
         accent: "bg-zinc-500/10 text-zinc-400",
       };
     case "FollowRequestCancelled":
       return {
         icon: UserMinus,
-        content: <>{user} üçün izləmə sorğusunu ləğv etdi.</>,
+        content: <>{user} üçün izləmə sorğusunu ləğv etdin.</>,
         accent: "bg-zinc-500/10 text-zinc-400",
       };
     case "UserBlocked":
       return {
         icon: Ban,
-        content: <>{user} istifadəçisini blokladı.</>,
+        content: <>{user} istifadəçisini blokladın.</>,
         accent: "bg-red-500/10 text-red-300",
       };
     case "UserUnblocked":
       return {
         icon: Ban,
-        content: <>{user} istifadəçisinin blokunu açdı.</>,
+        content: <>{user} istifadəçisinin blokunu açdın.</>,
         accent: "bg-zinc-500/10 text-zinc-400",
       };
     case "PostCreated":
       return {
         icon: MessageSquareText,
-        content: <>Yeni post paylaşdı.</>,
+        content: <>Yeni post paylaşdın.</>,
         accent: "bg-violet-500/10 text-violet-300",
       };
     case "PostUpdated":
       return {
         icon: Pencil,
-        content: <>Postunu yenilədi.</>,
+        content: <>Postunu yenilədin.</>,
         accent: "bg-blue-500/10 text-blue-300",
       };
     case "PostDeleted":
       return {
         icon: Trash2,
-        content: <>Postunu sildi.</>,
+        content: <>Postunu sildin.</>,
+        accent: "bg-red-500/10 text-red-300",
+      };
+    case "PostLiked":
+      return {
+        icon: Heart,
+        content: <>{user} istifadəçisinin postunu bəyəndin.</>,
+        accent: "bg-rose-500/10 text-rose-300",
+      };
+    case "PostUnliked":
+      return {
+        icon: Heart,
+        content: <>{user} istifadəçisinin postundan bəyənməni götürdün.</>,
+        accent: "bg-zinc-500/10 text-zinc-400",
+      };
+    case "PostCommented":
+      return {
+        icon: MessageCircle,
+        content: <>{user} istifadəçisinin postuna şərh yazdın.</>,
+        accent: "bg-cyan-500/10 text-cyan-300",
+      };
+    case "PostCommentUpdated":
+      return {
+        icon: Pencil,
+        content: <>Posta yazdığın şərhi yenilədin.</>,
+        accent: "bg-blue-500/10 text-blue-300",
+      };
+    case "PostCommentDeleted":
+      return {
+        icon: Trash2,
+        content: <>Posta yazdığın şərhi sildin.</>,
         accent: "bg-red-500/10 text-red-300",
       };
     case "GameListCreated":
@@ -296,7 +327,7 @@ function getActivityPresentation(
             <span className="font-semibold text-zinc-200">
               {listName}
             </span>{" "}
-            adlı siyahı yaratdı.
+            adlı siyahı yaratdın.
           </>
         ),
         accent: "bg-violet-500/10 text-violet-300",
@@ -309,7 +340,7 @@ function getActivityPresentation(
             <span className="font-semibold text-zinc-200">
               {listName}
             </span>{" "}
-            siyahısını yenilədi.
+            siyahısını yenilədin.
           </>
         ),
         accent: "bg-blue-500/10 text-blue-300",
@@ -322,15 +353,106 @@ function getActivityPresentation(
             <span className="font-semibold text-zinc-200">
               {listName}
             </span>{" "}
-            siyahısını sildi.
+            siyahısını sildin.
           </>
         ),
         accent: "bg-red-500/10 text-red-300",
       };
+    case "GameAddedToList":
+      return {
+        icon: ListChecks,
+        content: (
+          <>
+            {game} oyununu{" "}
+            <span className="font-semibold text-zinc-200">
+              {listName}
+            </span>{" "}
+            siyahısına əlavə etdin.
+          </>
+        ),
+        accent: "bg-violet-500/10 text-violet-300",
+      };
+    case "GameRemovedFromList":
+      return {
+        icon: Trash2,
+        content: (
+          <>
+            {game} oyununu{" "}
+            <span className="font-semibold text-zinc-200">
+              {listName}
+            </span>{" "}
+            siyahısından çıxardın.
+          </>
+        ),
+        accent: "bg-red-500/10 text-red-300",
+      };
+    case "GameListLiked":
+      return {
+        icon: Heart,
+        content: (
+          <>
+            {user} istifadəçisinin <span className="font-semibold text-zinc-200">{listName}</span> siyahısını bəyəndin.
+          </>
+        ),
+        accent: "bg-rose-500/10 text-rose-300",
+      };
+    case "GameListUnliked":
+      return {
+        icon: Heart,
+        content: (
+          <>
+            <span className="font-semibold text-zinc-200">{listName}</span> siyahısından bəyənməni götürdün.
+          </>
+        ),
+        accent: "bg-zinc-500/10 text-zinc-400",
+      };
+    case "GameListCommented":
+      return {
+        icon: MessageCircle,
+        content: (
+          <>
+            <span className="font-semibold text-zinc-200">{listName}</span> siyahısına şərh yazdın.
+          </>
+        ),
+        accent: "bg-cyan-500/10 text-cyan-300",
+      };
+    case "GameListCommentUpdated":
+      return {
+        icon: Pencil,
+        content: (
+          <>
+            <span className="font-semibold text-zinc-200">{listName}</span> siyahısına yazdığın şərhi yenilədin.
+          </>
+        ),
+        accent: "bg-blue-500/10 text-blue-300",
+      };
+    case "GameListCommentDeleted":
+      return {
+        icon: Trash2,
+        content: (
+          <>
+            <span className="font-semibold text-zinc-200">{listName}</span> siyahısına yazdığın şərhi sildin.
+          </>
+        ),
+        accent: "bg-red-500/10 text-red-300",
+      };
+    case "GameListGameReordered":
+      return {
+        icon: ListOrdered,
+        content: (
+          <>
+            <span className="font-semibold text-zinc-200">
+              {listName}
+            </span>{" "}
+            siyahısında {game} oyununun sırasını dəyişdin.
+          </>
+        ),
+        accent: "bg-amber-500/10 text-amber-300",
+      };
     default:
       return {
         icon: History,
-        content: <>Yeni hərəkət etdi.</>,
+        content: <>Yeni hərəkət etdin.</>,
         accent: "bg-zinc-500/10 text-zinc-400",
       };
   }

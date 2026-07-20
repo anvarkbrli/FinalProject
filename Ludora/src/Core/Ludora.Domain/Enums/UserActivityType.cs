@@ -29,5 +29,18 @@ public enum UserActivityType
     PostDeleted = 25,
     GameListCreated = 26,
     GameListUpdated = 27,
-    GameListDeleted = 28
+    GameListDeleted = 28,
+    GameAddedToList = 29,
+    GameRemovedFromList = 30,
+    GameListGameReordered = 31,
+    PostLiked = 32,
+    PostUnliked = 33,
+    PostCommented = 34,
+    PostCommentUpdated = 35,
+    PostCommentDeleted = 36,
+    GameListLiked = 37,
+    GameListUnliked = 38,
+    GameListCommented = 39,
+    GameListCommentUpdated = 40,
+    GameListCommentDeleted = 41
 }

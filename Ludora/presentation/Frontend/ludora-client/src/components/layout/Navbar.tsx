@@ -4,8 +4,7 @@ import {
   LogIn,
   LogOut,
   Menu,
-  PenLine,
-  Search,
+  Plus,
   Settings,
   UserPlus,
   UserRound,
@@ -21,6 +20,7 @@ import {
   useLocation,
 } from "react-router-dom";
 import { LogGameModal } from "../reviews/LogGameModal";
+import { GlobalSearchBox } from "../search/GlobalSearchBox";
 import { resolveAssetUrl } from "../../lib/helpers";
 import {
   isAuthSessionValid,
@@ -252,14 +252,7 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <Link
-            to="/games"
-            onClick={closeMenus}
-            className="flex items-center gap-2 rounded-xl border border-violet-400/20 bg-violet-500/10 px-4 py-2.5 text-sm font-semibold text-violet-200 transition hover:border-violet-400/40 hover:bg-violet-500/20"
-          >
-            <Search size={17} />
-            Kəşf et
-          </Link>
+          <GlobalSearchBox />
 
           {hasValidSession && (
             <button
@@ -268,17 +261,17 @@ export function Navbar() {
                 closeMenus();
                 setIsLogModalOpen(true);
               }}
-              className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-violet-950/30 transition hover:bg-violet-500"
+              className="order-3 flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-violet-950/30 transition hover:bg-violet-500"
             >
-              <PenLine size={17} />
-              Log et
+              <Plus size={17} />
+              Rəy əlavə et
             </button>
           )}
 
           {hasValidSession && user ? (
             <div
               ref={userMenuRef}
-              className="relative"
+              className="order-2 relative"
             >
               <button
                 type="button"
@@ -460,14 +453,7 @@ export function Navbar() {
               );
             })}
 
-            <Link
-              to="/games"
-              onClick={closeMenus}
-              className="mt-2 flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-500"
-            >
-              <Search size={17} />
-              Oyunları kəşf et
-            </Link>
+            <div className="mt-2"><GlobalSearchBox mobile /></div>
 
             {hasValidSession ? (
               <>
@@ -479,8 +465,8 @@ export function Navbar() {
                   }}
                   className="mt-2 flex items-center justify-center gap-3 rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-violet-500"
                 >
-                  <PenLine size={17} />
-                  Oyunu log et
+                  <Plus size={17} />
+                  Rəy əlavə et
                 </button>
 
                 {user && (

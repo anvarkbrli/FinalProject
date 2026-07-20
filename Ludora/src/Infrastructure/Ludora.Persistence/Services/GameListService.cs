@@ -2,7 +2,6 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
-using Ludora.Domain.Entities;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
@@ -15,6 +14,7 @@ public sealed class GameListService : IGameListService
 {
     private const int MaxNameLength = 100;
     private const int MaxDescriptionLength = 1000;
+
     private readonly AppDbContext _context;
     private readonly IGameService _gameService;
 
@@ -66,11 +66,16 @@ public sealed class GameListService : IGameListService
                 Name = x.Name,
                 Description = x.Description,
                 Visibility = x.Visibility,
+                IsRanked = x.IsRanked,
                 OwnerId = x.UserId,
                 OwnerUserName = x.User.UserName ?? string.Empty,
                 GameCount = x.GameListItems.Count,
                 CreatedAt = x.CreatedAt,
-                UpdatedAt = x.UpdatedAt
+                UpdatedAt = x.UpdatedAt,
+                LikeCount = x.Likes.Count,
+                CommentCount = x.Comments.Count,
+                IsLikedByCurrentUser = currentUserId.HasValue &&
+                    x.Likes.Any(like => like.UserId == currentUserId.Value)
             })
             .ToListAsync(cancellationToken);
     }
@@ -91,20 +96,47 @@ public sealed class GameListService : IGameListService
 
         await CheckListAccessAsync(gameList, currentUserId, cancellationToken);
 
+        var likeCount = await _context.GameListLikes
+            .AsNoTracking()
+            .CountAsync(x => x.GameListId == id, cancellationToken);
+
+        var commentCount = await _context.GameListComments
+            .AsNoTracking()
+            .CountAsync(x => x.GameListId == id, cancellationToken);
+
+        var isLikedByCurrentUser = currentUserId.HasValue &&
+            await _context.GameListLikes
+                .AsNoTracking()
+                .AnyAsync(x =>
+                    x.GameListId == id &&
+                    x.UserId == currentUserId.Value,
+                    cancellationToken);
+
+        var orderedItems = gameList.IsRanked
+            ? gameList.GameListItems
+                .OrderBy(x => x.Position ?? int.MaxValue)
+                .ThenBy(x => x.AddedAt)
+            : gameList.GameListItems
+                .OrderByDescending(x => x.AddedAt)
+                .ThenBy(x => x.GameTitle);
+
         return new GameListDetailDTO
         {
             Id = gameList.Id,
             Name = gameList.Name,
             Description = gameList.Description,
             Visibility = gameList.Visibility,
+            IsRanked = gameList.IsRanked,
             OwnerId = gameList.UserId,
             OwnerUserName = gameList.User.UserName ?? string.Empty,
             IsOwner = currentUserId == gameList.UserId,
             GameCount = gameList.GameListItems.Count,
             CreatedAt = gameList.CreatedAt,
             UpdatedAt = gameList.UpdatedAt,
-            Games = gameList.GameListItems
-                .OrderByDescending(x => x.AddedAt)
+            LikeCount = likeCount,
+            CommentCount = commentCount,
+            IsLikedByCurrentUser = isLikedByCurrentUser,
+            Games = orderedItems
                 .Select(x => new GameListEntryDTO
                 {
                     Source = x.GameSource,
@@ -113,6 +145,7 @@ public sealed class GameListService : IGameListService
                     CoverImageUrl = x.CoverImageUrl,
                     ReleaseDate = x.ReleaseDate,
                     AverageRating = x.Rating,
+                    Position = x.Position,
                     AddedAt = x.AddedAt
                 })
                 .ToList()
@@ -144,6 +177,7 @@ public sealed class GameListService : IGameListService
                 "Siyahının açıqlaması",
                 MaxDescriptionLength),
             Visibility = dto.Visibility,
+            IsRanked = dto.IsRanked,
             UserId = userId,
             CreatedAt = DateTime.UtcNow
         };
@@ -168,7 +202,13 @@ public sealed class GameListService : IGameListService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dto);
-        var gameList = await GetUserGameListAsync(id, userId, cancellationToken);
+
+        var gameList = await GetUserGameListAsync(
+            id,
+            userId,
+            includeItems: true,
+            cancellationToken);
+
         var hasChanges = false;
 
         if (dto.Name is not null)
@@ -179,11 +219,13 @@ public sealed class GameListService : IGameListService
             hasChanges = true;
         }
 
-        if (dto.Description is not null)
+        var description = dto.Description.NormalizeOptionalText(
+            "Siyahının açıqlaması",
+            MaxDescriptionLength);
+
+        if (description != gameList.Description)
         {
-            gameList.Description = dto.Description.NormalizeOptionalText(
-                "Siyahının açıqlaması",
-                MaxDescriptionLength);
+            gameList.Description = description;
             hasChanges = true;
         }
 
@@ -191,6 +233,31 @@ public sealed class GameListService : IGameListService
         {
             dto.Visibility.Value.EnsureDefined("Siyahının görünmə tipi");
             gameList.Visibility = dto.Visibility.Value;
+            hasChanges = true;
+        }
+
+        if (dto.IsRanked.HasValue && dto.IsRanked.Value != gameList.IsRanked)
+        {
+            gameList.IsRanked = dto.IsRanked.Value;
+
+            if (gameList.IsRanked)
+            {
+                var position = 1;
+
+                foreach (var item in gameList.GameListItems
+                             .OrderBy(x => x.AddedAt)
+                             .ThenBy(x => x.GameSource)
+                             .ThenBy(x => x.GameSourceId))
+                {
+                    item.Position = position++;
+                }
+            }
+            else
+            {
+                foreach (var item in gameList.GameListItems)
+                    item.Position = null;
+            }
+
             hasChanges = true;
         }
 
@@ -213,7 +280,12 @@ public sealed class GameListService : IGameListService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var gameList = await GetUserGameListAsync(id, userId, cancellationToken);
+        var gameList = await GetUserGameListAsync(
+            id,
+            userId,
+            includeItems: false,
+            cancellationToken);
+
         gameList.IsDeleted = true;
         gameList.UpdatedAt = DateTime.UtcNow;
 
@@ -232,6 +304,7 @@ public sealed class GameListService : IGameListService
         CancellationToken cancellationToken = default)
     {
         id.EnsureValidId();
+
         var gameList = await _context.GameLists
             .IgnoreQueryFilters()
             .FirstOrDefaultAsync(x => x.Id == id && x.UserId == userId, cancellationToken)
@@ -240,7 +313,12 @@ public sealed class GameListService : IGameListService
         if (!gameList.IsDeleted)
             return;
 
-        await EnsureListNameIsAvailableAsync(userId, gameList.Name, gameList.Id, cancellationToken);
+        await EnsureListNameIsAvailableAsync(
+            userId,
+            gameList.Name,
+            gameList.Id,
+            cancellationToken);
+
         gameList.IsDeleted = false;
         gameList.UpdatedAt = DateTime.UtcNow;
         await SaveListChangesAsync(cancellationToken);
@@ -254,7 +332,12 @@ public sealed class GameListService : IGameListService
         CancellationToken cancellationToken = default)
     {
         gameId.EnsureValidCatalogReference(source, "Oyun");
-        await GetUserGameListAsync(listId, userId, cancellationToken);
+
+        var gameList = await GetUserGameListAsync(
+            listId,
+            userId,
+            includeItems: false,
+            cancellationToken);
 
         var itemExists = await _context.GameListItems
             .AsNoTracking()
@@ -269,6 +352,15 @@ public sealed class GameListService : IGameListService
 
         var game = await _gameService.GetByIdAsync(source, gameId, cancellationToken);
 
+        int? position = null;
+
+        if (gameList.IsRanked)
+        {
+            position = (await _context.GameListItems
+                .Where(x => x.GameListId == listId)
+                .MaxAsync(x => (int?)x.Position, cancellationToken) ?? 0) + 1;
+        }
+
         var gameListItem = new GameListItem
         {
             GameListId = listId,
@@ -278,10 +370,20 @@ public sealed class GameListService : IGameListService
             CoverImageUrl = game.CoverImageUrl,
             ReleaseDate = game.ReleaseDate,
             Rating = game.AverageRating,
+            Position = position,
             AddedAt = DateTime.UtcNow
         };
 
         await _context.GameListItems.AddAsync(gameListItem, cancellationToken);
+        gameList.UpdatedAt = DateTime.UtcNow;
+
+        _context.AddUserActivity(
+            userId,
+            UserActivityType.GameAddedToList,
+            gameSource: source,
+            gameId: gameId,
+            gameListId: gameList.Id,
+            subjectTitle: gameList.Name);
 
         try
         {
@@ -301,27 +403,134 @@ public sealed class GameListService : IGameListService
         CancellationToken cancellationToken = default)
     {
         gameId.EnsureValidCatalogReference(source, "Oyun");
-        await GetUserGameListAsync(listId, userId, cancellationToken);
 
-        var item = await _context.GameListItems.FirstOrDefaultAsync(x =>
-            x.GameListId == listId &&
-            x.GameSource == source &&
-            x.GameSourceId == gameId,
-            cancellationToken)
+        var gameList = await GetUserGameListAsync(
+            listId,
+            userId,
+            includeItems: false,
+            cancellationToken);
+
+        var item = await _context.GameListItems
+            .FirstOrDefaultAsync(x =>
+                x.GameListId == listId &&
+                x.GameSource == source &&
+                x.GameSourceId == gameId,
+                cancellationToken)
             ?? throw new NotFoundException("Oyun bu siyahıda tapılmadı.");
 
+        var removedPosition = item.Position;
         _context.GameListItems.Remove(item);
+
+        if (gameList.IsRanked && removedPosition.HasValue)
+        {
+            var followingItems = await _context.GameListItems
+                .Where(x =>
+                    x.GameListId == listId &&
+                    x.Position > removedPosition.Value)
+                .ToListAsync(cancellationToken);
+
+            foreach (var followingItem in followingItems)
+                followingItem.Position--;
+        }
+
+        gameList.UpdatedAt = DateTime.UtcNow;
+
+        _context.AddUserActivity(
+            userId,
+            UserActivityType.GameRemovedFromList,
+            gameSource: source,
+            gameId: gameId,
+            gameListId: gameList.Id,
+            subjectTitle: gameList.Name);
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UpdateGamePositionAsync(
+        int listId,
+        CatalogSource source,
+        long gameId,
+        int position,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        gameId.EnsureValidCatalogReference(source, "Oyun");
+
+        var gameList = await GetUserGameListAsync(
+            listId,
+            userId,
+            includeItems: true,
+            cancellationToken);
+
+        if (!gameList.IsRanked)
+            throw new BadRequestException("Yalnız sıralanmış siyahılarda oyunların mövqeyi dəyişdirilə bilər.");
+
+        var orderedItems = gameList.GameListItems
+            .OrderBy(x => x.Position ?? int.MaxValue)
+            .ThenBy(x => x.AddedAt)
+            .ToList();
+
+        if (position < 1 || position > orderedItems.Count)
+            throw new BadRequestException($"Mövqe 1-{orderedItems.Count} aralığında olmalıdır.");
+
+        var item = orderedItems.FirstOrDefault(x =>
+            x.GameSource == source &&
+            x.GameSourceId == gameId)
+            ?? throw new NotFoundException("Oyun bu siyahıda tapılmadı.");
+
+        var oldPosition = item.Position
+            ?? throw new BadRequestException("Oyunun mövqeyi müəyyən edilməyib.");
+
+        if (oldPosition == position)
+            return;
+
+        if (position < oldPosition)
+        {
+            foreach (var otherItem in orderedItems.Where(x =>
+                         x.Position >= position &&
+                         x.Position < oldPosition))
+            {
+                otherItem.Position++;
+            }
+        }
+        else
+        {
+            foreach (var otherItem in orderedItems.Where(x =>
+                         x.Position > oldPosition &&
+                         x.Position <= position))
+            {
+                otherItem.Position--;
+            }
+        }
+
+        item.Position = position;
+        gameList.UpdatedAt = DateTime.UtcNow;
+
+        _context.AddUserActivity(
+            userId,
+            UserActivityType.GameListGameReordered,
+            gameSource: source,
+            gameId: gameId,
+            gameListId: gameList.Id,
+            subjectTitle: gameList.Name);
+
         await _context.SaveChangesAsync(cancellationToken);
     }
 
     private async Task<GameList> GetUserGameListAsync(
         int id,
         Guid userId,
+        bool includeItems,
         CancellationToken cancellationToken)
     {
         id.EnsureValidId();
 
-        var gameList = await _context.GameLists
+        IQueryable<GameList> query = _context.GameLists;
+
+        if (includeItems)
+            query = query.Include(x => x.GameListItems);
+
+        var gameList = await query
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new NotFoundException("Oyun siyahısı tapılmadı.");
 

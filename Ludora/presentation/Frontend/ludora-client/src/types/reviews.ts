@@ -7,7 +7,11 @@ export type ReviewSort =
   | "Newest"
   | "Oldest"
   | "HighestRated"
-  | "LowestRated";
+  | "LowestRated"
+  | "MostLiked"
+  | "LeastLiked"
+  | "MostCommented"
+  | "LeastCommented";
 
 export interface ReviewDTO {
   id: number;
@@ -47,3 +51,28 @@ export interface ReviewWriteDTO {
 
 export type ReviewsResultDTO =
   PagedResultDTO<ReviewDTO>;
+
+export interface ReviewCommentDTO {
+  id: number;
+  reviewId: number;
+  userId: string;
+  userName: string;
+  profileImageUrl: string | null;
+  content: string;
+  createdAt: string;
+  updatedAt: string | null;
+  isMine: boolean;
+}
+
+export type ReviewCommentsResultDTO =
+  PagedResultDTO<ReviewCommentDTO>;
+
+export interface ReviewLikeUserDTO {
+  userId: string;
+  userName: string;
+  profileImageUrl: string | null;
+  likedAt: string;
+}
+
+export type ReviewLikesResultDTO =
+  PagedResultDTO<ReviewLikeUserDTO>;

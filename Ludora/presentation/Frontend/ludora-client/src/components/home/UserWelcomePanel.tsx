@@ -2,12 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Gamepad2,
+  History,
   ListChecks,
   MessageSquareText,
-  Settings,
   Sparkles,
   Star,
-  UserRound,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -73,7 +72,11 @@ export function UserWelcomePanel() {
 
   const reviewsQuery = useQuery({
     queryKey: ["homepage", "my-reviews", user?.id],
-    queryFn: () => getUserReviews(user!.id),
+    queryFn: () =>
+      getUserReviews(user!.id, {
+        pageNumber: 1,
+        pageSize: 100,
+      }),
     enabled: hasValidSession,
   });
 
@@ -110,14 +113,19 @@ export function UserWelcomePanel() {
         wishlistCount += 1;
       }
 
-      if (game.rating !== null) {
-        ratingTotal += game.rating;
-        ratingCount += 1;
-        ratingCounts.set(
-          game.rating,
-          (ratingCounts.get(game.rating) ?? 0) + 1,
-        );
+    }
+
+    for (const review of reviewsQuery.data?.items ?? []) {
+      if (review.rating === null) {
+        continue;
       }
+
+      ratingTotal += review.rating;
+      ratingCount += 1;
+      ratingCounts.set(
+        review.rating,
+        (ratingCounts.get(review.rating) ?? 0) + 1,
+      );
     }
 
     const recentGame = [...userGames].sort((first, second) => {
@@ -140,7 +148,7 @@ export function UserWelcomePanel() {
       ratingCounts,
       recentGame,
     };
-  }, [userGamesQuery.data]);
+  }, [userGamesQuery.data, reviewsQuery.data]);
 
   if (!hasValidSession || !user) {
     return null;
@@ -153,6 +161,8 @@ export function UserWelcomePanel() {
     user.userName.trim().charAt(0).toUpperCase() || "?";
   const isUserGamesUnavailable =
     userGamesQuery.isLoading || userGamesQuery.isError;
+  const isRatingDataUnavailable =
+    reviewsQuery.isLoading || reviewsQuery.isError;
   const reviewCount = reviewsQuery.data?.totalCount;
   const listCount = listsQuery.data?.length;
   const maximumRatingCount = Math.max(
@@ -298,7 +308,7 @@ export function UserWelcomePanel() {
 
                 <div className="text-right">
                   <p className="flex items-center justify-end gap-1 text-xl font-bold text-white">
-                    {isUserGamesUnavailable ||
+                    {isRatingDataUnavailable ||
                     dashboardData.averageRating === null
                       ? "—"
                       : dashboardData.averageRating.toFixed(1)}
@@ -309,9 +319,9 @@ export function UserWelcomePanel() {
                   </p>
 
                   <p className="mt-1 text-[11px] text-zinc-600">
-                    {userGamesQuery.isLoading
+                    {reviewsQuery.isLoading
                       ? "Yüklənir"
-                      : userGamesQuery.isError
+                      : reviewsQuery.isError
                         ? "Yüklənmədi"
                         : `${dashboardData.ratingCount} oyun`}
                   </p>
@@ -331,22 +341,28 @@ export function UserWelcomePanel() {
                         );
 
                   return (
-                    <div
+                    <Link
                       key={rating}
-                      className="group flex h-full min-w-0 flex-1 items-end"
-                      title={`${formatRating(rating)} ulduz: ${count} oyun`}
+                      to={`/users/${user.userName}?tab=reviews&rating=${rating}`}
+                      className="group relative flex h-full min-w-0 flex-1 items-end rounded-t-md outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
+                      aria-label={`${formatRating(rating)} ulduz verdiyin ${count} oyunun rəylərinə bax`}
                     >
-                      <div
-                        className={`w-full rounded-t-md transition group-hover:opacity-100 ${
+                      <span
+                        className={`w-full rounded-t-md transition duration-200 group-hover:-translate-y-1 group-hover:opacity-100 ${
                           count > 0
-                            ? "bg-gradient-to-t from-violet-600 to-fuchsia-400 opacity-90"
-                            : "bg-white/[0.06]"
+                            ? "bg-gradient-to-t from-violet-600 to-fuchsia-400 opacity-90 group-hover:shadow-[0_0_22px_rgba(217,70,239,0.28)]"
+                            : "bg-white/[0.06] group-hover:bg-violet-500/20"
                         }`}
                         style={{
                           height: `${heightPercentage}%`,
                         }}
                       />
-                    </div>
+
+                      <span className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-xl border border-white/[0.1] bg-[#181820] px-3 py-2 text-[11px] font-semibold text-zinc-100 shadow-2xl shadow-black/50 group-hover:block group-focus-visible:block">
+                        {formatRating(rating)} ulduz: {count} oyun
+                        <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-white/[0.1] bg-[#181820]" />
+                      </span>
+                    </Link>
                   );
                 })}
               </div>
@@ -420,39 +436,28 @@ export function UserWelcomePanel() {
 
               <div className="mt-3 grid grid-cols-3 gap-2">
                 <Link
-                  to="/games"
+                  to={`/users/${user.userName}?tab=posts`}
                   className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] px-2 py-3 text-[11px] text-zinc-500 transition hover:border-violet-400/20 hover:text-violet-200"
                 >
-                  <Gamepad2 size={17} />
-                  Oyunlar
+                  <MessageSquareText size={17} />
+                  Postlar
                 </Link>
 
                 <Link
-                  to={`/users/${user.userName}`}
+                  to={`/users/${user.userName}?tab=lists`}
                   className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] px-2 py-3 text-[11px] text-zinc-500 transition hover:border-violet-400/20 hover:text-violet-200"
                 >
-                  <UserRound size={17} />
-                  Profil
+                  <ListChecks size={17} />
+                  Listlər
                 </Link>
 
                 <Link
-                  to="/settings"
+                  to={`/users/${user.userName}?tab=journal`}
                   className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] px-2 py-3 text-[11px] text-zinc-500 transition hover:border-violet-400/20 hover:text-violet-200"
                 >
-                  <Settings size={17} />
-                  Ayarlar
+                  <History size={17} />
+                  Jurnal
                 </Link>
-              </div>
-
-              <div className="mt-3 flex items-center justify-center gap-4 text-[11px] text-zinc-600">
-                <span className="inline-flex items-center gap-1.5">
-                  <ListChecks size={13} />
-                  {listsQuery.isLoading ? "—" : (listCount ?? "—")}
-                </span>
-                <span className="inline-flex items-center gap-1.5">
-                  <MessageSquareText size={13} />
-                  {reviewsQuery.isLoading ? "—" : (reviewCount ?? "—")}
-                </span>
               </div>
             </div>
           </div>

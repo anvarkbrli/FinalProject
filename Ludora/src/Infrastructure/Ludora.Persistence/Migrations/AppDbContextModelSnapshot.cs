@@ -832,6 +832,9 @@ namespace Ludora.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsRanked")
+                        .HasColumnType("bit");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -852,6 +855,67 @@ namespace Ludora.Persistence.Migrations
                         .IsUnique();
 
                     b.ToTable("GameLists");
+                });
+
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.GameListComment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("GameListId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("GameListId", "CreatedAt");
+
+                    b.ToTable("GameListComments");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.GameListLike", b =>
+                {
+                    b.Property<int>("GameListId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("GameListId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("GameListId", "CreatedAt");
+
+                    b.ToTable("GameListLikes");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.GameListItem", b =>
@@ -877,6 +941,9 @@ namespace Ludora.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<int?>("Position")
+                        .HasColumnType("int");
+
                     b.Property<double?>("Rating")
                         .HasColumnType("float");
 
@@ -885,7 +952,73 @@ namespace Ludora.Persistence.Migrations
 
                     b.HasKey("GameListId", "GameSource", "GameSourceId");
 
-                    b.ToTable("GameListItems");
+                    b.HasIndex("GameListId", "Position");
+
+                    b.ToTable("GameListItems", t =>
+                        {
+                            t.HasCheckConstraint("CK_GameListItems_Position", "[Position] IS NULL OR [Position] >= 1");
+                        });
+                });
+
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.PostComment", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<long>("PostId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("PostId", "CreatedAt");
+
+                    b.ToTable("PostComments");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.PostLike", b =>
+                {
+                    b.Property<long>("PostId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("PostId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("PostId", "CreatedAt");
+
+                    b.ToTable("PostLikes");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.Review", b =>
@@ -969,7 +1102,6 @@ namespace Ludora.Persistence.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
                     b.Property<string>("Content")
-                        .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
@@ -1170,7 +1302,6 @@ namespace Ludora.Persistence.Migrations
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
 
                     b.Property<string>("Content")
-                        .IsRequired()
                         .HasMaxLength(2000)
                         .HasColumnType("nvarchar(2000)");
 
@@ -1190,6 +1321,10 @@ namespace Ludora.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<string>("ImageUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -1202,7 +1337,10 @@ namespace Ludora.Persistence.Migrations
 
                     b.HasIndex("UserId", "CreatedAt");
 
-                    b.ToTable("UserPosts");
+                    b.ToTable("UserPosts", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserPosts_ContentOrImage", "[Content] IS NOT NULL OR [ImageUrl] IS NOT NULL");
+                        });
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.UserWarning", b =>
@@ -1589,6 +1727,43 @@ namespace Ludora.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.GameListComment", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.GameList", "GameList")
+                        .WithMany("Comments")
+                        .HasForeignKey("GameListId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("GameListComments")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("GameList");
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.GameListLike", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.GameList", "GameList")
+                        .WithMany("Likes")
+                        .HasForeignKey("GameListId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("GameListLikes")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("GameList");
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.User.GameListItem", b =>
                 {
                     b.HasOne("Ludora.Domain.Entities.User.GameList", "GameList")
@@ -1598,6 +1773,43 @@ namespace Ludora.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("GameList");
+                });
+
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.PostComment", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.UserPost", "Post")
+                        .WithMany("Comments")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("PostComments")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Post");
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.PostLike", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.UserPost", "Post")
+                        .WithMany("Likes")
+                        .HasForeignKey("PostId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("PostLikes")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Post");
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.Review", b =>
@@ -1873,7 +2085,15 @@ namespace Ludora.Persistence.Migrations
 
                     b.Navigation("Following");
 
+                    b.Navigation("GameListComments");
+
+                    b.Navigation("GameListLikes");
+
                     b.Navigation("GameLists");
+
+                    b.Navigation("PostComments");
+
+                    b.Navigation("PostLikes");
 
                     b.Navigation("Posts");
 
@@ -1892,7 +2112,18 @@ namespace Ludora.Persistence.Migrations
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.GameList", b =>
                 {
+                    b.Navigation("Comments");
+
                     b.Navigation("GameListItems");
+
+                    b.Navigation("Likes");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.UserPost", b =>
+                {
+                    b.Navigation("Comments");
+
+                    b.Navigation("Likes");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.Review", b =>

@@ -415,6 +415,8 @@ public sealed class ReviewService : IReviewService
         Guid? currentUserId,
         CancellationToken cancellationToken)
     {
+        query = ApplyRatingFilter(query, filter.Rating);
+
         var totalCount = await query.CountAsync(cancellationToken);
         query = ApplySorting(query, filter.SortBy);
 
@@ -472,6 +474,22 @@ public sealed class ReviewService : IReviewService
              followedUserIds.Contains(x.UserId)));
     }
 
+    private IQueryable<Review> ApplyRatingFilter(
+        IQueryable<Review> query,
+        double? rating)
+    {
+        if (!rating.HasValue)
+            return query;
+
+        var selectedRating = rating.Value;
+
+        return query.Where(review => _context.UserGames.Any(userGame =>
+            userGame.UserId == review.UserId &&
+            userGame.Source == review.Source &&
+            userGame.GameId == review.GameId &&
+            userGame.Rating == selectedRating));
+    }
+
     private IQueryable<Review> ApplySorting(
         IQueryable<Review> query,
         ReviewSort sort)
@@ -517,6 +535,30 @@ public sealed class ReviewService : IReviewService
                     .Select(userGame => userGame.Rating)
                     .FirstOrDefault())
                 .ThenByDescending(x => x.CreatedAt),
+
+            ReviewSort.MostLiked => query
+                .OrderByDescending(review => _context.ReviewLikes
+                    .Count(like => like.ReviewId == review.Id))
+                .ThenByDescending(x => x.CreatedAt)
+                .ThenByDescending(x => x.Id),
+
+            ReviewSort.LeastLiked => query
+                .OrderBy(review => _context.ReviewLikes
+                    .Count(like => like.ReviewId == review.Id))
+                .ThenByDescending(x => x.CreatedAt)
+                .ThenByDescending(x => x.Id),
+
+            ReviewSort.MostCommented => query
+                .OrderByDescending(review => _context.ReviewComments
+                    .Count(comment => comment.ReviewId == review.Id))
+                .ThenByDescending(x => x.CreatedAt)
+                .ThenByDescending(x => x.Id),
+
+            ReviewSort.LeastCommented => query
+                .OrderBy(review => _context.ReviewComments
+                    .Count(comment => comment.ReviewId == review.Id))
+                .ThenByDescending(x => x.CreatedAt)
+                .ThenByDescending(x => x.Id),
 
             _ => throw new BadRequestException(
                 "Rəy sıralaması düzgün deyil.")
@@ -910,6 +952,7 @@ public sealed class ReviewService : IReviewService
     private static void ValidateFilter(ReviewFilterDTO filter)
     {
         filter.SortBy.EnsureDefined("Rəy sıralaması");
+        ValidateRating(filter.Rating);
 
         if (filter.PageNumber < 1)
         {

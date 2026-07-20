@@ -12,6 +12,7 @@ namespace Ludora.Domain.Entities.User
         public string? CoverImageUrl { get; set; }
         public DateOnly? ReleaseDate { get; set; }
         public double? Rating { get; set; }
+        public int? Position { get; set; }
         public DateTime AddedAt { get; set; } = DateTime.UtcNow;
     }
 }

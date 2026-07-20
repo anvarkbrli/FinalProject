@@ -1,7 +1,10 @@
 import { api } from "../lib/api";
 import type { CatalogSource } from "../types/home";
 import type {
+  ReviewCommentDTO,
+  ReviewCommentsResultDTO,
   ReviewDTO,
+  ReviewLikesResultDTO,
   ReviewSort,
   ReviewsResultDTO,
   ReviewWriteDTO,
@@ -77,4 +80,66 @@ export async function unlikeReview(
   reviewId: number,
 ): Promise<void> {
   await api.delete(`/reviews/${reviewId}/likes`);
+}
+
+
+export async function getReviewLikes(
+  reviewId: number,
+  pageNumber = 1,
+  pageSize = 50,
+): Promise<ReviewLikesResultDTO> {
+  const response = await api.get<ReviewLikesResultDTO>(
+    `/reviews/${reviewId}/likes`,
+    { params: { pageNumber, pageSize } },
+  );
+
+  return response.data;
+}
+
+export async function getReviewComments(
+  reviewId: number,
+  pageNumber: number,
+  pageSize = 10,
+): Promise<ReviewCommentsResultDTO> {
+  const response = await api.get<ReviewCommentsResultDTO>(
+    `/reviews/${reviewId}/comments`,
+    {
+      params: {
+        pageNumber,
+        pageSize,
+      },
+    },
+  );
+
+  return response.data;
+}
+
+export async function createReviewComment(
+  reviewId: number,
+  content: string,
+): Promise<ReviewCommentDTO> {
+  const response = await api.post<ReviewCommentDTO>(
+    `/reviews/${reviewId}/comments`,
+    { content },
+  );
+
+  return response.data;
+}
+
+export async function updateReviewComment(
+  commentId: number,
+  content: string,
+): Promise<ReviewCommentDTO> {
+  const response = await api.put<ReviewCommentDTO>(
+    `/reviews/comments/${commentId}`,
+    { content },
+  );
+
+  return response.data;
+}
+
+export async function deleteReviewComment(
+  commentId: number,
+): Promise<void> {
+  await api.delete(`/reviews/comments/${commentId}`);
 }

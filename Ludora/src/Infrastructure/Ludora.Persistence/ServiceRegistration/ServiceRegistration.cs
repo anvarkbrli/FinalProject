@@ -53,8 +53,11 @@ public static class ServiceRegistration
         services.AddScoped<IUserGameService, UserGameService>();
         services.AddScoped<IUserActivityService, UserActivityService>();
         services.AddScoped<IPostService, PostService>();
+        services.AddScoped<IPostInteractionService, PostInteractionService>();
+        services.AddScoped<IGameListInteractionService, GameListInteractionService>();
         services.AddScoped<IReviewService, ReviewService>();
         services.AddScoped<IReviewInteractionService, ReviewInteractionService>();
+        services.AddScoped<IGlobalSearchService, GlobalSearchService>();
         services.AddScoped<IForumCategoryService, ForumCategoryService>();
         services.AddScoped<IDiscussionService, DiscussionService>();
         services.AddScoped<IDiscussionReplyService, DiscussionReplyService>();

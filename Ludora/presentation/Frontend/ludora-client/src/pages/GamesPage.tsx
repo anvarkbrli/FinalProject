@@ -811,6 +811,7 @@ export function GamesPage() {
 
               <input
                 type="search"
+                autoComplete="off"
                 value={searchInput}
                 onChange={(event) => {
                   setSearchInput(

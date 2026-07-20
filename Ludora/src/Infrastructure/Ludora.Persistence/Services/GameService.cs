@@ -173,7 +173,14 @@ public sealed class GameService : IGameService
                 "Sorğu edilən səhifə aralığı çox böyükdür.");
         }
 
-        var fetchCount = (int)requestedEnd;
+        var fetchMultiplier = string.IsNullOrWhiteSpace(filter.SearchName)
+            ? 1
+            : 3;
+
+        var fetchCount = (int)Math.Min(
+            requestedEnd * fetchMultiplier,
+            int.MaxValue);
+
         var details = new List<GameDetailDTO>();
 
         var combinedLocalQuery = BuildLocalQuery(filter);
@@ -246,7 +253,20 @@ public sealed class GameService : IGameService
             }
         }
 
-        var itemsForPage = SortGames(details, filter.SortBy)
+        var distinctDetails = details
+            .GroupBy(
+                game => game.Title.Trim(),
+                StringComparer.OrdinalIgnoreCase)
+            .Select(group => group
+                .OrderByDescending(game => game.IsOverridden)
+                .ThenByDescending(game => game.ReleaseDate.HasValue)
+                .ThenByDescending(game => !string.IsNullOrWhiteSpace(game.CoverImageUrl))
+                .ThenByDescending(game => game.AverageRating)
+                .ThenByDescending(game => game.Source == CatalogSource.Igdb)
+                .First())
+            .ToList();
+
+        var itemsForPage = SortGames(distinctDetails, filter.SortBy)
             .Skip(skip)
             .Take(pageSize)
             .Select(ToListItem)

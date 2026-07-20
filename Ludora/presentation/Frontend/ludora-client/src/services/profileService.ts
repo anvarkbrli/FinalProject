@@ -12,6 +12,7 @@ import type {
 } from "../types/profile";
 import type { UserGameDTO } from "../types/userGames";
 import type { PagedResultDTO } from "../types/home";
+import type { ReviewSort } from "../types/reviews";
 
 export async function getUserProfile(
   userName: string,
@@ -92,9 +93,21 @@ export async function getUserPosts(
 export async function createPost(
   request: PostCreateDTO,
 ): Promise<PostDTO> {
+  const formData = new FormData();
+  formData.append("content", request.content);
+
+  if (request.image) {
+    formData.append("image", request.image);
+  }
+
   const response = await api.post<PostDTO>(
     "/posts",
-    request,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    },
   );
 
   return response.data;
@@ -104,9 +117,25 @@ export async function updatePost(
   postId: number,
   request: PostUpdateDTO,
 ): Promise<PostDTO> {
+  const formData = new FormData();
+  formData.append("content", request.content);
+  formData.append(
+    "removeImage",
+    String(request.removeImage),
+  );
+
+  if (request.image) {
+    formData.append("image", request.image);
+  }
+
   const response = await api.put<PostDTO>(
     `/posts/${postId}`,
-    request,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    },
   );
 
   return response.data;
@@ -130,15 +159,22 @@ export async function getUserGameLists(
 
 export async function getUserReviews(
   userId: string,
+  filter: {
+    sortBy?: ReviewSort;
+    rating?: number | null;
+    pageNumber?: number;
+    pageSize?: number;
+  } = {},
 ): Promise<UserReviewsResultDTO> {
   const response =
     await api.get<UserReviewsResultDTO>(
       `/reviews/user/${userId}`,
       {
         params: {
-          sortBy: "Newest",
-          pageNumber: 1,
-          pageSize: 20,
+          sortBy: filter.sortBy ?? "Newest",
+          rating: filter.rating ?? undefined,
+          pageNumber: filter.pageNumber ?? 1,
+          pageSize: filter.pageSize ?? 20,
         },
       },
     );

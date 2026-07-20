@@ -1,4 +1,7 @@
 const apiOrigin = import.meta.env.VITE_API_ORIGIN;
+const azerbaijanTimeZone = "Asia/Baku";
+const dateOnlyPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
+const utcOffsetPattern = /(Z|[+-]\d{2}:?\d{2})$/i;
 
 export function resolveAssetUrl(
   value: string | null | undefined,
@@ -39,6 +42,20 @@ export function getReleaseYear(
   return value.slice(0, 4);
 }
 
+function parseBackendDateTime(
+  value: string,
+): Date | null {
+  const normalizedValue =
+    value.includes("T") && !utcOffsetPattern.test(value)
+      ? `${value}Z`
+      : value;
+  const date = new Date(normalizedValue);
+
+  return Number.isNaN(date.getTime())
+    ? null
+    : date;
+}
+
 export function formatDate(
   value: string | null | undefined,
 ): string {
@@ -46,17 +63,25 @@ export function formatDate(
     return "";
   }
 
-  const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(
-    value,
-  );
+  const dateOnlyMatch = dateOnlyPattern.exec(value);
 
-  if (!match) {
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    return `${day}.${month}.${year}`;
+  }
+
+  const date = parseBackendDateTime(value);
+
+  if (!date) {
     return value;
   }
 
-  const [, year, month, day] = match;
-
-  return `${day}.${month}.${year}`;
+  return new Intl.DateTimeFormat("az-AZ", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: azerbaijanTimeZone,
+  }).format(date);
 }
 
 export function formatDateTime(
@@ -66,9 +91,13 @@ export function formatDateTime(
     return "";
   }
 
-  const date = new Date(value);
+  if (dateOnlyPattern.test(value)) {
+    return formatDate(value);
+  }
 
-  if (Number.isNaN(date.getTime())) {
+  const date = parseBackendDateTime(value);
+
+  if (!date) {
     return formatDate(value);
   }
 
@@ -79,6 +108,7 @@ export function formatDateTime(
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+    timeZone: azerbaijanTimeZone,
   }).format(date);
 }
 
@@ -135,55 +165,5 @@ export function isFutureReleaseDate(
 export function formatRelativeDate(
   value: string,
 ): string {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "";
-  }
-
-  const differenceInSeconds = Math.round(
-    (date.getTime() - Date.now()) / 1000,
-  );
-
-  const formatter = new Intl.RelativeTimeFormat("az-AZ", {
-    numeric: "auto",
-  });
-
-  const absoluteDifference = Math.abs(
-    differenceInSeconds,
-  );
-
-  if (absoluteDifference < 60) {
-    return formatter.format(
-      differenceInSeconds,
-      "second",
-    );
-  }
-
-  if (absoluteDifference < 3_600) {
-    return formatter.format(
-      Math.round(differenceInSeconds / 60),
-      "minute",
-    );
-  }
-
-  if (absoluteDifference < 86_400) {
-    return formatter.format(
-      Math.round(differenceInSeconds / 3_600),
-      "hour",
-    );
-  }
-
-  if (absoluteDifference < 2_592_000) {
-    return formatter.format(
-      Math.round(differenceInSeconds / 86_400),
-      "day",
-    );
-  }
-
-  return new Intl.DateTimeFormat("az-AZ", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
+  return formatDateTime(value);
 }

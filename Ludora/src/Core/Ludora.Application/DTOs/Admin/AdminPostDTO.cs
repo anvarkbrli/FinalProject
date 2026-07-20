@@ -6,7 +6,8 @@ public record AdminPostDTO
     public Guid UserId { get; init; }
     public string UserName { get; init; } = string.Empty;
     public string? ProfileImageUrl { get; init; }
-    public string Content { get; init; } = string.Empty;
+    public string? Content { get; init; }
+    public string? ImageUrl { get; init; }
     public bool IsDeleted { get; init; }
     public DateTime? DeletedAtUtc { get; init; }
     public Guid? DeletedByUserId { get; init; }

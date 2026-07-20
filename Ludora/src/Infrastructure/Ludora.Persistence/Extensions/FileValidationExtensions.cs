@@ -1,4 +1,4 @@
-﻿namespace Ludora.Persistence.Extensions;
+namespace Ludora.Persistence.Extensions;
 
 using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
@@ -23,12 +23,25 @@ public static class FileValidationExtensions
         long maxSize,
         FileSize fileSize)
     {
-        if (file.Stream == Stream.Null || file.Length <= 0) throw new BadRequestException("Profil şəkli seçilməyib.");
+        ValidateUploadCore(
+            file.Stream,
+            file.Length,
+            maxSize,
+            fileSize,
+            "Profil şəkli");
+    }
 
-        if (file.Length > ConvertToBytes(maxSize, fileSize))
-        {
-            throw new BadRequestException($"Profil şəkli maksimum {maxSize} {fileSize} ola bilər.");
-        }
+    public static void ValidateUpload(
+        this PostImageUploadDTO file,
+        long maxSize,
+        FileSize fileSize)
+    {
+        ValidateUploadCore(
+            file.Stream,
+            file.Length,
+            maxSize,
+            fileSize,
+            "Post şəkli");
     }
 
     public static void ValidateActualSize(
@@ -40,7 +53,7 @@ public static class FileValidationExtensions
 
         if (bytes.LongLength > ConvertToBytes(maxSize, fileSize))
         {
-            throw new BadRequestException($"Profil şəkli maksimum {maxSize} {fileSize} ola bilər.");
+            throw new BadRequestException($"Şəkil maksimum {maxSize} {fileSize} ola bilər.");
         }
     }
 
@@ -85,6 +98,20 @@ public static class FileValidationExtensions
             && bytes[9] == 'E'
             && bytes[10] == 'B'
             && bytes[11] == 'P';
+    }
+
+    private static void ValidateUploadCore(
+        Stream stream,
+        long length,
+        long maxSize,
+        FileSize fileSize,
+        string fieldName)
+    {
+        if (stream == Stream.Null || length <= 0)
+            throw new BadRequestException($"{fieldName} seçilməyib.");
+
+        if (length > ConvertToBytes(maxSize, fileSize))
+            throw new BadRequestException($"{fieldName} maksimum {maxSize} {fileSize} ola bilər.");
     }
 
     private static long ConvertToBytes(long size, FileSize fileSize)

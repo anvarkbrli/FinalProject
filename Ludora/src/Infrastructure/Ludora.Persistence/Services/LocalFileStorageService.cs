@@ -1,4 +1,4 @@
-﻿namespace Ludora.Persistence.Services;
+namespace Ludora.Persistence.Services;
 
 using Ludora.Application.DTOs;
 using Ludora.Application.Extensions;
@@ -9,6 +9,7 @@ using Ludora.Persistence.Extensions;
 public class LocalFileStorageService : IFileStorageService
 {
     private const int MaxProfileImageSize = 5;
+    private const int MaxPostImageSize = 10;
 
     private readonly FileStorageSettings _settings;
 
@@ -21,22 +22,20 @@ public class LocalFileStorageService : IFileStorageService
     {
         dto.ValidateUpload(MaxProfileImageSize, FileSize.MB);
 
-        var fileBytes = await dto.Stream.ToByteArrayAsync();
+        return await SaveImageAsync(
+            dto.Stream,
+            MaxProfileImageSize,
+            "profile-images");
+    }
 
-        fileBytes.ValidateActualSize(MaxProfileImageSize, FileSize.MB);
+    public async Task<string> SavePostImageAsync(PostImageUploadDTO dto)
+    {
+        dto.ValidateUpload(MaxPostImageSize, FileSize.MB);
 
-        var extension = fileBytes.GetImageExtension();
-
-        var folderPath = Path.Combine(_settings.WebRootPath, "uploads", "profile-images");
-
-        Directory.CreateDirectory(folderPath);
-
-        var fileName = $"{Guid.NewGuid():N}{extension}";
-        var fullPath = Path.Combine(folderPath, fileName);
-
-        await File.WriteAllBytesAsync(fullPath, fileBytes);
-
-        return $"/uploads/profile-images/{fileName}";
+        return await SaveImageAsync(
+            dto.Stream,
+            MaxPostImageSize,
+            "post-images");
     }
 
     public Task DeleteAsync(string? relativePath)
@@ -52,4 +51,27 @@ public class LocalFileStorageService : IFileStorageService
         return Task.CompletedTask;
     }
 
+    private async Task<string> SaveImageAsync(
+        Stream stream,
+        int maxSizeInMb,
+        string folderName)
+    {
+        var fileBytes = await stream.ToByteArrayAsync();
+        fileBytes.ValidateActualSize(maxSizeInMb, FileSize.MB);
+
+        var extension = fileBytes.GetImageExtension();
+        var folderPath = Path.Combine(
+            _settings.WebRootPath,
+            "uploads",
+            folderName);
+
+        Directory.CreateDirectory(folderPath);
+
+        var fileName = $"{Guid.NewGuid():N}{extension}";
+        var fullPath = Path.Combine(folderPath, fileName);
+
+        await File.WriteAllBytesAsync(fullPath, fileBytes);
+
+        return $"/uploads/{folderName}/{fileName}";
+    }
 }

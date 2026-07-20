@@ -120,6 +120,26 @@ public sealed class GameListsController : ControllerBase
         return NoContent();
     }
 
+    [Authorize]
+    [HttpPatch("{listId:int:min(1)}/games/{source}/{gameId:long:min(1)}/position")]
+    public async Task<IActionResult> UpdateGamePosition(
+        int listId,
+        CatalogSource source,
+        long gameId,
+        [FromBody] GameListItemPositionUpdateDTO dto,
+        CancellationToken cancellationToken)
+    {
+        await _gameListService.UpdateGamePositionAsync(
+            listId,
+            source,
+            gameId,
+            dto.Position,
+            GetCurrentUserId(),
+            cancellationToken);
+
+        return NoContent();
+    }
+
     private Guid GetCurrentUserId()
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);

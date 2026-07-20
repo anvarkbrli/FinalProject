@@ -1,4 +1,4 @@
-﻿using Ludora.Domain.Enums;
+using Ludora.Domain.Enums;
 
 namespace Ludora.Application.DTOs
 {
@@ -12,6 +12,8 @@ namespace Ludora.Application.DTOs
 
         public ListVisibility Visibility { get; set; }
 
+        public bool IsRanked { get; set; }
+
         public Guid OwnerId { get; set; }
 
         public string OwnerUserName { get; set; } = null!;
@@ -21,5 +23,11 @@ namespace Ludora.Application.DTOs
         public DateTime CreatedAt { get; set; }
 
         public DateTime? UpdatedAt { get; set; }
+
+        public int LikeCount { get; set; }
+
+        public int CommentCount { get; set; }
+
+        public bool IsLikedByCurrentUser { get; set; }
     }
 }

@@ -4,7 +4,8 @@ public class UserPost
 {
     public long Id { get; set; }
     public Guid UserId { get; set; }
-    public string Content { get; set; } = null!;
+    public string? Content { get; set; }
+    public string? ImageUrl { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
 
@@ -14,4 +15,6 @@ public class UserPost
     public string? DeleteReason { get; set; }
 
     public AppUser User { get; set; } = null!;
+    public ICollection<PostLike> Likes { get; set; } = new List<PostLike>();
+    public ICollection<PostComment> Comments { get; set; } = new List<PostComment>();
 }
