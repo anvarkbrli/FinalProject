@@ -42,6 +42,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<DiscussionReplyLike> DiscussionReplyLikes { get; set; }
     public DbSet<UserBanHistory> UserBanHistories { get; set; }
     public DbSet<UserWarning> UserWarnings { get; set; }
+    public DbSet<UserReport> UserReports { get; set; }
     public DbSet<Announcement> Announcements { get; set; }
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<NotificationPreference> NotificationPreferences { get; set; }

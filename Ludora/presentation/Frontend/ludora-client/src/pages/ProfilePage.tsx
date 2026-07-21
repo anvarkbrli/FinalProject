@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Clock3,
   Eye,
+  Flag,
   Gamepad2,
   Heart,
   History,
@@ -23,6 +24,7 @@ import {
   LockKeyhole,
   MessageCircle,
   MessageSquareText,
+  MoreHorizontal,
   Pencil,
   Plus,
   Send,
@@ -39,6 +41,7 @@ import {
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -55,6 +58,7 @@ import { GameListEditorModal } from "../components/lists/GameListEditorModal";
 import { ProfileActivityFeed } from "../components/profile/ProfileActivityFeed";
 import { ProfileGamesGallery } from "../components/profile/ProfileGamesGallery";
 import { ProfileOverview } from "../components/profile/ProfileOverview";
+import { UserReportModal } from "../components/profile/UserReportModal";
 import { SocialPlatformIcon } from "../components/profile/SocialPlatformIcon";
 import { ReviewCommentsPanel } from "../components/reviews/ReviewCommentsPanel";
 import { ReviewLikesModal } from "../components/reviews/ReviewLikesModal";
@@ -76,7 +80,6 @@ import {
   unlikeReview,
 } from "../services/reviewsService";
 import {
-  blockUser,
   createPost,
   deletePost,
   followUser,
@@ -431,6 +434,11 @@ export function ProfilePage() {
     useState<ConnectionModal>(null);
   const [notice, setNotice] =
     useState<NoticeState | null>(null);
+  const [isProfileActionsOpen, setIsProfileActionsOpen] =
+    useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] =
+    useState(false);
+  const profileActionsRef = useRef<HTMLDivElement>(null);
   const [newPostContent, setNewPostContent] =
     useState("");
   const [newPostImage, setNewPostImage] =
@@ -489,6 +497,27 @@ export function ProfilePage() {
 
   const newPostImagePreview = useObjectUrl(newPostImage);
   const editingPostImagePreview = useObjectUrl(editingPostImage);
+
+  useEffect(() => {
+    if (!isProfileActionsOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        profileActionsRef.current &&
+        !profileActionsRef.current.contains(event.target as Node)
+      ) {
+        setIsProfileActionsOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [isProfileActionsOpen]);
 
   const isAuthenticated =
     isAuthSessionValid(
@@ -787,24 +816,6 @@ export function ProfilePage() {
         message: getApiErrorMessage(
           error,
           "İzləməni dayandırmaq mümkün olmadı.",
-        ),
-      });
-    },
-  });
-
-  const blockMutation = useMutation({
-    mutationFn: blockUser,
-    onSuccess: () => {
-      navigate("/", {
-        replace: true,
-      });
-    },
-    onError: (error) => {
-      setNotice({
-        type: "error",
-        message: getApiErrorMessage(
-          error,
-          "İstifadəçini bloklamaq mümkün olmadı.",
         ),
       });
     },
@@ -1184,6 +1195,48 @@ export function ProfilePage() {
     setSearchParams(nextParams);
   }
 
+  function openProfileGamesByGenre(genre: string) {
+    setGamesSearch("");
+    setGamesGenre(genre);
+    setGamesCompany(null);
+    setGamesPlatform(null);
+    setGamesPlayedPlatform(null);
+    setGamesStatus(null);
+    setGamesReleaseYear(null);
+    setGamesSortBy("RecentlyUpdated");
+    setGamesPage(1);
+    setIsGamesFilterOpen(true);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", "games");
+    nextParams.delete("gameRating");
+    nextParams.delete("sort");
+    nextParams.delete("rating");
+
+    setSearchParams(nextParams);
+  }
+
+  function openProfileGamesByPlayedPlatform(platform: string) {
+    setGamesSearch("");
+    setGamesGenre(null);
+    setGamesCompany(null);
+    setGamesPlatform(null);
+    setGamesPlayedPlatform(platform);
+    setGamesStatus(null);
+    setGamesReleaseYear(null);
+    setGamesSortBy("RecentlyUpdated");
+    setGamesPage(1);
+    setIsGamesFilterOpen(true);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", "games");
+    nextParams.delete("gameRating");
+    nextParams.delete("sort");
+    nextParams.delete("rating");
+
+    setSearchParams(nextParams);
+  }
+
   function openProfileReview(reviewId: number) {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set("tab", "reviews");
@@ -1210,7 +1263,6 @@ export function ProfilePage() {
   const actionIsPending =
     followMutation.isPending ||
     unfollowMutation.isPending ||
-    blockMutation.isPending ||
     removeFollowerMutation.isPending;
 
   const posts = postsQuery.data ?? [];
@@ -1227,20 +1279,22 @@ export function ProfilePage() {
       );
 
     return {
-      genres: uniqueStrings(
-        profileGameOptionItems.flatMap((game) => game.genres),
-      ),
+      genres: uniqueStrings([
+        ...profileGameOptionItems.flatMap((game) => game.genres),
+        ...(gamesGenre ? [gamesGenre] : []),
+      ]),
       companies: uniqueStrings(
         profileGameOptionItems.flatMap((game) => game.companies),
       ),
       platforms: uniqueStrings(
         profileGameOptionItems.flatMap((game) => game.platforms),
       ),
-      playedPlatforms: uniqueStrings(
-        profileGameOptionItems
+      playedPlatforms: uniqueStrings([
+        ...profileGameOptionItems
           .map((game) => game.playedPlatformName)
           .filter((value): value is string => Boolean(value)),
-      ),
+        ...(gamesPlayedPlatform ? [gamesPlayedPlatform] : []),
+      ]),
       releaseYears: Array.from(
         new Set(
           profileGameOptionItems
@@ -1253,7 +1307,11 @@ export function ProfilePage() {
         ),
       ).sort((left, right) => right - left),
     };
-  }, [profileGamesOptionsQuery.data?.items]);
+  }, [
+    gamesGenre,
+    gamesPlayedPlatform,
+    profileGamesOptionsQuery.data?.items,
+  ]);
 
   useEffect(() => {
     if (visibleActiveTab !== "reviews" || reviewsQuery.isLoading) {
@@ -1345,8 +1403,9 @@ export function ProfilePage() {
     followMutation.mutate(loadedProfile.id);
   }
 
-  function handleBlock() {
+  function handleOpenReport() {
     setNotice(null);
+    setIsProfileActionsOpen(false);
 
     if (!isAuthenticated) {
       navigate("/login", {
@@ -1357,13 +1416,7 @@ export function ProfilePage() {
       return;
     }
 
-    const shouldBlock = window.confirm(
-      `${loadedProfile.userName} istifadəçisini bloklamaq istəyirsən? İki tərəf arasındakı izləmə əlaqələri də silinəcək.`,
-    );
-
-    if (shouldBlock) {
-      blockMutation.mutate(loadedProfile.id);
-    }
+    setIsReportModalOpen(true);
   }
 
   function handleCreatePost() {
@@ -1558,15 +1611,58 @@ export function ProfilePage() {
                           : "İzlə"}
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={handleBlock}
-                      disabled={actionIsPending}
-                      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-red-400/15 bg-red-500/[0.06] px-4 text-sm font-semibold text-red-300 transition hover:bg-red-500/15 disabled:opacity-60"
+                    <div
+                      ref={profileActionsRef}
+                      className="relative"
                     >
-                      <Ban size={17} />
-                      Blokla
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileActionsOpen(
+                            (currentValue) => !currentValue,
+                          );
+                        }}
+                        disabled={actionIsPending}
+                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.05] text-zinc-300 transition hover:bg-white/[0.09] hover:text-white disabled:opacity-60"
+                        aria-label="Profil əməliyyatlarını aç"
+                        aria-expanded={isProfileActionsOpen}
+                      >
+                        <MoreHorizontal size={20} />
+                      </button>
+
+                      {isProfileActionsOpen && (
+                        <div className="absolute right-0 top-[calc(100%+0.65rem)] z-40 w-52 overflow-hidden rounded-2xl border border-white/[0.09] bg-[#15151b] p-2 shadow-2xl shadow-black/50">
+                          <button
+                            type="button"
+                            disabled
+                            title="Bloklama əməliyyatı bu menyuda sonrakı mərhələdə aktiv ediləcək."
+                            className="flex w-full cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-zinc-600"
+                          >
+                            <Ban size={17} />
+                            Blokla
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleOpenReport}
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-zinc-300 transition hover:bg-amber-500/[0.09] hover:text-amber-200"
+                          >
+                            <Flag size={17} />
+                            Şikayət et
+                          </button>
+
+                          <button
+                            type="button"
+                            disabled
+                            title="Mesajlaşma funksiyası sonrakı mərhələdə aktiv ediləcək."
+                            className="flex w-full cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-zinc-600"
+                          >
+                            <MessageCircle size={17} />
+                            Mesaj yaz
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </>
                 )}
               </div>
@@ -1637,6 +1733,8 @@ export function ProfilePage() {
                 favoriteGamesLoading={recentFavoriteGamesQuery.isLoading}
                 favoritesHref="?tab=favorites"
                 onOpenRecentPlayed={openRecentlyPlayedGames}
+                onOpenTopGenre={openProfileGamesByGenre}
+                onOpenTopPlatform={openProfileGamesByPlayedPlatform}
                 playtimeStatistics={playtimeStatisticsQuery.data}
                 playtimePeriod={playtimePeriod}
                 playtimeStatisticsLoading={playtimeStatisticsQuery.isLoading}
@@ -2914,6 +3012,21 @@ export function ProfilePage() {
           </div>
         </div>
       )}
+
+      <UserReportModal
+        isOpen={isReportModalOpen}
+        reportedUserId={loadedProfile.id}
+        reportedUserName={loadedProfile.userName}
+        onClose={() => setIsReportModalOpen(false)}
+        onSubmitted={() => {
+          setIsReportModalOpen(false);
+          setNotice({
+            type: "success",
+            message:
+              "Şikayətin göndərildi və moderasiya növbəsinə əlavə olundu.",
+          });
+        }}
+      />
     </div>
   );
 }

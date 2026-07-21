@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { InfiniteData } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   Bell,
   CheckCheck,
@@ -19,14 +25,71 @@ import {
   getUnreadNotificationCount,
   markAllNotificationsAsRead,
   markNotificationAsRead,
+  notificationQueryKeys,
 } from "../../services/notificationsService";
 import type {
   NotificationDTO,
+  NotificationPageDTO,
   NotificationType,
 } from "../../types/notifications";
 
-const listQueryKey = ["notifications", "list", 1, 12] as const;
-const unreadCountQueryKey = ["notifications", "unread-count"] as const;
+const pageSize = 10;
+const utcOffsetPattern = /(Z|[+-]\d{2}:?\d{2})$/i;
+const relativeTimeFormatter = new Intl.RelativeTimeFormat("az-AZ", {
+  numeric: "always",
+});
+
+interface NotificationTone {
+  containerClassName: string;
+  iconClassName: string;
+  dotClassName: string;
+  badgeLabel: string | null;
+  badgeClassName: string;
+}
+
+function parseNotificationDate(value: string): Date | null {
+  const normalizedValue =
+    value.includes("T") && !utcOffsetPattern.test(value) ? `${value}Z` : value;
+  const date = new Date(normalizedValue);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatNotificationRelativeTime(value: string, now: Date): string {
+  const date = parseNotificationDate(value);
+
+  if (!date) {
+    return formatDateTime(value);
+  }
+
+  const differenceInMilliseconds = date.getTime() - now.getTime();
+  const absoluteDifference = Math.abs(differenceInMilliseconds);
+
+  if (absoluteDifference < 45_000) {
+    return "İndicə";
+  }
+
+  const units: Array<{
+    unit: Intl.RelativeTimeFormatUnit;
+    milliseconds: number;
+  }> = [
+    { unit: "year", milliseconds: 365 * 24 * 60 * 60 * 1_000 },
+    { unit: "month", milliseconds: 30 * 24 * 60 * 60 * 1_000 },
+    { unit: "week", milliseconds: 7 * 24 * 60 * 60 * 1_000 },
+    { unit: "day", milliseconds: 24 * 60 * 60 * 1_000 },
+    { unit: "hour", milliseconds: 60 * 60 * 1_000 },
+    { unit: "minute", milliseconds: 60 * 1_000 },
+  ];
+
+  const selectedUnit =
+    units.find((item) => absoluteDifference >= item.milliseconds) ??
+    units[units.length - 1];
+  const valueForUnit = Math.round(
+    differenceInMilliseconds / selectedUnit.milliseconds,
+  );
+
+  return relativeTimeFormatter.format(valueForUnit, selectedUnit.unit);
+}
 
 function renderNotificationIcon(type: NotificationType) {
   switch (type) {
@@ -58,35 +121,120 @@ function renderNotificationIcon(type: NotificationType) {
   }
 }
 
+function getNotificationTone(notification: NotificationDTO): NotificationTone {
+  if (notification.type === "WarningIssued") {
+    return {
+      containerClassName:
+        "border-red-300/25 bg-red-500/[0.10] hover:bg-red-500/[0.15]",
+      iconClassName: "bg-red-400/15 text-red-200",
+      dotClassName: "bg-red-300",
+      badgeLabel: "Vacib xəbərdarlıq",
+      badgeClassName: "bg-red-400/12 text-red-200",
+    };
+  }
+
+  if (
+    notification.type === "AnnouncementPublished" ||
+    notification.priority === "Critical"
+  ) {
+    return {
+      containerClassName:
+        "border-amber-300/20 bg-amber-400/[0.08] hover:bg-amber-400/[0.13]",
+      iconClassName: "bg-amber-400/15 text-amber-200",
+      dotClassName: "bg-amber-300",
+      badgeLabel: "Admin elanı",
+      badgeClassName: "bg-amber-400/12 text-amber-200",
+    };
+  }
+
+  if (notification.priority === "High") {
+    return {
+      containerClassName: notification.isRead
+        ? "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"
+        : "border-fuchsia-300/15 bg-fuchsia-500/[0.07] hover:bg-fuchsia-500/[0.11]",
+      iconClassName: "bg-fuchsia-500/12 text-fuchsia-300",
+      dotClassName: "bg-fuchsia-400",
+      badgeLabel: "Diqqət",
+      badgeClassName: "bg-fuchsia-500/10 text-fuchsia-200",
+    };
+  }
+
+  return {
+    containerClassName: notification.isRead
+      ? "border-white/[0.05] bg-white/[0.018] hover:bg-white/[0.045]"
+      : "border-violet-300/15 bg-violet-500/[0.075] hover:bg-violet-500/[0.12]",
+    iconClassName: "bg-violet-500/12 text-violet-300",
+    dotClassName: "bg-violet-400",
+    badgeLabel: null,
+    badgeClassName: "",
+  };
+}
+
+function updateNotificationInPages(
+  current: InfiniteData<NotificationPageDTO> | undefined,
+  updated: NotificationDTO,
+): InfiniteData<NotificationPageDTO> | undefined {
+  if (!current) {
+    return current;
+  }
+
+  return {
+    ...current,
+    pages: current.pages.map((page) => ({
+      ...page,
+      items: page.items.map((item) =>
+        item.id === updated.id ? updated : item,
+      ),
+    })),
+  };
+}
+
+function markAllPagesAsRead(
+  current: InfiniteData<NotificationPageDTO> | undefined,
+): InfiniteData<NotificationPageDTO> | undefined {
+  if (!current) {
+    return current;
+  }
+
+  const readAtUtc = new Date().toISOString();
+
+  return {
+    ...current,
+    pages: current.pages.map((page) => ({
+      ...page,
+      items: page.items.map((item) => ({
+        ...item,
+        isRead: true,
+        readAtUtc: item.readAtUtc ?? readAtUtc,
+      })),
+    })),
+  };
+}
+
 function NotificationItem({
   notification,
+  now,
   onRead,
 }: {
   notification: NotificationDTO;
+  now: Date;
   onRead: (notificationId: number) => void;
 }) {
   const actorImageUrl = resolveAssetUrl(notification.actorProfileImageUrl);
-  const isCritical = notification.priority === "Critical";
-  const isAdmin = notification.isAdminNotification;
+  const tone = getNotificationTone(notification);
+  const shouldShowActorImage = !notification.isAdminNotification && actorImageUrl;
+  const rootClassName = `notification-item ${
+    notification.isRead
+      ? "notification-item--read"
+      : "notification-item--unread"
+  } flex w-full gap-3 rounded-2xl border p-3.5 text-left transition ${tone.containerClassName}`;
 
   const content = (
-    <div
-      className={`flex gap-3 rounded-2xl border p-3.5 transition ${
-        isAdmin
-          ? "border-amber-300/20 bg-amber-400/[0.08] hover:bg-amber-400/[0.12]"
-          : notification.isRead
-            ? "border-white/[0.05] bg-white/[0.018] hover:bg-white/[0.045]"
-            : "border-violet-300/15 bg-violet-500/[0.075] hover:bg-violet-500/[0.12]"
-      }`}
-    >
+    <>
       <span
-        className={`relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl ${
-          isAdmin
-            ? "bg-amber-400/15 text-amber-200"
-            : "bg-violet-500/12 text-violet-300"
-        }`}
+        className={`notification-item__icon relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl ${tone.iconClassName}`}
       >
-        {actorImageUrl ? (
+        {shouldShowActorImage ? (
           <img
             src={actorImageUrl}
             alt=""
@@ -97,42 +245,62 @@ function NotificationItem({
         )}
       </span>
 
-      <span className="min-w-0 flex-1">
-        <span
-          className={`block text-sm leading-5 ${
-            isAdmin || isCritical
-              ? "font-bold text-white"
-              : notification.isRead
-                ? "font-medium text-zinc-300"
-                : "font-semibold text-white"
-          }`}
-        >
-          {notification.title}
+      <span className="notification-item__content min-w-0 flex-1">
+        <span className="flex flex-wrap items-center gap-2">
+          <span
+            className={`notification-item__title block text-sm leading-5 ${
+              notification.isAdminNotification ||
+              notification.priority === "Critical"
+                ? "font-bold text-white"
+                : notification.isRead
+                  ? "font-medium text-zinc-300"
+                  : "font-semibold text-white"
+            }`}
+          >
+            {notification.title}
+          </span>
+
+          {tone.badgeLabel && (
+            <span
+              className={`notification-item__priority rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] ${tone.badgeClassName}`}
+            >
+              {tone.badgeLabel}
+            </span>
+          )}
         </span>
-        <span className="mt-1 block text-xs leading-5 text-zinc-500">
+
+        <span className="notification-item__message mt-1 block text-xs leading-5 text-zinc-500">
+          {notification.actorUserName && !notification.isAdminNotification && (
+            <strong className="font-semibold text-zinc-300">
+              {notification.actorUserName}{" "}
+            </strong>
+          )}
           {notification.message}
         </span>
-        <span className="mt-1.5 block text-[11px] font-medium text-zinc-600">
-          {formatDateTime(notification.createdAtUtc)}
-        </span>
+
+        <time
+          dateTime={notification.createdAtUtc}
+          title={formatDateTime(notification.createdAtUtc)}
+          className="notification-item__time mt-1.5 block text-[11px] font-medium text-zinc-600"
+        >
+          {formatNotificationRelativeTime(notification.createdAtUtc, now)}
+        </time>
       </span>
 
       {!notification.isRead && (
         <span
-          className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
-            isAdmin ? "bg-amber-300" : "bg-violet-400"
-          }`}
+          className={`notification-item__unread-dot mt-1 h-2 w-2 shrink-0 rounded-full ${tone.dotClassName}`}
           aria-label="Oxunmamış bildiriş"
         />
       )}
-    </div>
+    </>
   );
 
   if (!notification.actionUrl) {
     return (
       <button
         type="button"
-        className="block w-full text-left"
+        className={`${rootClassName} notification-item-button`}
         onClick={() => onRead(notification.id)}
       >
         {content}
@@ -143,7 +311,7 @@ function NotificationItem({
   return (
     <Link
       to={notification.actionUrl}
-      className="block"
+      className={`${rootClassName} notification-item-link`}
       onClick={() => onRead(notification.id)}
     >
       {content}
@@ -155,44 +323,36 @@ export function NotificationBell() {
   const queryClient = useQueryClient();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [now, setNow] = useState(() => new Date());
 
-
-  const notificationsQuery = useQuery({
-    queryKey: listQueryKey,
-    queryFn: () => getNotifications(1, 12),
+  const notificationsQuery = useInfiniteQuery({
+    queryKey: notificationQueryKeys.list,
+    queryFn: ({ pageParam }) => getNotifications(pageParam, pageSize),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) =>
+      lastPage.pageNumber < lastPage.totalPages
+        ? lastPage.pageNumber + 1
+        : undefined,
     enabled: isOpen,
   });
 
   const unreadCountQuery = useQuery({
-    queryKey: unreadCountQueryKey,
+    queryKey: notificationQueryKeys.unreadCount,
     queryFn: getUnreadNotificationCount,
     refetchInterval: 60_000,
+    staleTime: 15_000,
   });
 
   const readMutation = useMutation({
     mutationFn: markNotificationAsRead,
     onSuccess: (updated) => {
-      queryClient.setQueryData<{
-        items: NotificationDTO[];
-        pageNumber: number;
-        pageSize: number;
-        totalCount: number;
-        totalPages: number;
-      }>(listQueryKey, (current) => {
-        if (!current) {
-          return current;
-        }
-
-        return {
-          ...current,
-          items: current.items.map((item) =>
-            item.id === updated.id ? updated : item,
-          ),
-        };
-      });
+      queryClient.setQueryData<InfiniteData<NotificationPageDTO>>(
+        notificationQueryKeys.list,
+        (current) => updateNotificationInPages(current, updated),
+      );
 
       queryClient.setQueryData<{ count: number }>(
-        unreadCountQueryKey,
+        notificationQueryKeys.unreadCount,
         (current) => ({ count: Math.max(0, (current?.count ?? 1) - 1) }),
       );
     },
@@ -201,31 +361,22 @@ export function NotificationBell() {
   const readAllMutation = useMutation({
     mutationFn: markAllNotificationsAsRead,
     onSuccess: async () => {
-      queryClient.setQueryData<{ count: number }>(unreadCountQueryKey, {
-        count: 0,
-      });
-      queryClient.setQueryData<{
-        items: NotificationDTO[];
-        pageNumber: number;
-        pageSize: number;
-        totalCount: number;
-        totalPages: number;
-      }>(listQueryKey, (current) =>
-        current
-          ? {
-              ...current,
-              items: current.items.map((item) => ({
-                ...item,
-                isRead: true,
-                readAtUtc: item.readAtUtc ?? new Date().toISOString(),
-              })),
-            }
-          : current,
+      queryClient.setQueryData<{ count: number }>(
+        notificationQueryKeys.unreadCount,
+        { count: 0 },
+      );
+      queryClient.setQueryData<InfiniteData<NotificationPageDTO>>(
+        notificationQueryKeys.list,
+        markAllPagesAsRead,
       );
 
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: unreadCountQueryKey }),
-        queryClient.invalidateQueries({ queryKey: listQueryKey }),
+        queryClient.invalidateQueries({
+          queryKey: notificationQueryKeys.unreadCount,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: notificationQueryKeys.list,
+        }),
       ]);
     },
   });
@@ -255,33 +406,58 @@ export function NotificationBell() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => setNow(new Date()), 30_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [isOpen]);
+
   const unreadCount = unreadCountQuery.data?.count ?? 0;
+  const notifications =
+    notificationsQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
-    <div ref={containerRef} className="relative order-1">
+    <div ref={containerRef} className="notification-bell relative order-1">
       <button
         type="button"
-        aria-label="Bildirişlər"
+        aria-label={
+          unreadCount > 0
+            ? `Bildirişlər, ${unreadCount} oxunmamış`
+            : "Bildirişlər"
+        }
         aria-haspopup="dialog"
         aria-expanded={isOpen}
-        onClick={() => setIsOpen((current) => !current)}
-        className="relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-zinc-400 transition hover:border-white/[0.14] hover:bg-white/[0.08] hover:text-white"
+        onClick={() => {
+          if (!isOpen) {
+            setNow(new Date());
+          }
+
+          setIsOpen((current) => !current);
+        }}
+        className="notification-bell__trigger relative flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-zinc-400 transition hover:border-white/[0.14] hover:bg-white/[0.08] hover:text-white"
       >
         <Bell size={19} />
         {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#08080b] bg-violet-500 px-1 text-[10px] font-bold leading-none text-white">
+          <span
+            aria-live="polite"
+            className="notification-bell__badge absolute -right-1 -top-1 flex min-h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#08080b] bg-violet-500 px-1 text-[10px] font-bold leading-none text-white"
+          >
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
         )}
       </button>
 
       {isOpen && (
-        <div
+        <section
           role="dialog"
           aria-label="Bildirişlər"
-          className="absolute right-0 top-[calc(100%+10px)] z-50 w-[min(92vw,420px)] overflow-hidden rounded-3xl border border-white/[0.09] bg-[#101015] shadow-2xl shadow-black/55"
+          className="notification-panel fixed left-3 right-3 top-[78px] z-[70] overflow-hidden rounded-3xl border border-white/[0.09] bg-[#101015] shadow-2xl shadow-black/55 sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+10px)] sm:w-[420px]"
         >
-          <div className="flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
+          <header className="notification-panel__header flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
             <div>
               <h2 className="font-bold text-white">Bildirişlər</h2>
               <p className="mt-0.5 text-xs text-zinc-600">
@@ -290,12 +466,13 @@ export function NotificationBell() {
                   : "Bütün bildirişlər oxunub"}
               </p>
             </div>
+
             {unreadCount > 0 && (
               <button
                 type="button"
                 disabled={readAllMutation.isPending}
                 onClick={() => readAllMutation.mutate()}
-                className="flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-violet-300 transition hover:bg-violet-500/10 disabled:opacity-50"
+                className="notification-panel__read-all flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-semibold text-violet-300 transition hover:bg-violet-500/10 disabled:opacity-50"
               >
                 {readAllMutation.isPending ? (
                   <LoaderCircle size={14} className="animate-spin" />
@@ -305,9 +482,9 @@ export function NotificationBell() {
                 Hamısını oxu
               </button>
             )}
-          </div>
+          </header>
 
-          <div className="max-h-[min(68vh,560px)] space-y-2 overflow-y-auto p-3">
+          <div className="notification-list max-h-[min(68vh,560px)] space-y-2 overflow-y-auto p-3">
             {notificationsQuery.isLoading ? (
               <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-zinc-500">
                 <LoaderCircle size={17} className="animate-spin" />
@@ -317,7 +494,7 @@ export function NotificationBell() {
               <div className="rounded-2xl border border-red-400/15 bg-red-500/[0.06] p-4 text-sm text-red-200">
                 Bildirişlər yüklənmədi.
               </div>
-            ) : (notificationsQuery.data?.items.length ?? 0) === 0 ? (
+            ) : notifications.length === 0 ? (
               <div className="flex min-h-40 flex-col items-center justify-center text-center">
                 <Bell size={24} className="text-zinc-700" />
                 <p className="mt-3 text-sm font-semibold text-zinc-400">
@@ -328,22 +505,39 @@ export function NotificationBell() {
                 </p>
               </div>
             ) : (
-              notificationsQuery.data?.items.map((notification) => (
-                <NotificationItem
-                  key={notification.id}
-                  notification={notification}
-                  onRead={(notificationId) => {
-                    if (!notification.isRead) {
-                      readMutation.mutate(notificationId);
-                    }
-                    setIsOpen(false);
-                  }}
-                />
-              ))
+              <>
+                {notifications.map((notification) => (
+                  <NotificationItem
+                    key={notification.id}
+                    notification={notification}
+                    now={now}
+                    onRead={(notificationId) => {
+                      if (!notification.isRead) {
+                        readMutation.mutate(notificationId);
+                      }
+                      setIsOpen(false);
+                    }}
+                  />
+                ))}
+
+                {notificationsQuery.hasNextPage && (
+                  <button
+                    type="button"
+                    disabled={notificationsQuery.isFetchingNextPage}
+                    onClick={() => notificationsQuery.fetchNextPage()}
+                    className="notification-list__load-more flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] text-xs font-semibold text-zinc-400 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
+                  >
+                    {notificationsQuery.isFetchingNextPage && (
+                      <LoaderCircle size={14} className="animate-spin" />
+                    )}
+                    Daha çox göstər
+                  </button>
+                )}
+              </>
             )}
           </div>
 
-          <div className="border-t border-white/[0.06] p-3">
+          <footer className="notification-panel__footer border-t border-white/[0.06] p-3">
             <Link
               to="/settings#notifications"
               onClick={() => setIsOpen(false)}
@@ -351,8 +545,8 @@ export function NotificationBell() {
             >
               Bildiriş ayarlarını idarə et
             </Link>
-          </div>
-        </div>
+          </footer>
+        </section>
       )}
     </div>
   );

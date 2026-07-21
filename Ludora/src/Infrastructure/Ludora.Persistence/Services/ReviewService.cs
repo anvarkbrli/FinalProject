@@ -17,6 +17,7 @@ public sealed class ReviewService : IReviewService
     private const int MaxContentLength = 10000;
     private const int MaxPageSize = 100;
     private const int MaxPlaytimeMinutes = 600000;
+    private const int AzerbaijanUtcOffsetHours = 4;
 
     private readonly AppDbContext _context;
     private readonly IIgdbClient _igdbClient;
@@ -45,15 +46,23 @@ public sealed class ReviewService : IReviewService
         ArgumentNullException.ThrowIfNull(dto);
         gameId.EnsureValidCatalogReference(source, "Oyun");
 
-        var content = dto.Content.NormalizeRequiredText(
+        var content = dto.Content.NormalizeOptionalText(
             "Rəy mətni",
-            MaxContentLength);
+            MaxContentLength) ?? string.Empty;
+        var playedOn = dto.PlayedOn ?? GetTodayInAzerbaijan();
 
         ValidateRating(dto.Rating);
-        ValidatePlayedOn(dto.PlayedOn);
+        ValidateStatus(dto.Status);
+        ValidatePlayedOn(playedOn);
         ValidateReviewDetails(
             dto.PlatformSource,
             dto.PlatformId,
+            dto.PlaytimeMinutes);
+        ValidateLogHasContent(
+            content,
+            dto.Rating,
+            dto.Status,
+            dto.PlatformSource,
             dto.PlaytimeMinutes);
 
         var userExists = await _context.Users
@@ -84,7 +93,7 @@ public sealed class ReviewService : IReviewService
         if (review is not null && !review.IsDeleted)
         {
             throw new ConflictException(
-                "Bu oyun üçün artıq rəy yazmısınız.");
+                "Bu oyun üçün artıq log mövcuddur.");
         }
 
         var now = DateTime.UtcNow;
@@ -98,7 +107,7 @@ public sealed class ReviewService : IReviewService
                 GameId = gameId,
                 Content = content,
                 ContainsSpoilers = dto.ContainsSpoilers,
-                PlayedOn = dto.PlayedOn,
+                PlayedOn = playedOn,
                 PlatformSource = dto.PlatformSource,
                 PlatformId = dto.PlatformId,
                 PlaytimeMinutes = NormalizePlaytimeMinutes(dto.PlaytimeMinutes),
@@ -111,7 +120,7 @@ public sealed class ReviewService : IReviewService
         {
             review.Content = content;
             review.ContainsSpoilers = dto.ContainsSpoilers;
-            review.PlayedOn = dto.PlayedOn;
+            review.PlayedOn = playedOn;
             review.PlatformSource = dto.PlatformSource;
             review.PlatformId = dto.PlatformId;
             review.PlaytimeMinutes = NormalizePlaytimeMinutes(dto.PlaytimeMinutes);
@@ -124,16 +133,14 @@ public sealed class ReviewService : IReviewService
         await using var transaction = await _context.Database
             .BeginTransactionAsync(cancellationToken);
 
-        if (dto.Rating.HasValue)
-        {
-            await SetRatingAsync(
-                userId,
-                source,
-                gameId,
-                dto.Rating,
-                clearWhenNull: false,
-                cancellationToken);
-        }
+        await ApplyUserGameStateAsync(
+            userId,
+            source,
+            gameId,
+            dto.Status,
+            dto.Rating,
+            clearNullValues: false,
+            cancellationToken);
 
         await SaveChangesAsync(cancellationToken);
 
@@ -142,28 +149,35 @@ public sealed class ReviewService : IReviewService
             UserActivityType.ReviewCreated,
             gameSource: source,
             gameId: gameId,
-            reviewId: review.Id);
+            reviewId: review.Id,
+            status: dto.Status,
+            rating: dto.Rating);
 
-        await _notificationService.QueueForFollowersAsync(
-            new FollowerNotificationRequest
-            {
-                ActorUserId = userId,
-                Type = NotificationType.FollowingReviewCreated,
-                EntityType = NotificationEntityType.Review,
-                EntityId = review.Id.ToString(),
-                Title = "Yeni rəy",
-                Message = $"{game.Title} oyunu üçün yeni rəy yazdı.",
-                ActionUrl = $"/games/{source}/{gameId}#reviews"
-            },
-            cancellationToken);
+        if (HasReviewContent(content))
+        {
+            await _notificationService.QueueForFollowersAsync(
+                new FollowerNotificationRequest
+                {
+                    ActorUserId = userId,
+                    Type = NotificationType.FollowingReviewCreated,
+                    EntityType = NotificationEntityType.Review,
+                    EntityId = review.Id.ToString(),
+                    Title = "Yeni rəy",
+                    Message = $"{game.Title} oyunu üçün yeni rəy yazdı.",
+                    ActionUrl = $"/games/{source}/{gameId}#reviews"
+                },
+                cancellationToken);
+        }
 
         await SaveChangesAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
 
-        return await GetByIdAsync(
-            review.Id,
+        return await GetMineForGameAsync(
             userId,
-            cancellationToken);
+            source,
+            gameId,
+            cancellationToken)
+            ?? throw new NotFoundException("Oyun logu tapılmadı.");
     }
 
     public async Task<ReviewDTO> GetByIdAsync(
@@ -177,7 +191,7 @@ public sealed class ReviewService : IReviewService
             .AsNoTracking()
             .Include(x => x.User)
             .FirstOrDefaultAsync(
-                x => x.Id == reviewId,
+                x => x.Id == reviewId && x.Content != string.Empty,
                 cancellationToken)
             ?? throw new NotFoundException("Rəy tapılmadı.");
 
@@ -212,7 +226,8 @@ public sealed class ReviewService : IReviewService
             .AsNoTracking()
             .Where(x =>
                 x.Source == source &&
-                x.GameId == gameId);
+                x.GameId == gameId &&
+                x.Content != string.Empty);
 
         query = ApplyVisibility(query, currentUserId);
 
@@ -251,7 +266,9 @@ public sealed class ReviewService : IReviewService
 
         var query = _context.Reviews
             .AsNoTracking()
-            .Where(x => x.UserId == userId);
+            .Where(x =>
+                x.UserId == userId &&
+                x.Content != string.Empty);
 
         return await CreatePagedResultAsync(
             query,
@@ -270,7 +287,9 @@ public sealed class ReviewService : IReviewService
 
         var query = _context.Reviews
             .AsNoTracking()
-            .Where(x => x.UserId == userId);
+            .Where(x =>
+                x.UserId == userId &&
+                x.Content != string.Empty);
 
         return await CreatePagedResultAsync(
             query,
@@ -316,12 +335,12 @@ public sealed class ReviewService : IReviewService
         ArgumentNullException.ThrowIfNull(dto);
         EnsureValidReviewId(reviewId);
 
-        var content = dto.Content.NormalizeRequiredText(
+        var content = dto.Content.NormalizeOptionalText(
             "Rəy mətni",
-            MaxContentLength);
+            MaxContentLength) ?? string.Empty;
 
         ValidateRating(dto.Rating);
-        ValidatePlayedOn(dto.PlayedOn);
+        ValidateStatus(dto.Status);
         ValidateReviewDetails(
             dto.PlatformSource,
             dto.PlatformId,
@@ -339,6 +358,20 @@ public sealed class ReviewService : IReviewService
                 "Bu rəyi dəyişmək icazəniz yoxdur.");
         }
 
+        var playedOn = dto.PlayedOn ??
+                       review.PlayedOn ??
+                       GetTodayInAzerbaijan();
+        ValidatePlayedOn(playedOn);
+        ValidateLogHasContent(
+            content,
+            dto.Rating,
+            dto.Status,
+            dto.PlatformSource,
+            dto.PlaytimeMinutes);
+
+        var hadReviewContent = HasReviewContent(review.Content);
+        var hasReviewContent = HasReviewContent(content);
+
         var game = await _gameService.GetByIdAsync(
             review.Source,
             review.GameId,
@@ -351,33 +384,61 @@ public sealed class ReviewService : IReviewService
 
         review.Content = content;
         review.ContainsSpoilers = dto.ContainsSpoilers;
-        review.PlayedOn = dto.PlayedOn;
+        review.PlayedOn = playedOn;
         review.PlatformSource = dto.PlatformSource;
         review.PlatformId = dto.PlatformId;
         review.PlaytimeMinutes = NormalizePlaytimeMinutes(dto.PlaytimeMinutes);
         review.UpdatedAt = DateTime.UtcNow;
 
-        await SetRatingAsync(
+        await ApplyUserGameStateAsync(
             userId,
             review.Source,
             review.GameId,
+            dto.Status,
             dto.Rating,
-            clearWhenNull: true,
+            clearNullValues: true,
             cancellationToken);
+
+        if (hadReviewContent && !hasReviewContent)
+        {
+            await RemoveReviewInteractionsAsync(
+                review.Id,
+                cancellationToken);
+        }
 
         _context.AddUserActivity(
             userId,
             UserActivityType.ReviewUpdated,
             gameSource: review.Source,
             gameId: review.GameId,
-            reviewId: review.Id);
+            reviewId: review.Id,
+            status: dto.Status,
+            rating: dto.Rating);
+
+        if (!hadReviewContent && hasReviewContent)
+        {
+            await _notificationService.QueueForFollowersAsync(
+                new FollowerNotificationRequest
+                {
+                    ActorUserId = userId,
+                    Type = NotificationType.FollowingReviewCreated,
+                    EntityType = NotificationEntityType.Review,
+                    EntityId = review.Id.ToString(),
+                    Title = "Yeni rəy",
+                    Message = $"{game.Title} oyunu üçün yeni rəy yazdı.",
+                    ActionUrl = $"/games/{review.Source}/{review.GameId}#reviews"
+                },
+                cancellationToken);
+        }
 
         await SaveChangesAsync(cancellationToken);
 
-        return await GetByIdAsync(
-            review.Id,
+        return await GetMineForGameAsync(
             userId,
-            cancellationToken);
+            review.Source,
+            review.GameId,
+            cancellationToken)
+            ?? throw new NotFoundException("Oyun logu tapılmadı.");
     }
 
     public async Task DeleteAsync(
@@ -400,25 +461,41 @@ public sealed class ReviewService : IReviewService
         }
 
         var now = DateTime.UtcNow;
-        review.IsDeleted = true;
-        review.DeletedAtUtc = now;
-        review.UpdatedAt = now;
+        var userGameState = await _context.UserGames
+            .AsNoTracking()
+            .Where(x =>
+                x.UserId == userId &&
+                x.Source == review.Source &&
+                x.GameId == review.GameId)
+            .Select(x => new
+            {
+                x.Status,
+                x.Rating
+            })
+            .FirstOrDefaultAsync(cancellationToken);
 
-        var likes = await _context.ReviewLikes
-            .Where(x => x.ReviewId == reviewId)
-            .ToListAsync(cancellationToken);
-        _context.ReviewLikes.RemoveRange(likes);
+        var hasLogData =
+            review.PlaytimeMinutes is > 0 ||
+            (review.PlatformSource.HasValue && review.PlatformId.HasValue) ||
+            userGameState?.Status is not null ||
+            userGameState?.Rating is not null;
 
-        var comments = await _context.ReviewComments
-            .Where(x => x.ReviewId == reviewId)
-            .ToListAsync(cancellationToken);
-
-        foreach (var comment in comments)
+        if (hasLogData)
         {
-            comment.IsDeleted = true;
-            comment.DeletedAtUtc = now;
-            comment.UpdatedAt = now;
+            review.Content = string.Empty;
+            review.ContainsSpoilers = false;
+            review.UpdatedAt = now;
         }
+        else
+        {
+            review.IsDeleted = true;
+            review.DeletedAtUtc = now;
+            review.UpdatedAt = now;
+        }
+
+        await RemoveReviewInteractionsAsync(
+            reviewId,
+            cancellationToken);
 
         _context.AddUserActivity(
             userId,
@@ -619,9 +696,9 @@ public sealed class ReviewService : IReviewService
                  (x.Source == CatalogSource.Igdb && igdbGameIds.Contains(x.GameId))))
             .ToListAsync(cancellationToken);
 
-        var ratings = userGames.ToDictionary(
+        var userGameStates = userGames.ToDictionary(
             x => (x.UserId, x.Source, x.GameId),
-            x => x.Rating);
+            x => x);
 
         var reviewIds = reviews.Select(x => x.Id).ToList();
 
@@ -666,9 +743,9 @@ public sealed class ReviewService : IReviewService
                     "Rəyə aid oyun tapılmadı.");
             }
 
-            ratings.TryGetValue(
+            userGameStates.TryGetValue(
                 (review.UserId, review.Source, review.GameId),
-                out var rating);
+                out var userGame);
 
             return new ReviewDTO
             {
@@ -682,7 +759,8 @@ public sealed class ReviewService : IReviewService
                 GameSlug = gameInfo.Slug,
                 GameCoverImageUrl = gameInfo.CoverImageUrl,
                 Content = review.Content,
-                Rating = rating,
+                Rating = userGame?.Rating,
+                Status = userGame?.Status,
                 ContainsSpoilers = review.ContainsSpoilers,
                 PlayedOn = review.PlayedOn,
                 PlatformSource = review.PlatformSource,
@@ -820,12 +898,13 @@ public sealed class ReviewService : IReviewService
         return result;
     }
 
-    private async Task SetRatingAsync(
+    private async Task ApplyUserGameStateAsync(
         Guid userId,
         CatalogSource source,
         long gameId,
+        UserGameStatus? status,
         double? rating,
-        bool clearWhenNull,
+        bool clearNullValues,
         CancellationToken cancellationToken)
     {
         var userGame = await _context.UserGames
@@ -835,42 +914,39 @@ public sealed class ReviewService : IReviewService
                     x.GameId == gameId,
                 cancellationToken);
 
-        if (!rating.HasValue)
-        {
-            if (!clearWhenNull || userGame is null)
-                return;
-
-            userGame.Rating = null;
-
-            if (IsUserGameEmpty(userGame))
-            {
-                _context.UserGames.Remove(userGame);
-                return;
-            }
-
-            userGame.UpdatedAt = DateTime.UtcNow;
-            return;
-        }
-
         if (userGame is null)
         {
+            if (!status.HasValue && !rating.HasValue)
+                return;
+
             userGame = new UserGame
             {
                 UserId = userId,
                 Source = source,
                 GameId = gameId,
-                Rating = rating.Value,
+                Status = status,
+                Rating = rating,
                 CreatedAt = DateTime.UtcNow
             };
 
             await _context.UserGames.AddAsync(
                 userGame,
                 cancellationToken);
-
             return;
         }
 
-        userGame.Rating = rating.Value;
+        if (clearNullValues || status.HasValue)
+            userGame.Status = status;
+
+        if (clearNullValues || rating.HasValue)
+            userGame.Rating = rating;
+
+        if (IsUserGameEmpty(userGame))
+        {
+            _context.UserGames.Remove(userGame);
+            return;
+        }
+
         userGame.UpdatedAt = DateTime.UtcNow;
     }
 
@@ -958,7 +1034,29 @@ public sealed class ReviewService : IReviewService
             when (exception.IsUniqueConstraintViolation())
         {
             throw new ConflictException(
-                "Bu oyun üçün artıq rəy yazmısınız.");
+                "Bu oyun üçün artıq log mövcuddur.");
+        }
+    }
+
+    private async Task RemoveReviewInteractionsAsync(
+        long reviewId,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var likes = await _context.ReviewLikes
+            .Where(x => x.ReviewId == reviewId)
+            .ToListAsync(cancellationToken);
+        _context.ReviewLikes.RemoveRange(likes);
+
+        var comments = await _context.ReviewComments
+            .Where(x => x.ReviewId == reviewId)
+            .ToListAsync(cancellationToken);
+
+        foreach (var comment in comments)
+        {
+            comment.IsDeleted = true;
+            comment.DeletedAtUtc = now;
+            comment.UpdatedAt = now;
         }
     }
 
@@ -1010,10 +1108,36 @@ public sealed class ReviewService : IReviewService
         }
     }
 
+    private static void ValidateStatus(UserGameStatus? status)
+    {
+        if (status.HasValue && !Enum.IsDefined(status.Value))
+            throw new BadRequestException("Oyun statusu yanlışdır.");
+    }
+
+    private static void ValidateLogHasContent(
+        string content,
+        double? rating,
+        UserGameStatus? status,
+        CatalogSource? platformSource,
+        int? playtimeMinutes)
+    {
+        if (HasReviewContent(content) ||
+            rating.HasValue ||
+            status.HasValue ||
+            platformSource.HasValue ||
+            playtimeMinutes is > 0)
+        {
+            return;
+        }
+
+        throw new BadRequestException(
+            "Status, puan, platforma, oyun müddəti və ya rəy məlumatlarından ən azı biri əlavə edilməlidir.");
+    }
+
     private static void ValidatePlayedOn(DateOnly? playedOn)
     {
         if (playedOn.HasValue &&
-            playedOn.Value > DateOnly.FromDateTime(DateTime.UtcNow))
+            playedOn.Value > GetTodayInAzerbaijan())
         {
             throw new BadRequestException(
                 "Oynanılma tarixi gələcək tarix ola bilməz.");
@@ -1069,6 +1193,17 @@ public sealed class ReviewService : IReviewService
         return playtimeMinutes is null or 0
             ? null
             : playtimeMinutes;
+    }
+
+    private static bool HasReviewContent(string? content)
+    {
+        return !string.IsNullOrWhiteSpace(content);
+    }
+
+    private static DateOnly GetTodayInAzerbaijan()
+    {
+        return DateOnly.FromDateTime(
+            DateTime.UtcNow.AddHours(AzerbaijanUtcOffsetHours));
     }
 
     private static void EnsureValidReviewId(long reviewId)

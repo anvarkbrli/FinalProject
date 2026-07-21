@@ -17,6 +17,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
+import { NotificationSettingsPanel } from "../components/notifications/NotificationSettingsPanel";
 import { getApiErrorMessage } from "../lib/api";
 import { resolveAssetUrl } from "../lib/helpers";
 import {
@@ -244,6 +245,8 @@ export function SettingsPage() {
               </button>
             </div>
           </section>
+
+          <NotificationSettingsPanel />
 
           <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
             <div className="flex items-center gap-3">

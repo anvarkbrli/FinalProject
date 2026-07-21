@@ -9,6 +9,13 @@ import type {
   UnreadNotificationCountDTO,
 } from "../types/notifications";
 
+export const notificationQueryKeys = {
+  all: ["notifications"] as const,
+  list: ["notifications", "list"] as const,
+  unreadCount: ["notifications", "unread-count"] as const,
+  settings: ["notification-settings"] as const,
+};
+
 export async function getNotifications(
   pageNumber = 1,
   pageSize = 12,

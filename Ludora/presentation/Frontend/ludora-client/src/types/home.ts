@@ -89,6 +89,12 @@ export interface AnnouncementDTO {
   updatedAt: string | null;
 }
 
+export interface HomeDiscoveryDTO {
+  trendingGames: GameListItemDTO[];
+  comingSoonGames: GameListItemDTO[];
+  generatedAtUtc: string;
+}
+
 export interface PagedResultDTO<T> {
   items: T[];
   pageNumber: number;

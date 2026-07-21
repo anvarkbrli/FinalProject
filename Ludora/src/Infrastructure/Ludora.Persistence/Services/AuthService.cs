@@ -310,7 +310,7 @@ public class AuthService : IAuthService
             .GroupBy(_ => 1)
             .Select(group => new
             {
-                Count = group.Count(),
+                Count = group.Count(x => x.Content != string.Empty),
                 TotalPlaytimeMinutes = group.Sum(x => (long)(x.PlaytimeMinutes ?? 0))
             })
             .FirstOrDefaultAsync(cancellationToken);

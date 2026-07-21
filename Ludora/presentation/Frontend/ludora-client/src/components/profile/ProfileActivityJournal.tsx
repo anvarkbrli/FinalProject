@@ -11,6 +11,7 @@ import {
   LoaderCircle,
   MessageCircle,
   MessageSquareText,
+  NotebookPen,
   Pencil,
   Star,
   Trash2,
@@ -174,14 +175,14 @@ function getActivityPresentation(
       };
     case "ReviewCreated":
       return {
-        icon: MessageSquareText,
-        content: <>{game} oyunu üçün rəy yazdın.</>,
+        icon: NotebookPen,
+        content: <>{game} oyununu log etdin.</>,
         accent: "bg-emerald-500/10 text-emerald-300",
       };
     case "ReviewUpdated":
       return {
         icon: Pencil,
-        content: <>{game} oyunundakı rəyini yenilədin.</>,
+        content: <>{game} oyununun logunu yenilədin.</>,
         accent: "bg-blue-500/10 text-blue-300",
       };
     case "ReviewDeleted":

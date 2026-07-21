@@ -12,6 +12,7 @@ import { DiscussionCard } from "../components/home/DiscussionCard";
 import { DiscussionCardSkeleton } from "../components/home/DiscussionCardSkeleton";
 import { GameCard } from "../components/home/GameCard";
 import { GameCardSkeleton } from "../components/home/GameCardSkeleton";
+import { HomeDiscoverySection } from "../components/home/HomeDiscoverySection";
 import { UserWelcomePanel } from "../components/home/UserWelcomePanel";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
@@ -19,6 +20,7 @@ import { resolveAssetUrl } from "../lib/helpers";
 import {
   getFeaturedGames,
   getForumCategories,
+  getHomeDiscovery,
   getLatestAnnouncement,
   getTrendingDiscussions,
 } from "../services/homeService";
@@ -82,6 +84,12 @@ export function HomePage() {
   const gamesQuery = useQuery({
     queryKey: ["homepage", "featured-games"],
     queryFn: getFeaturedGames,
+  });
+
+  const discoveryQuery = useQuery({
+    queryKey: ["homepage", "igdb-discovery"],
+    queryFn: getHomeDiscovery,
+    staleTime: 20 * 60 * 1000,
   });
 
   const discussionsQuery = useQuery({
@@ -249,6 +257,17 @@ export function HomePage() {
             </div>
           </div>
         </section>
+
+        <HomeDiscoverySection
+          trendingGames={
+            discoveryQuery.data?.trendingGames ?? []
+          }
+          comingSoonGames={
+            discoveryQuery.data?.comingSoonGames ?? []
+          }
+          isLoading={discoveryQuery.isLoading}
+          isError={discoveryQuery.isError}
+        />
 
         <section className="mx-auto grid max-w-7xl gap-12 px-5 py-20 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.8fr)] lg:px-8">
           <div

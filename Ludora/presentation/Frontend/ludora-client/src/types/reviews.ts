@@ -2,6 +2,7 @@ import type {
   CatalogSource,
   PagedResultDTO,
 } from "./home";
+import type { UserGameStatus } from "./userGames";
 
 export type ReviewSort =
   | "Newest"
@@ -25,6 +26,7 @@ export interface ReviewDTO {
   gameCoverImageUrl: string | null;
   content: string;
   rating: number | null;
+  status: UserGameStatus | null;
   containsSpoilers: boolean;
   playedOn: string | null;
   platformSource: CatalogSource | null;
@@ -42,6 +44,7 @@ export interface ReviewDTO {
 export interface ReviewWriteDTO {
   content: string;
   rating: number | null;
+  status: UserGameStatus | null;
   containsSpoilers: boolean;
   playedOn: string | null;
   platformSource: CatalogSource | null;

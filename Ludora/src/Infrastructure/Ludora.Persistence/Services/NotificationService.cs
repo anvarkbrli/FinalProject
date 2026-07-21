@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Notification;
 using Ludora.Application.Exceptions;
@@ -35,6 +36,15 @@ public sealed class NotificationService : INotificationService
         NotificationType.FollowRequestAccepted
     ];
 
+    private static readonly HashSet<NotificationType> FollowerBroadcastTypes =
+    [
+        NotificationType.FollowingPostCreated,
+        NotificationType.FollowingReviewCreated,
+        NotificationType.FollowingGameStatusChanged,
+        NotificationType.FollowingPublicListCreated,
+        NotificationType.FollowingDiscussionCreated
+    ];
+
     private readonly AppDbContext _context;
 
     public NotificationService(AppDbContext context)
@@ -49,7 +59,7 @@ public sealed class NotificationService : INotificationService
     {
         ValidateUserId(userId);
         ArgumentNullException.ThrowIfNull(filter);
-        ValidatePagination(filter.PageNumber, filter.PageSize);
+        ValidateFilter(filter);
 
         var query = _context.Notifications
             .AsNoTracking()
@@ -67,9 +77,8 @@ public sealed class NotificationService : INotificationService
         var totalCount = await query.CountAsync(cancellationToken);
 
         var items = await Project(query)
-            .OrderBy(x => x.IsRead)
-            .ThenByDescending(x => x.Priority)
-            .ThenByDescending(x => x.CreatedAtUtc)
+            .OrderByDescending(x => x.CreatedAtUtc)
+            .ThenByDescending(x => x.Id)
             .Skip((filter.PageNumber - 1) * filter.PageSize)
             .Take(filter.PageSize)
             .ToListAsync(cancellationToken);
@@ -125,7 +134,9 @@ public sealed class NotificationService : INotificationService
         return await Project(
                 _context.Notifications
                     .AsNoTracking()
-                    .Where(x => x.Id == notificationId))
+                    .Where(x =>
+                        x.Id == notificationId &&
+                        x.RecipientUserId == userId))
             .FirstAsync(cancellationToken);
     }
 
@@ -249,7 +260,7 @@ public sealed class NotificationService : INotificationService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ValidateUserId(request.RecipientUserId);
+        ValidateCreateRequest(request);
 
         if (request.ActorUserId == request.RecipientUserId)
             return;
@@ -272,10 +283,7 @@ public sealed class NotificationService : INotificationService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(request);
-        ValidateUserId(request.ActorUserId);
-
-        if (!ConfigurableTypes.Contains(request.Type))
-            throw new BadRequestException("İzləyicilərə göndərilən bildiriş növü düzgün deyil.");
+        ValidateFollowerRequest(request);
 
         var recipients = await _context.UserFollows
             .AsNoTracking()
@@ -473,10 +481,8 @@ FROM @InsertedNotifications;", cancellationToken);
             EntityId = NormalizeOptional(request.EntityId, 64),
             Title = NormalizeRequired(request.Title, 200, "Bildiriş başlığı"),
             Message = NormalizeRequired(request.Message, 1000, "Bildiriş mətni"),
-            ActionUrl = NormalizeOptional(request.ActionUrl, 500),
-            DataJson = string.IsNullOrWhiteSpace(request.DataJson)
-                ? null
-                : request.DataJson,
+            ActionUrl = NormalizeActionUrl(request.ActionUrl),
+            DataJson = NormalizeDataJson(request.DataJson),
             IsRead = false,
             CreatedAtUtc = DateTime.UtcNow
         };
@@ -551,6 +557,58 @@ FROM @InsertedNotifications;", cancellationToken);
         return type is NotificationType.AnnouncementPublished or NotificationType.WarningIssued;
     }
 
+    private static void ValidateFilter(NotificationFilterDTO filter)
+    {
+        ValidatePagination(filter.PageNumber, filter.PageSize);
+
+        if (filter.Type.HasValue && !Enum.IsDefined(filter.Type.Value))
+            throw new BadRequestException("Bildiriş növü düzgün deyil.");
+
+        if (filter.Priority.HasValue && !Enum.IsDefined(filter.Priority.Value))
+            throw new BadRequestException("Bildiriş prioriteti düzgün deyil.");
+    }
+
+    private static void ValidateCreateRequest(NotificationCreateRequest request)
+    {
+        ValidateUserId(request.RecipientUserId);
+
+        if (request.ActorUserId == Guid.Empty)
+            throw new BadRequestException("Bildiriş göndərən istifadəçi ID-si düzgün deyil.");
+
+        if (!Enum.IsDefined(request.Type))
+            throw new BadRequestException("Bildiriş növü düzgün deyil.");
+
+        if (!Enum.IsDefined(request.Priority))
+            throw new BadRequestException("Bildiriş prioriteti düzgün deyil.");
+
+        if (!Enum.IsDefined(request.EntityType))
+            throw new BadRequestException("Bildiriş obyekt növü düzgün deyil.");
+
+        _ = NormalizeRequired(request.Title, 200, "Bildiriş başlığı");
+        _ = NormalizeRequired(request.Message, 1000, "Bildiriş mətni");
+        _ = NormalizeActionUrl(request.ActionUrl);
+        _ = NormalizeDataJson(request.DataJson);
+    }
+
+    private static void ValidateFollowerRequest(FollowerNotificationRequest request)
+    {
+        ValidateUserId(request.ActorUserId);
+
+        if (!FollowerBroadcastTypes.Contains(request.Type))
+            throw new BadRequestException("İzləyicilərə göndərilən bildiriş növü düzgün deyil.");
+
+        if (!Enum.IsDefined(request.Priority))
+            throw new BadRequestException("Bildiriş prioriteti düzgün deyil.");
+
+        if (!Enum.IsDefined(request.EntityType))
+            throw new BadRequestException("Bildiriş obyekt növü düzgün deyil.");
+
+        _ = NormalizeRequired(request.Title, 200, "Bildiriş başlığı");
+        _ = NormalizeRequired(request.Message, 1000, "Bildiriş mətni");
+        _ = NormalizeActionUrl(request.ActionUrl);
+        _ = NormalizeDataJson(request.DataJson);
+    }
+
     private static string NormalizeRequired(string value, int maxLength, string fieldName)
     {
         if (string.IsNullOrWhiteSpace(value))
@@ -571,6 +629,37 @@ FROM @InsertedNotifications;", cancellationToken);
         return normalized.Length <= maxLength
             ? normalized
             : normalized[..maxLength];
+    }
+
+    private static string? NormalizeActionUrl(string? value)
+    {
+        var normalized = NormalizeOptional(value, 500);
+
+        if (normalized is null)
+            return null;
+
+        if (!normalized.StartsWith('/') || normalized.StartsWith("//", StringComparison.Ordinal))
+            throw new BadRequestException("Bildiriş keçidi sayt daxilində nisbi URL olmalıdır.");
+
+        return normalized;
+    }
+
+    private static string? NormalizeDataJson(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var normalized = value.Trim();
+
+        try
+        {
+            using var _ = JsonDocument.Parse(normalized);
+            return normalized;
+        }
+        catch (JsonException)
+        {
+            throw new BadRequestException("Bildiriş əlavə məlumatı düzgün JSON formatında deyil.");
+        }
     }
 
     private static void ValidateUserId(Guid userId)

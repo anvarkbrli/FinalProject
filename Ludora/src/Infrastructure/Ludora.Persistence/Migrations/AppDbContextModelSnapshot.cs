@@ -1492,6 +1492,75 @@ namespace Ludora.Persistence.Migrations
                         });
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.User.UserReport", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AdminNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("EvidenceImageStorageKey")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<Guid>("ReportedUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ReporterUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReportedUserId", "Category");
+
+                    b.HasIndex("ReportedUserId", "Status", "CreatedAtUtc");
+
+                    b.HasIndex("ReporterUserId", "CreatedAtUtc");
+
+                    b.HasIndex("ReporterUserId", "ReportedUserId")
+                        .IsUnique()
+                        .HasFilter("[Status] IN (0, 1)");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.ToTable("UserReports", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserReports_Category", "[Category] BETWEEN 1 AND 9");
+
+                            t.HasCheckConstraint("CK_UserReports_DifferentUsers", "[ReporterUserId] <> [ReportedUserId]");
+
+                            t.HasCheckConstraint("CK_UserReports_Evidence", "[Description] IS NOT NULL OR [EvidenceImageStorageKey] IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_UserReports_Status", "[Status] BETWEEN 0 AND 3");
+                        });
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.User.UserWarning", b =>
                 {
                     b.Property<int>("Id")
@@ -2136,6 +2205,32 @@ namespace Ludora.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.User.UserReport", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "ReportedUser")
+                        .WithMany("ReceivedReports")
+                        .HasForeignKey("ReportedUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "ReporterUser")
+                        .WithMany("SubmittedReports")
+                        .HasForeignKey("ReporterUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "ReviewedByUser")
+                        .WithMany("ReviewedReports")
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ReportedUser");
+
+                    b.Navigation("ReporterUser");
+
+                    b.Navigation("ReviewedByUser");
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.User.UserWarning", b =>
                 {
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
@@ -2290,17 +2385,23 @@ namespace Ludora.Persistence.Migrations
 
                     b.Navigation("ReceivedNotifications");
 
+                    b.Navigation("ReceivedReports");
+
                     b.Navigation("ReceivedWarnings");
 
                     b.Navigation("ReviewComments");
 
                     b.Navigation("ReviewLikes");
 
+                    b.Navigation("ReviewedReports");
+
                     b.Navigation("Reviews");
 
                     b.Navigation("SentNotifications");
 
                     b.Navigation("SentWarnings");
+
+                    b.Navigation("SubmittedReports");
 
                     b.Navigation("UserGames");
                 });

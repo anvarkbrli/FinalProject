@@ -35,6 +35,20 @@ public interface IIgdbClient
         IReadOnlyCollection<long> ids,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<IgdbGameModel>> GetUpcomingGamesAsync(
+        DateOnly fromDate,
+        DateOnly toDate,
+        int limit,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<IgdbPopularityTypeModel>> GetPopularityTypesAsync(
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<IgdbPopularityPrimitiveModel>> GetPopularityPrimitivesAsync(
+        long popularityTypeId,
+        int limit,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<IgdbGenreModel>> GetGenresAsync(
         string? search,
         CancellationToken cancellationToken = default);

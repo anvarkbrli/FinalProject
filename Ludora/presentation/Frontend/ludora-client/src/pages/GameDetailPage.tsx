@@ -508,6 +508,34 @@ function GameTrackingPanel({
           game.id,
         ],
       });
+
+      void queryClient.invalidateQueries({
+        queryKey: [
+          "my-game-review",
+          game.source,
+          game.id,
+        ],
+      });
+
+      void queryClient.invalidateQueries({
+        queryKey: ["user-profile"],
+      });
+
+      void queryClient.invalidateQueries({
+        queryKey: ["user-profile-games"],
+      });
+
+      void queryClient.invalidateQueries({
+        queryKey: ["user-profile-recent-played-games"],
+      });
+
+      void queryClient.invalidateQueries({
+        queryKey: ["user-playtime-statistics"],
+      });
+
+      void queryClient.invalidateQueries({
+        queryKey: ["my-activities"],
+      });
     },
 
     onError: (error) => {
@@ -777,8 +805,8 @@ function GameTrackingPanel({
               {myReviewQuery.isLoading
                 ? "Rəy yoxlanılır..."
                 : myReviewQuery.data
-                  ? "Logu redaktə et"
-                  : "Oyunu log et"}
+                  ? "Rəyi redaktə et"
+                  : "Rəy əlavə et"}
             </button>
           </div>
         </>

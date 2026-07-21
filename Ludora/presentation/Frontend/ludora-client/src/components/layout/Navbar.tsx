@@ -21,7 +21,9 @@ import {
 } from "react-router-dom";
 import { LogGameModal } from "../reviews/LogGameModal";
 import { GlobalSearchBox } from "../search/GlobalSearchBox";
+import { NotificationBell } from "../notifications/NotificationBell";
 import { resolveAssetUrl } from "../../lib/helpers";
+import { useNotificationRealtime } from "../../hooks/useNotificationRealtime";
 import {
   isAuthSessionValid,
   useAuthStore,
@@ -83,6 +85,8 @@ export function Navbar() {
       accessToken,
       expiresAtUtc,
     ) && user !== null;
+
+  useNotificationRealtime(hasValidSession);
 
   const profileImageUrl = resolveAssetUrl(
     user?.profileImageUrl,
@@ -254,6 +258,8 @@ export function Navbar() {
         <div className="hidden items-center gap-2 md:flex">
           <GlobalSearchBox />
 
+          {hasValidSession && <NotificationBell />}
+
           {hasValidSession && (
             <button
               type="button"
@@ -264,7 +270,7 @@ export function Navbar() {
               className="order-3 flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-violet-950/30 transition hover:bg-violet-500"
             >
               <Plus size={17} />
-              Oyun Log Et
+              Rəy əlavə et
             </button>
           )}
 
@@ -383,30 +389,34 @@ export function Navbar() {
           )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setIsMobileMenuOpen(
-              (currentValue) =>
-                !currentValue,
-            );
+        <div className="flex items-center gap-2 md:hidden">
+          {hasValidSession && <NotificationBell />}
 
-            setIsUserMenuOpen(false);
-          }}
-          className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 md:hidden"
-          aria-label={
-            isMobileMenuOpen
-              ? "Mobil menyunu bağla"
-              : "Mobil menyunu aç"
-          }
-          aria-expanded={isMobileMenuOpen}
-        >
-          {isMobileMenuOpen ? (
-            <X size={20} />
-          ) : (
-            <Menu size={20} />
-          )}
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              setIsMobileMenuOpen(
+                (currentValue) =>
+                  !currentValue,
+              );
+
+              setIsUserMenuOpen(false);
+            }}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10"
+            aria-label={
+              isMobileMenuOpen
+                ? "Mobil menyunu bağla"
+                : "Mobil menyunu aç"
+            }
+            aria-expanded={isMobileMenuOpen}
+          >
+            {isMobileMenuOpen ? (
+              <X size={20} />
+            ) : (
+              <Menu size={20} />
+            )}
+          </button>
+        </div>
       </div>
 
       {isMobileMenuOpen && (

@@ -42,8 +42,10 @@ public static class ServiceRegistration
             client.Timeout = TimeSpan.FromSeconds(settings.RequestTimeoutSeconds);
         });
 
+        services.AddMemoryCache();
         services.AddSingleton<IgdbTokenProvider>();
         services.AddSingleton<IgdbRequestThrottle>();
+        services.AddScoped<IHomeDiscoveryService, HomeDiscoveryService>();
 
         services.AddHttpClient<IIgdbClient, IgdbClient>((serviceProvider, client) =>
         {

@@ -5,8 +5,20 @@ import type {
   DiscussionListItemDTO,
   ForumCategoryDTO,
   GameListItemDTO,
+  HomeDiscoveryDTO,
   PagedResultDTO,
 } from "../types/home";
+
+
+export async function getHomeDiscovery(): Promise<
+  HomeDiscoveryDTO
+> {
+  const response = await api.get<HomeDiscoveryDTO>(
+    "/home/discovery",
+  );
+
+  return response.data;
+}
 
 export async function getFeaturedGames(): Promise<
   GameListItemDTO[]

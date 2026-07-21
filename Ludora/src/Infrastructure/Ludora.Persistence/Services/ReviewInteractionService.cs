@@ -278,7 +278,9 @@ public sealed class ReviewInteractionService : IReviewInteractionService
     {
         if (reviewId <= 0) throw new BadRequestException("Rəy ID-si düzgün deyil.");
         var review = await _context.Reviews.AsNoTracking().Include(x => x.User)
-            .FirstOrDefaultAsync(x => x.Id == reviewId, cancellationToken)
+            .FirstOrDefaultAsync(
+                x => x.Id == reviewId && x.Content != string.Empty,
+                cancellationToken)
             ?? throw new NotFoundException("Rəy tapılmadı.");
 
         if (currentUserId.HasValue)

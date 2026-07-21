@@ -9,6 +9,7 @@ import {
   LoaderCircle,
   MessageCircle,
   MessageSquareText,
+  NotebookPen,
   Pencil,
   Star,
   Trash2,
@@ -47,7 +48,7 @@ const filters: Array<{
   { value: "Statuses", label: "Statuslar" },
   { value: "Lists", label: "Siyahılar" },
   { value: "Ratings", label: "Puanlar" },
-  { value: "Reviews", label: "Rəylər" },
+  { value: "Reviews", label: "Loglar" },
   { value: "Posts", label: "Postlar" },
 ];
 
@@ -149,11 +150,11 @@ function getPresentation(
     case "GameRatingRemoved":
       return { icon: Star, accent: "bg-zinc-500/10 text-zinc-400", action: <>{game} oyununun puanını {verb("sildin", "sildi")}.</> };
     case "ReviewCreated":
-      return { icon: MessageSquareText, accent: "bg-violet-500/10 text-violet-300", action: <>{game} oyunu üçün rəy {verb("paylaşdın", "paylaşdı")}.</> };
+      return { icon: NotebookPen, accent: "bg-violet-500/10 text-violet-300", action: <>{game} oyununu log {verb("etdin", "etdi")}.</> };
     case "ReviewUpdated":
-      return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>{game} oyunu üçün rəyini {verb("yenilədin", "yenilədi")}.</> };
+      return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>{game} oyununun logunu {verb("yenilədin", "yenilədi")}.</> };
     case "ReviewDeleted":
-      return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>{game} oyunu üçün rəyini {verb("sildin", "sildi")}.</> };
+      return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>{game} oyununun rəyini {verb("sildin", "sildi")}.</> };
     case "ReviewLiked":
       return { icon: Heart, accent: "bg-rose-500/10 text-rose-300", action: <>{user} istifadəçisinin {game} rəyini {verb("bəyəndin", "bəyəndi")}.</> };
     case "ReviewUnliked":

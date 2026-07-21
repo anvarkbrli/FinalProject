@@ -38,6 +38,9 @@ public class AppUser : IdentityUser<Guid>
     public ICollection<DiscussionReplyLike> DiscussionReplyLikes { get; set; } = new List<DiscussionReplyLike>();
     public ICollection<UserWarning> ReceivedWarnings { get; set; } = new List<UserWarning>();
     public ICollection<UserWarning> SentWarnings { get; set; } = new List<UserWarning>();
+    public ICollection<UserReport> SubmittedReports { get; set; } = new List<UserReport>();
+    public ICollection<UserReport> ReceivedReports { get; set; } = new List<UserReport>();
+    public ICollection<UserReport> ReviewedReports { get; set; } = new List<UserReport>();
     public ICollection<Announcement> Announcements { get; set; } = new List<Announcement>();
     public ICollection<Notification> ReceivedNotifications { get; set; } = new List<Notification>();
     public ICollection<Notification> SentNotifications { get; set; } = new List<Notification>();

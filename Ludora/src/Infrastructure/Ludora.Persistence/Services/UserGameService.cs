@@ -15,6 +15,7 @@ namespace Ludora.Persistence.Services;
 public sealed class UserGameService : IUserGameService
 {
     private const int MaxPageSize = 50;
+    private const int AzerbaijanUtcOffsetHours = 4;
     private readonly AppDbContext _context;
     private readonly IIgdbClient _igdbClient;
     private readonly INotificationService _notificationService;
@@ -243,16 +244,16 @@ public sealed class UserGameService : IUserGameService
                 x.PlatformSource,
                 x.PlatformId,
                 x.PlaytimeMinutes ?? 0,
-                x.UpdatedAt ?? x.CreatedAt))
+                x.CreatedAt))
             .ToListAsync(cancellationToken);
 
         var positiveReviews = reviews
             .Where(x => x.PlaytimeMinutes > 0)
             .ToList();
         var gameMetadata = await ResolvePlaytimeGameMetadataAsync(
-            positiveReviews,
+            reviews,
             cancellationToken);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = GetTodayInAzerbaijan();
         var chart = BuildPlaytimeChart(
             reviews,
             period,
@@ -485,11 +486,28 @@ public sealed class UserGameService : IUserGameService
         else
         {
             if (entity.Status == status)
+            {
+                if (await EnsureTrackingLogAsync(
+                        userId,
+                        source,
+                        gameId,
+                        cancellationToken))
+                {
+                    await SaveAsync(cancellationToken);
+                }
+
                 return await MapAsync(entity, cancellationToken);
+            }
 
             entity.Status = status;
             entity.UpdatedAt = DateTime.UtcNow;
         }
+
+        await EnsureTrackingLogAsync(
+            userId,
+            source,
+            gameId,
+            cancellationToken);
 
         _context.AddUserActivity(
             userId,
@@ -537,6 +555,14 @@ public sealed class UserGameService : IUserGameService
 
         var previousStatus = entity.Status.Value;
         entity.Status = null;
+
+        await RemoveTrackingLogIfEmptyAsync(
+            userId,
+            source,
+            gameId,
+            status: null,
+            rating: entity.Rating,
+            cancellationToken: cancellationToken);
 
         _context.AddUserActivity(
             userId,
@@ -655,7 +681,20 @@ public sealed class UserGameService : IUserGameService
         if (entity is null)
         {
             if (!rating.HasValue)
+            {
+                if (await RemoveTrackingLogIfEmptyAsync(
+                        userId,
+                        source,
+                        gameId,
+                        status: null,
+                        rating: null,
+                        cancellationToken: cancellationToken))
+                {
+                    await SaveAsync(cancellationToken);
+                }
+
                 return null;
+            }
 
             await EnsureGameExistsAsync(source, gameId, cancellationToken);
             entity = NewEntity(userId, source, gameId);
@@ -665,9 +704,40 @@ public sealed class UserGameService : IUserGameService
         else
         {
             if (entity.Rating == rating)
+            {
+                if (rating.HasValue &&
+                    await EnsureTrackingLogAsync(
+                        userId,
+                        source,
+                        gameId,
+                        cancellationToken))
+                {
+                    await SaveAsync(cancellationToken);
+                }
+
                 return await MapAsync(entity, cancellationToken);
+            }
 
             entity.Rating = rating;
+        }
+
+        if (rating.HasValue)
+        {
+            await EnsureTrackingLogAsync(
+                userId,
+                source,
+                gameId,
+                cancellationToken);
+        }
+        else
+        {
+            await RemoveTrackingLogIfEmptyAsync(
+                userId,
+                source,
+                gameId,
+                entity.Status,
+                rating: null,
+                cancellationToken: cancellationToken);
         }
 
         _context.AddUserActivity(
@@ -923,7 +993,9 @@ public sealed class UserGameService : IUserGameService
                     .Where(review =>
                     {
                         var activityDate = review.PlayedOn ??
-                            DateOnly.FromDateTime(review.ActivityAtUtc);
+                            DateOnly.FromDateTime(
+                                review.ActivityAtUtc.AddHours(
+                                    AzerbaijanUtcOffsetHours));
 
                         return activityDate >= range.StartDate &&
                                activityDate <= range.EndDate;
@@ -931,7 +1003,6 @@ public sealed class UserGameService : IUserGameService
                     .ToList();
 
                 var games = rangeReviews
-                    .Where(review => review.PlaytimeMinutes > 0)
                     .GroupBy(review => (review.Source, review.GameId))
                     .Select(group =>
                     {
@@ -1235,6 +1306,106 @@ public sealed class UserGameService : IUserGameService
             throw new BadRequestException("Sıralama meyarı yanlışdır.");
     }
 
+    private async Task<bool> EnsureTrackingLogAsync(
+        Guid userId,
+        CatalogSource source,
+        long gameId,
+        CancellationToken cancellationToken)
+    {
+        var log = await _context.Reviews
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(x =>
+                    x.UserId == userId &&
+                    x.Source == source &&
+                    x.GameId == gameId,
+                cancellationToken);
+
+        if (log is not null && !log.IsDeleted)
+            return false;
+
+        var now = DateTime.UtcNow;
+
+        if (log is null)
+        {
+            await _context.Reviews.AddAsync(
+                new Review
+                {
+                    UserId = userId,
+                    Source = source,
+                    GameId = gameId,
+                    Content = string.Empty,
+                    ContainsSpoilers = false,
+                    PlayedOn = GetTodayInAzerbaijan(),
+                    CreatedAt = now
+                },
+                cancellationToken);
+            return true;
+        }
+
+        log.Content = string.Empty;
+        log.ContainsSpoilers = false;
+        log.PlayedOn = GetTodayInAzerbaijan();
+        log.PlatformSource = null;
+        log.PlatformId = null;
+        log.PlaytimeMinutes = null;
+        log.CreatedAt = now;
+        log.UpdatedAt = null;
+        log.IsDeleted = false;
+        log.DeletedAtUtc = null;
+        return true;
+    }
+
+    private async Task<bool> RemoveTrackingLogIfEmptyAsync(
+        Guid userId,
+        CatalogSource source,
+        long gameId,
+        UserGameStatus? status,
+        double? rating,
+        CancellationToken cancellationToken)
+    {
+        if (status.HasValue || rating.HasValue)
+            return false;
+
+        var log = await _context.Reviews
+            .FirstOrDefaultAsync(x =>
+                    x.UserId == userId &&
+                    x.Source == source &&
+                    x.GameId == gameId,
+                cancellationToken);
+
+        if (log is null ||
+            !string.IsNullOrWhiteSpace(log.Content) ||
+            log.PlatformSource.HasValue ||
+            log.PlatformId.HasValue ||
+            log.PlaytimeMinutes is > 0)
+        {
+            return false;
+        }
+
+        var now = DateTime.UtcNow;
+        log.IsDeleted = true;
+        log.DeletedAtUtc = now;
+        log.UpdatedAt = now;
+
+        var likes = await _context.ReviewLikes
+            .Where(x => x.ReviewId == log.Id)
+            .ToListAsync(cancellationToken);
+        _context.ReviewLikes.RemoveRange(likes);
+
+        var comments = await _context.ReviewComments
+            .Where(x => x.ReviewId == log.Id)
+            .ToListAsync(cancellationToken);
+
+        foreach (var comment in comments)
+        {
+            comment.IsDeleted = true;
+            comment.DeletedAtUtc = now;
+            comment.UpdatedAt = now;
+        }
+
+        return true;
+    }
+
     private async Task<UserGameDTO?> SaveOrDeleteAsync(
         UserGame entity,
         CancellationToken cancellationToken)
@@ -1524,6 +1695,12 @@ public sealed class UserGameService : IUserGameService
             UserGameStatus.Dropped => "Yarıda buraxıb",
             _ => status.ToString()
         };
+    }
+
+    private static DateOnly GetTodayInAzerbaijan()
+    {
+        return DateOnly.FromDateTime(
+            DateTime.UtcNow.AddHours(AzerbaijanUtcOffsetHours));
     }
 
     private sealed record PlaytimeReviewRow(

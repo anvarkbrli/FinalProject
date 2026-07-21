@@ -44,6 +44,20 @@ public static class FileValidationExtensions
             "Post şəkli");
     }
 
+
+    public static void ValidateUpload(
+        this UserReportEvidenceUploadDTO file,
+        long maxSize,
+        FileSize fileSize)
+    {
+        ValidateUploadCore(
+            file.Stream,
+            file.Length,
+            maxSize,
+            fileSize,
+            "Şikayət sübutu");
+    }
+
     public static void ValidateActualSize(
         this byte[] bytes,
         long maxSize,

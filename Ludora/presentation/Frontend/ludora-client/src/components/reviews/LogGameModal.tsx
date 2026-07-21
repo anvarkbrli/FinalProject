@@ -30,8 +30,6 @@ import {
 } from "../../services/reviewsService";
 import {
   getUserGameState,
-  setUserGameRating,
-  setUserGameStatus,
 } from "../../services/userGamesService";
 import type {
   CatalogSource,
@@ -396,7 +394,9 @@ export function LogGameModal({
     const userGame = userGameQuery.data;
     const playtime = review?.playtimeMinutes ?? 0;
 
-    setStatus(userGame?.status ?? "");
+    setStatus(
+      review?.status ?? userGame?.status ?? "",
+    );
     setRating(review?.rating ?? userGame?.rating ?? null);
     setContent(review?.content ?? "");
     setContainsSpoilers(
@@ -462,75 +462,48 @@ export function LogGameModal({
         parsedHours * 60 + parsedMinutes;
       const existingReview =
         myReviewQuery.data;
-      const currentUserGame =
-        userGameQuery.data;
 
       if (
         !trimmedContent &&
         !status &&
-        rating === null
+        rating === null &&
+        !selectedPlatform &&
+        totalMinutes <= 0
       ) {
         throw new Error(
-          "Status, puan və ya rəy məlumatlarından ən azı birini əlavə edin.",
+          "Status, puan, platforma, oyun müddəti və ya rəy məlumatlarından ən azı birini əlavə edin.",
         );
       }
 
-      if (
-        trimmedContent &&
-        selectedGame.platforms.length > 0 &&
-        !selectedPlatform
-      ) {
-        throw new Error(
-          "Rəy üçün oynadığınız platformanı seçin.",
-        );
-      }
-
-      if (
-        status &&
-        currentUserGame?.status !== status
-      ) {
-        await setUserGameStatus(
-          selectedGame.source,
-          selectedGame.id,
-          status,
-        );
-      }
-
-      if (trimmedContent) {
-        const request = {
-          content: trimmedContent,
-          rating,
+      const request = {
+        content: trimmedContent,
+        rating,
+        status: status || null,
+        containsSpoilers:
+          trimmedContent.length > 0 &&
           containsSpoilers,
-          playedOn: null,
-          platformSource:
-            selectedPlatform?.source ?? null,
-          platformId:
-            selectedPlatform?.id ?? null,
-          playtimeMinutes:
-            totalMinutes > 0
-              ? totalMinutes
-              : null,
-        };
+        playedOn:
+          existingReview?.playedOn ?? null,
+        platformSource:
+          selectedPlatform?.source ?? null,
+        platformId:
+          selectedPlatform?.id ?? null,
+        playtimeMinutes:
+          totalMinutes > 0
+            ? totalMinutes
+            : null,
+      };
 
-        if (existingReview) {
-          await updateReview(
-            existingReview.id,
-            request,
-          );
-        } else {
-          await createReview(
-            selectedGame.source,
-            selectedGame.id,
-            request,
-          );
-        }
-      } else if (
-        rating !== currentUserGame?.rating
-      ) {
-        await setUserGameRating(
+      if (existingReview) {
+        await updateReview(
+          existingReview.id,
+          request,
+        );
+      } else {
+        await createReview(
           selectedGame.source,
           selectedGame.id,
-          rating,
+          request,
         );
       }
     },
@@ -573,6 +546,18 @@ export function LogGameModal({
         }),
         queryClient.invalidateQueries({
           queryKey: ["my-activities"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["user-profile"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["user-profile-games"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["user-profile-recent-played-games"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["user-playtime-statistics"],
         }),
       ]);
 
@@ -750,7 +735,7 @@ export function LogGameModal({
                   </p>
                   <p className="mt-1 text-xs text-zinc-600">
                     {myReviewQuery.data
-                      ? "Mövcud rəy redaktə olunur"
+                      ? "Mövcud log yenilənir"
                       : "Yeni oyun qeydi"}
                   </p>
                 </div>

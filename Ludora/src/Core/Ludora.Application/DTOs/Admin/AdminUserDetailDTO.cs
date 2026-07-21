@@ -23,5 +23,7 @@ public record AdminUserDetailDTO
     public int ReplyCount { get; init; }
     public int WarningCount { get; init; }
     public int UnreadWarningCount { get; init; }
+    public int ReportCount { get; init; }
+    public int PendingReportCount { get; init; }
     public DateTime CreatedAt { get; init; }
 }

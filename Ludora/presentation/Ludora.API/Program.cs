@@ -164,6 +164,16 @@ public class Program
                     QueueLimit = 0,
                     AutoReplenishment = true
                 }));
+
+            options.AddPolicy("UserReports", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 5,
+                    Window = TimeSpan.FromHours(1),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                }));
         });
 
         builder.Services.AddPersistenceServices(builder.Configuration);

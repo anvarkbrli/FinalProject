@@ -90,6 +90,72 @@ internal static class IgdbQueryBuilder
         return BuildByIds(GameFields, ids);
     }
 
+    public static string BuildUpcomingGames(
+        DateOnly fromDate,
+        DateOnly toDate,
+        int limit)
+    {
+        if (toDate < fromDate)
+            throw new ArgumentOutOfRangeException(nameof(toDate));
+
+        var start = new DateTimeOffset(
+            fromDate.Year,
+            fromDate.Month,
+            fromDate.Day,
+            0,
+            0,
+            0,
+            TimeSpan.Zero).ToUnixTimeSeconds();
+
+        var endExclusiveDate = toDate.AddDays(1);
+        var endExclusive = new DateTimeOffset(
+            endExclusiveDate.Year,
+            endExclusiveDate.Month,
+            endExclusiveDate.Day,
+            0,
+            0,
+            0,
+            TimeSpan.Zero).ToUnixTimeSeconds();
+
+        return new StringBuilder(GameFields)
+            .Append(" where version_parent = null")
+            .Append(" & game_type = (0,4,8,9,10,11)")
+            .Append(" & first_release_date >= ")
+            .Append(start.ToString(CultureInfo.InvariantCulture))
+            .Append(" & first_release_date < ")
+            .Append(endExclusive.ToString(CultureInfo.InvariantCulture))
+            .Append(';')
+            .Append(" sort hypes desc;")
+            .Append(" limit ")
+            .Append(Math.Clamp(limit, 1, 500).ToString(CultureInfo.InvariantCulture))
+            .Append(';')
+            .ToString();
+    }
+
+    public static string BuildPopularityTypes()
+    {
+        return "fields id,name; sort id asc; limit 100;";
+    }
+
+    public static string BuildPopularityPrimitives(
+        long popularityTypeId,
+        int limit)
+    {
+        if (popularityTypeId < 1)
+            throw new ArgumentOutOfRangeException(nameof(popularityTypeId));
+
+        return new StringBuilder(
+                "fields game_id,popularity_type,value;")
+            .Append(" where popularity_type = ")
+            .Append(popularityTypeId.ToString(CultureInfo.InvariantCulture))
+            .Append(';')
+            .Append(" sort value desc;")
+            .Append(" limit ")
+            .Append(Math.Clamp(limit, 1, 500).ToString(CultureInfo.InvariantCulture))
+            .Append(';')
+            .ToString();
+    }
+
     public static string BuildNamedList(string? search, int limit = 500)
     {
         var builder = new StringBuilder("fields id,name;");

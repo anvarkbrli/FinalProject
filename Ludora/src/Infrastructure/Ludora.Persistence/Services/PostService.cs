@@ -84,7 +84,7 @@ public class PostService : IPostService
                     EntityType = NotificationEntityType.Post,
                     EntityId = post.Id.ToString(),
                     Title = "Yeni post",
-                    Message = "İzlədiyiniz istifadəçi yeni post paylaşdı.",
+                    Message = "Yeni post paylaşdı.",
                     ActionUrl = "/"
                 },
                 cancellationToken);

@@ -326,8 +326,9 @@ public sealed class GlobalSearchService : IGlobalSearchService
         var reviewsQuery = _context.Reviews
             .AsNoTracking()
             .Where(x =>
-                x.Content.Contains(query) ||
-                (x.User.UserName != null && x.User.UserName.Contains(query)));
+                x.Content != string.Empty &&
+                (x.Content.Contains(query) ||
+                 (x.User.UserName != null && x.User.UserName.Contains(query))));
 
         if (blockedUserIds is not null)
             reviewsQuery = reviewsQuery.Where(x => !blockedUserIds.Contains(x.UserId));

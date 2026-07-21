@@ -6,6 +6,7 @@ public record ReviewUpdateDTO
 {
     public string Content { get; init; } = string.Empty;
     public double? Rating { get; init; }
+    public UserGameStatus? Status { get; init; }
     public bool ContainsSpoilers { get; init; }
     public DateOnly? PlayedOn { get; init; }
     public CatalogSource? PlatformSource { get; init; }

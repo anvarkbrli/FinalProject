@@ -1,0 +1,38 @@
+import { api } from "../lib/api";
+import type {
+  CreateUserReportRequest,
+  UserReportDTO,
+} from "../types/userReports";
+
+export async function createUserReport(
+  request: CreateUserReportRequest,
+): Promise<UserReportDTO> {
+  const formData = new FormData();
+  formData.append("category", request.category);
+
+  if (request.description.trim()) {
+    formData.append(
+      "description",
+      request.description.trim(),
+    );
+  }
+
+  if (request.evidenceImage) {
+    formData.append(
+      "evidenceImage",
+      request.evidenceImage,
+    );
+  }
+
+  const response = await api.post<UserReportDTO>(
+    `/user-reports/users/${request.reportedUserId}`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    },
+  );
+
+  return response.data;
+}

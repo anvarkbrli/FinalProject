@@ -11,5 +11,8 @@ public record AdminUserListItemDTO
     public bool IsBanned { get; init; }
     public bool IsPermanentlyBanned { get; init; }
     public DateTime? BannedUntilUtc { get; init; }
+    public int WarningCount { get; init; }
+    public int ReportCount { get; init; }
+    public int PendingReportCount { get; init; }
     public DateTime CreatedAt { get; init; }
 }

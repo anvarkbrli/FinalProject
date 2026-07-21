@@ -108,6 +108,11 @@ public sealed class AdminUserService : IAdminUserService
                            (user.BannedUntilUtc.HasValue && user.BannedUntilUtc > now),
                 IsPermanentlyBanned = user.IsPermanentlyBanned,
                 BannedUntilUtc = user.BannedUntilUtc,
+                WarningCount = user.ReceivedWarnings.Count,
+                ReportCount = user.ReceivedReports.Count,
+                PendingReportCount = user.ReceivedReports.Count(report =>
+                    report.Status == UserReportStatus.Pending ||
+                    report.Status == UserReportStatus.UnderReview),
                 CreatedAt = user.CreatedAt
             })
             .ToListAsync(cancellationToken);
@@ -182,6 +187,14 @@ public sealed class AdminUserService : IAdminUserService
                 cancellationToken),
             UnreadWarningCount = await _context.UserWarnings.CountAsync(
                 x => x.UserId == userId && !x.IsRead,
+                cancellationToken),
+            ReportCount = await _context.UserReports.CountAsync(
+                x => x.ReportedUserId == userId,
+                cancellationToken),
+            PendingReportCount = await _context.UserReports.CountAsync(
+                x => x.ReportedUserId == userId &&
+                     (x.Status == UserReportStatus.Pending ||
+                      x.Status == UserReportStatus.UnderReview),
                 cancellationToken),
             CreatedAt = user.CreatedAt
         };
@@ -694,6 +707,12 @@ public sealed class AdminUserService : IAdminUserService
             "oldest" => query.OrderBy(x => x.CreatedAt),
             "username" => query.OrderBy(x => x.UserName),
             "username_desc" => query.OrderByDescending(x => x.UserName),
+            "mostreported" => query
+                .OrderByDescending(x => x.ReceivedReports.Count)
+                .ThenByDescending(x => x.CreatedAt),
+            "mostwarned" => query
+                .OrderByDescending(x => x.ReceivedWarnings.Count)
+                .ThenByDescending(x => x.CreatedAt),
             _ => query.OrderByDescending(x => x.CreatedAt)
         };
     }

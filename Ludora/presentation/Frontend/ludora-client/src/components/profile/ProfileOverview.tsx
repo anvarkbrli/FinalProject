@@ -37,6 +37,8 @@ interface ProfileOverviewProps {
   favoriteGamesLoading: boolean;
   favoritesHref: string;
   onOpenRecentPlayed: () => void;
+  onOpenTopGenre: (genre: string) => void;
+  onOpenTopPlatform: (platform: string) => void;
   playtimeStatistics: UserPlaytimeStatisticsDTO | undefined;
   playtimePeriod: UserPlaytimePeriod;
   playtimeStatisticsLoading: boolean;
@@ -276,6 +278,8 @@ export function ProfileOverview({
   favoriteGamesLoading,
   favoritesHref,
   onOpenRecentPlayed,
+  onOpenTopGenre,
+  onOpenTopPlatform,
   playtimeStatistics,
   playtimePeriod,
   playtimeStatisticsLoading,
@@ -287,6 +291,8 @@ export function ProfileOverview({
 }: ProfileOverviewProps) {
   const [selectedPlaytimePoint, setSelectedPlaytimePoint] =
     useState<UserPlaytimeChartPointDTO | null>(null);
+  const topGenre = playtimeStatistics?.topGenre;
+  const topPlatform = playtimeStatistics?.topPlatform;
 
   useEffect(() => {
     if (!selectedPlaytimePoint) {
@@ -496,7 +502,7 @@ export function ProfileOverview({
                 Oyun vaxtı qrafiki
               </p>
               <p className="mt-2 text-sm text-zinc-500">
-                Review-larda qeyd olunan oyun vaxtının dövrlər üzrə bölgüsü.
+                Loglarda qeyd olunan oyun vaxtının və oynanılan oyun sayının dövrlər üzrə bölgüsü.
               </p>
             </div>
 
@@ -649,43 +655,93 @@ export function ProfileOverview({
             </article>
           )}
 
-          <article className="flex min-h-0 items-center gap-4 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 transition hover:border-violet-400/20 hover:bg-violet-500/[0.04]">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
-              <Shapes size={18} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-600">
-                Ən çox oynanan janr
+          {topGenre ? (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenTopGenre(topGenre.name);
+              }}
+              className="group flex min-h-0 w-full items-center gap-4 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 text-left transition hover:border-violet-400/20 hover:bg-violet-500/[0.04]"
+              aria-label={`${topGenre.name} janrındakı profil oyunlarını göstər`}
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <Shapes size={18} />
               </span>
-              <span className="mt-2 block truncate text-sm font-bold text-zinc-100">
-                {playtimeStatistics?.topGenre?.name ?? "Məlumat yoxdur"}
-              </span>
-              {playtimeStatistics?.topGenre && (
-                <span className="mt-1 block text-xs text-violet-300">
-                  {formatTopStatPlaytime(playtimeStatistics.topGenre.playtimeMinutes)} · {playtimeStatistics.topGenre.percentage}%
+              <span className="min-w-0 flex-1">
+                <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-600">
+                  Ən çox oynanan janr
                 </span>
-              )}
-            </span>
-          </article>
+                <span className="mt-2 block truncate text-sm font-bold text-zinc-100">
+                  {topGenre.name}
+                </span>
+                <span className="mt-1 block text-xs text-violet-300">
+                  {formatTopStatPlaytime(topGenre.playtimeMinutes)} · {topGenre.percentage}%
+                </span>
+              </span>
+              <ArrowUpRight
+                size={16}
+                className="shrink-0 text-zinc-700 transition group-hover:text-violet-300"
+              />
+            </button>
+          ) : (
+            <article className="flex min-h-0 items-center gap-4 rounded-3xl border border-white/[0.07] bg-[#101015] p-5">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <Shapes size={18} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-600">
+                  Ən çox oynanan janr
+                </span>
+                <span className="mt-2 block text-sm font-bold text-zinc-400">
+                  Məlumat yoxdur
+                </span>
+              </span>
+            </article>
+          )}
 
-          <article className="flex min-h-0 items-center gap-4 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 transition hover:border-violet-400/20 hover:bg-violet-500/[0.04]">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
-              <Monitor size={18} />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-600">
-                Ən çox oynanan platforma
+          {topPlatform ? (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenTopPlatform(topPlatform.name);
+              }}
+              className="group flex min-h-0 w-full items-center gap-4 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 text-left transition hover:border-violet-400/20 hover:bg-violet-500/[0.04]"
+              aria-label={`${topPlatform.name} platformasında oynanmış profil oyunlarını göstər`}
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <Monitor size={18} />
               </span>
-              <span className="mt-2 block truncate text-sm font-bold text-zinc-100">
-                {playtimeStatistics?.topPlatform?.name ?? "Məlumat yoxdur"}
-              </span>
-              {playtimeStatistics?.topPlatform && (
-                <span className="mt-1 block text-xs text-violet-300">
-                  {formatTopStatPlaytime(playtimeStatistics.topPlatform.playtimeMinutes)} · {playtimeStatistics.topPlatform.percentage}%
+              <span className="min-w-0 flex-1">
+                <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-600">
+                  Ən çox oynanan platforma
                 </span>
-              )}
-            </span>
-          </article>
+                <span className="mt-2 block truncate text-sm font-bold text-zinc-100">
+                  {topPlatform.name}
+                </span>
+                <span className="mt-1 block text-xs text-violet-300">
+                  {formatTopStatPlaytime(topPlatform.playtimeMinutes)} · {topPlatform.percentage}%
+                </span>
+              </span>
+              <ArrowUpRight
+                size={16}
+                className="shrink-0 text-zinc-700 transition group-hover:text-violet-300"
+              />
+            </button>
+          ) : (
+            <article className="flex min-h-0 items-center gap-4 rounded-3xl border border-white/[0.07] bg-[#101015] p-5">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <Monitor size={18} />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-[11px] font-bold uppercase tracking-[0.14em] text-zinc-600">
+                  Ən çox oynanan platforma
+                </span>
+                <span className="mt-2 block text-sm font-bold text-zinc-400">
+                  Məlumat yoxdur
+                </span>
+              </span>
+            </article>
+          )}
         </div>
       </section>
 
@@ -756,7 +812,7 @@ export function ProfileOverview({
             <div className="max-h-[calc(80vh-9rem)] overflow-y-auto p-5 sm:p-6">
               {selectedPlaytimePoint.games.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/[0.08] px-5 py-10 text-center text-sm text-zinc-600">
-                  Bu vaxt aralığında oyun vaxtı qeydə alınmayıb.
+                  Bu vaxt aralığında oyun logu qeydə alınmayıb.
                 </div>
               ) : (
                 <div className="space-y-3">

@@ -135,9 +135,6 @@ function GameRatingStars({ rating }: { rating: number }) {
           />
         );
       })}
-      <span className="ml-1 text-xs font-bold text-zinc-200">
-        {rating.toFixed(1)}
-      </span>
     </div>
   );
 }
@@ -462,11 +459,31 @@ export function ProfileGamesGallery({
                   }}
                   className="block h-5 w-full cursor-pointer accent-violet-500"
                 />
-                <div className="mt-3 flex items-center justify-between text-[10px] font-semibold text-zinc-700">
+                <div className="relative mx-2 mt-3 h-4 text-[10px] font-semibold text-zinc-700">
                   {[0.5, 1.5, 2.5, 3.5, 4.5, 5].map(
-                    (rating) => (
-                      <span key={rating}>{rating.toFixed(1)}</span>
-                    ),
+                    (rating, index, values) => {
+                      const position =
+                        ((rating - 0.5) / (5 - 0.5)) * 100;
+                      const translate =
+                        index === 0
+                          ? "translateX(0)"
+                          : index === values.length - 1
+                            ? "translateX(-100%)"
+                            : "translateX(-50%)";
+
+                      return (
+                        <span
+                          key={rating}
+                          className="absolute top-0 whitespace-nowrap"
+                          style={{
+                            left: `${position}%`,
+                            transform: translate,
+                          }}
+                        >
+                          {rating.toFixed(1)}
+                        </span>
+                      );
+                    },
                   )}
                 </div>
                 {selectedRating !== null && (
@@ -560,24 +577,14 @@ export function ProfileGamesGallery({
                             )}
                           </div>
 
-                          <div className="flex items-center justify-between gap-2 text-sm">
-                            <div className="min-w-0">
-                              {game.rating !== null ? (
-                                <GameRatingStars rating={game.rating} />
-                              ) : (
-                                <span className="text-xs text-zinc-600">
-                                  Ulduz verilməyib
-                                </span>
-                              )}
-                            </div>
-
-                            <span className="text-xs text-zinc-600">
-                              {game.releaseDate
-                                ? new Date(
-                                    `${game.releaseDate}T00:00:00`,
-                                  ).getFullYear()
-                                : "—"}
-                            </span>
+                          <div className="flex min-h-5 items-center text-sm">
+                            {game.rating !== null ? (
+                              <GameRatingStars rating={game.rating} />
+                            ) : (
+                              <span className="text-xs text-zinc-600">
+                                Ulduz verilməyib
+                              </span>
+                            )}
                           </div>
                         </div>
                       </div>

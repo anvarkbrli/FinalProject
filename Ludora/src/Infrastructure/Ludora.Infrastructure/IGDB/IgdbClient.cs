@@ -147,6 +147,88 @@ public sealed class IgdbClient : IIgdbClient
             cancellationToken);
     }
 
+    public async Task<IReadOnlyList<IgdbGameModel>> GetUpcomingGamesAsync(
+        DateOnly fromDate,
+        DateOnly toDate,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureEnabled();
+
+        if (toDate < fromDate)
+            throw new ArgumentOutOfRangeException(nameof(toDate));
+
+        if (limit is < 1 or > 500)
+            throw new ArgumentOutOfRangeException(nameof(limit));
+
+        var responses = await SendAsync<IgdbGameResponse>(
+            "games",
+            IgdbQueryBuilder.BuildUpcomingGames(
+                fromDate,
+                toDate,
+                limit),
+            cancellationToken);
+
+        return responses
+            .Where(IsValidNamedResponse)
+            .Select(MapGame)
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<IgdbPopularityTypeModel>> GetPopularityTypesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        EnsureEnabled();
+
+        var responses = await SendAsync<IgdbPopularityTypeResponse>(
+            "popularity_types",
+            IgdbQueryBuilder.BuildPopularityTypes(),
+            cancellationToken);
+
+        return responses
+            .Where(x => x.Id > 0 && !string.IsNullOrWhiteSpace(x.Name))
+            .Select(x => new IgdbPopularityTypeModel
+            {
+                Id = x.Id,
+                Name = x.Name.Trim()
+            })
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<IgdbPopularityPrimitiveModel>> GetPopularityPrimitivesAsync(
+        long popularityTypeId,
+        int limit,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureEnabled();
+
+        if (popularityTypeId < 1)
+            throw new ArgumentOutOfRangeException(nameof(popularityTypeId));
+
+        if (limit is < 1 or > 500)
+            throw new ArgumentOutOfRangeException(nameof(limit));
+
+        var responses = await SendAsync<IgdbPopularityPrimitiveResponse>(
+            "popularity_primitives",
+            IgdbQueryBuilder.BuildPopularityPrimitives(
+                popularityTypeId,
+                limit),
+            cancellationToken);
+
+        return responses
+            .Where(x =>
+                x.GameId > 0 &&
+                x.PopularityTypeId == popularityTypeId &&
+                x.Value > 0)
+            .Select(x => new IgdbPopularityPrimitiveModel
+            {
+                GameId = x.GameId,
+                PopularityTypeId = x.PopularityTypeId,
+                Value = x.Value
+            })
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<IgdbGenreModel>> GetGenresAsync(
         string? search,
         CancellationToken cancellationToken = default)
