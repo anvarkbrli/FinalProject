@@ -8,7 +8,6 @@ import {
   Gamepad2,
   LoaderCircle,
   Search,
-  Star,
   X,
 } from "lucide-react";
 import {
@@ -17,6 +16,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { RatingStarIcon } from "../common/RatingStarIcon";
 import { getApiErrorMessage } from "../../lib/api";
 import { resolveAssetUrl } from "../../lib/helpers";
 import {
@@ -130,22 +130,11 @@ function RatingInput({
                 key={starNumber}
                 className="relative h-9 w-9"
               >
-                <Star
+                <RatingStarIcon
+                  fillPercent={fillPercent}
                   size={29}
-                  className="absolute inset-0 m-auto text-zinc-700"
+                  className="absolute inset-0 m-auto"
                 />
-
-                <span
-                  className="pointer-events-none absolute inset-y-0 left-0 overflow-hidden"
-                  style={{
-                    width: `${fillPercent}%`,
-                  }}
-                >
-                  <Star
-                    size={29}
-                    className="absolute left-0 top-1/2 -translate-y-1/2 fill-amber-300 text-amber-300"
-                  />
-                </span>
 
                 <button
                   type="button"

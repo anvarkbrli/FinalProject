@@ -3,6 +3,7 @@ import type { CurrentUserDTO } from "../types/auth";
 import type {
   BlockedUserDTO,
   ChangeEmailRequestDTO,
+  ChangePasswordRequestDTO,
   EmailOperationResultDTO,
   FollowRequestDTO,
   UpdateProfileRequestDTO,
@@ -84,6 +85,19 @@ export async function unblockUser(
   userId: string,
 ): Promise<void> {
   await api.delete(`/users/${userId}/unblock`);
+}
+
+
+export async function changePassword(
+  request: ChangePasswordRequestDTO,
+): Promise<EmailOperationResultDTO> {
+  const response =
+    await api.post<EmailOperationResultDTO>(
+      "/users/me/password-change",
+      request,
+    );
+
+  return response.data;
 }
 
 export async function requestEmailChange(

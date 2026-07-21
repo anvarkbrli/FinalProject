@@ -109,7 +109,7 @@ export function HomePage() {
   const featuredDiscussion = discussions[0];
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-[#07070a] text-zinc-100">
+    <div className="min-h-screen overflow-x-hidden wellplayd-page-bg text-zinc-100">
       <Navbar />
 
       <main>

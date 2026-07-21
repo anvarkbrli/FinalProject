@@ -2,6 +2,7 @@ using System.Text;
 using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Helpers;
 using Ludora.Application.Settings;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
@@ -39,14 +40,7 @@ public class UserService : IUserService
     public async Task<CurrentUserDTO> GetCurrentUserAsync(Guid userId)
     {
         var user = await _userManager.FindByIdOrThrowAsync(userId);
-
-        var followerCount = await _context.UserFollows.CountAsync(
-            uf => uf.FollowingId == userId &&
-                  uf.Status == FollowStatus.Accepted);
-
-        var followingCount = await _context.UserFollows.CountAsync(
-            uf => uf.FollowerId == userId &&
-                  uf.Status == FollowStatus.Accepted);
+        var summary = await GetProfileSummaryAsync(userId);
 
         return new CurrentUserDTO
         {
@@ -56,12 +50,13 @@ public class UserService : IUserService
             EmailConfirmed = user.EmailConfirmed,
             Bio = user.Bio,
             ProfileImageUrl = user.ProfileImageUrl,
+            SocialLinks = SocialLinkHelper.Deserialize(user.SocialLinksJson),
             IsPrivate = user.IsPrivate,
             CreatedAt = user.CreatedAt,
-            FollowerCount = followerCount,
-            FollowingCount = followingCount,
-            PostCount = await _context.UserPosts.CountAsync(
-                x => x.UserId == user.Id)
+            FollowerCount = summary.FollowerCount,
+            FollowingCount = summary.FollowingCount,
+            PostCount = summary.PostCount,
+            Statistics = summary.Statistics
         };
     }
 
@@ -74,8 +69,6 @@ public class UserService : IUserService
 
         var user = await _userManager.Users
             .AsNoTracking()
-            .Include(u => u.Followers)
-            .Include(u => u.Following)
             .FirstOrDefaultAsync(
                 u => u.NormalizedUserName == userName.Trim().ToUpper());
 
@@ -94,22 +87,21 @@ public class UserService : IUserService
                 throw new ForbiddenException("Bu profilə baxmaq mümkün deyil.");
         }
 
+        var summary = await GetProfileSummaryAsync(user.Id);
+
         return new UserProfileDTO
         {
             Id = user.Id,
             UserName = user.UserName ?? string.Empty,
             Bio = user.Bio,
             ProfileImageUrl = user.ProfileImageUrl,
+            SocialLinks = SocialLinkHelper.Deserialize(user.SocialLinksJson),
             IsPrivate = user.IsPrivate,
             CreatedAt = user.CreatedAt,
-            FollowerCount = await _context.UserFollows.CountAsync(
-                uf => uf.FollowingId == user.Id &&
-                      uf.Status == FollowStatus.Accepted),
-            FollowingCount = await _context.UserFollows.CountAsync(
-                uf => uf.FollowerId == user.Id &&
-                      uf.Status == FollowStatus.Accepted),
-            PostCount = await _context.UserPosts.CountAsync(
-                x => x.UserId == user.Id)
+            FollowerCount = summary.FollowerCount,
+            FollowingCount = summary.FollowingCount,
+            PostCount = summary.PostCount,
+            Statistics = summary.Statistics
         };
     }
 
@@ -117,9 +109,11 @@ public class UserService : IUserService
         Guid userId,
         UpdateProfileDTO dto)
     {
+        ArgumentNullException.ThrowIfNull(dto);
+
         var user = await _userManager.FindByIdOrThrowAsync(userId);
         var userName = dto.UserName.Trim();
-
+        var socialLinks = SocialLinkHelper.Normalize(dto.SocialLinks);
         var existingUser = await _userManager.FindByNameAsync(userName);
 
         if (existingUser is not null && existingUser.Id != userId)
@@ -129,6 +123,7 @@ public class UserService : IUserService
         user.Bio = string.IsNullOrWhiteSpace(dto.Bio)
             ? null
             : dto.Bio.Trim();
+        user.SocialLinksJson = SocialLinkHelper.Serialize(socialLinks);
 
         var result = await _userManager.UpdateAsync(user);
         result.ThrowIfFailed();
@@ -184,6 +179,35 @@ public class UserService : IUserService
         return new UserSettingsDTO
         {
             IsPrivate = user.IsPrivate
+        };
+    }
+
+    public async Task<EmailOperationResultDTO> ChangePasswordAsync(
+        Guid userId,
+        ChangePasswordDTO dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        if (string.Equals(
+                dto.CurrentPassword,
+                dto.NewPassword,
+                StringComparison.Ordinal))
+        {
+            throw new BadRequestException(
+                "Yeni şifrə cari şifrədən fərqli olmalıdır.");
+        }
+
+        var user = await _userManager.FindByIdOrThrowAsync(userId);
+        var result = await _userManager.ChangePasswordAsync(
+            user,
+            dto.CurrentPassword,
+            dto.NewPassword);
+
+        result.ThrowIfFailed();
+
+        return new EmailOperationResultDTO
+        {
+            Message = "Şifrə uğurla dəyişdirildi."
         };
     }
 
@@ -281,6 +305,70 @@ public class UserService : IUserService
                 "Email ünvanı uğurla dəyişdirildi. Təhlükəsizlik səbəbilə bütün əvvəlki tokenlər etibarsız edildi; yeni email ilə yenidən daxil olun."
         };
     }
+
+    private async Task<ProfileSummary> GetProfileSummaryAsync(Guid userId)
+    {
+        var publicSummary = await _context.Users
+            .AsNoTracking()
+            .Where(x => x.Id == userId)
+            .Select(x => new
+            {
+                FollowerCount = x.Followers.Count(follow =>
+                    follow.Status == FollowStatus.Accepted),
+                FollowingCount = x.Following.Count(follow =>
+                    follow.Status == FollowStatus.Accepted),
+                PostCount = x.Posts.Count
+            })
+            .FirstOrDefaultAsync()
+            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
+
+        var reviewSummary = await _context.Reviews
+            .AsNoTracking()
+            .Where(x => x.UserId == userId)
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                Count = group.Count(),
+                TotalPlaytimeMinutes = group.Sum(x => (long)(x.PlaytimeMinutes ?? 0))
+            })
+            .FirstOrDefaultAsync();
+
+        var ratingGroups = await _context.UserGames
+            .AsNoTracking()
+            .Where(x => x.UserId == userId && x.Rating.HasValue)
+            .GroupBy(x => x.Rating!.Value)
+            .Select(group => new UserRatingDistributionDTO
+            {
+                Rating = group.Key,
+                Count = group.Count()
+            })
+            .OrderBy(x => x.Rating)
+            .ToListAsync();
+
+        var ratingCount = ratingGroups.Sum(x => x.Count);
+        var weightedRatingTotal = ratingGroups.Sum(x => x.Rating * x.Count);
+
+        return new ProfileSummary(
+            publicSummary.FollowerCount,
+            publicSummary.FollowingCount,
+            publicSummary.PostCount,
+            new UserProfileStatisticsDTO
+            {
+                TotalPlaytimeMinutes = reviewSummary?.TotalPlaytimeMinutes ?? 0,
+                ReviewCount = reviewSummary?.Count ?? 0,
+                RatingCount = ratingCount,
+                AverageRating = ratingCount == 0
+                    ? null
+                    : weightedRatingTotal / ratingCount,
+                RatingDistribution = ratingGroups
+            });
+    }
+
+    private sealed record ProfileSummary(
+        int FollowerCount,
+        int FollowingCount,
+        int PostCount,
+        UserProfileStatisticsDTO Statistics);
 
     private string BuildEmailChangeConfirmationLink(
         Guid userId,

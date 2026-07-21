@@ -39,12 +39,27 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
+    [HttpGet("me/feed")]
+    public async Task<IActionResult> GetMyFeed(
+        [FromQuery] UserActivityFilterDTO filter,
+        CancellationToken cancellationToken)
+    {
+        var result = await _userActivityService.GetFeedAsync(
+            GetCurrentUserId(),
+            filter,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [Authorize]
     [HttpGet("me/activities")]
+    [Obsolete("Use GET api/users/me/feed instead.")]
     public async Task<IActionResult> GetMyActivities(
         [FromQuery] UserActivityFilterDTO filter,
         CancellationToken cancellationToken)
     {
-        var result = await _userActivityService.GetMineAsync(
+        var result = await _userActivityService.GetFeedAsync(
             GetCurrentUserId(),
             filter,
             cancellationToken);
@@ -90,6 +105,19 @@ public class UsersController : ControllerBase
         [FromBody] UpdateProfileDTO dto)
     {
         var result = await _userService.UpdateProfileAsync(
+            GetCurrentUserId(),
+            dto);
+
+        return Ok(result);
+    }
+
+    [Authorize]
+    [EnableRateLimiting("Auth")]
+    [HttpPost("me/password-change")]
+    public async Task<IActionResult> ChangePassword(
+        [FromBody] ChangePasswordDTO dto)
+    {
+        var result = await _userService.ChangePasswordAsync(
             GetCurrentUserId(),
             dto);
 

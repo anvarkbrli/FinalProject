@@ -19,6 +19,24 @@ namespace Ludora.Application.Interfaces
             Guid? currentUserId,
             CancellationToken cancellationToken = default);
 
+        Task<PagedResultDTO<ProfileGameEntryDTO>> GetProfileCollectionAsync(
+            Guid userId,
+            UserProfileGamesFilterDTO filter,
+            Guid? currentUserId,
+            CancellationToken cancellationToken = default);
+
+        Task<UserPlaytimeStatisticsDTO> GetPlaytimeStatisticsAsync(
+            Guid userId,
+            UserPlaytimePeriod period,
+            Guid? currentUserId,
+            CancellationToken cancellationToken = default);
+
+        Task<IReadOnlyList<WishlistedFriendDTO>> GetWishlistedFriendsAsync(
+            Guid userId,
+            CatalogSource source,
+            long gameId,
+            CancellationToken cancellationToken = default);
+
         Task<UserGameDTO?> GetStateAsync(
             Guid userId,
             CatalogSource source,

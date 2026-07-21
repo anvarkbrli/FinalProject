@@ -2,6 +2,7 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
@@ -15,8 +16,15 @@ public sealed class ReviewInteractionService : IReviewInteractionService
     private const int MaxCommentLength = 2000;
     private const int MaxPageSize = 100;
     private readonly AppDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public ReviewInteractionService(AppDbContext context) => _context = context;
+    public ReviewInteractionService(
+        AppDbContext context,
+        INotificationService notificationService)
+    {
+        _context = context;
+        _notificationService = notificationService;
+    }
 
     public async Task LikeAsync(long reviewId, Guid userId, CancellationToken cancellationToken = default)
     {
@@ -41,6 +49,21 @@ public sealed class ReviewInteractionService : IReviewInteractionService
             gameSource: review.Source,
             gameId: review.GameId,
             reviewId: review.Id);
+
+        await _notificationService.QueueAsync(
+            new NotificationCreateRequest
+            {
+                RecipientUserId = review.UserId,
+                ActorUserId = userId,
+                Type = NotificationType.ReviewLiked,
+                Priority = NotificationPriority.Low,
+                EntityType = NotificationEntityType.Review,
+                EntityId = review.Id.ToString(),
+                Title = "Rəyiniz bəyənildi",
+                Message = "Rəyinizi bəyəndi.",
+                ActionUrl = $"/games/{review.Source}/{review.GameId}#reviews"
+            },
+            cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
     }
@@ -134,6 +157,20 @@ public sealed class ReviewInteractionService : IReviewInteractionService
             gameSource: review.Source,
             gameId: review.GameId,
             reviewId: review.Id);
+
+        await _notificationService.QueueAsync(
+            new NotificationCreateRequest
+            {
+                RecipientUserId = review.UserId,
+                ActorUserId = userId,
+                Type = NotificationType.ReviewCommented,
+                EntityType = NotificationEntityType.Review,
+                EntityId = review.Id.ToString(),
+                Title = "Rəyinizə cavab yazıldı",
+                Message = "Rəyinizə cavab yazdı.",
+                ActionUrl = $"/games/{review.Source}/{review.GameId}#reviews"
+            },
+            cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
         return await GetCommentAsync(comment.Id, userId, cancellationToken);

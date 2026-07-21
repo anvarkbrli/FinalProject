@@ -58,7 +58,7 @@ export function ResendEmailConfirmationPage() {
     : null;
 
   return (
-    <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#07070a] px-5 py-10 text-zinc-100">
+    <main className="relative flex min-h-screen items-center justify-center overflow-hidden wellplayd-page-bg px-5 py-10 text-zinc-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,0.20),transparent_30%),radial-gradient(circle_at_90%_80%,rgba(217,70,239,0.10),transparent_28%)]" />
 
       <div className="relative w-full max-w-md rounded-3xl border border-white/[0.08] bg-[#101015]/95 p-7 shadow-2xl shadow-black/40 sm:p-9">

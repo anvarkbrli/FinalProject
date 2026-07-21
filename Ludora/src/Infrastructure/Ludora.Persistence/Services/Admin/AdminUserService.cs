@@ -4,6 +4,7 @@ using Ludora.Application.DTOs.Admin;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
@@ -22,15 +23,18 @@ public sealed class AdminUserService : IAdminUserService
     private readonly AppDbContext _context;
     private readonly UserManager<AppUser> _userManager;
     private readonly RoleManager<IdentityRole<Guid>> _roleManager;
+    private readonly INotificationService _notificationService;
 
     public AdminUserService(
         AppDbContext context,
         UserManager<AppUser> userManager,
-        RoleManager<IdentityRole<Guid>> roleManager)
+        RoleManager<IdentityRole<Guid>> roleManager,
+        INotificationService notificationService)
     {
         _context = context;
         _userManager = userManager;
         _roleManager = roleManager;
+        _notificationService = notificationService;
     }
 
     public async Task<PagedResultDTO<AdminUserListItemDTO>> GetAllAsync(
@@ -375,11 +379,33 @@ public sealed class AdminUserService : IAdminUserService
             CreatedAtUtc = DateTime.UtcNow
         };
 
+        await using var transaction = await _context.Database
+            .BeginTransactionAsync(cancellationToken);
+
         await _context.UserWarnings.AddAsync(
             warning,
             cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        await _notificationService.QueueAsync(
+            new NotificationCreateRequest
+            {
+                RecipientUserId = userId,
+                ActorUserId = adminUserId,
+                Type = NotificationType.WarningIssued,
+                Priority = NotificationPriority.Critical,
+                EntityType = NotificationEntityType.Warning,
+                EntityId = warning.Id.ToString(),
+                Title = "Admin xəbərdarlığı",
+                Message = warning.Message,
+                ActionUrl = "/settings",
+                BypassPreferences = true
+            },
+            cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return await _context.UserWarnings
             .AsNoTracking()

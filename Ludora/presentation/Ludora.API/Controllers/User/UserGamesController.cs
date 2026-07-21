@@ -51,6 +51,52 @@ public class UserGamesController : ControllerBase
         return Ok(result);
     }
 
+    [HttpGet("user/{userId:guid}/profile-collection")]
+    public async Task<ActionResult<PagedResultDTO<ProfileGameEntryDTO>>> GetProfileCollection(
+        Guid userId,
+        [FromQuery] UserProfileGamesFilterDTO filter,
+        CancellationToken cancellationToken)
+    {
+        var result = await _userGameService.GetProfileCollectionAsync(
+            userId,
+            filter,
+            GetOptionalCurrentUserId(),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [HttpGet("user/{userId:guid}/playtime-statistics")]
+    public async Task<ActionResult<UserPlaytimeStatisticsDTO>> GetPlaytimeStatistics(
+        Guid userId,
+        [FromQuery] UserPlaytimePeriod period = UserPlaytimePeriod.Weekly,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _userGameService.GetPlaytimeStatisticsAsync(
+            userId,
+            period,
+            GetOptionalCurrentUserId(),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpGet("{source}/{gameId:long}/wishlisted-friends")]
+    public async Task<ActionResult<IReadOnlyList<WishlistedFriendDTO>>> GetWishlistedFriends(
+        CatalogSource source,
+        long gameId,
+        CancellationToken cancellationToken)
+    {
+        var result = await _userGameService.GetWishlistedFriendsAsync(
+            GetCurrentUserId(),
+            source,
+            gameId,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
     [Authorize]
     [HttpGet("{source}/{gameId:long}")]
     public async Task<ActionResult<UserGameDTO?>> GetState(

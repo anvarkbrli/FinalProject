@@ -2,6 +2,8 @@ using System.Security.Claims;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
+using Ludora.API.BackgroundServices;
+using Ludora.API.Hubs;
 using Ludora.API.Middlewares;
 using Ludora.Application.Common;
 using Ludora.Application.Settings;
@@ -24,6 +26,15 @@ public class Program
 
         builder.Services.AddControllers().AddJsonOptions(options =>
             options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+        builder.Services
+            .AddSignalR(options =>
+            {
+                options.EnableDetailedErrors = builder.Environment.IsDevelopment();
+            })
+            .AddJsonProtocol(options =>
+                options.PayloadSerializerOptions.Converters.Add(
+                    new JsonStringEnumConverter()));
+        builder.Services.AddHostedService<NotificationOutboxWorker>();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(options =>
         {
@@ -76,6 +87,19 @@ public class Program
 
             options.Events = new JwtBearerEvents
             {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+                    var path = context.HttpContext.Request.Path;
+
+                    if (!string.IsNullOrWhiteSpace(accessToken) &&
+                        path.StartsWithSegments("/hubs/notifications"))
+                    {
+                        context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
+                },
                 OnTokenValidated = async context =>
                 {
                     var userIdValue = context.Principal?
@@ -151,7 +175,10 @@ public class Program
         {
             if (origins.Length == 0)
                 throw new InvalidOperationException("Cors:AllowedOrigins boş ola bilməz.");
-            policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod();
+            policy.WithOrigins(origins)
+                .AllowAnyHeader()
+                .AllowAnyMethod()
+                .AllowCredentials();
         }));
 
         var app = builder.Build();
@@ -171,6 +198,7 @@ public class Program
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
+        app.MapHub<NotificationHub>("/hubs/notifications");
         await app.RunAsync();
     }
 

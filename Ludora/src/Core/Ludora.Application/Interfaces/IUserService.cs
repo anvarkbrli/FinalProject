@@ -11,6 +11,10 @@ public interface IUserService
     Task<UserSettingsDTO> GetSettingsAsync(Guid userId);
     Task<UserSettingsDTO> UpdateSettingsAsync(Guid userId, UpdateUserSettingsDTO dto);
 
+    Task<EmailOperationResultDTO> ChangePasswordAsync(
+        Guid userId,
+        ChangePasswordDTO dto);
+
     Task<EmailOperationResultDTO> RequestEmailChangeAsync(
         Guid userId,
         ChangeEmailRequestDTO dto,

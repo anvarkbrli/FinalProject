@@ -1,6 +1,7 @@
 export interface UpdateProfileRequestDTO {
   userName: string;
   bio: string | null;
+  socialLinks: string[];
 }
 
 export interface UserSettingsDTO {
@@ -24,6 +25,12 @@ export interface ChangeEmailRequestDTO {
 
 export interface EmailOperationResultDTO {
   message: string;
+}
+
+export interface ChangePasswordRequestDTO {
+  currentPassword: string;
+  newPassword: string;
+  confirmNewPassword: string;
 }
 
 export interface FollowRequestDTO {

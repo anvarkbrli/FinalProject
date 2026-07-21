@@ -6,8 +6,14 @@ import type {
   PostDTO,
   PostUpdateDTO,
   UserActivitiesResultDTO,
+  UserActivityFeedCategory,
+  UserActivityFeedScope,
   UserListItemDTO,
+  UserPlaytimePeriod,
+  UserPlaytimeStatisticsDTO,
   UserProfileDTO,
+  UserProfileGameSortBy,
+  UserProfileGamesResultDTO,
   UserReviewsResultDTO,
 } from "../types/profile";
 import type { UserGameDTO } from "../types/userGames";
@@ -200,18 +206,76 @@ export async function getUserGames(
   return response.data;
 }
 
-export async function getMyActivities(
+
+export async function getUserPlaytimeStatistics(
+  userId: string,
+  period: UserPlaytimePeriod,
+): Promise<UserPlaytimeStatisticsDTO> {
+  const response = await api.get<UserPlaytimeStatisticsDTO>(
+    `/usergames/user/${userId}/playtime-statistics`,
+    {
+      params: { period },
+    },
+  );
+
+  return response.data;
+}
+
+export async function getUserProfileGames(
+  userId: string,
+  filter: {
+    search?: string;
+    genre?: string;
+    company?: string;
+    platform?: string;
+    playedPlatform?: string;
+    rating?: number | null;
+    status?: "Playing" | "PlanToPlay" | "Played" | "Dropped" | null;
+    releaseYear?: number | null;
+    sortBy?: UserProfileGameSortBy;
+    pageNumber?: number;
+    pageSize?: number;
+  } = {},
+): Promise<UserProfileGamesResultDTO> {
+  const response = await api.get<UserProfileGamesResultDTO>(
+    `/usergames/user/${userId}/profile-collection`,
+    {
+      params: {
+        search: filter.search || undefined,
+        genre: filter.genre || undefined,
+        company: filter.company || undefined,
+        platform: filter.platform || undefined,
+        playedPlatform: filter.playedPlatform || undefined,
+        rating: filter.rating ?? undefined,
+        status: filter.status ?? undefined,
+        releaseYear: filter.releaseYear ?? undefined,
+        sortBy: filter.sortBy ?? "RecentlyUpdated",
+        pageNumber: filter.pageNumber ?? 1,
+        pageSize: filter.pageSize ?? 20,
+      },
+    },
+  );
+
+  return response.data;
+}
+
+export async function getMyFeed(
+  category: UserActivityFeedCategory,
+  scope: UserActivityFeedScope,
   pageNumber: number,
   pageSize = 20,
 ): Promise<UserActivitiesResultDTO> {
-  const response = await api.get<
-    UserActivitiesResultDTO
-  >("/users/me/activities", {
-    params: {
-      pageNumber,
-      pageSize,
+  const response = await api.get<UserActivitiesResultDTO>(
+    "/users/me/feed",
+    {
+      params: {
+        category,
+        scope,
+        pageNumber,
+        pageSize,
+      },
     },
-  });
+  );
 
   return response.data;
 }

@@ -1,6 +1,7 @@
 using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
@@ -12,10 +13,14 @@ namespace Ludora.Persistence.Services;
 public class FollowService : IFollowService
 {
     private readonly AppDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public FollowService(AppDbContext context)
+    public FollowService(
+        AppDbContext context,
+        INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     public async Task<FollowStatusDTO> FollowAsync(Guid followerId, Guid followingId)
@@ -66,6 +71,27 @@ public class FollowService : IFollowService
                 : UserActivityType.UserFollowRequested,
             targetUserId: followingId);
 
+        await _notificationService.QueueAsync(
+            new NotificationCreateRequest
+            {
+                RecipientUserId = followingId,
+                ActorUserId = followerId,
+                Type = status == FollowStatus.Accepted
+                    ? NotificationType.UserFollowed
+                    : NotificationType.FollowRequestReceived,
+                Priority = status == FollowStatus.Pending
+                    ? NotificationPriority.High
+                    : NotificationPriority.Normal,
+                EntityType = NotificationEntityType.User,
+                EntityId = followerId.ToString(),
+                Title = status == FollowStatus.Accepted
+                    ? "Yeni izləyici"
+                    : "Yeni izləmə sorğusu",
+                Message = status == FollowStatus.Accepted
+                    ? "Sizi izləməyə başladı."
+                    : "Sizə izləmə sorğusu göndərdi."
+            });
+
         await _context.SaveChangesAsync();
 
         return new FollowStatusDTO
@@ -112,6 +138,19 @@ public class FollowService : IFollowService
             requesterId,
             UserActivityType.UserFollowed,
             targetUserId: currentUserId);
+
+        await _notificationService.QueueAsync(
+            new NotificationCreateRequest
+            {
+                RecipientUserId = requesterId,
+                ActorUserId = currentUserId,
+                Type = NotificationType.FollowRequestAccepted,
+                Priority = NotificationPriority.High,
+                EntityType = NotificationEntityType.User,
+                EntityId = currentUserId.ToString(),
+                Title = "İzləmə sorğusu qəbul edildi",
+                Message = "Göndərdiyiniz izləmə sorğusunu qəbul etdi."
+            });
 
         await _context.SaveChangesAsync();
     }

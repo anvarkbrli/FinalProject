@@ -14,6 +14,8 @@ public record CurrentUserDTO
 
     public string? ProfileImageUrl { get; set; }
 
+    public IReadOnlyList<UserSocialLinkDTO> SocialLinks { get; set; } = [];
+
     public bool IsPrivate { get; set; }
 
     public DateTime CreatedAt { get; set; }
@@ -23,4 +25,6 @@ public record CurrentUserDTO
     public int FollowingCount { get; set; }
 
     public int PostCount { get; set; }
+
+    public UserProfileStatisticsDTO Statistics { get; set; } = new();
 }

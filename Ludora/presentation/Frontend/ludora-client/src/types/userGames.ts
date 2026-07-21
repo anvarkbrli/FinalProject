@@ -20,3 +20,10 @@ export interface UserGameDTO {
   createdAt: string;
   updatedAt: string | null;
 }
+
+
+export interface WishlistedFriendDTO {
+  userId: string;
+  userName: string;
+  profileImageUrl: string | null;
+}

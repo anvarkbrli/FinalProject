@@ -14,6 +14,9 @@ public class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         builder.Property(x => x.ProfileImageUrl)
             .HasMaxLength(500);
 
+        builder.Property(x => x.SocialLinksJson)
+            .HasColumnType("nvarchar(max)");
+
         builder.Property(x => x.CreatedAt)
             .IsRequired();
 

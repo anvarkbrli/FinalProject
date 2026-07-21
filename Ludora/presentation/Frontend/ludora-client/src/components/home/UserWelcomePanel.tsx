@@ -113,19 +113,14 @@ export function UserWelcomePanel() {
         wishlistCount += 1;
       }
 
-    }
-
-    for (const review of reviewsQuery.data?.items ?? []) {
-      if (review.rating === null) {
-        continue;
+      if (game.rating !== null) {
+        ratingTotal += game.rating;
+        ratingCount += 1;
+        ratingCounts.set(
+          game.rating,
+          (ratingCounts.get(game.rating) ?? 0) + 1,
+        );
       }
-
-      ratingTotal += review.rating;
-      ratingCount += 1;
-      ratingCounts.set(
-        review.rating,
-        (ratingCounts.get(review.rating) ?? 0) + 1,
-      );
     }
 
     const recentGame = [...userGames].sort((first, second) => {
@@ -148,7 +143,7 @@ export function UserWelcomePanel() {
       ratingCounts,
       recentGame,
     };
-  }, [userGamesQuery.data, reviewsQuery.data]);
+  }, [userGamesQuery.data]);
 
   if (!hasValidSession || !user) {
     return null;
@@ -162,7 +157,7 @@ export function UserWelcomePanel() {
   const isUserGamesUnavailable =
     userGamesQuery.isLoading || userGamesQuery.isError;
   const isRatingDataUnavailable =
-    reviewsQuery.isLoading || reviewsQuery.isError;
+    userGamesQuery.isLoading || userGamesQuery.isError;
   const reviewCount = reviewsQuery.data?.totalCount;
   const listCount = listsQuery.data?.length;
   const maximumRatingCount = Math.max(
@@ -319,9 +314,9 @@ export function UserWelcomePanel() {
                   </p>
 
                   <p className="mt-1 text-[11px] text-zinc-600">
-                    {reviewsQuery.isLoading
+                    {userGamesQuery.isLoading
                       ? "Yüklənir"
-                      : reviewsQuery.isError
+                      : userGamesQuery.isError
                         ? "Yüklənmədi"
                         : `${dashboardData.ratingCount} oyun`}
                   </p>
@@ -343,9 +338,9 @@ export function UserWelcomePanel() {
                   return (
                     <Link
                       key={rating}
-                      to={`/users/${user.userName}?tab=reviews&rating=${rating}`}
+                      to={`/users/${user.userName}`}
                       className="group relative flex h-full min-w-0 flex-1 items-end rounded-t-md outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
-                      aria-label={`${formatRating(rating)} ulduz verdiyin ${count} oyunun rəylərinə bax`}
+                      aria-label={`${formatRating(rating)} ulduz verdiyin ${count} oyunu profildə göstər`}
                     >
                       <span
                         className={`w-full rounded-t-md transition duration-200 group-hover:-translate-y-1 group-hover:opacity-100 ${
@@ -452,11 +447,11 @@ export function UserWelcomePanel() {
                 </Link>
 
                 <Link
-                  to={`/users/${user.userName}?tab=journal`}
+                  to={`/users/${user.userName}?tab=feed`}
                   className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] px-2 py-3 text-[11px] text-zinc-500 transition hover:border-violet-400/20 hover:text-violet-200"
                 >
                   <History size={17} />
-                  Jurnal
+                  Axın
                 </Link>
               </div>
             </div>

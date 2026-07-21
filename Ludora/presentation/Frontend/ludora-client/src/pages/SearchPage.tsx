@@ -87,7 +87,7 @@ export function SearchPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#07070a] text-zinc-100">
+    <div className="min-h-screen wellplayd-page-bg text-zinc-100">
       <Navbar />
 
       <main className="mx-auto min-h-[70vh] max-w-7xl px-5 py-10 lg:px-8">

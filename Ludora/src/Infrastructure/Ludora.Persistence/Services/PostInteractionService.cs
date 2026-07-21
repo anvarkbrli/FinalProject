@@ -2,6 +2,7 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
@@ -15,8 +16,15 @@ public sealed class PostInteractionService : IPostInteractionService
     private const int MaxCommentLength = 2000;
     private const int MaxPageSize = 100;
     private readonly AppDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public PostInteractionService(AppDbContext context) => _context = context;
+    public PostInteractionService(
+        AppDbContext context,
+        INotificationService notificationService)
+    {
+        _context = context;
+        _notificationService = notificationService;
+    }
 
     public async Task LikeAsync(long postId, Guid userId, CancellationToken cancellationToken = default)
     {
@@ -43,6 +51,21 @@ public sealed class PostInteractionService : IPostInteractionService
             UserActivityType.PostLiked,
             targetUserId: post.UserId,
             postId: post.Id);
+
+        await _notificationService.QueueAsync(
+            new NotificationCreateRequest
+            {
+                RecipientUserId = post.UserId,
+                ActorUserId = userId,
+                Type = NotificationType.PostLiked,
+                Priority = NotificationPriority.Low,
+                EntityType = NotificationEntityType.Post,
+                EntityId = post.Id.ToString(),
+                Title = "Postunuz bəyənildi",
+                Message = "Postunuzu bəyəndi.",
+                ActionUrl = "/"
+            },
+            cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
     }
@@ -131,6 +154,20 @@ public sealed class PostInteractionService : IPostInteractionService
             UserActivityType.PostCommented,
             targetUserId: post.UserId,
             postId: post.Id);
+
+        await _notificationService.QueueAsync(
+            new NotificationCreateRequest
+            {
+                RecipientUserId = post.UserId,
+                ActorUserId = userId,
+                Type = NotificationType.PostCommented,
+                EntityType = NotificationEntityType.Post,
+                EntityId = post.Id.ToString(),
+                Title = "Postunuza şərh yazıldı",
+                Message = "Postunuza şərh yazdı.",
+                ActionUrl = "/"
+            },
+            cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
         return await GetCommentAsync(comment.Id, userId, cancellationToken);

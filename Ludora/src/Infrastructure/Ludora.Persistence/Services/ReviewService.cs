@@ -2,6 +2,7 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
@@ -20,15 +21,18 @@ public sealed class ReviewService : IReviewService
     private readonly AppDbContext _context;
     private readonly IIgdbClient _igdbClient;
     private readonly IGameService _gameService;
+    private readonly INotificationService _notificationService;
 
     public ReviewService(
         AppDbContext context,
         IIgdbClient igdbClient,
-        IGameService gameService)
+        IGameService gameService,
+        INotificationService notificationService)
     {
         _context = context;
         _igdbClient = igdbClient;
         _gameService = gameService;
+        _notificationService = notificationService;
     }
 
     public async Task<ReviewDTO> CreateAsync(
@@ -117,6 +121,9 @@ public sealed class ReviewService : IReviewService
             review.DeletedAtUtc = null;
         }
 
+        await using var transaction = await _context.Database
+            .BeginTransactionAsync(cancellationToken);
+
         if (dto.Rating.HasValue)
         {
             await SetRatingAsync(
@@ -137,7 +144,21 @@ public sealed class ReviewService : IReviewService
             gameId: gameId,
             reviewId: review.Id);
 
+        await _notificationService.QueueForFollowersAsync(
+            new FollowerNotificationRequest
+            {
+                ActorUserId = userId,
+                Type = NotificationType.FollowingReviewCreated,
+                EntityType = NotificationEntityType.Review,
+                EntityId = review.Id.ToString(),
+                Title = "Yeni rəy",
+                Message = $"{game.Title} oyunu üçün yeni rəy yazdı.",
+                ActionUrl = $"/games/{source}/{gameId}#reviews"
+            },
+            cancellationToken);
+
         await SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return await GetByIdAsync(
             review.Id,

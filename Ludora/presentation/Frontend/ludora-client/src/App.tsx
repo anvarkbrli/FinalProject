@@ -3,6 +3,7 @@ import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { EditProfilePage } from "./pages/EditProfilePage";
 import { RegisterPage } from "./pages/RegisterPage";
 import { ResendEmailConfirmationPage } from "./pages/ResendEmailConfirmationPage";
 import { ProfilePage } from "./pages/ProfilePage";
@@ -58,6 +59,15 @@ function App() {
         element={<SearchPage />}
       />
       
+      <Route
+        path="/profile/edit"
+        element={
+          <ProtectedRoute>
+            <EditProfilePage />
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/settings"
         element={

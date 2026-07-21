@@ -21,7 +21,6 @@ import {
   LoaderCircle,
   PenLine,
   PlayCircle,
-  Star,
   TabletSmartphone,
   Tv,
   XCircle,
@@ -31,7 +30,9 @@ import {
   Link,
   useParams,
 } from "react-router-dom";
+import { RatingStarIcon } from "../components/common/RatingStarIcon";
 import { GameCommunityStats } from "../components/game/GameCommunityStats";
+import { FriendWishlistNotice } from "../components/game/FriendWishlistNotice";
 import { GameReviewsSection } from "../components/reviews/GameReviewsSection";
 import { LogGameModal } from "../components/reviews/LogGameModal";
 import { Footer } from "../components/layout/Footer";
@@ -292,22 +293,11 @@ function InteractiveRatingStar({
 
   return (
     <div className="relative h-8 w-8 shrink-0">
-      <Star
+      <RatingStarIcon
+        fillPercent={fillPercent}
         size={28}
-        className="absolute inset-0 m-auto text-zinc-700"
+        className="absolute inset-0 m-auto"
       />
-
-      <span
-        className="pointer-events-none absolute inset-y-0 left-0 overflow-hidden"
-        style={{
-          width: `${fillPercent}%`,
-        }}
-      >
-        <Star
-          size={28}
-          className="absolute left-0 top-1/2 -translate-y-1/2 fill-amber-300 text-amber-300"
-        />
-      </span>
 
       <button
         type="button"
@@ -787,8 +777,8 @@ function GameTrackingPanel({
               {myReviewQuery.isLoading
                 ? "Rəy yoxlanılır..."
                 : myReviewQuery.data
-                  ? "Rəyi redaktə et"
-                  : "Rəy əlavə et"}
+                  ? "Logu redaktə et"
+                  : "Oyunu log et"}
             </button>
           </div>
         </>
@@ -1221,6 +1211,11 @@ function GameDetailContent({
             <GameTrackingPanel
               game={game}
             />
+
+            <FriendWishlistNotice
+              source={game.source}
+              gameId={game.id}
+            />
           </aside>
 
           <div className="min-w-0">
@@ -1500,7 +1495,7 @@ export function GameDetailPage() {
     : null;
 
   return (
-    <div className="min-h-screen bg-[#07070a] text-zinc-100">
+    <div className="min-h-screen wellplayd-page-bg text-zinc-100">
       <Navbar />
 
       <main>

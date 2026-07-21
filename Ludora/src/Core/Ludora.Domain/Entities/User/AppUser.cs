@@ -7,6 +7,7 @@ public class AppUser : IdentityUser<Guid>
 {
     public string? Bio { get; set; }
     public string? ProfileImageUrl { get; set; }
+    public string? SocialLinksJson { get; set; }
     public bool IsPrivate { get; set; }
     public DateTime CreatedAt { get; set; }
 
@@ -38,5 +39,8 @@ public class AppUser : IdentityUser<Guid>
     public ICollection<UserWarning> ReceivedWarnings { get; set; } = new List<UserWarning>();
     public ICollection<UserWarning> SentWarnings { get; set; } = new List<UserWarning>();
     public ICollection<Announcement> Announcements { get; set; } = new List<Announcement>();
+    public ICollection<Notification> ReceivedNotifications { get; set; } = new List<Notification>();
+    public ICollection<Notification> SentNotifications { get; set; } = new List<Notification>();
+    public ICollection<NotificationPreference> NotificationPreferences { get; set; } = new List<NotificationPreference>();
 }
 

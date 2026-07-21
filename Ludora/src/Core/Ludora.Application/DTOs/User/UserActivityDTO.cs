@@ -7,6 +7,9 @@ public record UserActivityDTO
     public long Id { get; init; }
     public UserActivityType Type { get; init; }
     public DateTime CreatedAt { get; init; }
+    public Guid ActorUserId { get; init; }
+    public string ActorUserName { get; init; } = string.Empty;
+    public string? ActorUserProfileImageUrl { get; init; }
     public Guid? TargetUserId { get; init; }
     public string? TargetUserName { get; init; }
     public string? TargetUserProfileImageUrl { get; init; }

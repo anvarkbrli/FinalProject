@@ -287,17 +287,57 @@ public class AuthService : IAuthService
         var token = _jwtTokenService.CreateToken(user, roles);
 
         var userDto = user.ToCurrentUserDTO();
-        userDto.FollowerCount = await _context.UserFollows.CountAsync(
-            x => x.FollowingId == user.Id &&
-                 x.Status == FollowStatus.Accepted,
-            cancellationToken);
-        userDto.FollowingCount = await _context.UserFollows.CountAsync(
-            x => x.FollowerId == user.Id &&
-                 x.Status == FollowStatus.Accepted,
-            cancellationToken);
-        userDto.PostCount = await _context.UserPosts.CountAsync(
-            x => x.UserId == user.Id,
-            cancellationToken);
+        var publicSummary = await _context.Users
+            .AsNoTracking()
+            .Where(x => x.Id == user.Id)
+            .Select(x => new
+            {
+                FollowerCount = x.Followers.Count(follow =>
+                    follow.Status == FollowStatus.Accepted),
+                FollowingCount = x.Following.Count(follow =>
+                    follow.Status == FollowStatus.Accepted),
+                PostCount = x.Posts.Count
+            })
+            .FirstAsync(cancellationToken);
+
+        userDto.FollowerCount = publicSummary.FollowerCount;
+        userDto.FollowingCount = publicSummary.FollowingCount;
+        userDto.PostCount = publicSummary.PostCount;
+
+        var reviewSummary = await _context.Reviews
+            .AsNoTracking()
+            .Where(x => x.UserId == user.Id)
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                Count = group.Count(),
+                TotalPlaytimeMinutes = group.Sum(x => (long)(x.PlaytimeMinutes ?? 0))
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var ratingDistribution = await _context.UserGames
+            .AsNoTracking()
+            .Where(x => x.UserId == user.Id && x.Rating.HasValue)
+            .GroupBy(x => x.Rating!.Value)
+            .Select(group => new UserRatingDistributionDTO
+            {
+                Rating = group.Key,
+                Count = group.Count()
+            })
+            .OrderBy(x => x.Rating)
+            .ToListAsync(cancellationToken);
+
+        var ratingCount = ratingDistribution.Sum(x => x.Count);
+        userDto.Statistics = new UserProfileStatisticsDTO
+        {
+            TotalPlaytimeMinutes = reviewSummary?.TotalPlaytimeMinutes ?? 0,
+            ReviewCount = reviewSummary?.Count ?? 0,
+            RatingCount = ratingCount,
+            AverageRating = ratingCount == 0
+                ? null
+                : ratingDistribution.Sum(x => x.Rating * x.Count) / ratingCount,
+            RatingDistribution = ratingDistribution
+        };
 
         return new AuthResponseDTO
         {

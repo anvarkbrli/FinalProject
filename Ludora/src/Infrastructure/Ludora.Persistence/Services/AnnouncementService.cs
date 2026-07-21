@@ -15,10 +15,14 @@ public sealed class AnnouncementService : IAnnouncementService
     private const int MaxPageSize = 100;
 
     private readonly AppDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public AnnouncementService(AppDbContext context)
+    public AnnouncementService(
+        AppDbContext context,
+        INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     public async Task<PagedResultDTO<AnnouncementDTO>> GetPublishedAsync(
@@ -147,11 +151,28 @@ public sealed class AnnouncementService : IAnnouncementService
             CreatedAt = now
         };
 
+        await using var transaction = await _context.Database
+            .BeginTransactionAsync(cancellationToken);
+
         await _context.Announcements.AddAsync(
             announcement,
             cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
+
+        if (announcement.IsPublished)
+        {
+            await _notificationService.QueueAnnouncementAsync(
+                adminUserId,
+                announcement.Id,
+                announcement.Title,
+                announcement.Content,
+                cancellationToken);
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
 
         return await GetByIdForAdminAsync(
             announcement.Id,
@@ -180,6 +201,7 @@ public sealed class AnnouncementService : IAnnouncementService
             throw new ConflictException("Silinmiş elanı yeniləmək olmaz. Əvvəlcə elanı bərpa edin.");
 
         var now = DateTime.UtcNow;
+        var wasPublished = announcement.IsPublished;
 
         if (!announcement.IsPublished && dto.IsPublished)
             announcement.PublishedAtUtc = now;
@@ -191,7 +213,24 @@ public sealed class AnnouncementService : IAnnouncementService
         announcement.IsPublished = dto.IsPublished;
         announcement.UpdatedAt = now;
 
+        await using var transaction = await _context.Database
+            .BeginTransactionAsync(cancellationToken);
+
         await _context.SaveChangesAsync(cancellationToken);
+
+        if (!wasPublished && announcement.IsPublished)
+        {
+            await _notificationService.QueueAnnouncementAsync(
+                announcement.CreatedByUserId,
+                announcement.Id,
+                announcement.Title,
+                announcement.Content,
+                cancellationToken);
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
 
         return await GetByIdForAdminAsync(
             announcementId,

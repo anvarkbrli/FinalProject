@@ -1,3 +1,4 @@
+using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Game;
 using Ludora.Application.Exceptions;
@@ -62,5 +63,36 @@ public sealed class GameCommunityController : ControllerBase
             cancellationToken);
 
         return Ok(result);
+    }
+
+    [HttpGet("wishlist-preview")]
+    public async Task<ActionResult<IReadOnlyList<GameCommunityUserDTO>>> GetWishlistPreview(
+        CatalogSource source,
+        long gameId,
+        [FromQuery] int limit = 3,
+        CancellationToken cancellationToken = default)
+    {
+        var currentUserId = GetOptionalCurrentUserId();
+
+        if (!currentUserId.HasValue)
+            return Ok(Array.Empty<GameCommunityUserDTO>());
+
+        var result = await _gameCommunityService.GetWishlistPreviewAsync(
+            source,
+            gameId,
+            currentUserId.Value,
+            limit,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    private Guid? GetOptionalCurrentUserId()
+    {
+        var claimValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        return Guid.TryParse(claimValue, out var userId)
+            ? userId
+            : null;
     }
 }

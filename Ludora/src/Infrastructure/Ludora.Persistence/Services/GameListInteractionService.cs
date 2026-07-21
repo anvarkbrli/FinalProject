@@ -2,6 +2,7 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
@@ -15,8 +16,15 @@ public sealed class GameListInteractionService : IGameListInteractionService
     private const int MaxCommentLength = 2000;
     private const int MaxPageSize = 100;
     private readonly AppDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public GameListInteractionService(AppDbContext context) => _context = context;
+    public GameListInteractionService(
+        AppDbContext context,
+        INotificationService notificationService)
+    {
+        _context = context;
+        _notificationService = notificationService;
+    }
 
     public async Task LikeAsync(int gameListId, Guid userId, CancellationToken cancellationToken = default)
     {
@@ -44,6 +52,21 @@ public sealed class GameListInteractionService : IGameListInteractionService
             targetUserId: gameList.UserId,
             gameListId: gameList.Id,
             subjectTitle: gameList.Name);
+
+        await _notificationService.QueueAsync(
+            new NotificationCreateRequest
+            {
+                RecipientUserId = gameList.UserId,
+                ActorUserId = userId,
+                Type = NotificationType.GameListLiked,
+                Priority = NotificationPriority.Low,
+                EntityType = NotificationEntityType.GameList,
+                EntityId = gameList.Id.ToString(),
+                Title = "Siyahınız bəyənildi",
+                Message = "Siyahınızı bəyəndi.",
+                ActionUrl = $"/lists/{gameList.Id}"
+            },
+            cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
     }
@@ -134,6 +157,20 @@ public sealed class GameListInteractionService : IGameListInteractionService
             targetUserId: gameList.UserId,
             gameListId: gameList.Id,
             subjectTitle: gameList.Name);
+
+        await _notificationService.QueueAsync(
+            new NotificationCreateRequest
+            {
+                RecipientUserId = gameList.UserId,
+                ActorUserId = userId,
+                Type = NotificationType.GameListCommented,
+                EntityType = NotificationEntityType.GameList,
+                EntityId = gameList.Id.ToString(),
+                Title = "Siyahınıza şərh yazıldı",
+                Message = "Siyahınıza şərh yazdı.",
+                ActionUrl = $"/lists/{gameList.Id}"
+            },
+            cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
         return await GetCommentAsync(comment.Id, userId, cancellationToken);

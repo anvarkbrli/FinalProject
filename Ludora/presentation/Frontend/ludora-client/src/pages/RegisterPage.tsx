@@ -192,7 +192,7 @@ export function RegisterPage() {
       registerMutation.variables.email.trim();
 
     return (
-      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-[#07070a] px-5 py-10 text-zinc-100">
+      <main className="relative flex min-h-screen items-center justify-center overflow-hidden wellplayd-page-bg px-5 py-10 text-zinc-100">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.20),transparent_30%),radial-gradient(circle_at_85%_75%,rgba(217,70,239,0.10),transparent_28%)]" />
 
         <div className="relative w-full max-w-lg rounded-3xl border border-white/[0.08] bg-[#101015]/95 p-7 shadow-2xl shadow-black/40 sm:p-9">
@@ -281,7 +281,7 @@ export function RegisterPage() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#07070a] text-zinc-100">
+    <main className="relative min-h-screen overflow-hidden wellplayd-page-bg text-zinc-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,0.20),transparent_30%),radial-gradient(circle_at_90%_80%,rgba(217,70,239,0.11),transparent_28%)]" />
 
       <div className="pointer-events-none absolute inset-0 opacity-[0.025] [background-image:linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] [background-size:50px_50px]" />

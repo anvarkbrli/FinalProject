@@ -2,7 +2,9 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.Forum;
+using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -14,10 +16,14 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
     private const int MaxPageSize = 100;
 
     private readonly AppDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public DiscussionReplyService(AppDbContext context)
+    public DiscussionReplyService(
+        AppDbContext context,
+        INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     public async Task<DiscussionReplyDTO> GetByIdAsync(
@@ -169,6 +175,21 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
         };
 
         await _context.DiscussionReplies.AddAsync(reply, cancellationToken);
+
+        await _notificationService.QueueAsync(
+            new NotificationCreateRequest
+            {
+                RecipientUserId = discussion.UserId,
+                ActorUserId = userId,
+                Type = NotificationType.DiscussionReplied,
+                EntityType = NotificationEntityType.Discussion,
+                EntityId = discussionId.ToString(),
+                Title = "Müzakirənizə cavab yazıldı",
+                Message = "Açdığınız müzakirəyə cavab yazdı.",
+                ActionUrl = "/#forum"
+            },
+            cancellationToken);
+
         await _context.SaveChangesAsync(cancellationToken);
 
         return await ProjectReplies(
@@ -270,6 +291,21 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
             UserId = userId,
             CreatedAt = DateTime.UtcNow
         }, cancellationToken);
+
+        await _notificationService.QueueAsync(
+            new NotificationCreateRequest
+            {
+                RecipientUserId = replyInfo.ReplyAuthorId,
+                ActorUserId = userId,
+                Type = NotificationType.DiscussionReplyLiked,
+                Priority = NotificationPriority.Low,
+                EntityType = NotificationEntityType.DiscussionReply,
+                EntityId = replyId.ToString(),
+                Title = "Cavabınız bəyənildi",
+                Message = "Müzakirədəki cavabınızı bəyəndi.",
+                ActionUrl = "/#forum"
+            },
+            cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
     }

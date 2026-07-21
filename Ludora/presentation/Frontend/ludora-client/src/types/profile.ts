@@ -3,16 +3,95 @@ import type {
   PagedResultDTO,
 } from "./home";
 
+export type SocialPlatform =
+  | "Steam"
+  | "Discord"
+  | "X"
+  | "Twitch"
+  | "YouTube"
+  | "Instagram"
+  | "GitHub"
+  | "TikTok"
+  | "Reddit"
+  | "Xbox"
+  | "PlayStation"
+  | "EpicGames";
+
+export interface UserSocialLinkDTO {
+  platform: SocialPlatform;
+  url: string;
+}
+
+export interface UserRatingDistributionDTO {
+  rating: number;
+  count: number;
+}
+
+export interface UserProfileStatisticsDTO {
+  totalPlaytimeMinutes: number;
+  reviewCount: number;
+  ratingCount: number;
+  averageRating: number | null;
+  ratingDistribution: UserRatingDistributionDTO[];
+}
+
+export type UserPlaytimePeriod =
+  | "Weekly"
+  | "Monthly"
+  | "Yearly";
+
+export interface UserPlaytimeChartGameDTO {
+  source: CatalogSource;
+  gameId: number;
+  name: string;
+  coverUrl: string | null;
+  playtimeMinutes: number;
+}
+
+export interface UserPlaytimeChartPointDTO {
+  startDate: string;
+  endDate: string;
+  playtimeMinutes: number;
+  gameCount: number;
+  games: UserPlaytimeChartGameDTO[];
+}
+
+export interface UserTopPlayedGameDTO {
+  source: CatalogSource;
+  gameId: number;
+  name: string;
+  coverUrl: string | null;
+  playtimeMinutes: number;
+}
+
+export interface UserTopPlayedCategoryDTO {
+  name: string;
+  playtimeMinutes: number;
+  percentage: number;
+}
+
+export interface UserPlaytimeStatisticsDTO {
+  period: UserPlaytimePeriod;
+  periodTotalPlaytimeMinutes: number;
+  allTimeTotalPlaytimeMinutes: number;
+  chart: UserPlaytimeChartPointDTO[];
+  topGame: UserTopPlayedGameDTO | null;
+  topGenre: UserTopPlayedCategoryDTO | null;
+  topPlatform: UserTopPlayedCategoryDTO | null;
+}
+
 export interface UserProfileDTO {
   id: string;
   userName: string;
   bio: string | null;
   profileImageUrl: string | null;
+  socialLinks: UserSocialLinkDTO[];
   isPrivate: boolean;
   createdAt: string;
   followerCount: number;
   followingCount: number;
   postCount: number;
+  statistics: UserProfileStatisticsDTO;
 }
 
 export interface FollowStatusDTO {
@@ -111,6 +190,57 @@ export interface ReviewDTO {
 export type UserReviewsResultDTO =
   PagedResultDTO<ReviewDTO>;
 
+
+export type UserProfileGameSortBy =
+  | "RecentlyUpdated"
+  | "RecentlyReleased"
+  | "OldestRelease"
+  | "RatingHighToLow"
+  | "RatingLowToHigh"
+  | "NameAsc"
+  | "NameDesc"
+  | "RecentlyPlayed";
+
+export interface ProfileGameEntryDTO {
+  source: CatalogSource;
+  gameId: number;
+  name: string;
+  slug: string | null;
+  coverUrl: string | null;
+  releaseDate: string | null;
+  status:
+    | "Playing"
+    | "PlanToPlay"
+    | "Played"
+    | "Dropped"
+    | null;
+  isFavorite: boolean;
+  isWishlisted: boolean;
+  rating: number | null;
+  reviewId: number | null;
+  playedPlatformName: string | null;
+  playedOn: string | null;
+  playtimeMinutes: number | null;
+  genres: string[];
+  platforms: string[];
+  companies: string[];
+  createdAt: string;
+  updatedAt: string | null;
+}
+
+export type UserProfileGamesResultDTO =
+  PagedResultDTO<ProfileGameEntryDTO>;
+
+export type UserActivityFeedScope = "Mine" | "Following";
+
+export type UserActivityFeedCategory =
+  | "All"
+  | "Statuses"
+  | "Lists"
+  | "Ratings"
+  | "Reviews"
+  | "Posts";
+
 export type UserActivityType =
   | "GameStatusChanged"
   | "GameStatusRemoved"
@@ -158,6 +288,9 @@ export interface UserActivityDTO {
   id: number;
   type: UserActivityType;
   createdAt: string;
+  actorUserId: string;
+  actorUserName: string;
+  actorUserProfileImageUrl: string | null;
   targetUserId: string | null;
   targetUserName: string | null;
   targetUserProfileImageUrl: string | null;

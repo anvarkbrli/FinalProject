@@ -314,7 +314,7 @@ export function CatalogEntityPage({
   }
 
   return (
-    <div className="min-h-screen bg-[#07070a] text-zinc-100">
+    <div className="min-h-screen wellplayd-page-bg text-zinc-100">
       <Navbar />
 
       <main>

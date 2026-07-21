@@ -3,7 +3,9 @@ using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Helpers;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.Forum;
+using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -17,10 +19,14 @@ public sealed class DiscussionService : IDiscussionService
     private const int MaxPageSize = 100;
 
     private readonly AppDbContext _context;
+    private readonly INotificationService _notificationService;
 
-    public DiscussionService(AppDbContext context)
+    public DiscussionService(
+        AppDbContext context,
+        INotificationService notificationService)
     {
         _context = context;
+        _notificationService = notificationService;
     }
 
     public async Task<PagedResultDTO<DiscussionListItemDTO>> GetAllAsync(
@@ -183,8 +189,27 @@ public sealed class DiscussionService : IDiscussionService
             CreatedAt = DateTime.UtcNow
         };
 
+        await using var transaction = await _context.Database
+            .BeginTransactionAsync(cancellationToken);
+
         await _context.Discussions.AddAsync(discussion, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
+
+        await _notificationService.QueueForFollowersAsync(
+            new FollowerNotificationRequest
+            {
+                ActorUserId = userId,
+                Type = NotificationType.FollowingDiscussionCreated,
+                EntityType = NotificationEntityType.Discussion,
+                EntityId = discussion.Id.ToString(),
+                Title = "Yeni müzakirə",
+                Message = $"{discussion.Title} mövzusunda yeni müzakirə açdı.",
+                ActionUrl = "/#forum"
+            },
+            cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
 
         return await ProjectDetails(
                 _context.Discussions.AsNoTracking().Where(x => x.Id == discussion.Id),
@@ -279,6 +304,21 @@ public sealed class DiscussionService : IDiscussionService
             UserId = userId,
             CreatedAt = DateTime.UtcNow
         }, cancellationToken);
+
+        await _notificationService.QueueAsync(
+            new NotificationCreateRequest
+            {
+                RecipientUserId = authorId,
+                ActorUserId = userId,
+                Type = NotificationType.DiscussionLiked,
+                Priority = NotificationPriority.Low,
+                EntityType = NotificationEntityType.Discussion,
+                EntityId = id.ToString(),
+                Title = "Müzakirəniz bəyənildi",
+                Message = "Açdığınız müzakirəni bəyəndi.",
+                ActionUrl = "/#forum"
+            },
+            cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
     }

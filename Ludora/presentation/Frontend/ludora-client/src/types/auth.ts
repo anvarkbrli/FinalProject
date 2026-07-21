@@ -1,3 +1,5 @@
+import type { UserProfileStatisticsDTO, UserSocialLinkDTO } from "./profile";
+
 export interface LoginRequestDTO {
   emailOrUserName: string;
   password: string;
@@ -21,11 +23,13 @@ export interface CurrentUserDTO {
   emailConfirmed: boolean;
   bio: string | null;
   profileImageUrl: string | null;
+  socialLinks: UserSocialLinkDTO[];
   isPrivate: boolean;
   createdAt: string;
   followerCount: number;
   followingCount: number;
   postCount: number;
+  statistics: UserProfileStatisticsDTO;
 }
 
 export interface AuthResponseDTO {

@@ -22,7 +22,7 @@ public sealed class UserActivityService : IUserActivityService
         _igdbClient = igdbClient;
     }
 
-    public async Task<PagedResultDTO<UserActivityDTO>> GetMineAsync(
+    public async Task<PagedResultDTO<UserActivityDTO>> GetFeedAsync(
         Guid userId,
         UserActivityFilterDTO filter,
         CancellationToken cancellationToken = default)
@@ -37,9 +37,31 @@ public sealed class UserActivityService : IUserActivityService
         if (!userExists)
             throw new NotFoundException("İstifadəçi tapılmadı.");
 
-        var query = _context.UserActivities
+        var followedUserIds = _context.UserFollows
             .AsNoTracking()
-            .Where(x => x.UserId == userId)
+            .Where(x =>
+                x.FollowerId == userId &&
+                x.Status == FollowStatus.Accepted)
+            .Select(x => x.FollowingId);
+
+        IQueryable<UserActivity> query = _context.UserActivities
+            .AsNoTracking()
+            .Where(x =>
+                x.UserId == userId ||
+                followedUserIds.Contains(x.UserId) &&
+                x.Type != UserActivityType.UserBlocked &&
+                x.Type != UserActivityType.UserUnblocked &&
+                x.Type != UserActivityType.UserFollowRequested &&
+                x.Type != UserActivityType.FollowRequestCancelled);
+
+        query = filter.Scope switch
+        {
+            UserActivityFeedScope.Mine => query.Where(x => x.UserId == userId),
+            UserActivityFeedScope.Following => query.Where(x => x.UserId != userId),
+            _ => query
+        };
+
+        query = ApplyCategoryFilter(query, filter.Category)
             .OrderByDescending(x => x.CreatedAt)
             .ThenByDescending(x => x.Id);
 
@@ -63,25 +85,79 @@ public sealed class UserActivityService : IUserActivityService
         };
     }
 
+    private static IQueryable<UserActivity> ApplyCategoryFilter(
+        IQueryable<UserActivity> query,
+        UserActivityFeedCategory category)
+    {
+        return category switch
+        {
+            UserActivityFeedCategory.Statuses => query.Where(x =>
+                x.Type == UserActivityType.GameStatusChanged ||
+                x.Type == UserActivityType.GameStatusRemoved),
+
+            UserActivityFeedCategory.Lists => query.Where(x =>
+                x.Type == UserActivityType.GameListCreated ||
+                x.Type == UserActivityType.GameListUpdated ||
+                x.Type == UserActivityType.GameListDeleted ||
+                x.Type == UserActivityType.GameAddedToList ||
+                x.Type == UserActivityType.GameRemovedFromList ||
+                x.Type == UserActivityType.GameListGameReordered ||
+                x.Type == UserActivityType.GameListLiked ||
+                x.Type == UserActivityType.GameListUnliked ||
+                x.Type == UserActivityType.GameListCommented ||
+                x.Type == UserActivityType.GameListCommentUpdated ||
+                x.Type == UserActivityType.GameListCommentDeleted),
+
+            UserActivityFeedCategory.Ratings => query.Where(x =>
+                x.Type == UserActivityType.GameRated ||
+                x.Type == UserActivityType.GameRatingRemoved),
+
+            UserActivityFeedCategory.Reviews => query.Where(x =>
+                x.Type == UserActivityType.ReviewCreated ||
+                x.Type == UserActivityType.ReviewUpdated ||
+                x.Type == UserActivityType.ReviewDeleted ||
+                x.Type == UserActivityType.ReviewLiked ||
+                x.Type == UserActivityType.ReviewUnliked ||
+                x.Type == UserActivityType.ReviewCommented ||
+                x.Type == UserActivityType.ReviewCommentUpdated ||
+                x.Type == UserActivityType.ReviewCommentDeleted),
+
+            UserActivityFeedCategory.Posts => query.Where(x =>
+                x.Type == UserActivityType.PostCreated ||
+                x.Type == UserActivityType.PostUpdated ||
+                x.Type == UserActivityType.PostDeleted ||
+                x.Type == UserActivityType.PostLiked ||
+                x.Type == UserActivityType.PostUnliked ||
+                x.Type == UserActivityType.PostCommented ||
+                x.Type == UserActivityType.PostCommentUpdated ||
+                x.Type == UserActivityType.PostCommentDeleted),
+
+            _ => query
+        };
+    }
+
     private async Task<IReadOnlyList<UserActivityDTO>> MapManyAsync(
         IReadOnlyList<UserActivity> activities,
         CancellationToken cancellationToken)
     {
-        var targetUserIds = activities
-            .Where(x => x.TargetUserId.HasValue)
-            .Select(x => x.TargetUserId!.Value)
+        if (activities.Count == 0)
+            return [];
+
+        var relatedUserIds = activities
+            .Select(x => x.UserId)
+            .Concat(activities
+                .Where(x => x.TargetUserId.HasValue)
+                .Select(x => x.TargetUserId!.Value))
             .Distinct()
             .ToList();
 
         var users = await _context.Users
             .AsNoTracking()
-            .Where(x => targetUserIds.Contains(x.Id))
-            .Select(x => new
-            {
+            .Where(x => relatedUserIds.Contains(x.Id))
+            .Select(x => new ActivityUserDetails(
                 x.Id,
-                x.UserName,
-                x.ProfileImageUrl
-            })
+                x.UserName ?? string.Empty,
+                x.ProfileImageUrl))
             .ToDictionaryAsync(x => x.Id, cancellationToken);
 
         var localGameIds = activities
@@ -97,7 +173,6 @@ public sealed class UserActivityService : IUserActivityService
             .AsNoTracking()
             .Where(x => localGameIds.Contains(x.Id))
             .Select(x => new ActivityGameDetails(
-                CatalogSource.Local,
                 x.Id,
                 x.Name,
                 x.Slug,
@@ -112,27 +187,22 @@ public sealed class UserActivityService : IUserActivityService
             .Distinct()
             .ToList();
 
-        var igdbGames = new Dictionary<long, ActivityGameDetails>();
-
-        foreach (var gameId in igdbGameIds)
-        {
-            var game = await _igdbClient.GetGameByIdAsync(
-                gameId,
-                cancellationToken);
-
-            if (game is null)
-                continue;
-
-            igdbGames[gameId] = new ActivityGameDetails(
-                CatalogSource.Igdb,
-                game.Id,
-                game.Name,
-                null,
-                game.CoverImageUrl);
-        }
+        var igdbGames = igdbGameIds.Count == 0
+            ? new Dictionary<long, ActivityGameDetails>()
+            : (await _igdbClient.GetGamesByIdsAsync(
+                    igdbGameIds,
+                    cancellationToken))
+                .ToDictionary(
+                    game => game.Id,
+                    game => new ActivityGameDetails(
+                        game.Id,
+                        game.Name,
+                        null,
+                        game.CoverImageUrl));
 
         return activities.Select(activity =>
         {
+            users.TryGetValue(activity.UserId, out var actorUser);
             users.TryGetValue(
                 activity.TargetUserId ?? Guid.Empty,
                 out var targetUser);
@@ -143,16 +213,12 @@ public sealed class UserActivityService : IUserActivityService
                 activity.GameId.HasValue &&
                 activity.GameId.Value <= int.MaxValue)
             {
-                localGames.TryGetValue(
-                    activity.GameId.Value,
-                    out game);
+                localGames.TryGetValue(activity.GameId.Value, out game);
             }
             else if (activity.GameSource == CatalogSource.Igdb &&
                      activity.GameId.HasValue)
             {
-                igdbGames.TryGetValue(
-                    activity.GameId.Value,
-                    out game);
+                igdbGames.TryGetValue(activity.GameId.Value, out game);
             }
 
             return new UserActivityDTO
@@ -160,6 +226,9 @@ public sealed class UserActivityService : IUserActivityService
                 Id = activity.Id,
                 Type = activity.Type,
                 CreatedAt = activity.CreatedAt,
+                ActorUserId = activity.UserId,
+                ActorUserName = actorUser?.UserName ?? "İstifadəçi",
+                ActorUserProfileImageUrl = actorUser?.ProfileImageUrl,
                 TargetUserId = activity.TargetUserId,
                 TargetUserName = targetUser?.UserName,
                 TargetUserProfileImageUrl = targetUser?.ProfileImageUrl,
@@ -188,10 +257,20 @@ public sealed class UserActivityService : IUserActivityService
             throw new BadRequestException(
                 $"Səhifə ölçüsü 1-{MaxPageSize} aralığında olmalıdır.");
         }
+
+        if (!Enum.IsDefined(filter.Category))
+            throw new BadRequestException("Axın filtri düzgün deyil.");
+
+        if (!Enum.IsDefined(filter.Scope))
+            throw new BadRequestException("Axın görünüşü düzgün deyil.");
     }
 
+    private sealed record ActivityUserDetails(
+        Guid Id,
+        string UserName,
+        string? ProfileImageUrl);
+
     private sealed record ActivityGameDetails(
-        CatalogSource Source,
         long GameId,
         string Name,
         string? Slug,

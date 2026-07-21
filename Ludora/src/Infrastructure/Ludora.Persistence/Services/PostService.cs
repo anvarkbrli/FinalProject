@@ -2,6 +2,7 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
@@ -16,13 +17,16 @@ public class PostService : IPostService
 
     private readonly AppDbContext _context;
     private readonly IFileStorageService _fileStorageService;
+    private readonly INotificationService _notificationService;
 
     public PostService(
         AppDbContext context,
-        IFileStorageService fileStorageService)
+        IFileStorageService fileStorageService,
+        INotificationService notificationService)
     {
         _context = context;
         _fileStorageService = fileStorageService;
+        _notificationService = notificationService;
     }
 
     public async Task<PostDTO> CreateAsync(
@@ -46,7 +50,7 @@ public class PostService : IPostService
             throw new BadRequestException("Post üçün mətn və ya şəkil əlavə edilməlidir.");
 
         string? imageUrl = null;
-        var postWasSaved = false;
+        var postWasCommitted = false;
 
         try
         {
@@ -61,22 +65,39 @@ public class PostService : IPostService
                 CreatedAt = DateTime.UtcNow
             };
 
+            await using var transaction = await _context.Database
+                .BeginTransactionAsync(cancellationToken);
+
             await _context.UserPosts.AddAsync(post, cancellationToken);
             await _context.SaveChangesAsync(cancellationToken);
-            postWasSaved = true;
 
             _context.AddUserActivity(
                 userId,
                 UserActivityType.PostCreated,
                 postId: post.Id);
 
+            await _notificationService.QueueForFollowersAsync(
+                new FollowerNotificationRequest
+                {
+                    ActorUserId = userId,
+                    Type = NotificationType.FollowingPostCreated,
+                    EntityType = NotificationEntityType.Post,
+                    EntityId = post.Id.ToString(),
+                    Title = "Yeni post",
+                    Message = "İzlədiyiniz istifadəçi yeni post paylaşdı.",
+                    ActionUrl = "/"
+                },
+                cancellationToken);
+
             await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            postWasCommitted = true;
 
             return await GetByIdAsync(post.Id, userId, cancellationToken);
         }
         catch
         {
-            if (!postWasSaved && imageUrl is not null)
+            if (!postWasCommitted && imageUrl is not null)
                 await _fileStorageService.DeleteAsync(imageUrl);
 
             throw;
@@ -224,7 +245,7 @@ public class PostService : IPostService
 
         var oldImageUrl = post.ImageUrl;
         string? newImageUrl = null;
-        var postWasSaved = false;
+        var postWasCommitted = false;
 
         try
         {
@@ -247,11 +268,11 @@ public class PostService : IPostService
                 postId: post.Id);
 
             await _context.SaveChangesAsync(cancellationToken);
-            postWasSaved = true;
+            postWasCommitted = true;
         }
         catch
         {
-            if (!postWasSaved && newImageUrl is not null)
+            if (!postWasCommitted && newImageUrl is not null)
                 await _fileStorageService.DeleteAsync(newImageUrl);
 
             throw;

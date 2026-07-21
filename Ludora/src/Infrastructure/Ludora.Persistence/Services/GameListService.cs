@@ -2,6 +2,7 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
+using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
@@ -17,11 +18,16 @@ public sealed class GameListService : IGameListService
 
     private readonly AppDbContext _context;
     private readonly IGameService _gameService;
+    private readonly INotificationService _notificationService;
 
-    public GameListService(AppDbContext context, IGameService gameService)
+    public GameListService(
+        AppDbContext context,
+        IGameService gameService,
+        INotificationService notificationService)
     {
         _context = context;
         _gameService = gameService;
+        _notificationService = notificationService;
     }
 
     public async Task<IReadOnlyList<GameListSummaryDTO>> GetUserListsAsync(
@@ -182,6 +188,9 @@ public sealed class GameListService : IGameListService
             CreatedAt = DateTime.UtcNow
         };
 
+        await using var transaction = await _context.Database
+            .BeginTransactionAsync(cancellationToken);
+
         await _context.GameLists.AddAsync(gameList, cancellationToken);
         await SaveListChangesAsync(cancellationToken);
 
@@ -191,7 +200,24 @@ public sealed class GameListService : IGameListService
             gameListId: gameList.Id,
             subjectTitle: gameList.Name);
 
+        if (gameList.Visibility == ListVisibility.Public)
+        {
+            await _notificationService.QueueForFollowersAsync(
+                new FollowerNotificationRequest
+                {
+                    ActorUserId = userId,
+                    Type = NotificationType.FollowingPublicListCreated,
+                    EntityType = NotificationEntityType.GameList,
+                    EntityId = gameList.Id.ToString(),
+                    Title = "Yeni açıq siyahı",
+                    Message = $"{gameList.Name} adlı yeni açıq siyahı yaratdı.",
+                    ActionUrl = $"/lists/{gameList.Id}"
+                },
+                cancellationToken);
+        }
+
         await SaveListChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
         return gameList.Id;
     }
 

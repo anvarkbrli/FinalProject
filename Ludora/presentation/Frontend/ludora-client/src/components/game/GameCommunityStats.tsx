@@ -19,6 +19,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { RatingStarIcon } from "../common/RatingStarIcon";
 import { getApiErrorMessage } from "../../lib/api";
 import { resolveAssetUrl } from "../../lib/helpers";
 import {
@@ -111,30 +112,12 @@ function AverageRatingStars({
               );
 
         return (
-          <span
+          <RatingStarIcon
             key={index}
-            className="relative block h-8 w-8"
-            aria-hidden="true"
-          >
-            <Star
-              size={32}
-              strokeWidth={1.8}
-              className="absolute inset-0 text-zinc-700"
-            />
-
-            <span
-              className="absolute inset-y-0 left-0 overflow-hidden"
-              style={{
-                width: `${fillPercent}%`,
-              }}
-            >
-              <Star
-                size={32}
-                strokeWidth={1.8}
-                className="absolute left-0 top-0 fill-amber-300 text-amber-300"
-              />
-            </span>
-          </span>
+            fillPercent={fillPercent}
+            size={32}
+            strokeWidth={1.8}
+          />
         );
       })}
     </div>

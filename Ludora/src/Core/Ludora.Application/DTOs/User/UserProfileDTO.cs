@@ -1,25 +1,26 @@
-﻿
+namespace Ludora.Application.DTOs;
 
-namespace Ludora.Application.DTOs
+public record UserProfileDTO
 {
-    public record UserProfileDTO
-    {
-        public Guid Id { get; set; }
+    public Guid Id { get; set; }
 
-        public string UserName { get; set; } = string.Empty;
+    public string UserName { get; set; } = string.Empty;
 
-        public string? Bio { get; set; }
+    public string? Bio { get; set; }
 
-        public string? ProfileImageUrl { get; set; }
+    public string? ProfileImageUrl { get; set; }
 
-        public bool IsPrivate { get; set; }
+    public IReadOnlyList<UserSocialLinkDTO> SocialLinks { get; set; } = [];
 
-        public DateTime CreatedAt { get; set; }
+    public bool IsPrivate { get; set; }
 
-        public int FollowerCount { get; set; }
+    public DateTime CreatedAt { get; set; }
 
-        public int FollowingCount { get; set; }
+    public int FollowerCount { get; set; }
 
-        public int PostCount { get; set; }
-    }
+    public int FollowingCount { get; set; }
+
+    public int PostCount { get; set; }
+
+    public UserProfileStatisticsDTO Statistics { get; set; } = new();
 }

@@ -19,4 +19,11 @@ public interface IGameCommunityService
         double rating,
         GameCommunityUsersFilterDTO filter,
         CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<GameCommunityUserDTO>> GetWishlistPreviewAsync(
+        CatalogSource source,
+        long gameId,
+        Guid currentUserId,
+        int limit = 3,
+        CancellationToken cancellationToken = default);
 }

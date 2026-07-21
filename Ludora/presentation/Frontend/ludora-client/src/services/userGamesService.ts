@@ -3,6 +3,7 @@ import type { CatalogSource } from "../types/home";
 import type {
   UserGameDTO,
   UserGameStatus,
+  WishlistedFriendDTO,
 } from "../types/userGames";
 
 export async function getMyUserGames(): Promise<UserGameDTO[]> {
@@ -18,6 +19,17 @@ function resolveNullableState(
   data: UserGameDTO | null,
 ): UserGameDTO | null {
   return status === 204 ? null : data;
+}
+
+export async function getWishlistedFriends(
+  source: CatalogSource,
+  gameId: number,
+): Promise<WishlistedFriendDTO[]> {
+  const response = await api.get<WishlistedFriendDTO[]>(
+    `/usergames/${source}/${gameId}/wishlisted-friends`,
+  );
+
+  return response.data;
 }
 
 export async function getUserGameState(

@@ -1,6 +1,7 @@
 namespace Ludora.Application.Mappings;
 
 using Ludora.Application.DTOs;
+using Ludora.Application.Helpers;
 using Ludora.Domain.Entities.User;
 
 public static class UserMappings
@@ -17,6 +18,7 @@ public static class UserMappings
             EmailConfirmed = user.EmailConfirmed,
             Bio = user.Bio,
             ProfileImageUrl = user.ProfileImageUrl,
+            SocialLinks = SocialLinkHelper.Deserialize(user.SocialLinksJson),
             IsPrivate = user.IsPrivate,
             CreatedAt = user.CreatedAt
         };
@@ -32,6 +34,7 @@ public static class UserMappings
             UserName = user.UserName ?? string.Empty,
             Bio = user.Bio,
             ProfileImageUrl = user.ProfileImageUrl,
+            SocialLinks = SocialLinkHelper.Deserialize(user.SocialLinksJson),
             IsPrivate = user.IsPrivate,
             CreatedAt = user.CreatedAt,
             FollowerCount = 0,

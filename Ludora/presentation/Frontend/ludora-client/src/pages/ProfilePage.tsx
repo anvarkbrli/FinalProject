@@ -52,11 +52,15 @@ import { InteractionLikesModal } from "../components/interactions/InteractionLik
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
 import { GameListEditorModal } from "../components/lists/GameListEditorModal";
-import { ProfileActivityJournal } from "../components/profile/ProfileActivityJournal";
+import { ProfileActivityFeed } from "../components/profile/ProfileActivityFeed";
+import { ProfileGamesGallery } from "../components/profile/ProfileGamesGallery";
+import { ProfileOverview } from "../components/profile/ProfileOverview";
+import { SocialPlatformIcon } from "../components/profile/SocialPlatformIcon";
 import { ReviewCommentsPanel } from "../components/reviews/ReviewCommentsPanel";
 import { ReviewLikesModal } from "../components/reviews/ReviewLikesModal";
 import { ProfileGameCollection } from "../components/profile/ProfileGameCollection";
 import { getApiErrorMessage } from "../lib/api";
+import { socialPlatformLabels } from "../lib/socialPlatforms";
 import {
   formatDate,
   formatRelativeDate,
@@ -79,9 +83,11 @@ import {
   getFollowers,
   getFollowing,
   getFollowStatus,
-  getMyActivities,
+  getMyFeed,
   getUserGameLists,
   getUserGames,
+  getUserProfileGames,
+  getUserPlaytimeStatistics,
   getUserPosts,
   getUserProfile,
   getUserReviews,
@@ -95,18 +101,25 @@ import {
 } from "../stores/authStore";
 import type {
   PostDTO,
+  ProfileGameEntryDTO,
   ReviewDTO as ProfileReviewDTO,
+  UserActivityFeedCategory,
+  UserActivityFeedScope,
   UserListItemDTO,
+  UserPlaytimePeriod,
+  UserProfileGameSortBy,
 } from "../types/profile";
 import type { ReviewSort } from "../types/reviews";
 
 type ProfileTab =
+  | "overview"
+  | "games"
   | "posts"
   | "lists"
   | "reviews"
   | "wishlist"
   | "favorites"
-  | "journal";
+  | "feed";
 
 type ConnectionModal =
   | "followers"
@@ -124,6 +137,16 @@ const profileTabs: Array<{
   icon: typeof MessageSquareText;
   ownerOnly?: boolean;
 }> = [
+  {
+    id: "overview",
+    label: "Profil",
+    icon: UserCheck,
+  },
+  {
+    id: "games",
+    label: "Oyunlar",
+    icon: Gamepad2,
+  },
   {
     id: "posts",
     label: "Postlar",
@@ -143,6 +166,7 @@ const profileTabs: Array<{
     id: "wishlist",
     label: "Wishlist",
     icon: Bookmark,
+    ownerOnly: true,
   },
   {
     id: "favorites",
@@ -150,8 +174,8 @@ const profileTabs: Array<{
     icon: Heart,
   },
   {
-    id: "journal",
-    label: "Jurnal",
+    id: "feed",
+    label: "Axın",
     icon: History,
     ownerOnly: true,
   },
@@ -353,7 +377,7 @@ function UserAvatar({
 
 function ProfileLoadingState() {
   return (
-    <div className="min-h-screen bg-[#07070a] text-zinc-100">
+    <div className="min-h-screen wellplayd-page-bg text-zinc-100">
       <Navbar />
 
       <main className="flex min-h-[70vh] items-center justify-center px-5">
@@ -386,13 +410,18 @@ export function ProfilePage() {
   );
 
   const activeTab =
-    parseProfileTab(searchParams.get("tab")) ?? "posts";
+    parseProfileTab(searchParams.get("tab")) ?? "overview";
   const reviewSort = parseReviewSort(
     searchParams.get("sort"),
   );
   const reviewRating = parseReviewRating(
     searchParams.get("rating"),
   );
+  const gameRatingFromUrl =
+    activeTab === "games"
+      ? parseReviewRating(searchParams.get("gameRating"))
+      : null;
+  const gamesRating = gameRatingFromUrl;
   const reviewSortState = getReviewSortState(reviewSort);
   const activeReviewSortCategory: ReviewSortCategory =
     reviewRating !== null
@@ -434,8 +463,27 @@ export function ProfilePage() {
     useState(1);
   const [favoritesPage, setFavoritesPage] =
     useState(1);
-  const [journalPage, setJournalPage] =
-    useState(1);
+  const [gamesPage, setGamesPage] = useState(1);
+  const [gamesSearch, setGamesSearch] = useState("");
+  const [gamesGenre, setGamesGenre] = useState<string | null>(null);
+  const [gamesCompany, setGamesCompany] = useState<string | null>(null);
+  const [gamesPlatform, setGamesPlatform] = useState<string | null>(null);
+  const [gamesPlayedPlatform, setGamesPlayedPlatform] =
+    useState<string | null>(null);
+  const [gamesStatus, setGamesStatus] =
+    useState<ProfileGameEntryDTO["status"]>(null);
+  const [gamesReleaseYear, setGamesReleaseYear] =
+    useState<number | null>(null);
+  const [gamesSortBy, setGamesSortBy] =
+    useState<UserProfileGameSortBy>("RecentlyUpdated");
+  const [isGamesFilterOpen, setIsGamesFilterOpen] = useState(false);
+  const [playtimePeriod, setPlaytimePeriod] =
+    useState<UserPlaytimePeriod>("Weekly");
+  const [feedPage, setFeedPage] = useState(1);
+  const [feedCategory, setFeedCategory] =
+    useState<UserActivityFeedCategory>("All");
+  const [feedScope, setFeedScope] =
+    useState<UserActivityFeedScope>("Mine");
   const [isReviewFilterOpen, setIsReviewFilterOpen] =
     useState(false);
 
@@ -458,9 +506,10 @@ export function ProfilePage() {
   const isOwnProfile =
     profile !== undefined &&
     storedUser?.id === profile.id;
+  const requestedTab = profileTabs.find((tab) => tab.id === activeTab);
   const visibleActiveTab =
-    !isOwnProfile && activeTab === "journal"
-      ? "posts"
+    !isOwnProfile && requestedTab?.ownerOnly
+      ? "overview"
       : activeTab;
 
   const followStatusQuery = useQuery({
@@ -512,6 +561,100 @@ export function ProfilePage() {
       visibleActiveTab === "reviews",
   });
 
+  const profileGamesQuery = useQuery({
+    queryKey: [
+      "user-profile-games",
+      profile?.id,
+      gamesSearch,
+      gamesGenre,
+      gamesCompany,
+      gamesPlatform,
+      gamesPlayedPlatform,
+      gamesStatus,
+      gamesReleaseYear,
+      gamesRating,
+      gamesSortBy,
+      gamesPage,
+    ],
+    queryFn: () =>
+      getUserProfileGames(profile!.id, {
+        search: gamesSearch.trim() || undefined,
+        genre: gamesGenre ?? undefined,
+        company: gamesCompany ?? undefined,
+        platform: gamesPlatform ?? undefined,
+        playedPlatform: gamesPlayedPlatform ?? undefined,
+        status: gamesStatus,
+        releaseYear: gamesReleaseYear,
+        rating: gamesRating,
+        sortBy: gamesSortBy,
+        pageNumber: gamesPage,
+        pageSize: 20,
+      }),
+    enabled:
+      profile !== undefined &&
+      visibleActiveTab === "games",
+  });
+
+  const recentPlayedGamesQuery = useQuery({
+    queryKey: ["user-profile-recent-played-games", profile?.id],
+    queryFn: () =>
+      getUserProfileGames(profile!.id, {
+        status: "Played",
+        sortBy: "RecentlyPlayed",
+        pageNumber: 1,
+        pageSize: 4,
+      }),
+    enabled:
+      profile !== undefined &&
+      visibleActiveTab === "overview",
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const recentFavoriteGamesQuery = useQuery({
+    queryKey: ["user-profile-recent-favorite-games", profile?.id],
+    queryFn: () =>
+      getUserGames(profile!.id, {
+        isFavorite: true,
+        pageNumber: 1,
+        pageSize: 4,
+      }),
+    enabled:
+      profile !== undefined &&
+      visibleActiveTab === "overview",
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const playtimeStatisticsQuery = useQuery({
+    queryKey: [
+      "user-playtime-statistics",
+      profile?.id,
+      playtimePeriod,
+    ],
+    queryFn: () =>
+      getUserPlaytimeStatistics(
+        profile!.id,
+        playtimePeriod,
+      ),
+    enabled:
+      profile !== undefined &&
+      visibleActiveTab === "overview",
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const profileGamesOptionsQuery = useQuery({
+    queryKey: ["user-profile-games-options", profile?.id],
+    queryFn: () =>
+      getUserProfileGames(profile!.id, {
+        pageNumber: 1,
+        pageSize: 50,
+        sortBy: "NameAsc",
+      }),
+    enabled:
+      profile !== undefined &&
+      visibleActiveTab === "games",
+    staleTime: 5 * 60 * 1000,
+  });
+
   const wishlistQuery = useQuery({
     queryKey: [
       "user-games",
@@ -527,6 +670,7 @@ export function ProfilePage() {
       }),
     enabled:
       profile !== undefined &&
+      isOwnProfile &&
       visibleActiveTab === "wishlist",
   });
 
@@ -548,14 +692,19 @@ export function ProfilePage() {
       visibleActiveTab === "favorites",
   });
 
-  const journalQuery = useQuery({
-    queryKey: ["user-activities", profile?.id, journalPage],
-    queryFn: () =>
-      getMyActivities(journalPage, 20),
+  const feedQuery = useQuery({
+    queryKey: [
+      "user-feed",
+      profile?.id,
+      feedCategory,
+      feedScope,
+      feedPage,
+    ],
+    queryFn: () => getMyFeed(feedCategory, feedScope, feedPage, 20),
     enabled:
       profile !== undefined &&
       isOwnProfile &&
-      visibleActiveTab === "journal",
+      visibleActiveTab === "feed",
   });
 
   const connectionsQuery = useQuery({
@@ -880,6 +1029,10 @@ export function ProfilePage() {
       nextParams.delete("rating");
     }
 
+    if (tab !== "games") {
+      nextParams.delete("gameRating");
+    }
+
     setSearchParams(nextParams);
   }
 
@@ -958,6 +1111,91 @@ export function ProfilePage() {
     setSearchParams(nextParams, { replace: true });
   }
 
+  function clearGameFilters() {
+    setGamesSearch("");
+    setGamesGenre(null);
+    setGamesCompany(null);
+    setGamesPlatform(null);
+    setGamesPlayedPlatform(null);
+    setGamesStatus(null);
+    setGamesReleaseYear(null);
+    setGamesSortBy("RecentlyUpdated");
+    setGamesPage(1);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete("gameRating");
+    setSearchParams(nextParams, { replace: true });
+  }
+
+  function updateGamesRating(rating: number | null) {
+    setGamesPage(1);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", "games");
+
+    if (rating === null) {
+      nextParams.delete("gameRating");
+    } else {
+      nextParams.set("gameRating", rating.toString());
+    }
+
+    setSearchParams(nextParams, { replace: true });
+  }
+
+  function openGamesByRating(rating: number) {
+    setGamesSearch("");
+    setGamesGenre(null);
+    setGamesCompany(null);
+    setGamesPlatform(null);
+    setGamesPlayedPlatform(null);
+    setGamesStatus(null);
+    setGamesReleaseYear(null);
+    setGamesSortBy("RecentlyUpdated");
+    setGamesPage(1);
+    setIsGamesFilterOpen(true);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", "games");
+    nextParams.set("gameRating", rating.toString());
+    nextParams.delete("sort");
+    nextParams.delete("rating");
+
+    setSearchParams(nextParams);
+  }
+
+  function openRecentlyPlayedGames() {
+    setGamesSearch("");
+    setGamesGenre(null);
+    setGamesCompany(null);
+    setGamesPlatform(null);
+    setGamesPlayedPlatform(null);
+    setGamesStatus("Played");
+    setGamesReleaseYear(null);
+    setGamesSortBy("RecentlyPlayed");
+    setGamesPage(1);
+    setIsGamesFilterOpen(true);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", "games");
+    nextParams.delete("gameRating");
+    nextParams.delete("sort");
+    nextParams.delete("rating");
+
+    setSearchParams(nextParams);
+  }
+
+  function openProfileReview(reviewId: number) {
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", "reviews");
+    nextParams.delete("sort");
+    nextParams.delete("rating");
+
+    navigate({
+      search: `?${nextParams.toString()}`,
+      hash: `#review-${reviewId}`,
+    });
+  }
+
   const visibleProfileTabs = useMemo(
     () =>
       profileTabs.filter(
@@ -978,6 +1216,64 @@ export function ProfilePage() {
   const posts = postsQuery.data ?? [];
   const gameLists = listsQuery.data ?? [];
   const reviews = reviewsQuery.data?.items ?? [];
+  const profileGames = profileGamesQuery.data?.items ?? [];
+
+  const profileGameFilterOptions = useMemo(() => {
+    const profileGameOptionItems =
+      profileGamesOptionsQuery.data?.items ?? [];
+    const uniqueStrings = (values: string[]) =>
+      Array.from(new Set(values.filter(Boolean))).sort((left, right) =>
+        left.localeCompare(right, "az"),
+      );
+
+    return {
+      genres: uniqueStrings(
+        profileGameOptionItems.flatMap((game) => game.genres),
+      ),
+      companies: uniqueStrings(
+        profileGameOptionItems.flatMap((game) => game.companies),
+      ),
+      platforms: uniqueStrings(
+        profileGameOptionItems.flatMap((game) => game.platforms),
+      ),
+      playedPlatforms: uniqueStrings(
+        profileGameOptionItems
+          .map((game) => game.playedPlatformName)
+          .filter((value): value is string => Boolean(value)),
+      ),
+      releaseYears: Array.from(
+        new Set(
+          profileGameOptionItems
+            .map((game) =>
+              game.releaseDate
+                ? new Date(`${game.releaseDate}T00:00:00`).getFullYear()
+                : null,
+            )
+            .filter((value): value is number => value !== null),
+        ),
+      ).sort((left, right) => right - left),
+    };
+  }, [profileGamesOptionsQuery.data?.items]);
+
+  useEffect(() => {
+    if (visibleActiveTab !== "reviews" || reviewsQuery.isLoading) {
+      return;
+    }
+
+    const targetId = window.location.hash.replace(/^#/, "");
+    if (!targetId) {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      document.getElementById(targetId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frame);
+  }, [visibleActiveTab, reviewsQuery.isLoading, reviews.length]);
 
   const connectionTitle = useMemo(() => {
     return connectionModal === "followers"
@@ -991,7 +1287,7 @@ export function ProfilePage() {
 
   if (profileQuery.isError || !profile) {
     return (
-      <div className="min-h-screen bg-[#07070a] text-zinc-100">
+      <div className="min-h-screen wellplayd-page-bg text-zinc-100">
         <Navbar />
 
         <main className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center px-5 py-16 text-center">
@@ -1152,7 +1448,7 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#07070a] text-zinc-100">
+    <div className="min-h-screen wellplayd-page-bg text-zinc-100">
       <Navbar />
 
       <main>
@@ -1183,7 +1479,31 @@ export function ProfilePage() {
                       "Bu istifadəçi hələ bio əlavə etməyib."}
                   </p>
 
-                  <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-zinc-500">
+                  {profile.socialLinks.length > 0 && (
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      {profile.socialLinks.map((link) => (
+                        <a
+                          key={link.platform}
+                          href={link.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title={socialPlatformLabels[link.platform]}
+                          aria-label={`${socialPlatformLabels[link.platform]} profilini aç`}
+                          className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-xs font-semibold text-zinc-400 transition hover:border-violet-400/25 hover:bg-violet-500/10 hover:text-white"
+                        >
+                          <SocialPlatformIcon
+                            platform={link.platform}
+                            size={16}
+                          />
+                          <span className="hidden sm:inline">
+                            {socialPlatformLabels[link.platform]}
+                          </span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-zinc-500">
                     <span className="inline-flex items-center gap-2">
                       <CalendarDays size={15} />
                       {formatDate(
@@ -1199,7 +1519,7 @@ export function ProfilePage() {
               <div className="flex shrink-0 flex-wrap gap-3">
                 {isOwnProfile ? (
                   <Link
-                    to="/settings"
+                    to="/profile/edit"
                     className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-5 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.09] hover:text-white"
                   >
                     <Settings size={17} />
@@ -1252,46 +1572,6 @@ export function ProfilePage() {
               </div>
             </div>
 
-            <div className="mt-9 grid max-w-xl grid-cols-3 overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.025]">
-              <button
-                type="button"
-                onClick={() => {
-                  setConnectionModal("followers");
-                }}
-                className="px-4 py-4 text-center transition hover:bg-white/[0.04]"
-              >
-                <span className="block text-xl font-bold text-white">
-                  {profile.followerCount}
-                </span>
-                <span className="mt-1 block text-xs text-zinc-500">
-                  İzləyici
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setConnectionModal("following");
-                }}
-                className="border-x border-white/[0.06] px-4 py-4 text-center transition hover:bg-white/[0.04]"
-              >
-                <span className="block text-xl font-bold text-white">
-                  {profile.followingCount}
-                </span>
-                <span className="mt-1 block text-xs text-zinc-500">
-                  İzlənilən
-                </span>
-              </button>
-
-              <div className="px-4 py-4 text-center">
-                <span className="block text-xl font-bold text-white">
-                  {profile.postCount}
-                </span>
-                <span className="mt-1 block text-xs text-zinc-500">
-                  Post
-                </span>
-              </div>
-            </div>
           </div>
         </section>
 
@@ -1346,8 +1626,114 @@ export function ProfilePage() {
           </div>
 
           <div className="mt-7">
+            {visibleActiveTab === "overview" && (
+              <ProfileOverview
+                profile={profile}
+                postsHref="?tab=posts#posts"
+                reviewsHref="?tab=reviews#reviews"
+                recentPlayedGames={recentPlayedGamesQuery.data?.items ?? []}
+                recentPlayedGamesLoading={recentPlayedGamesQuery.isLoading}
+                favoriteGames={recentFavoriteGamesQuery.data?.items ?? []}
+                favoriteGamesLoading={recentFavoriteGamesQuery.isLoading}
+                favoritesHref="?tab=favorites"
+                onOpenRecentPlayed={openRecentlyPlayedGames}
+                playtimeStatistics={playtimeStatisticsQuery.data}
+                playtimePeriod={playtimePeriod}
+                playtimeStatisticsLoading={playtimeStatisticsQuery.isLoading}
+                playtimeStatisticsError={
+                  playtimeStatisticsQuery.isError
+                    ? getApiErrorMessage(
+                        playtimeStatisticsQuery.error,
+                        "Oyun vaxtı statistikasını yükləmək mümkün olmadı.",
+                      )
+                    : null
+                }
+                onPlaytimePeriodChange={setPlaytimePeriod}
+                onShowFollowers={() => setConnectionModal("followers")}
+                onShowFollowing={() => setConnectionModal("following")}
+                onRatingSelect={openGamesByRating}
+              />
+            )}
+
+            {visibleActiveTab === "games" && (
+              <ProfileGamesGallery
+                items={profileGames}
+                totalCount={profileGamesQuery.data?.totalCount ?? 0}
+                pageNumber={profileGamesQuery.data?.pageNumber ?? gamesPage}
+                totalPages={profileGamesQuery.data?.totalPages ?? 0}
+                pageSize={profileGamesQuery.data?.pageSize ?? 20}
+                isLoading={profileGamesQuery.isLoading}
+                errorMessage={
+                  profileGamesQuery.isError
+                    ? getApiErrorMessage(
+                        profileGamesQuery.error,
+                        "İstifadəçinin oyun kolleksiyasını yükləmək mümkün olmadı.",
+                      )
+                    : null
+                }
+                isFilterOpen={isGamesFilterOpen}
+                onToggleFilter={() => {
+                  setIsGamesFilterOpen((currentValue) => !currentValue);
+                }}
+                searchValue={gamesSearch}
+                onSearchChange={(value) => {
+                  setGamesSearch(value);
+                  setGamesPage(1);
+                }}
+                selectedGenre={gamesGenre}
+                selectedCompany={gamesCompany}
+                selectedPlatform={gamesPlatform}
+                selectedPlayedPlatform={gamesPlayedPlatform}
+                selectedStatus={gamesStatus}
+                selectedReleaseYear={gamesReleaseYear}
+                selectedRating={gamesRating}
+                sortBy={gamesSortBy}
+                genreOptions={profileGameFilterOptions.genres}
+                companyOptions={profileGameFilterOptions.companies}
+                platformOptions={profileGameFilterOptions.platforms}
+                playedPlatformOptions={
+                  profileGameFilterOptions.playedPlatforms
+                }
+                releaseYearOptions={profileGameFilterOptions.releaseYears}
+                onGenreChange={(value) => {
+                  setGamesGenre(value);
+                  setGamesPage(1);
+                }}
+                onCompanyChange={(value) => {
+                  setGamesCompany(value);
+                  setGamesPage(1);
+                }}
+                onPlatformChange={(value) => {
+                  setGamesPlatform(value);
+                  setGamesPage(1);
+                }}
+                onPlayedPlatformChange={(value) => {
+                  setGamesPlayedPlatform(value);
+                  setGamesPage(1);
+                }}
+                onStatusChange={(value) => {
+                  setGamesStatus(value);
+                  setGamesPage(1);
+                }}
+                onReleaseYearChange={(value) => {
+                  setGamesReleaseYear(value);
+                  setGamesPage(1);
+                }}
+                onRatingChange={(value) => {
+                  updateGamesRating(value);
+                }}
+                onSortChange={(value) => {
+                  setGamesSortBy(value);
+                  setGamesPage(1);
+                }}
+                onClearFilters={clearGameFilters}
+                onPageChange={setGamesPage}
+                onOpenReview={openProfileReview}
+              />
+            )}
+
             {visibleActiveTab === "posts" && (
-              <div className="mx-auto max-w-3xl space-y-5">
+              <div id="posts" className="mx-auto max-w-3xl scroll-mt-28 space-y-5">
                 {isOwnProfile && (
                   <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
                     <div className="flex items-start gap-4">
@@ -1877,7 +2263,7 @@ export function ProfilePage() {
             )}
 
             {visibleActiveTab === "reviews" && (
-              <div className="mx-auto max-w-6xl space-y-5">
+              <div id="reviews" className="mx-auto max-w-6xl scroll-mt-28 space-y-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -2146,8 +2532,9 @@ export function ProfilePage() {
 
                     return (
                       <article
+                        id={`review-${review.id}`}
                         key={review.id}
-                        className="overflow-hidden rounded-3xl border border-white/[0.07] bg-[#101015]"
+                        className="scroll-mt-28 overflow-hidden rounded-3xl border border-white/[0.07] bg-[#101015]"
                       >
                         <div className="flex gap-4 border-b border-white/[0.06] p-5 sm:p-6">
                           <Link
@@ -2320,15 +2707,26 @@ export function ProfilePage() {
               />
             )}
 
-            {visibleActiveTab === "journal" &&
-              isOwnProfile && (
-                <ProfileActivityJournal
-                  result={journalQuery.data}
-                  isLoading={journalQuery.isLoading}
-                  isError={journalQuery.isError}
-                  error={journalQuery.error}
-                  page={journalPage}
-                  onPageChange={setJournalPage}
+            {visibleActiveTab === "feed" &&
+              isOwnProfile && storedUser && (
+                <ProfileActivityFeed
+                  result={feedQuery.data}
+                  isLoading={feedQuery.isLoading}
+                  isError={feedQuery.isError}
+                  error={feedQuery.error}
+                  page={feedPage}
+                  category={feedCategory}
+                  scope={feedScope}
+                  currentUserId={storedUser.id}
+                  onCategoryChange={(category) => {
+                    setFeedCategory(category);
+                    setFeedPage(1);
+                  }}
+                  onScopeChange={(scope) => {
+                    setFeedScope(scope);
+                    setFeedPage(1);
+                  }}
+                  onPageChange={setFeedPage}
                 />
               )}
           </div>

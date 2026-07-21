@@ -315,7 +315,7 @@ export function GameListDetailPage() {
 
   if (listQuery.isLoading) {
     return (
-      <div className="min-h-screen bg-[#07070a] text-zinc-100">
+      <div className="min-h-screen wellplayd-page-bg text-zinc-100">
         <Navbar />
         <main className="flex min-h-[70vh] items-center justify-center gap-3 text-sm text-zinc-500">
           <LoaderCircle size={20} className="animate-spin" />
@@ -327,7 +327,7 @@ export function GameListDetailPage() {
 
   if (listQuery.isError || !listQuery.data) {
     return (
-      <div className="min-h-screen bg-[#07070a] text-zinc-100">
+      <div className="min-h-screen wellplayd-page-bg text-zinc-100">
         <Navbar />
         <main className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center px-5 py-12">
           <div className="w-full rounded-3xl border border-red-400/15 bg-red-500/[0.06] p-8 text-center">
@@ -359,7 +359,7 @@ export function GameListDetailPage() {
   const searchResults = searchQuery.data?.items ?? [];
 
   return (
-    <div className="min-h-screen bg-[#07070a] text-zinc-100">
+    <div className="min-h-screen wellplayd-page-bg text-zinc-100">
       <Navbar />
 
       <main>

@@ -104,6 +104,51 @@ public sealed class GameCommunityService : IGameCommunityService
             cancellationToken);
     }
 
+    public async Task<IReadOnlyList<GameCommunityUserDTO>> GetWishlistPreviewAsync(
+        CatalogSource source,
+        long gameId,
+        Guid currentUserId,
+        int limit = 3,
+        CancellationToken cancellationToken = default)
+    {
+        gameId.EnsureValidCatalogReference(source, "Oyun");
+
+        if (limit < 1 || limit > 10)
+            limit = 3;
+
+        await EnsureGameExistsAsync(source, gameId, cancellationToken);
+
+        var connectionIds = await _context.UserFollows
+            .AsNoTracking()
+            .Where(x =>
+                x.Status == FollowStatus.Accepted &&
+                (x.FollowerId == currentUserId || x.FollowingId == currentUserId))
+            .Select(x => x.FollowerId == currentUserId ? x.FollowingId : x.FollowerId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
+
+        if (connectionIds.Count == 0)
+            return [];
+
+        return await _context.UserGames
+            .AsNoTracking()
+            .Where(userGame =>
+                connectionIds.Contains(userGame.UserId) &&
+                userGame.Source == source &&
+                userGame.GameId == gameId &&
+                userGame.IsWishlisted)
+            .OrderByDescending(userGame => userGame.UpdatedAt ?? userGame.CreatedAt)
+            .ThenBy(userGame => userGame.User.UserName)
+            .Take(limit)
+            .Select(userGame => new GameCommunityUserDTO
+            {
+                Id = userGame.UserId,
+                UserName = userGame.User.UserName ?? string.Empty,
+                ProfileImageUrl = userGame.User.ProfileImageUrl
+            })
+            .ToListAsync(cancellationToken);
+    }
+
     private IQueryable<UserGame> CreateGameUsersQuery(
         CatalogSource source,
         long gameId)

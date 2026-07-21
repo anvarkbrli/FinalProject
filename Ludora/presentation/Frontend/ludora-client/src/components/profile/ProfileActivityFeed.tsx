@@ -1,0 +1,392 @@
+import {
+  Bookmark,
+  ChevronLeft,
+  ChevronRight,
+  Gamepad2,
+  Heart,
+  History,
+  ListChecks,
+  LoaderCircle,
+  MessageCircle,
+  MessageSquareText,
+  Pencil,
+  Star,
+  Trash2,
+  UserPlus,
+} from "lucide-react";
+import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
+import { getApiErrorMessage } from "../../lib/api";
+import { formatDateTime, resolveAssetUrl } from "../../lib/helpers";
+import type {
+  UserActivitiesResultDTO,
+  UserActivityDTO,
+  UserActivityFeedCategory,
+  UserActivityFeedScope,
+} from "../../types/profile";
+
+interface ProfileActivityFeedProps {
+  result: UserActivitiesResultDTO | undefined;
+  isLoading: boolean;
+  isError: boolean;
+  error: unknown;
+  page: number;
+  category: UserActivityFeedCategory;
+  scope: UserActivityFeedScope;
+  currentUserId: string;
+  onCategoryChange: (category: UserActivityFeedCategory) => void;
+  onScopeChange: (scope: UserActivityFeedScope) => void;
+  onPageChange: (page: number) => void;
+}
+
+const filters: Array<{
+  value: UserActivityFeedCategory;
+  label: string;
+}> = [
+  { value: "All", label: "Hamısı" },
+  { value: "Statuses", label: "Statuslar" },
+  { value: "Lists", label: "Siyahılar" },
+  { value: "Ratings", label: "Puanlar" },
+  { value: "Reviews", label: "Rəylər" },
+  { value: "Posts", label: "Postlar" },
+];
+
+const statusLabels = {
+  Played: "Oynayıb",
+  Playing: "Oynayır",
+  PlanToPlay: "Oynayacaq",
+  Dropped: "Yarım qoyub",
+} as const;
+
+function GameLink({ activity }: { activity: UserActivityDTO }) {
+  if (!activity.gameSource || activity.gameId === null) {
+    return <span className="font-semibold text-zinc-200">oyun</span>;
+  }
+
+  return (
+    <Link
+      to={`/games/${activity.gameSource}/${activity.gameId}`}
+      className="font-semibold text-violet-300 transition hover:text-violet-200"
+    >
+      {activity.gameName ?? "Oyun"}
+    </Link>
+  );
+}
+
+function TargetUserLink({ activity }: { activity: UserActivityDTO }) {
+  if (!activity.targetUserName) {
+    return <span className="font-semibold text-zinc-200">istifadəçi</span>;
+  }
+
+  return (
+    <Link
+      to={`/users/${activity.targetUserName}`}
+      className="font-semibold text-violet-300 transition hover:text-violet-200"
+    >
+      {activity.targetUserName}
+    </Link>
+  );
+}
+
+function ActorLink({
+  activity,
+  currentUserId,
+}: {
+  activity: UserActivityDTO;
+  currentUserId: string;
+}) {
+  if (activity.actorUserId === currentUserId) {
+    return <span className="font-semibold text-zinc-100">Sən</span>;
+  }
+
+  return (
+    <Link
+      to={`/users/${activity.actorUserName}`}
+      className="font-semibold text-zinc-100 transition hover:text-violet-200"
+    >
+      {activity.actorUserName}
+    </Link>
+  );
+}
+
+function getPresentation(
+  activity: UserActivityDTO,
+  isOwnActivity: boolean,
+): {
+  icon: typeof History;
+  accent: string;
+  action: ReactNode;
+} {
+  const game = <GameLink activity={activity} />;
+  const user = <TargetUserLink activity={activity} />;
+  const listName = activity.subjectTitle ?? "siyahı";
+  const verb = (secondPerson: string, thirdPerson: string) =>
+    isOwnActivity ? secondPerson : thirdPerson;
+
+  switch (activity.type) {
+    case "GameStatusChanged":
+      return {
+        icon: Gamepad2,
+        accent: "bg-emerald-500/10 text-emerald-300",
+        action: <>{game} oyununu “{activity.status ? statusLabels[activity.status] : "Status"}” vəziyyətinə {verb("keçirdin", "keçirdi")}.</>,
+      };
+    case "GameStatusRemoved":
+      return {
+        icon: Gamepad2,
+        accent: "bg-zinc-500/10 text-zinc-400",
+        action: <>{game} oyununun statusunu {verb("sildin", "sildi")}.</>,
+      };
+    case "GameAddedToFavorites":
+      return { icon: Heart, accent: "bg-rose-500/10 text-rose-300", action: <>{game} oyununu favorilərə əlavə {verb("etdin", "etdi")}.</> };
+    case "GameRemovedFromFavorites":
+      return { icon: Heart, accent: "bg-zinc-500/10 text-zinc-400", action: <>{game} oyununu favorilərdən {verb("çıxardın", "çıxardı")}.</> };
+    case "GameAddedToWishlist":
+      return { icon: Bookmark, accent: "bg-cyan-500/10 text-cyan-300", action: <>{game} oyununu wishlist-ə əlavə {verb("etdin", "etdi")}.</> };
+    case "GameRemovedFromWishlist":
+      return { icon: Bookmark, accent: "bg-zinc-500/10 text-zinc-400", action: <>{game} oyununu wishlist-dən {verb("çıxardın", "çıxardı")}.</> };
+    case "GameRated":
+      return { icon: Star, accent: "bg-amber-500/10 text-amber-300", action: <>{game} oyununa {activity.rating ?? "—"} ulduz {verb("verdin", "verdi")}.</> };
+    case "GameRatingRemoved":
+      return { icon: Star, accent: "bg-zinc-500/10 text-zinc-400", action: <>{game} oyununun puanını {verb("sildin", "sildi")}.</> };
+    case "ReviewCreated":
+      return { icon: MessageSquareText, accent: "bg-violet-500/10 text-violet-300", action: <>{game} oyunu üçün rəy {verb("paylaşdın", "paylaşdı")}.</> };
+    case "ReviewUpdated":
+      return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>{game} oyunu üçün rəyini {verb("yenilədin", "yenilədi")}.</> };
+    case "ReviewDeleted":
+      return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>{game} oyunu üçün rəyini {verb("sildin", "sildi")}.</> };
+    case "ReviewLiked":
+      return { icon: Heart, accent: "bg-rose-500/10 text-rose-300", action: <>{user} istifadəçisinin {game} rəyini {verb("bəyəndin", "bəyəndi")}.</> };
+    case "ReviewUnliked":
+      return { icon: Heart, accent: "bg-zinc-500/10 text-zinc-400", action: <>{game} rəyindən bəyənməni {verb("götürdün", "götürdü")}.</> };
+    case "ReviewCommented":
+      return { icon: MessageCircle, accent: "bg-cyan-500/10 text-cyan-300", action: <>{game} rəyinə şərh {verb("yazdın", "yazdı")}.</> };
+    case "ReviewCommentUpdated":
+      return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>Rəyə {isOwnActivity ? "yazdığın" : "yazdığı"} şərhi {verb("yenilədin", "yenilədi")}.</> };
+    case "ReviewCommentDeleted":
+      return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>Rəyə {isOwnActivity ? "yazdığın" : "yazdığı"} şərhi {verb("sildin", "sildi")}.</> };
+    case "UserFollowRequested":
+      return { icon: UserPlus, accent: "bg-cyan-500/10 text-cyan-300", action: <>{user} istifadəçisinə izləmə sorğusu {verb("göndərdin", "göndərdi")}.</> };
+    case "UserFollowed":
+      return { icon: UserPlus, accent: "bg-emerald-500/10 text-emerald-300", action: <>{user} istifadəçisini izləməyə {verb("başladın", "başladı")}.</> };
+    case "UserUnfollowed":
+    case "FollowRequestCancelled":
+      return { icon: UserPlus, accent: "bg-zinc-500/10 text-zinc-400", action: <>{user} ilə izləmə əlaqəsini {verb("dayandırdın", "dayandırdı")}.</> };
+    case "PostCreated":
+      return { icon: MessageSquareText, accent: "bg-violet-500/10 text-violet-300", action: <>Yeni post {verb("paylaşdın", "paylaşdı")}.</> };
+    case "PostUpdated":
+      return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>Postunu {verb("yenilədin", "yenilədi")}.</> };
+    case "PostDeleted":
+      return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>Postunu {verb("sildin", "sildi")}.</> };
+    case "PostLiked":
+      return { icon: Heart, accent: "bg-rose-500/10 text-rose-300", action: <>{user} istifadəçisinin postunu {verb("bəyəndin", "bəyəndi")}.</> };
+    case "PostUnliked":
+      return { icon: Heart, accent: "bg-zinc-500/10 text-zinc-400", action: <>Postdan bəyənməni {verb("götürdün", "götürdü")}.</> };
+    case "PostCommented":
+      return { icon: MessageCircle, accent: "bg-cyan-500/10 text-cyan-300", action: <>{user} istifadəçisinin postuna şərh {verb("yazdın", "yazdı")}.</> };
+    case "PostCommentUpdated":
+      return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>Posta {isOwnActivity ? "yazdığın" : "yazdığı"} şərhi {verb("yenilədin", "yenilədi")}.</> };
+    case "PostCommentDeleted":
+      return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>Posta {isOwnActivity ? "yazdığın" : "yazdığı"} şərhi {verb("sildin", "sildi")}.</> };
+    case "GameListCreated":
+      return { icon: ListChecks, accent: "bg-violet-500/10 text-violet-300", action: <><strong className="text-zinc-200">{listName}</strong> adlı siyahı {verb("yaratdın", "yaratdı")}.</> };
+    case "GameListUpdated":
+      return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <><strong className="text-zinc-200">{listName}</strong> siyahısını {verb("yenilədin", "yenilədi")}.</> };
+    case "GameListDeleted":
+      return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <><strong className="text-zinc-200">{listName}</strong> siyahısını {verb("sildin", "sildi")}.</> };
+    case "GameAddedToList":
+      return { icon: ListChecks, accent: "bg-violet-500/10 text-violet-300", action: <>{game} oyununu <strong className="text-zinc-200">{listName}</strong> siyahısına əlavə {verb("etdin", "etdi")}.</> };
+    case "GameRemovedFromList":
+      return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>{game} oyununu <strong className="text-zinc-200">{listName}</strong> siyahısından {verb("çıxardın", "çıxardı")}.</> };
+    case "GameListGameReordered":
+      return { icon: ListChecks, accent: "bg-amber-500/10 text-amber-300", action: <><strong className="text-zinc-200">{listName}</strong> siyahısında oyunların sırasını {verb("dəyişdin", "dəyişdi")}.</> };
+    case "GameListLiked":
+      return { icon: Heart, accent: "bg-rose-500/10 text-rose-300", action: <><strong className="text-zinc-200">{listName}</strong> siyahısını {verb("bəyəndin", "bəyəndi")}.</> };
+    case "GameListUnliked":
+      return { icon: Heart, accent: "bg-zinc-500/10 text-zinc-400", action: <><strong className="text-zinc-200">{listName}</strong> siyahısından bəyənməni {verb("götürdün", "götürdü")}.</> };
+    case "GameListCommented":
+      return { icon: MessageCircle, accent: "bg-cyan-500/10 text-cyan-300", action: <><strong className="text-zinc-200">{listName}</strong> siyahısına şərh {verb("yazdın", "yazdı")}.</> };
+    case "GameListCommentUpdated":
+      return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>Siyahıya {isOwnActivity ? "yazdığın" : "yazdığı"} şərhi {verb("yenilədin", "yenilədi")}.</> };
+    case "GameListCommentDeleted":
+      return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>Siyahıya {isOwnActivity ? "yazdığın" : "yazdığı"} şərhi {verb("sildin", "sildi")}.</> };
+    default:
+      return { icon: History, accent: "bg-zinc-500/10 text-zinc-400", action: <>Yeni fəaliyyət {verb("göstərdin", "göstərdi")}.</> };
+  }
+}
+
+export function ProfileActivityFeed({
+  result,
+  isLoading,
+  isError,
+  error,
+  page,
+  category,
+  scope,
+  currentUserId,
+  onCategoryChange,
+  onScopeChange,
+  onPageChange,
+}: ProfileActivityFeedProps) {
+  const activities = result?.items ?? [];
+
+  return (
+    <div className="mx-auto max-w-4xl">
+      <section className="mb-5 rounded-2xl border border-white/[0.07] bg-[#101015] p-4">
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="font-semibold text-zinc-100">İcma axını</h2>
+              <p className="mt-1 text-xs text-zinc-600">
+                {scope === "Mine"
+                  ? "Yalnız sənin fəaliyyətin, ən yenidən köhnəyə."
+                  : "Dostlarının fəaliyyəti, ən yenidən köhnəyə."}
+              </p>
+            </div>
+
+            <label className="flex shrink-0 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2">
+              <span className="text-xs font-semibold text-zinc-500">
+                Göstərilir:
+              </span>
+              <select
+                value={scope}
+                onChange={(event) => {
+                  onScopeChange(event.target.value as UserActivityFeedScope);
+                }}
+                className="bg-transparent text-xs font-bold text-zinc-200 outline-none"
+              >
+                <option value="Mine" className="bg-[#12121a]">
+                  Özüm
+                </option>
+                <option value="Following" className="bg-[#12121a]">
+                  Dostlarım
+                </option>
+              </select>
+            </label>
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {filters.map((filter) => (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => onCategoryChange(filter.value)}
+                className={`shrink-0 rounded-xl px-3 py-2 text-xs font-semibold transition ${
+                  category === filter.value
+                    ? "bg-violet-500/15 text-violet-200"
+                    : "bg-white/[0.035] text-zinc-500 hover:text-zinc-200"
+                }`}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center gap-3 py-16 text-sm text-zinc-500">
+          <LoaderCircle size={19} className="animate-spin" />
+          Axın yüklənir...
+        </div>
+      ) : isError ? (
+        <div className="rounded-3xl border border-red-400/15 bg-red-500/[0.05] p-8 text-center text-sm text-red-100/70">
+          {getApiErrorMessage(error, "İcma axınını yükləmək mümkün olmadı.")}
+        </div>
+      ) : activities.length === 0 ? (
+        <div className="rounded-3xl border border-dashed border-white/[0.08] p-12 text-center">
+          <History size={31} className="mx-auto text-zinc-700" />
+          <p className="mt-4 text-sm text-zinc-500">
+            Bu filtr üzrə hələ fəaliyyət yoxdur.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {activities.map((activity) => {
+            const isOwnActivity = activity.actorUserId === currentUserId;
+            const presentation = getPresentation(activity, isOwnActivity);
+            const Icon = presentation.icon;
+            const coverUrl = resolveAssetUrl(activity.gameCoverImageUrl);
+            const actorImageUrl = resolveAssetUrl(activity.actorUserProfileImageUrl);
+
+            return (
+              <article
+                key={activity.id}
+                className="flex items-center gap-4 rounded-2xl border border-white/[0.07] bg-[#101015] p-4 sm:p-5"
+              >
+                <Link
+                  to={`/users/${activity.actorUserName}`}
+                  className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-violet-500/10 font-bold text-violet-300"
+                >
+                  {actorImageUrl ? (
+                    <img
+                      src={actorImageUrl}
+                      alt={`${activity.actorUserName} profil şəkli`}
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    activity.actorUserName.charAt(0).toUpperCase()
+                  )}
+                </Link>
+
+                <span className={`hidden h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:flex ${presentation.accent}`}>
+                  <Icon size={18} />
+                </span>
+
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm leading-6 text-zinc-400">
+                    {!isOwnActivity && (
+                      <>
+                        <ActorLink activity={activity} currentUserId={currentUserId} />{" "}
+                      </>
+                    )}
+                    {presentation.action}
+                  </p>
+                  <p className="mt-1.5 text-xs text-zinc-600">
+                    {formatDateTime(activity.createdAt)}
+                  </p>
+                </div>
+
+                {coverUrl && activity.gameSource && activity.gameId !== null && (
+                  <Link
+                    to={`/games/${activity.gameSource}/${activity.gameId}`}
+                    className="hidden h-16 w-12 shrink-0 overflow-hidden rounded-lg bg-zinc-900 sm:block"
+                  >
+                    <img
+                      src={coverUrl}
+                      alt={`${activity.gameName ?? "Oyun"} örtüyü`}
+                      className="h-full w-full object-cover"
+                    />
+                  </Link>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {(result?.totalPages ?? 0) > 1 && (
+        <div className="mt-8 flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => onPageChange(page - 1)}
+            disabled={page <= 1}
+            className="flex h-10 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm font-semibold text-zinc-400 transition hover:bg-white/[0.07] hover:text-white disabled:opacity-40"
+          >
+            <ChevronLeft size={16} /> Əvvəlki
+          </button>
+          <span className="min-w-24 text-center text-xs font-semibold text-zinc-500">
+            {page} / {result?.totalPages}
+          </span>
+          <button
+            type="button"
+            onClick={() => onPageChange(page + 1)}
+            disabled={page >= (result?.totalPages ?? 1)}
+            className="flex h-10 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm font-semibold text-zinc-400 transition hover:bg-white/[0.07] hover:text-white disabled:opacity-40"
+          >
+            Növbəti <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
