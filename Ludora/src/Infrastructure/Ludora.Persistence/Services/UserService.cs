@@ -95,7 +95,10 @@ public class UserService : IUserService
             UserName = user.UserName ?? string.Empty,
             Bio = user.Bio,
             ProfileImageUrl = user.ProfileImageUrl,
-            SocialLinks = SocialLinkHelper.Deserialize(user.SocialLinksJson),
+            SocialLinks = SocialLinkHelper.DeserializeWithAutomaticSteam(
+                user.SocialLinksJson,
+                user.SteamId,
+                user.SteamProfileUrl),
             IsPrivate = user.IsPrivate,
             CreatedAt = user.CreatedAt,
             FollowerCount = summary.FollowerCount,

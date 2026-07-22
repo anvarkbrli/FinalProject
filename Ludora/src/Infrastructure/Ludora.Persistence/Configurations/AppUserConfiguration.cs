@@ -17,6 +17,18 @@ public class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         builder.Property(x => x.SocialLinksJson)
             .HasColumnType("nvarchar(max)");
 
+        builder.Property(x => x.SteamId)
+            .HasMaxLength(20);
+
+        builder.Property(x => x.SteamDisplayName)
+            .HasMaxLength(200);
+
+        builder.Property(x => x.SteamAvatarUrl)
+            .HasMaxLength(1000);
+
+        builder.Property(x => x.SteamProfileUrl)
+            .HasMaxLength(1000);
+
         builder.Property(x => x.CreatedAt)
             .IsRequired();
 
@@ -34,6 +46,10 @@ public class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
 
         builder.HasIndex(x => x.Email)
             .IsUnique();
+
+        builder.HasIndex(x => x.SteamId)
+            .IsUnique()
+            .HasFilter("[SteamId] IS NOT NULL");
 
         builder.HasIndex(x => new
         {

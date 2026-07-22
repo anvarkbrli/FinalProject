@@ -1,4 +1,4 @@
-﻿using Ludora.Domain.Entities.GameTracking;
+using Ludora.Domain.Entities.GameTracking;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -17,6 +17,10 @@ namespace Ludora.Persistence.Configurations
 
             builder.HasIndex(x => x.Slug)
                 .IsUnique();
+
+            builder.HasIndex(x => x.SteamAppId)
+                .IsUnique()
+                .HasFilter("[SteamAppId] IS NOT NULL");
         }
     }
 }

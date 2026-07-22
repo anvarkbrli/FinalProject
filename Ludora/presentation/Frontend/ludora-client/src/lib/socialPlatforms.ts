@@ -7,6 +7,8 @@ export const socialPlatformLabels: Record<SocialPlatform, string> = {
   Twitch: "Twitch",
   YouTube: "YouTube",
   Instagram: "Instagram",
+  Spotify: "Spotify",
+  Letterboxd: "Letterboxd",
   GitHub: "GitHub",
   TikTok: "TikTok",
   Reddit: "Reddit",
@@ -28,6 +30,8 @@ export function detectSocialPlatform(value: string): SocialPlatform | null {
     if (matches("twitch.tv")) return "Twitch";
     if (matches("youtube.com") || matches("youtu.be")) return "YouTube";
     if (matches("instagram.com")) return "Instagram";
+    if (matches("spotify.com")) return "Spotify";
+    if (matches("letterboxd.com")) return "Letterboxd";
     if (matches("github.com")) return "GitHub";
     if (matches("tiktok.com")) return "TikTok";
     if (matches("reddit.com")) return "Reddit";

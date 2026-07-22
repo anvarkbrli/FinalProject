@@ -2,13 +2,10 @@ import {
   ArrowUpRight,
   Clock3,
   Gamepad2,
-  MessageSquareText,
   Monitor,
   Shapes,
   Star,
   Trophy,
-  UserPlus,
-  Users,
   X,
 } from "lucide-react";
 import {
@@ -29,13 +26,12 @@ import type { UserGameDTO } from "../../types/userGames";
 
 interface ProfileOverviewProps {
   profile: UserProfileDTO;
-  postsHref: string;
-  reviewsHref: string;
   recentPlayedGames: ProfileGameEntryDTO[];
   recentPlayedGamesLoading: boolean;
   favoriteGames: UserGameDTO[];
   favoriteGamesLoading: boolean;
-  favoritesHref: string;
+  canViewFavorites: boolean;
+  onOpenFavorites: () => void;
   onOpenRecentPlayed: () => void;
   onOpenTopGenre: (genre: string) => void;
   onOpenTopPlatform: (platform: string) => void;
@@ -44,8 +40,6 @@ interface ProfileOverviewProps {
   playtimeStatisticsLoading: boolean;
   playtimeStatisticsError: string | null;
   onPlaytimePeriodChange: (period: UserPlaytimePeriod) => void;
-  onShowFollowers: () => void;
-  onShowFollowing: () => void;
   onRatingSelect: (rating: number) => void;
 }
 
@@ -270,13 +264,12 @@ function formatTopStatPlaytime(totalMinutes: number): string {
 
 export function ProfileOverview({
   profile,
-  postsHref,
-  reviewsHref,
   recentPlayedGames,
   recentPlayedGamesLoading,
   favoriteGames,
   favoriteGamesLoading,
-  favoritesHref,
+  canViewFavorites,
+  onOpenFavorites,
   onOpenRecentPlayed,
   onOpenTopGenre,
   onOpenTopPlatform,
@@ -285,8 +278,6 @@ export function ProfileOverview({
   playtimeStatisticsLoading,
   playtimeStatisticsError,
   onPlaytimePeriodChange,
-  onShowFollowers,
-  onShowFollowing,
   onRatingSelect,
 }: ProfileOverviewProps) {
   const [selectedPlaytimePoint, setSelectedPlaytimePoint] =
@@ -352,146 +343,66 @@ export function ProfileOverview({
       coverUrl: game.coverUrl,
     }));
 
-  const statistics = [
-    {
-      label: "İzləyici",
-      value: profile.followerCount,
-      icon: Users,
-      onClick: onShowFollowers,
-    },
-    {
-      label: "İzlənilən",
-      value: profile.followingCount,
-      icon: UserPlus,
-      onClick: onShowFollowing,
-    },
-    {
-      label: "Post sayı",
-      value: profile.postCount,
-      icon: MessageSquareText,
-      href: postsHref,
-    },
-    {
-      label: "Rəy sayı",
-      value: profile.statistics.reviewCount,
-      icon: Star,
-      href: reviewsHref,
-    },
-  ];
-
   return (
     <div className="space-y-5">
-      <section className="grid gap-5 lg:grid-cols-[0.95fr_1.35fr]">
-        <div className="grid grid-cols-2 gap-3">
-          {statistics.map((item) => {
-            const Icon = item.icon;
-            const content = (
-              <>
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
-                  <Icon size={18} />
-                </span>
-                <span className="mt-5 block text-2xl font-bold tracking-tight text-white">
-                  {item.value}
-                </span>
-                <span className="mt-1 block text-xs text-zinc-500">
-                  {item.label}
-                </span>
-              </>
-            );
-            const className =
-              "rounded-3xl border border-white/[0.07] bg-[#101015] p-5 text-left transition hover:border-violet-400/20 hover:bg-violet-500/[0.04]";
+      <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.18em] text-fuchsia-300">
+              Puan qrafiki
+            </p>
+            <p className="mt-2 text-sm text-zinc-500">
+              Rəy yazılıb-yazılmamasından asılı olmayaraq verilən bütün puanlar.
+            </p>
+          </div>
+          <div className="text-right">
+            <p className="flex items-center justify-end gap-1 text-2xl font-bold text-white">
+              {profile.statistics.averageRating === null
+                ? "—"
+                : profile.statistics.averageRating.toFixed(1)}
+              <Star size={16} className="fill-fuchsia-300 text-fuchsia-300" />
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
+              {profile.statistics.ratingCount} puan
+            </p>
+          </div>
+        </div>
 
-            if (item.href) {
-              return (
-                <Link key={item.label} to={item.href} className={className}>
-                  {content}
-                </Link>
-              );
-            }
-
-            if (item.onClick) {
-              return (
-                <button
-                  key={item.label}
-                  type="button"
-                  onClick={item.onClick}
-                  className={className}
-                >
-                  {content}
-                </button>
-              );
-            }
+        <div className="mt-7 flex h-36 items-end gap-1.5">
+          {ratingSteps.map((rating) => {
+            const count = counts.get(rating) ?? 0;
+            const height =
+              count === 0 ? 4 : Math.max(14, (count / maximumCount) * 100);
 
             return (
-              <article
-                key={item.label}
-                className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5"
+              <button
+                key={rating}
+                type="button"
+                onClick={() => {
+                  onRatingSelect(rating);
+                }}
+                className="group relative flex h-full min-w-0 flex-1 cursor-pointer items-end rounded-t-lg outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#101015]"
+                aria-label={`${formatRating(rating)} ulduz: ${count} oyun`}
               >
-                {content}
-              </article>
+                <span
+                  className={`w-full rounded-t-lg transition group-hover:-translate-y-1 group-focus-visible:-translate-y-1 ${
+                    count > 0
+                      ? "bg-gradient-to-t from-violet-600 to-fuchsia-400"
+                      : "bg-white/[0.06]"
+                  }`}
+                  style={{ height: `${height}%` }}
+                />
+                <span className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/[0.1] bg-[#181820] px-2.5 py-1.5 text-[11px] font-semibold text-zinc-100 shadow-xl group-hover:block group-focus-visible:block">
+                  {formatRating(rating)}★ · {count} oyun
+                </span>
+              </button>
             );
           })}
         </div>
-
-        <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.18em] text-fuchsia-300">
-                Puan qrafiki
-              </p>
-              <p className="mt-2 text-sm text-zinc-500">
-                Rəy yazılıb-yazılmamasından asılı olmayaraq verilən bütün puanlar.
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="flex items-center justify-end gap-1 text-2xl font-bold text-white">
-                {profile.statistics.averageRating === null
-                  ? "—"
-                  : profile.statistics.averageRating.toFixed(1)}
-                <Star size={16} className="fill-fuchsia-300 text-fuchsia-300" />
-              </p>
-              <p className="mt-1 text-xs text-zinc-600">
-                {profile.statistics.ratingCount} puan
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-7 flex h-36 items-end gap-1.5">
-            {ratingSteps.map((rating) => {
-              const count = counts.get(rating) ?? 0;
-              const height =
-                count === 0 ? 4 : Math.max(14, (count / maximumCount) * 100);
-
-              return (
-                <button
-                  key={rating}
-                  type="button"
-                  onClick={() => {
-                    onRatingSelect(rating);
-                  }}
-                  className="group relative flex h-full min-w-0 flex-1 cursor-pointer items-end rounded-t-lg outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#101015]"
-                  aria-label={`${formatRating(rating)} ulduz: ${count} oyun`}
-                >
-                  <span
-                    className={`w-full rounded-t-lg transition group-hover:-translate-y-1 group-focus-visible:-translate-y-1 ${
-                      count > 0
-                        ? "bg-gradient-to-t from-violet-600 to-fuchsia-400"
-                        : "bg-white/[0.06]"
-                    }`}
-                    style={{ height: `${height}%` }}
-                  />
-                  <span className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/[0.1] bg-[#181820] px-2.5 py-1.5 text-[11px] font-semibold text-zinc-100 shadow-xl group-hover:block group-focus-visible:block">
-                    {formatRating(rating)}★ · {count} oyun
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-          <div className="mt-2 flex justify-between text-[10px] text-zinc-600">
-            <span>0.5★</span>
-            <span>5★</span>
-          </div>
-        </section>
+        <div className="mt-2 flex justify-between text-[10px] text-zinc-600">
+          <span>0.5★</span>
+          <span>5★</span>
+        </div>
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.35fr_0.95fr]">
@@ -745,7 +656,7 @@ export function ProfileOverview({
         </div>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-2">
+      <section className={`grid gap-5 ${canViewFavorites ? "xl:grid-cols-2" : ""}`}>
         <GamePreviewPanel
           title="Son oynanan oyunlar"
           description="İstifadəçinin ən son tamamladığı 4 oyun."
@@ -755,14 +666,16 @@ export function ProfileOverview({
           onOpenAll={onOpenRecentPlayed}
         />
 
-        <GamePreviewPanel
-          title="Sevimli oyunlar"
-          description="İstifadəçinin ən son sevimlilərə əlavə etdiyi 4 oyun."
-          games={favoritePreviewGames}
-          isLoading={favoriteGamesLoading}
-          emptyMessage="Hələ sevimli oyun yoxdur."
-          allHref={favoritesHref}
-        />
+        {canViewFavorites && (
+          <GamePreviewPanel
+            title="Sevimli oyunlar"
+            description="Yalnız sənə görünən sevimli oyun kolleksiyası."
+            games={favoritePreviewGames}
+            isLoading={favoriteGamesLoading}
+            emptyMessage="Hələ sevimli oyun yoxdur."
+            onOpenAll={onOpenFavorites}
+          />
+        )}
       </section>
 
       {selectedPlaytimePoint && (

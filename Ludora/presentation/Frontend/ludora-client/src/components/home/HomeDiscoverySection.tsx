@@ -8,21 +8,25 @@ import {
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { resolveAssetUrl } from "../../lib/helpers";
-import type { GameListItemDTO } from "../../types/home";
+import type {
+  GameListItemDTO,
+  HomeComingSoonGameDTO,
+} from "../../types/home";
 
-const releaseDateFormatter = new Intl.DateTimeFormat(
-  "az-AZ",
-  {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  },
-);
+type DiscoveryGame =
+  | GameListItemDTO
+  | HomeComingSoonGameDTO;
 
 interface DiscoveryGameCardProps {
-  game: GameListItemDTO;
+  game: DiscoveryGame;
   index: number;
   variant: "trending" | "comingSoon";
+}
+
+function isSteamComingSoonGame(
+  game: DiscoveryGame,
+): game is HomeComingSoonGameDTO {
+  return "steamAppId" in game;
 }
 
 function getReleaseDateValue(
@@ -35,6 +39,17 @@ function getReleaseDateValue(
   const value = new Date(`${releaseDate}T00:00:00`);
 
   return Number.isNaN(value.getTime()) ? null : value;
+}
+
+function formatReleaseDate(value: Date): string {
+  const day = String(value.getDate()).padStart(2, "0");
+  const month = String(value.getMonth() + 1).padStart(
+    2,
+    "0",
+  );
+  const year = value.getFullYear();
+
+  return `${day}.${month}.${year}`;
 }
 
 function getComingSoonLabel(
@@ -69,7 +84,7 @@ function getComingSoonLabel(
 }
 
 function getReleaseMetadata(
-  game: GameListItemDTO,
+  game: DiscoveryGame,
   variant: DiscoveryGameCardProps["variant"],
 ): string {
   if (variant === "comingSoon") {
@@ -78,11 +93,14 @@ function getReleaseMetadata(
     );
 
     return releaseDate
-      ? releaseDateFormatter.format(releaseDate)
+      ? formatReleaseDate(releaseDate)
       : "Tarix açıqlanmayıb";
   }
 
-  const primaryPlatform = game.platforms[0]?.name;
+  const primaryPlatform =
+    "platforms" in game
+      ? game.platforms[0]?.name
+      : undefined;
 
   if (primaryPlatform) {
     return primaryPlatform;
@@ -114,82 +132,102 @@ function DiscoveryGameCard({
     coverUrl !== failedCoverUrl;
 
   const isTrending = variant === "trending";
+  const wrapperClassName =
+    "home-discovery-game-card group block min-w-0";
+
+  const card = (
+    <article className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#111116] transition duration-300 hover:-translate-y-1 hover:border-violet-400/30 hover:shadow-2xl hover:shadow-violet-950/20">
+      <div className="relative aspect-[3/4] overflow-hidden bg-gradient-to-br from-zinc-800 to-zinc-950">
+        <span
+          className={`absolute left-2.5 top-2.5 z-10 inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold backdrop-blur-md ${
+            isTrending
+              ? "border-orange-300/20 bg-orange-500/15 text-orange-200"
+              : "border-white/20 bg-[#09090c]/95 text-white shadow-[0_4px_14px_rgba(0,0,0,0.75)]"
+          }`}
+        >
+          {isTrending ? (
+            <>
+              <Flame size={11} />
+              #{index + 1}
+            </>
+          ) : (
+            <>
+              <CalendarClock size={11} />
+              {getComingSoonLabel(game.releaseDate)}
+            </>
+          )}
+        </span>
+
+        {shouldShowCover ? (
+          <img
+            src={coverUrl}
+            alt={`${game.title} oyun örtüyü`}
+            loading="lazy"
+            className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            onError={() => {
+              setFailedCoverUrl(coverUrl);
+            }}
+          />
+        ) : (
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center text-zinc-600">
+            <Gamepad2 size={30} />
+
+            <span className="line-clamp-2 text-xs font-medium">
+              {game.title}
+            </span>
+          </div>
+        )}
+
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#09090c]/85 via-transparent to-transparent" />
+
+        <ArrowUpRight
+          size={17}
+          className="absolute bottom-3 right-3 text-white/0 transition duration-300 group-hover:text-white"
+        />
+      </div>
+
+      <div className="p-3.5">
+        <h3
+          className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-zinc-100"
+          title={game.title}
+        >
+          {game.title}
+        </h3>
+
+        <div className="mt-2 flex min-w-0 items-center gap-1.5 text-[11px] text-zinc-500">
+          <CalendarDays
+            size={12}
+            className="shrink-0"
+          />
+
+          <span className="truncate">
+            {getReleaseMetadata(game, variant)}
+          </span>
+        </div>
+      </div>
+    </article>
+  );
+
+  if (isSteamComingSoonGame(game)) {
+    return (
+      <a
+        href={game.storeUrl}
+        target="_blank"
+        rel="noreferrer"
+        className={wrapperClassName}
+        aria-label={`${game.title} oyununu Steam-də aç`}
+      >
+        {card}
+      </a>
+    );
+  }
 
   return (
     <Link
       to={`/games/${game.source}/${game.id}`}
-      className="home-discovery-game-card group block min-w-0"
+      className={wrapperClassName}
     >
-      <article className="overflow-hidden rounded-2xl border border-white/[0.07] bg-[#111116] transition duration-300 hover:-translate-y-1 hover:border-violet-400/30 hover:shadow-2xl hover:shadow-violet-950/20">
-        <div className="relative aspect-[3/4] overflow-hidden bg-gradient-to-br from-zinc-800 to-zinc-950">
-          <span
-            className={`absolute left-2.5 top-2.5 z-10 inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold backdrop-blur-md ${
-              isTrending
-                ? "border-orange-300/20 bg-orange-500/15 text-orange-200"
-                : "border-violet-300/20 bg-violet-500/20 text-violet-100"
-            }`}
-          >
-            {isTrending ? (
-              <>
-                <Flame size={11} />
-                #{index + 1}
-              </>
-            ) : (
-              <>
-                <CalendarClock size={11} />
-                {getComingSoonLabel(game.releaseDate)}
-              </>
-            )}
-          </span>
-
-          {shouldShowCover ? (
-            <img
-              src={coverUrl}
-              alt={`${game.title} oyun örtüyü`}
-              loading="lazy"
-              className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
-              onError={() => {
-                setFailedCoverUrl(coverUrl);
-              }}
-            />
-          ) : (
-            <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center text-zinc-600">
-              <Gamepad2 size={30} />
-
-              <span className="line-clamp-2 text-xs font-medium">
-                {game.title}
-              </span>
-            </div>
-          )}
-
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#09090c]/85 via-transparent to-transparent" />
-
-          <ArrowUpRight
-            size={17}
-            className="absolute bottom-3 right-3 text-white/0 transition duration-300 group-hover:text-white"
-          />
-        </div>
-
-        <div className="p-3.5">
-          <h3
-            className="line-clamp-2 min-h-10 text-sm font-semibold leading-5 text-zinc-100"
-            title={game.title}
-          >
-            {game.title}
-          </h3>
-
-          <div className="mt-2 flex min-w-0 items-center gap-1.5 text-[11px] text-zinc-500">
-            <CalendarDays
-              size={12}
-              className="shrink-0"
-            />
-
-            <span className="truncate">
-              {getReleaseMetadata(game, variant)}
-            </span>
-          </div>
-        </div>
-      </article>
+      {card}
     </Link>
   );
 }
@@ -218,7 +256,7 @@ interface DiscoveryRailProps {
   title: string;
   eyebrow: string;
   description: string;
-  games: GameListItemDTO[];
+  games: DiscoveryGame[];
   variant: DiscoveryGameCardProps["variant"];
   isLoading: boolean;
 }
@@ -265,7 +303,11 @@ function DiscoveryRail({
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {games.map((game, index) => (
             <DiscoveryGameCard
-              key={`${variant}-${game.source}-${game.id}`}
+              key={
+                isSteamComingSoonGame(game)
+                  ? `comingSoon-steam-${game.steamAppId}`
+                  : `${variant}-${game.source}-${game.id}`
+              }
               game={game}
               index={index}
               variant={variant}
@@ -279,7 +321,7 @@ function DiscoveryRail({
 
 interface HomeDiscoverySectionProps {
   trendingGames: GameListItemDTO[];
-  comingSoonGames: GameListItemDTO[];
+  comingSoonGames: HomeComingSoonGameDTO[];
   isLoading: boolean;
   isError: boolean;
 }
@@ -315,7 +357,7 @@ export function HomeDiscoverySection({
             <DiscoveryRail
               eyebrow="Buraxılışa hazırlaş"
               title="Tezliklə çıxacaq"
-              description="Növbəti bir il ərzində çıxacaq və oyunçular tərəfindən ən çox gözlənilən oyunlar."
+              description="Steam-də ən çox istək siyahısına əlavə edilən və növbəti bir il ərzində çıxacaq oyunlar."
               games={comingSoonGames}
               variant="comingSoon"
               isLoading={isLoading}

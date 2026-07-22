@@ -2,6 +2,7 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
+using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
@@ -279,6 +280,9 @@ public sealed class AdminUserReportService : IAdminUserReportService
             .FirstOrDefaultAsync(x => x.Id == reportId, cancellationToken)
             ?? throw new NotFoundException("Şikayət tapılmadı.");
 
+        var previousStatus = report.Status;
+        var now = DateTime.UtcNow;
+
         report.Status = dto.Status;
         report.AdminNote = adminNote;
 
@@ -290,8 +294,24 @@ public sealed class AdminUserReportService : IAdminUserReportService
         else
         {
             report.ReviewedByUserId = adminUserId;
-            report.ReviewedAtUtc = DateTime.UtcNow;
+            report.ReviewedAtUtc = now;
         }
+
+        var auditLog = new ModeratorActionLog
+        {
+            AdminUserId = adminUserId,
+            TargetUserId = report.ReportedUserId,
+            UserReportId = report.Id,
+            ActionType = ModeratorActionType.ReportStatusChanged,
+            PreviousReportStatus = previousStatus,
+            NewReportStatus = dto.Status,
+            Reason = adminNote,
+            CreatedAtUtc = now
+        };
+
+        await _context.ModeratorActionLogs.AddAsync(
+            auditLog,
+            cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
 
@@ -345,6 +365,10 @@ public sealed class AdminUserReportService : IAdminUserReportService
             Category = x.Category,
             Description = x.Description,
             EvidenceImageUrl = x.EvidenceImageStorageKey,
+            ReportedContentType = x.ReportedContentType,
+            ReportedContentId = x.ReportedContentId,
+            ReportedContentSnapshot = x.ReportedContentSnapshot,
+            ReportedContentUrl = x.ReportedContentUrl,
             Status = x.Status,
             CreatedAtUtc = x.CreatedAtUtc,
             ReviewedByUserId = x.ReviewedByUserId,

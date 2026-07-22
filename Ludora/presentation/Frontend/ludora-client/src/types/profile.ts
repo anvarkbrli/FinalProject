@@ -10,6 +10,8 @@ export type SocialPlatform =
   | "Twitch"
   | "YouTube"
   | "Instagram"
+  | "Spotify"
+  | "Letterboxd"
   | "GitHub"
   | "TikTok"
   | "Reddit"

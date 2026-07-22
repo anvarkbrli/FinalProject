@@ -32,6 +32,8 @@ public sealed class UserReportsController : ControllerBase
         Guid reportedUserId,
         [FromForm] Ludora.Domain.Enums.UserReportCategory category,
         [FromForm] string? description,
+        [FromForm] Ludora.Domain.Enums.UserReportContentType reportedContentType,
+        [FromForm] long? reportedContentId,
         IFormFile? evidenceImage,
         CancellationToken cancellationToken)
     {
@@ -46,6 +48,8 @@ public sealed class UserReportsController : ControllerBase
             {
                 Category = category,
                 Description = description,
+                ReportedContentType = reportedContentType,
+                ReportedContentId = reportedContentId,
                 EvidenceImage = CreateEvidenceUpload(
                     evidenceImage,
                     evidenceStream)

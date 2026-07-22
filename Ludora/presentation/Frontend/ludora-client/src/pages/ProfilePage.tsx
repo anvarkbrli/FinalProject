@@ -13,7 +13,6 @@ import {
   ChevronDown,
   Clock3,
   Eye,
-  Flag,
   Gamepad2,
   Heart,
   History,
@@ -24,11 +23,9 @@ import {
   LockKeyhole,
   MessageCircle,
   MessageSquareText,
-  MoreHorizontal,
   Pencil,
   Plus,
   Send,
-  Settings,
   SlidersHorizontal,
   Star,
   Trash2,
@@ -41,7 +38,6 @@ import {
 import {
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import {
@@ -58,7 +54,7 @@ import { GameListEditorModal } from "../components/lists/GameListEditorModal";
 import { ProfileActivityFeed } from "../components/profile/ProfileActivityFeed";
 import { ProfileGamesGallery } from "../components/profile/ProfileGamesGallery";
 import { ProfileOverview } from "../components/profile/ProfileOverview";
-import { UserReportModal } from "../components/profile/UserReportModal";
+import { ProfileSteamLibrary } from "../components/profile/ProfileSteamLibrary";
 import { SocialPlatformIcon } from "../components/profile/SocialPlatformIcon";
 import { ReviewCommentsPanel } from "../components/reviews/ReviewCommentsPanel";
 import { ReviewLikesModal } from "../components/reviews/ReviewLikesModal";
@@ -80,6 +76,11 @@ import {
   unlikeReview,
 } from "../services/reviewsService";
 import {
+  getSteamOwnedGames,
+  syncSteamOwnedGames,
+} from "../services/steamService";
+import {
+  blockUser,
   createPost,
   deletePost,
   followUser,
@@ -120,8 +121,8 @@ type ProfileTab =
   | "posts"
   | "lists"
   | "reviews"
+  | "owned-games"
   | "wishlist"
-  | "favorites"
   | "feed";
 
 type ConnectionModal =
@@ -166,15 +167,15 @@ const profileTabs: Array<{
     icon: Star,
   },
   {
+    id: "owned-games",
+    label: "Sahib olunanlar",
+    icon: ListOrdered,
+  },
+  {
     id: "wishlist",
     label: "Wishlist",
     icon: Bookmark,
     ownerOnly: true,
-  },
-  {
-    id: "favorites",
-    label: "Favorilər",
-    icon: Heart,
   },
   {
     id: "feed",
@@ -434,11 +435,6 @@ export function ProfilePage() {
     useState<ConnectionModal>(null);
   const [notice, setNotice] =
     useState<NoticeState | null>(null);
-  const [isProfileActionsOpen, setIsProfileActionsOpen] =
-    useState(false);
-  const [isReportModalOpen, setIsReportModalOpen] =
-    useState(false);
-  const profileActionsRef = useRef<HTMLDivElement>(null);
   const [newPostContent, setNewPostContent] =
     useState("");
   const [newPostImage, setNewPostImage] =
@@ -471,6 +467,8 @@ export function ProfilePage() {
     useState(1);
   const [favoritesPage, setFavoritesPage] =
     useState(1);
+  const [isFavoritesModalOpen, setIsFavoritesModalOpen] =
+    useState(false);
   const [gamesPage, setGamesPage] = useState(1);
   const [gamesSearch, setGamesSearch] = useState("");
   const [gamesGenre, setGamesGenre] = useState<string | null>(null);
@@ -499,25 +497,24 @@ export function ProfilePage() {
   const editingPostImagePreview = useObjectUrl(editingPostImage);
 
   useEffect(() => {
-    if (!isProfileActionsOpen) {
-      return;
-    }
+    if (!isFavoritesModalOpen) return;
 
-    const handlePointerDown = (event: PointerEvent) => {
-      if (
-        profileActionsRef.current &&
-        !profileActionsRef.current.contains(event.target as Node)
-      ) {
-        setIsProfileActionsOpen(false);
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsFavoritesModalOpen(false);
       }
     };
 
-    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleEscape);
     };
-  }, [isProfileActionsOpen]);
+  }, [isFavoritesModalOpen]);
 
   const isAuthenticated =
     isAuthSessionValid(
@@ -649,6 +646,7 @@ export function ProfilePage() {
       }),
     enabled:
       profile !== undefined &&
+      isOwnProfile &&
       visibleActiveTab === "overview",
     staleTime: 2 * 60 * 1000,
   });
@@ -718,7 +716,45 @@ export function ProfilePage() {
       }),
     enabled:
       profile !== undefined &&
-      visibleActiveTab === "favorites",
+      isOwnProfile &&
+      isFavoritesModalOpen,
+  });
+
+  const ownedGamesQuery = useQuery({
+    queryKey: ["steam-owned-games", profile?.id],
+    queryFn: () => getSteamOwnedGames(profile!.id, isOwnProfile),
+    enabled:
+      profile !== undefined &&
+      visibleActiveTab === "owned-games",
+    staleTime: 2 * 60 * 1000,
+  });
+
+  const steamSyncMutation = useMutation({
+    mutationFn: syncSteamOwnedGames,
+    onSuccess: async (result) => {
+      setNotice({
+        type: "success",
+        message: `Steam kitabxanası yeniləndi. ${result.createdAutoLogCount} yeni avto-log yaradıldı, ${result.updatedAutoLogCount} avto-log yeniləndi.`,
+      });
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["steam-owned-games", profile?.id] }),
+        queryClient.invalidateQueries({ queryKey: ["user-profile", userName] }),
+        queryClient.invalidateQueries({ queryKey: ["user-profile-games", profile?.id] }),
+        queryClient.invalidateQueries({ queryKey: ["user-profile-recent-played-games", profile?.id] }),
+        queryClient.invalidateQueries({ queryKey: ["user-playtime-statistics", profile?.id] }),
+        queryClient.invalidateQueries({ queryKey: ["user-reviews", profile?.id] }),
+      ]);
+    },
+    onError: (error) => {
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(
+          error,
+          "Steam kitabxanasını sinxronlaşdırmaq mümkün olmadı.",
+        ),
+      });
+    },
   });
 
   const feedQuery = useQuery({
@@ -816,6 +852,24 @@ export function ProfilePage() {
         message: getApiErrorMessage(
           error,
           "İzləməni dayandırmaq mümkün olmadı.",
+        ),
+      });
+    },
+  });
+
+  const blockMutation = useMutation({
+    mutationFn: blockUser,
+    onSuccess: () => {
+      navigate("/", {
+        replace: true,
+      });
+    },
+    onError: (error) => {
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(
+          error,
+          "İstifadəçini bloklamaq mümkün olmadı.",
         ),
       });
     },
@@ -1263,6 +1317,7 @@ export function ProfilePage() {
   const actionIsPending =
     followMutation.isPending ||
     unfollowMutation.isPending ||
+    blockMutation.isPending ||
     removeFollowerMutation.isPending;
 
   const posts = postsQuery.data ?? [];
@@ -1403,9 +1458,8 @@ export function ProfilePage() {
     followMutation.mutate(loadedProfile.id);
   }
 
-  function handleOpenReport() {
+  function handleBlock() {
     setNotice(null);
-    setIsProfileActionsOpen(false);
 
     if (!isAuthenticated) {
       navigate("/login", {
@@ -1416,7 +1470,13 @@ export function ProfilePage() {
       return;
     }
 
-    setIsReportModalOpen(true);
+    const shouldBlock = window.confirm(
+      `${loadedProfile.userName} istifadəçisini bloklamaq istəyirsən? İki tərəf arasındakı izləmə əlaqələri də silinəcək.`,
+    );
+
+    if (shouldBlock) {
+      blockMutation.mutate(loadedProfile.id);
+    }
   }
 
   function handleCreatePost() {
@@ -1575,8 +1635,8 @@ export function ProfilePage() {
                     to="/profile/edit"
                     className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-5 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.09] hover:text-white"
                   >
-                    <Settings size={17} />
-                    Profili düzəlt
+                    <Pencil size={17} />
+                    Redaktə et
                   </Link>
                 ) : (
                   <>
@@ -1611,63 +1671,75 @@ export function ProfilePage() {
                           : "İzlə"}
                     </button>
 
-                    <div
-                      ref={profileActionsRef}
-                      className="relative"
+                    <button
+                      type="button"
+                      onClick={handleBlock}
+                      disabled={actionIsPending}
+                      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-red-400/15 bg-red-500/[0.06] px-4 text-sm font-semibold text-red-300 transition hover:bg-red-500/15 disabled:opacity-60"
                     >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setIsProfileActionsOpen(
-                            (currentValue) => !currentValue,
-                          );
-                        }}
-                        disabled={actionIsPending}
-                        className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.05] text-zinc-300 transition hover:bg-white/[0.09] hover:text-white disabled:opacity-60"
-                        aria-label="Profil əməliyyatlarını aç"
-                        aria-expanded={isProfileActionsOpen}
-                      >
-                        <MoreHorizontal size={20} />
-                      </button>
-
-                      {isProfileActionsOpen && (
-                        <div className="absolute right-0 top-[calc(100%+0.65rem)] z-40 w-52 overflow-hidden rounded-2xl border border-white/[0.09] bg-[#15151b] p-2 shadow-2xl shadow-black/50">
-                          <button
-                            type="button"
-                            disabled
-                            title="Bloklama əməliyyatı bu menyuda sonrakı mərhələdə aktiv ediləcək."
-                            className="flex w-full cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-zinc-600"
-                          >
-                            <Ban size={17} />
-                            Blokla
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={handleOpenReport}
-                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-zinc-300 transition hover:bg-amber-500/[0.09] hover:text-amber-200"
-                          >
-                            <Flag size={17} />
-                            Şikayət et
-                          </button>
-
-                          <button
-                            type="button"
-                            disabled
-                            title="Mesajlaşma funksiyası sonrakı mərhələdə aktiv ediləcək."
-                            className="flex w-full cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-zinc-600"
-                          >
-                            <MessageCircle size={17} />
-                            Mesaj yaz
-                          </button>
-                        </div>
-                      )}
-                    </div>
+                      <Ban size={17} />
+                      Blokla
+                    </button>
                   </>
                 )}
               </div>
             </div>
 
+            <div className="mt-8 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-6 sm:grid-cols-4">
+              <button
+                type="button"
+                onClick={() => setConnectionModal("followers")}
+                className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-left transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                  <Users size={17} />
+                </span>
+                <span className="min-w-0">
+                  <strong className="block text-lg font-bold text-white">{profile.followerCount}</strong>
+                  <span className="block truncate text-xs text-zinc-500 group-hover:text-zinc-300">İzləyici</span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setConnectionModal("following")}
+                className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-left transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                  <UserPlus size={17} />
+                </span>
+                <span className="min-w-0">
+                  <strong className="block text-lg font-bold text-white">{profile.followingCount}</strong>
+                  <span className="block truncate text-xs text-zinc-500 group-hover:text-zinc-300">İzlənilən</span>
+                </span>
+              </button>
+
+              <Link
+                to="?tab=posts#posts"
+                className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                  <MessageSquareText size={17} />
+                </span>
+                <span className="min-w-0">
+                  <strong className="block text-lg font-bold text-white">{profile.postCount}</strong>
+                  <span className="block truncate text-xs text-zinc-500 group-hover:text-zinc-300">Post sayı</span>
+                </span>
+              </Link>
+
+              <Link
+                to="?tab=reviews#reviews"
+                className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
+              >
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                  <Star size={17} />
+                </span>
+                <span className="min-w-0">
+                  <strong className="block text-lg font-bold text-white">{profile.statistics.reviewCount}</strong>
+                  <span className="block truncate text-xs text-zinc-500 group-hover:text-zinc-300">Rəy sayı</span>
+                </span>
+              </Link>
+            </div>
           </div>
         </section>
 
@@ -1725,13 +1797,15 @@ export function ProfilePage() {
             {visibleActiveTab === "overview" && (
               <ProfileOverview
                 profile={profile}
-                postsHref="?tab=posts#posts"
-                reviewsHref="?tab=reviews#reviews"
                 recentPlayedGames={recentPlayedGamesQuery.data?.items ?? []}
                 recentPlayedGamesLoading={recentPlayedGamesQuery.isLoading}
                 favoriteGames={recentFavoriteGamesQuery.data?.items ?? []}
                 favoriteGamesLoading={recentFavoriteGamesQuery.isLoading}
-                favoritesHref="?tab=favorites"
+                canViewFavorites={isOwnProfile}
+                onOpenFavorites={() => {
+                  setFavoritesPage(1);
+                  setIsFavoritesModalOpen(true);
+                }}
                 onOpenRecentPlayed={openRecentlyPlayedGames}
                 onOpenTopGenre={openProfileGamesByGenre}
                 onOpenTopPlatform={openProfileGamesByPlayedPlatform}
@@ -1747,8 +1821,6 @@ export function ProfilePage() {
                     : null
                 }
                 onPlaytimePeriodChange={setPlaytimePeriod}
-                onShowFollowers={() => setConnectionModal("followers")}
-                onShowFollowing={() => setConnectionModal("following")}
                 onRatingSelect={openGamesByRating}
               />
             )}
@@ -1827,6 +1899,21 @@ export function ProfilePage() {
                 onClearFilters={clearGameFilters}
                 onPageChange={setGamesPage}
                 onOpenReview={openProfileReview}
+              />
+            )}
+
+            {visibleActiveTab === "owned-games" && (
+              <ProfileSteamLibrary
+                games={ownedGamesQuery.data ?? []}
+                isLoading={ownedGamesQuery.isLoading}
+                isError={ownedGamesQuery.isError}
+                error={ownedGamesQuery.error}
+                isOwnProfile={isOwnProfile}
+                isSyncing={steamSyncMutation.isPending}
+                onSync={() => {
+                  setNotice(null);
+                  steamSyncMutation.mutate();
+                }}
               />
             )}
 
@@ -2793,18 +2880,6 @@ export function ProfilePage() {
               />
             )}
 
-            {visibleActiveTab === "favorites" && (
-              <ProfileGameCollection
-                kind="favorites"
-                result={favoritesQuery.data}
-                isLoading={favoritesQuery.isLoading}
-                isError={favoritesQuery.isError}
-                error={favoritesQuery.error}
-                page={favoritesPage}
-                onPageChange={setFavoritesPage}
-              />
-            )}
-
             {visibleActiveTab === "feed" &&
               isOwnProfile && storedUser && (
                 <ProfileActivityFeed
@@ -2869,6 +2944,61 @@ export function ProfilePage() {
             createListMutation.mutate(values);
           }}
         />
+      )}
+
+      {isOwnProfile && isFavoritesModalOpen && (
+        <div
+          className="fixed inset-0 z-[85] flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="favorite-games-modal-title"
+          onMouseDown={(event) => {
+            if (event.currentTarget === event.target) {
+              setIsFavoritesModalOpen(false);
+            }
+          }}
+        >
+          <section className="flex max-h-[88vh] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-violet-400/15 bg-[#101015] shadow-2xl shadow-violet-950/40">
+            <div className="flex items-start justify-between gap-4 border-b border-white/[0.07] px-5 py-4 sm:px-6 sm:py-5">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-fuchsia-300">
+                  Şəxsi kolleksiya
+                </p>
+                <h2
+                  id="favorite-games-modal-title"
+                  className="mt-2 flex items-center gap-2 text-xl font-bold text-white"
+                >
+                  <Heart size={19} className="fill-rose-300 text-rose-300" />
+                  Sevimli oyunlar
+                </h2>
+                <p className="mt-2 text-sm text-zinc-500">
+                  Bu siyahı yalnız sənə görünür.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setIsFavoritesModalOpen(false)}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-zinc-400 transition hover:bg-white/[0.08] hover:text-white"
+                aria-label="Sevimli oyunlar pəncərəsini bağla"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="overflow-y-auto p-5 sm:p-6">
+              <ProfileGameCollection
+                kind="favorites"
+                result={favoritesQuery.data}
+                isLoading={favoritesQuery.isLoading}
+                isError={favoritesQuery.isError}
+                error={favoritesQuery.error}
+                page={favoritesPage}
+                onPageChange={setFavoritesPage}
+              />
+            </div>
+          </section>
+        </div>
       )}
 
       {connectionModal && (
@@ -3012,21 +3142,6 @@ export function ProfilePage() {
           </div>
         </div>
       )}
-
-      <UserReportModal
-        isOpen={isReportModalOpen}
-        reportedUserId={loadedProfile.id}
-        reportedUserName={loadedProfile.userName}
-        onClose={() => setIsReportModalOpen(false)}
-        onSubmitted={() => {
-          setIsReportModalOpen(false);
-          setNotice({
-            type: "success",
-            message:
-              "Şikayətin göndərildi və moderasiya növbəsinə əlavə olundu.",
-          });
-        }}
-      />
     </div>
   );
 }

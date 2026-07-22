@@ -89,9 +89,18 @@ export interface AnnouncementDTO {
   updatedAt: string | null;
 }
 
+export interface HomeComingSoonGameDTO {
+  wishlistRank: number;
+  steamAppId: number;
+  title: string;
+  coverImageUrl: string | null;
+  releaseDate: string | null;
+  storeUrl: string;
+}
+
 export interface HomeDiscoveryDTO {
   trendingGames: GameListItemDTO[];
-  comingSoonGames: GameListItemDTO[];
+  comingSoonGames: HomeComingSoonGameDTO[];
   generatedAtUtc: string;
 }
 

@@ -1,0 +1,76 @@
+{
+  "info": {
+    "name": "WellPlayd Steam Integration",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "https://localhost:7286" },
+    { "key": "token", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "steamAppId", "value": "730" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "item": [
+    {
+      "name": "Settings Export",
+      "item": [
+        {
+          "name": "Start Steam Connection",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/settings/export/steam/connect" }
+        },
+        {
+          "name": "Steam Connection Status",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/settings/export/steam/status" }
+        },
+        {
+          "name": "Disconnect Steam",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/settings/export/steam" }
+        }
+      ]
+    },
+    {
+      "name": "Library",
+      "item": [
+        {
+          "name": "Sync Owned Games",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/steam/sync/owned-games" }
+        },
+        {
+          "name": "My Owned Games",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/steam/owned-games?refresh=false" }
+        },
+        {
+          "name": "User Owned Games",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/steam/users/{{userId}}/owned-games" }
+        }
+      ]
+    },
+    {
+      "name": "Discovery and Social",
+      "item": [
+        {
+          "name": "Coming Soon",
+          "auth": { "type": "noauth" },
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/steam/coming-soon?limit=12" }
+        },
+        {
+          "name": "Recent Achievements",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/steam/achievements/{{steamAppId}}/recent?limit=10" }
+        },
+        {
+          "name": "Presence",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/steam/presence" }
+        },
+        {
+          "name": "Sync Friends",
+          "request": { "method": "POST", "url": "{{baseUrl}}/api/steam/friends/sync" }
+        }
+      ]
+    }
+  ]
+}

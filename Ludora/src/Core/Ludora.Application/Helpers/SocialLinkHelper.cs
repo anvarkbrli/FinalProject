@@ -41,7 +41,7 @@ public static class SocialLinkHelper
 
             var platform = DetectPlatform(uri)
                 ?? throw new BadRequestException(
-                    "Dəstəklənməyən sosial linkdir. Steam, Discord, X/Twitter, Twitch, YouTube, Instagram, GitHub, TikTok, Reddit, Xbox, PlayStation və Epic Games linkləri qəbul edilir.");
+                    "Dəstəklənməyən sosial linkdir. Steam, Discord, X/Twitter, Twitch, YouTube, Instagram, Spotify, Letterboxd, GitHub, TikTok, Reddit, Xbox, PlayStation və Epic Games linkləri qəbul edilir.");
 
             if (!usedPlatforms.Add(platform))
                 throw new ConflictException($"{platform} üçün yalnız bir sosial link əlavə etmək olar.");
@@ -85,6 +85,32 @@ public static class SocialLinkHelper
         }
     }
 
+    public static IReadOnlyList<UserSocialLinkDTO> DeserializeWithAutomaticSteam(
+        string? json,
+        string? steamId,
+        string? steamProfileUrl)
+    {
+        var links = Deserialize(json).ToList();
+
+        if (string.IsNullOrWhiteSpace(steamId) ||
+            links.Any(x => x.Platform == SocialPlatform.Steam))
+        {
+            return links;
+        }
+
+        var profileUrl = string.IsNullOrWhiteSpace(steamProfileUrl)
+            ? $"https://steamcommunity.com/profiles/{steamId.Trim()}"
+            : steamProfileUrl.Trim();
+
+        links.Add(new UserSocialLinkDTO
+        {
+            Platform = SocialPlatform.Steam,
+            Url = profileUrl
+        });
+
+        return links;
+    }
+
     private static SocialPlatform? DetectPlatform(Uri uri)
     {
         var host = uri.Host.ToLowerInvariant();
@@ -105,6 +131,12 @@ public static class SocialLinkHelper
 
         if (MatchesHost(host, "instagram.com"))
             return SocialPlatform.Instagram;
+
+        if (MatchesHost(host, "spotify.com"))
+            return SocialPlatform.Spotify;
+
+        if (MatchesHost(host, "letterboxd.com"))
+            return SocialPlatform.Letterboxd;
 
         if (MatchesHost(host, "github.com"))
             return SocialPlatform.GitHub;

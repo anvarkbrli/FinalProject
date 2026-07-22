@@ -14,6 +14,9 @@ public class Review
     public CatalogSource? PlatformSource { get; set; }
     public long? PlatformId { get; set; }
     public int? PlaytimeMinutes { get; set; }
+    public bool IsSteamAutoLogged { get; set; }
+    public bool IsSteamPlaytimeOverridden { get; set; }
+    public bool IsSteamPlayedOnOverridden { get; set; }
     public DateTime CreatedAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
     public bool IsDeleted { get; set; }

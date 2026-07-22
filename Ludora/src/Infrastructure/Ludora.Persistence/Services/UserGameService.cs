@@ -66,6 +66,18 @@ public sealed class UserGameService : IUserGameService
         ArgumentNullException.ThrowIfNull(filter);
         ValidateFilter(filter);
 
+        if (filter.IsFavorite == true && currentUserId != userId)
+        {
+            throw new ForbiddenException(
+                "Sevimli oyunlar yalnız profil sahibinə görünür.");
+        }
+
+        if (filter.IsWishlisted == true && currentUserId != userId)
+        {
+            throw new ForbiddenException(
+                "Wishlist yalnız profil sahibinə görünür.");
+        }
+
         var user = await _context.Users
             .AsNoTracking()
             .Where(x => x.Id == userId)

@@ -13,5 +13,7 @@ public enum SocialPlatform
     Reddit = 9,
     Xbox = 10,
     PlayStation = 11,
-    EpicGames = 12
+    EpicGames = 12,
+    Spotify = 13,
+    Letterboxd = 14
 }

@@ -3,17 +3,21 @@ import {
   ArrowLeft,
   Ban,
   Check,
+  ExternalLink,
+  Gamepad2,
   KeyRound,
   LoaderCircle,
   LockKeyhole,
   Mail,
+  RefreshCw,
   ShieldCheck,
+  Unplug,
   UserCheck,
   UserRoundPen,
   UserX,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
@@ -32,11 +36,32 @@ import {
   unblockUser,
   updateUserSettings,
 } from "../services/settingsService";
+import {
+  disconnectSteam,
+  getSteamConnectionStatus,
+  startSteamConnection,
+  syncSteamOwnedGames,
+} from "../services/steamService";
 import { useAuthStore } from "../stores/authStore";
+import type { SteamConnectionMessage } from "../types/steam";
 
 interface NoticeState {
   type: "success" | "error";
   message: string;
+}
+
+function getInitialSteamNotice(): NoticeState | null {
+  const query = new URLSearchParams(window.location.search);
+
+  if (!query.has("steamSuccess")) return null;
+
+  const success = query.get("steamSuccess") === "true";
+  return {
+    type: success ? "success" : "error",
+    message: success
+      ? `${query.get("steamName") ?? "Steam hesabı"} uğurla bağlandı.`
+      : query.get("steamError") ?? "Steam hesabı bağlanmadı.",
+  };
 }
 
 export function SettingsPage() {
@@ -48,7 +73,7 @@ export function SettingsPage() {
   const [passwordCurrent, setPasswordCurrent] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [notice, setNotice] = useState<NoticeState | null>(null);
+  const [notice, setNotice] = useState<NoticeState | null>(getInitialSteamNotice);
 
   const userQuery = useQuery({
     queryKey: ["current-user"],
@@ -69,6 +94,11 @@ export function SettingsPage() {
   const followRequestsQuery = useQuery({
     queryKey: ["follow-requests"],
     queryFn: getFollowRequests,
+  });
+
+  const steamConnectionQuery = useQuery({
+    queryKey: ["steam-connection"],
+    queryFn: getSteamConnectionStatus,
   });
 
   const privacyMutation = useMutation({
@@ -157,6 +187,104 @@ export function SettingsPage() {
       message: getApiErrorMessage(error, "İstifadəçinin bloku açılmadı."),
     }),
   });
+
+  const steamConnectMutation = useMutation({
+    mutationFn: async (popup: Window) => ({
+      popup,
+      connection: await startSteamConnection(),
+    }),
+    onSuccess: ({ popup, connection }) => {
+      popup.location.href = connection.authorizationUrl;
+    },
+    onError: (error, popup) => {
+      popup.close();
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(error, "Steam bağlantısı başladılmadı."),
+      });
+    },
+  });
+
+  const steamDisconnectMutation = useMutation({
+    mutationFn: disconnectSteam,
+    onSuccess: async () => {
+      setNotice({ type: "success", message: "Steam hesabı ayrıldı." });
+      await queryClient.invalidateQueries({ queryKey: ["steam-connection"] });
+    },
+    onError: (error) => setNotice({
+      type: "error",
+      message: getApiErrorMessage(error, "Steam hesabı ayrıla bilmədi."),
+    }),
+  });
+
+  const steamSyncMutation = useMutation({
+    mutationFn: syncSteamOwnedGames,
+    onSuccess: async (result) => {
+      setNotice({
+        type: "success",
+        message: `Steam kitabxanası sinxronlaşdırıldı: ${result.matchedGameCount} oyun uyğunlaşdırıldı, ${result.updatedReviewPlaytimeCount} oyun saatı Steam məlumatı ilə eyniləşdirildi.`,
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["steam-connection"] }),
+        queryClient.invalidateQueries({ queryKey: ["steam-owned-games"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-profile"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-profile-games"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-profile-recent-played-games"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-playtime-statistics"] }),
+        queryClient.invalidateQueries({ queryKey: ["user-reviews"] }),
+      ]);
+    },
+    onError: (error) => setNotice({
+      type: "error",
+      message: getApiErrorMessage(error, "Steam kitabxanası sinxronlaşdırılmadı."),
+    }),
+  });
+
+  useEffect(() => {
+    const configuredOrigin = import.meta.env.VITE_API_ORIGIN as string | undefined;
+    const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL as string | undefined;
+    const apiOrigin = configuredOrigin
+      ? new URL(configuredOrigin).origin
+      : configuredBaseUrl
+        ? new URL(configuredBaseUrl).origin
+        : null;
+
+    const handleSteamMessage = async (event: MessageEvent<SteamConnectionMessage>) => {
+      if (!apiOrigin || event.origin !== apiOrigin) return;
+      if (event.data?.type !== "wellplayd:steam-link-result") return;
+
+      if (event.data.success) {
+        setNotice({
+          type: "success",
+          message: `${event.data.steamName ?? "Steam hesabı"} uğurla bağlandı.`,
+        });
+        await queryClient.invalidateQueries({ queryKey: ["steam-connection"] });
+        document.getElementById("export")?.scrollIntoView({ behavior: "smooth" });
+        return;
+      }
+
+      setNotice({
+        type: "error",
+        message: event.data.error ?? "Steam hesabı bağlanmadı.",
+      });
+    };
+
+    window.addEventListener("message", handleSteamMessage);
+    return () => window.removeEventListener("message", handleSteamMessage);
+  }, [queryClient]);
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    if (query.get("section") === "export" || query.has("steamSuccess")) {
+      requestAnimationFrame(() => {
+        document.getElementById("export")?.scrollIntoView({ behavior: "smooth" });
+      });
+    }
+
+    if (query.has("steamSuccess")) {
+      void queryClient.invalidateQueries({ queryKey: ["steam-connection"] });
+    }
+  }, [queryClient]);
 
   if (!userQuery.data || settingsQuery.isLoading) {
     return (
@@ -247,6 +375,145 @@ export function SettingsPage() {
           </section>
 
           <NotificationSettingsPanel />
+
+          <section id="export" className="scroll-mt-24 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-300">
+                  <Gamepad2 size={20} />
+                </span>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-600">Export</p>
+                  <h2 className="mt-1 font-semibold text-white">Steam hesabı</h2>
+                  <p className="mt-1 max-w-2xl text-xs leading-5 text-zinc-600">
+                    Steam kitabxananı, oynanma saatlarını, nailiyyətləri və dost uyğunluqlarını WellPlayd profilinə köçür.
+                  </p>
+                </div>
+              </div>
+
+              {steamConnectionQuery.data?.isConnected && (
+                <span className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-400/15 bg-emerald-500/[0.07] px-3 py-1.5 text-xs font-semibold text-emerald-300">
+                  <Check size={15} /> Bağlıdır
+                </span>
+              )}
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+              {steamConnectionQuery.isLoading ? (
+                <div className="flex items-center gap-2 text-sm text-zinc-500">
+                  <LoaderCircle size={17} className="animate-spin" /> Steam statusu yoxlanılır...
+                </div>
+              ) : steamConnectionQuery.data?.isConnected ? (
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-sky-500/10 text-sky-300">
+                      {steamConnectionQuery.data.avatarUrl ? (
+                        <img
+                          src={steamConnectionQuery.data.avatarUrl}
+                          alt="Steam avatar"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <Gamepad2 size={20} />
+                      )}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <Check size={17} className="shrink-0 text-emerald-400" />
+                        <p className="truncate font-semibold text-white">
+                          {steamConnectionQuery.data.steamName ?? "Steam istifadəçisi"}
+                        </p>
+                      </div>
+                      <p className="mt-1 text-xs text-zinc-600">
+                        {steamConnectionQuery.data.lastSyncedAtUtc
+                          ? `Son sync: ${new Date(steamConnectionQuery.data.lastSyncedAtUtc).toLocaleString()}`
+                          : "Kitabxana hələ sinxronlaşdırılmayıb."}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {steamConnectionQuery.data.profileUrl && (
+                      <a
+                        href={steamConnectionQuery.data.profileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/[0.08] px-3 text-xs font-semibold text-zinc-300 transition hover:bg-white/[0.05] hover:text-white"
+                      >
+                        <ExternalLink size={15} /> Profil
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => steamSyncMutation.mutate()}
+                      disabled={steamSyncMutation.isPending}
+                      className="inline-flex h-10 items-center gap-2 rounded-xl bg-sky-500/10 px-3 text-xs font-semibold text-sky-300 transition hover:bg-sky-500/15 disabled:opacity-50"
+                    >
+                      {steamSyncMutation.isPending ? (
+                        <LoaderCircle size={15} className="animate-spin" />
+                      ) : (
+                        <RefreshCw size={15} />
+                      )}
+                      Kitabxananı sync et
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => steamDisconnectMutation.mutate()}
+                      disabled={steamDisconnectMutation.isPending}
+                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-red-400/10 bg-red-500/[0.04] px-3 text-xs font-semibold text-red-300 transition hover:bg-red-500/[0.08] disabled:opacity-50"
+                    >
+                      {steamDisconnectMutation.isPending ? (
+                        <LoaderCircle size={15} className="animate-spin" />
+                      ) : (
+                        <Unplug size={15} />
+                      )}
+                      Ayır
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-200">Steam hesabı bağlı deyil</p>
+                    <p className="mt-1 text-xs leading-5 text-zinc-600">
+                      Bağlantı Steam-in rəsmi OpenID səhifəsində təsdiqlənəcək. Steam şifrən WellPlayd-ə göndərilmir.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const popup = window.open(
+                        "about:blank",
+                        "wellplayd-steam-connect",
+                        "popup=yes,width=720,height=760",
+                      );
+
+                      if (!popup) {
+                        setNotice({
+                          type: "error",
+                          message: "Brauzer Steam bağlantı pəncərəsini blokladı. Popup icazəsini aktiv edin.",
+                        });
+                        return;
+                      }
+
+                      popup.document.title = "Steam bağlantısı";
+                      popup.document.body.textContent = "Steam bağlantısı hazırlanır...";
+                      steamConnectMutation.mutate(popup);
+                    }}
+                    disabled={steamConnectMutation.isPending}
+                    className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white transition hover:bg-sky-500 disabled:opacity-50"
+                  >
+                    {steamConnectMutation.isPending ? (
+                      <LoaderCircle size={17} className="animate-spin" />
+                    ) : (
+                      <Gamepad2 size={17} />
+                    )}
+                    Steam ilə bağlan
+                  </button>
+                </div>
+              )}
+            </div>
+          </section>
 
           <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
             <div className="flex items-center gap-3">

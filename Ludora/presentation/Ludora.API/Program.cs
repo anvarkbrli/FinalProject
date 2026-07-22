@@ -10,6 +10,7 @@ using Ludora.Application.Settings;
 using Ludora.Domain.Entities.User;
 using Ludora.Infrastructure.Email;
 using Ludora.Infrastructure.IGDB;
+using Ludora.Infrastructure.Steam;
 using Ludora.Persistence.ServiceRegistration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -164,7 +165,6 @@ public class Program
                     QueueLimit = 0,
                     AutoReplenishment = true
                 }));
-
             options.AddPolicy("UserReports", context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 _ => new FixedWindowRateLimiterOptions
@@ -174,11 +174,23 @@ public class Program
                     QueueLimit = 0,
                     AutoReplenishment = true
                 }));
+            options.AddPolicy("SteamSync", context => RateLimitPartition.GetFixedWindowLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                context.Connection.RemoteIpAddress?.ToString() ??
+                "unknown",
+                _ => new FixedWindowRateLimiterOptions
+                {
+                    PermitLimit = 10,
+                    Window = TimeSpan.FromMinutes(1),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                }));
         });
 
         builder.Services.AddPersistenceServices(builder.Configuration);
         builder.Services.AddEmailInfrastructure(builder.Configuration);
         builder.Services.AddIgdbIntegration(builder.Configuration);
+        builder.Services.AddSteamIntegration(builder.Configuration);
 
         var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
         builder.Services.AddCors(options => options.AddPolicy("Frontend", policy =>
@@ -204,8 +216,8 @@ public class Program
         app.UseHttpsRedirection();
         app.UseStaticFiles();
         app.UseCors("Frontend");
-        app.UseRateLimiter();
         app.UseAuthentication();
+        app.UseRateLimiter();
         app.UseAuthorization();
         app.MapControllers();
         app.MapHub<NotificationHub>("/hubs/notifications");

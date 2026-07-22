@@ -54,6 +54,23 @@ export function SocialPlatformIcon({
         </BrandSvg>
       );
 
+    case "Spotify":
+      return (
+        <BrandSvg size={size}>
+          <circle cx="12" cy="12" r="10" fill="currentColor" />
+          <path d="M7 9.2c3.6-1 7.8-.7 10.8.9M7.8 12.5c3-0.8 6.4-.5 9 .8M8.5 15.5c2.4-.6 5-.4 7 .6" stroke="#0b0b10" strokeWidth="1.7" strokeLinecap="round" />
+        </BrandSvg>
+      );
+
+    case "Letterboxd":
+      return (
+        <BrandSvg size={size}>
+          <circle cx="8" cy="12" r="5" fill="#FF8000" />
+          <circle cx="16" cy="12" r="5" fill="#40BCF4" />
+          <path d="M12 7a5 5 0 0 1 0 10 5 5 0 0 1 0-10Z" fill="#00E054" />
+        </BrandSvg>
+      );
+
     case "EpicGames":
       return (
         <BrandSvg size={size} viewBox="0 0 28 32">

@@ -271,6 +271,9 @@ namespace Ludora.Persistence.Migrations
                         .HasMaxLength(250)
                         .HasColumnType("nvarchar(250)");
 
+                    b.Property<int?>("SteamAppId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
@@ -279,6 +282,10 @@ namespace Ludora.Persistence.Migrations
                     b.HasIndex("Slug")
                         .IsUnique()
                         .HasFilter("[Slug] IS NOT NULL");
+
+                    b.HasIndex("SteamAppId")
+                        .IsUnique()
+                        .HasFilter("[SteamAppId] IS NOT NULL");
 
                     b.ToTable("Games");
                 });
@@ -784,6 +791,28 @@ namespace Ludora.Persistence.Migrations
                     b.Property<string>("SocialLinksJson")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<string>("SteamAvatarUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("SteamDisplayName")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SteamId")
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("SteamLastSyncedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("SteamLinkedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SteamProfileUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("nvarchar(max)");
 
@@ -812,9 +841,161 @@ namespace Ludora.Persistence.Migrations
                         .IsUnique()
                         .HasFilter("[UserName] IS NOT NULL");
 
+                    b.HasIndex("SteamId")
+                        .IsUnique()
+                        .HasFilter("[SteamId] IS NOT NULL");
+
                     b.HasIndex("IsPermanentlyBanned", "BannedUntilUtc");
 
                     b.ToTable("AspNetUsers", (string)null);
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.ModeratorActionLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("ActionType")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("AdminUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("NewReportStatus")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PreviousReportStatus")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("TargetUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("UserBanHistoryId")
+                        .HasColumnType("int");
+
+                    b.Property<long?>("UserReportId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int?>("UserWarningId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AdminUserId", "CreatedAtUtc");
+
+                    b.HasIndex("TargetUserId", "CreatedAtUtc");
+
+                    b.HasIndex("UserBanHistoryId");
+
+                    b.HasIndex("UserReportId", "CreatedAtUtc");
+
+                    b.HasIndex("UserWarningId");
+
+                    b.ToTable("ModeratorActionLogs", t =>
+                        {
+                            t.HasCheckConstraint("CK_ModeratorActionLogs_ActionType", "[ActionType] BETWEEN 1 AND 5");
+                        });
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.UserReport", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("AdminNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("EvidenceImageStorageKey")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<long?>("ReportedContentId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("ReportedContentSnapshot")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("ReportedContentType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<string>("ReportedContentUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<Guid>("ReportedUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ReporterUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ReviewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ReviewedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Status")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ReportedContentType", "ReportedContentId");
+
+                    b.HasIndex("ReportedUserId", "Category");
+
+                    b.HasIndex("ReportedUserId", "Status", "CreatedAtUtc");
+
+                    b.HasIndex("ReporterUserId", "CreatedAtUtc");
+
+                    b.HasIndex("ReporterUserId", "ReportedUserId", "ReportedContentType", "ReportedContentId")
+                        .IsUnique()
+                        .HasFilter("[Status] IN (0, 1)");
+
+                    b.HasIndex("ReviewedByUserId");
+
+                    b.ToTable("UserReports", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserReports_Category", "[Category] BETWEEN 1 AND 9");
+
+                            t.HasCheckConstraint("CK_UserReports_ContentReference", "([ReportedContentType] = 0 AND [ReportedContentId] IS NULL) OR ([ReportedContentType] <> 0 AND [ReportedContentId] IS NOT NULL)");
+
+                            t.HasCheckConstraint("CK_UserReports_ContentType", "[ReportedContentType] BETWEEN 0 AND 7");
+
+                            t.HasCheckConstraint("CK_UserReports_DifferentUsers", "[ReporterUserId] <> [ReportedUserId]");
+
+                            t.HasCheckConstraint("CK_UserReports_Evidence", "[Description] IS NOT NULL OR [EvidenceImageStorageKey] IS NOT NULL OR [ReportedContentId] IS NOT NULL");
+
+                            t.HasCheckConstraint("CK_UserReports_Status", "[Status] BETWEEN 0 AND 3");
+                        });
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.Notification", b =>
@@ -1200,6 +1381,21 @@ namespace Ludora.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsSteamAutoLogged")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsSteamPlayedOnOverridden")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<bool>("IsSteamPlaytimeOverridden")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<long?>("PlatformId")
                         .HasColumnType("bigint");
 
@@ -1492,75 +1688,6 @@ namespace Ludora.Persistence.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Ludora.Domain.Entities.User.UserReport", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
-
-                    b.Property<string>("AdminNote")
-                        .HasMaxLength(1000)
-                        .HasColumnType("nvarchar(1000)");
-
-                    b.Property<int>("Category")
-                        .HasColumnType("int");
-
-                    b.Property<DateTime>("CreatedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<string>("Description")
-                        .HasMaxLength(2000)
-                        .HasColumnType("nvarchar(2000)");
-
-                    b.Property<string>("EvidenceImageStorageKey")
-                        .HasMaxLength(2048)
-                        .HasColumnType("nvarchar(2048)");
-
-                    b.Property<Guid>("ReportedUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<Guid>("ReporterUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<DateTime?>("ReviewedAtUtc")
-                        .HasColumnType("datetime2");
-
-                    b.Property<Guid?>("ReviewedByUserId")
-                        .HasColumnType("uniqueidentifier");
-
-                    b.Property<int>("Status")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("int")
-                        .HasDefaultValue(0);
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ReportedUserId", "Category");
-
-                    b.HasIndex("ReportedUserId", "Status", "CreatedAtUtc");
-
-                    b.HasIndex("ReporterUserId", "CreatedAtUtc");
-
-                    b.HasIndex("ReporterUserId", "ReportedUserId")
-                        .IsUnique()
-                        .HasFilter("[Status] IN (0, 1)");
-
-                    b.HasIndex("ReviewedByUserId");
-
-                    b.ToTable("UserReports", t =>
-                        {
-                            t.HasCheckConstraint("CK_UserReports_Category", "[Category] BETWEEN 1 AND 9");
-
-                            t.HasCheckConstraint("CK_UserReports_DifferentUsers", "[ReporterUserId] <> [ReportedUserId]");
-
-                            t.HasCheckConstraint("CK_UserReports_Evidence", "[Description] IS NOT NULL OR [EvidenceImageStorageKey] IS NOT NULL");
-
-                            t.HasCheckConstraint("CK_UserReports_Status", "[Status] BETWEEN 0 AND 3");
-                        });
-                });
-
             modelBuilder.Entity("Ludora.Domain.Entities.User.UserWarning", b =>
                 {
                     b.Property<int>("Id")
@@ -1781,6 +1908,237 @@ namespace Ludora.Persistence.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.Steam.SteamFriendSnapshot", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("FriendSteamId")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<DateTime?>("FriendSinceUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("LastSeenAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "FriendSteamId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "IsActive");
+
+                    b.ToTable("SteamFriendSnapshots");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Steam.SteamLinkChallenge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ConsumedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("StateHash")
+                        .IsRequired()
+                        .IsFixedLength()
+                        .HasMaxLength(64)
+                        .HasColumnType("nchar(64)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StateHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId", "ExpiresAtUtc");
+
+                    b.ToTable("SteamLinkChallenges");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Steam.SteamOwnedGame", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("IconUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("LastPlayedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("LocalGameId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("PlaytimeLinuxMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PlaytimeMacMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PlaytimeMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("PlaytimeTwoWeeksMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PlaytimeWindowsMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SteamAppId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("SyncedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LocalGameId");
+
+                    b.HasIndex("UserId", "PlaytimeMinutes");
+
+                    b.HasIndex("UserId", "SteamAppId")
+                        .IsUnique();
+
+                    b.ToTable("SteamOwnedGames");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Steam.UserGamePlayLog", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("FirstSyncedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("GameId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("LastPlayedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("LastSyncedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("PlaytimeMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SteamAppId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("GameId");
+
+                    b.HasIndex("UserId", "GameId");
+
+                    b.HasIndex("UserId", "SteamAppId")
+                        .IsUnique();
+
+                    b.ToTable("UserGamePlayLogs", t =>
+                        {
+                            t.HasCheckConstraint("CK_UserGamePlayLogs_PlaytimeMinutes", "[PlaytimeMinutes] >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Steam.SteamFriendSnapshot", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("SteamFriendSnapshots")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Steam.SteamLinkChallenge", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("SteamLinkChallenges")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Steam.SteamOwnedGame", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.GameTracking.Game", "LocalGame")
+                        .WithMany("SteamOwnedGames")
+                        .HasForeignKey("LocalGameId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("SteamOwnedGames")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("LocalGame");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Steam.UserGamePlayLog", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.GameTracking.Game", "Game")
+                        .WithMany("SteamPlayLogs")
+                        .HasForeignKey("GameId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("SteamPlayLogs")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Game");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.Forum.Discussion", b =>
                 {
                     b.HasOne("Ludora.Domain.Entities.Forum.ForumCategory", "Category")
@@ -1932,6 +2290,72 @@ namespace Ludora.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.ModeratorActionLog", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "AdminUser")
+                        .WithMany("PerformedModeratorActions")
+                        .HasForeignKey("AdminUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "TargetUser")
+                        .WithMany("ReceivedModeratorActions")
+                        .HasForeignKey("TargetUserId")
+                        .OnDelete(DeleteBehavior.NoAction)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.UserBanHistory", "UserBanHistory")
+                        .WithMany()
+                        .HasForeignKey("UserBanHistoryId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Ludora.Domain.Entities.User.UserReport", "UserReport")
+                        .WithMany("ModeratorActions")
+                        .HasForeignKey("UserReportId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.HasOne("Ludora.Domain.Entities.User.UserWarning", "UserWarning")
+                        .WithMany()
+                        .HasForeignKey("UserWarningId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("AdminUser");
+
+                    b.Navigation("TargetUser");
+
+                    b.Navigation("UserBanHistory");
+
+                    b.Navigation("UserReport");
+
+                    b.Navigation("UserWarning");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.UserReport", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "ReportedUser")
+                        .WithMany("ReceivedReports")
+                        .HasForeignKey("ReportedUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "ReporterUser")
+                        .WithMany("SubmittedReports")
+                        .HasForeignKey("ReporterUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "ReviewedByUser")
+                        .WithMany("ReviewedReports")
+                        .HasForeignKey("ReviewedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ReportedUser");
+
+                    b.Navigation("ReporterUser");
+
+                    b.Navigation("ReviewedByUser");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.Notification", b =>
@@ -2205,32 +2629,6 @@ namespace Ludora.Persistence.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Ludora.Domain.Entities.User.UserReport", b =>
-                {
-                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "ReportedUser")
-                        .WithMany("ReceivedReports")
-                        .HasForeignKey("ReportedUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "ReporterUser")
-                        .WithMany("SubmittedReports")
-                        .HasForeignKey("ReporterUserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "ReviewedByUser")
-                        .WithMany("ReviewedReports")
-                        .HasForeignKey("ReviewedByUserId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.Navigation("ReportedUser");
-
-                    b.Navigation("ReporterUser");
-
-                    b.Navigation("ReviewedByUser");
-                });
-
             modelBuilder.Entity("Ludora.Domain.Entities.User.UserWarning", b =>
                 {
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
@@ -2336,6 +2734,10 @@ namespace Ludora.Persistence.Migrations
                     b.Navigation("GameGenres");
 
                     b.Navigation("GamePlatforms");
+
+                    b.Navigation("SteamOwnedGames");
+
+                    b.Navigation("SteamPlayLogs");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.IGDB.IgdbGameOverride", b =>
@@ -2379,9 +2781,13 @@ namespace Ludora.Persistence.Migrations
 
                     b.Navigation("PostComments");
 
+                    b.Navigation("PerformedModeratorActions");
+
                     b.Navigation("PostLikes");
 
                     b.Navigation("Posts");
+
+                    b.Navigation("ReceivedModeratorActions");
 
                     b.Navigation("ReceivedNotifications");
 
@@ -2401,9 +2807,22 @@ namespace Ludora.Persistence.Migrations
 
                     b.Navigation("SentWarnings");
 
+                    b.Navigation("SteamFriendSnapshots");
+
+                    b.Navigation("SteamLinkChallenges");
+
+                    b.Navigation("SteamOwnedGames");
+
+                    b.Navigation("SteamPlayLogs");
+
                     b.Navigation("SubmittedReports");
 
                     b.Navigation("UserGames");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.UserReport", b =>
+                {
+                    b.Navigation("ModeratorActions");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.Notification", b =>

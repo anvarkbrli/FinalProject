@@ -1,4 +1,5 @@
-﻿using Ludora.Domain.Entities.Base;
+using Ludora.Domain.Entities.Base;
+using Ludora.Domain.Entities.Steam;
 using Ludora.Domain.Enums;
 using System;
 using System.Collections.Generic;
@@ -17,10 +18,13 @@ namespace Ludora.Domain.Entities.GameTracking
         public int PlayCount { get; set; }
         public double AverageRating { get; set; }
         public string? Slug { get; set; } = null!;
+        public int? SteamAppId { get; set; }
 
         public GameType GameType { get; set; } = GameType.MainGame;
         public ICollection<GameGenre> GameGenres { get; set; } = new List<GameGenre>();
         public ICollection<GamePlatform> GamePlatforms { get; set; } = new List<GamePlatform>();
         public ICollection<GameCompany> GameCompanies { get; set; } = new List<GameCompany>();
+        public ICollection<SteamOwnedGame> SteamOwnedGames { get; set; } = new List<SteamOwnedGame>();
+        public ICollection<UserGamePlayLog> SteamPlayLogs { get; set; } = new List<UserGamePlayLog>();
     }
 }

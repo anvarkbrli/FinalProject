@@ -16,6 +16,11 @@ public class UserReport
     public string? Description { get; set; }
     public string? EvidenceImageStorageKey { get; set; }
 
+    public UserReportContentType ReportedContentType { get; set; }
+    public long? ReportedContentId { get; set; }
+    public string? ReportedContentSnapshot { get; set; }
+    public string? ReportedContentUrl { get; set; }
+
     public UserReportStatus Status { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 
@@ -23,4 +28,6 @@ public class UserReport
     public AppUser? ReviewedByUser { get; set; }
     public DateTime? ReviewedAtUtc { get; set; }
     public string? AdminNote { get; set; }
+
+    public ICollection<ModeratorActionLog> ModeratorActions { get; set; } = [];
 }

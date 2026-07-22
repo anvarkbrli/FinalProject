@@ -124,6 +124,9 @@ public sealed class ReviewService : IReviewService
             review.PlatformSource = dto.PlatformSource;
             review.PlatformId = dto.PlatformId;
             review.PlaytimeMinutes = NormalizePlaytimeMinutes(dto.PlaytimeMinutes);
+            review.IsSteamAutoLogged = false;
+            review.IsSteamPlaytimeOverridden = false;
+            review.IsSteamPlayedOnOverridden = false;
             review.CreatedAt = now;
             review.UpdatedAt = null;
             review.IsDeleted = false;
@@ -369,8 +372,18 @@ public sealed class ReviewService : IReviewService
             dto.PlatformSource,
             dto.PlaytimeMinutes);
 
+        var normalizedPlaytimeMinutes = NormalizePlaytimeMinutes(dto.PlaytimeMinutes);
         var hadReviewContent = HasReviewContent(review.Content);
         var hasReviewContent = HasReviewContent(content);
+
+        if (review.IsSteamAutoLogged)
+        {
+            if (review.PlaytimeMinutes != normalizedPlaytimeMinutes)
+                review.IsSteamPlaytimeOverridden = true;
+
+            if (review.PlayedOn != playedOn)
+                review.IsSteamPlayedOnOverridden = true;
+        }
 
         var game = await _gameService.GetByIdAsync(
             review.Source,
@@ -387,7 +400,7 @@ public sealed class ReviewService : IReviewService
         review.PlayedOn = playedOn;
         review.PlatformSource = dto.PlatformSource;
         review.PlatformId = dto.PlatformId;
-        review.PlaytimeMinutes = NormalizePlaytimeMinutes(dto.PlaytimeMinutes);
+        review.PlaytimeMinutes = normalizedPlaytimeMinutes;
         review.UpdatedAt = DateTime.UtcNow;
 
         await ApplyUserGameStateAsync(

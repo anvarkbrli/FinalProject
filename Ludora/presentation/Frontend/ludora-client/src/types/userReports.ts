@@ -1,3 +1,13 @@
+export type UserReportContentType =
+  | "UserProfile"
+  | "Post"
+  | "PostComment"
+  | "Review"
+  | "ReviewComment"
+  | "Discussion"
+  | "DiscussionReply"
+  | "DirectMessage";
+
 export type UserReportCategory =
   | "Spam"
   | "HarassmentOrInsult"
@@ -22,6 +32,10 @@ export interface UserReportDTO {
   category: UserReportCategory;
   description: string | null;
   hasEvidenceImage: boolean;
+  reportedContentType: UserReportContentType;
+  reportedContentId: number | null;
+  reportedContentSnapshot: string | null;
+  reportedContentUrl: string | null;
   status: UserReportStatus;
   createdAtUtc: string;
 }
@@ -31,4 +45,6 @@ export interface CreateUserReportRequest {
   category: UserReportCategory;
   description: string;
   evidenceImage: File | null;
+  reportedContentType: UserReportContentType;
+  reportedContentId: number | null;
 }

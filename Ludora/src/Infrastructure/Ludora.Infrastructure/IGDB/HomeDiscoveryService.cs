@@ -13,8 +13,8 @@ namespace Ludora.Infrastructure.IGDB;
 
 public sealed class HomeDiscoveryService : IHomeDiscoveryService
 {
-    private const string FreshCacheKey = "home-discovery:igdb:v2:fresh";
-    private const string StaleCacheKey = "home-discovery:igdb:v2:stale";
+    private const string FreshCacheKey = "home-discovery:v3:fresh";
+    private const string StaleCacheKey = "home-discovery:v3:stale";
     private const int SectionSize = 6;
     private const int PopularityCandidateCount = 80;
 
@@ -41,17 +41,20 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
 
     private readonly IIgdbClient _igdbClient;
     private readonly IGameService _gameService;
+    private readonly ISteamStoreClient _steamStoreClient;
     private readonly IMemoryCache _cache;
     private readonly ILogger<HomeDiscoveryService> _logger;
 
     public HomeDiscoveryService(
         IIgdbClient igdbClient,
         IGameService gameService,
+        ISteamStoreClient steamStoreClient,
         IMemoryCache cache,
         ILogger<HomeDiscoveryService> logger)
     {
         _igdbClient = igdbClient;
         _gameService = gameService;
+        _steamStoreClient = steamStoreClient;
         _cache = cache;
         _logger = logger;
     }
@@ -59,9 +62,6 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
     public async Task<HomeDiscoveryDTO> GetAsync(
         CancellationToken cancellationToken = default)
     {
-        if (!_igdbClient.IsEnabled)
-            return CreateEmptyResult();
-
         if (_cache.TryGetValue(
                 FreshCacheKey,
                 out HomeDiscoveryDTO? cachedResult) &&
@@ -82,38 +82,25 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
                 return cachedResult;
             }
 
-            try
-            {
-                var result = await LoadFromIgdbAsync(cancellationToken);
+            _cache.TryGetValue(
+                StaleCacheKey,
+                out HomeDiscoveryDTO? staleResult);
 
-                _cache.Set(
-                    FreshCacheKey,
-                    result,
-                    TimeSpan.FromMinutes(30));
+            var result = await LoadDiscoveryAsync(
+                staleResult,
+                cancellationToken);
 
-                _cache.Set(
-                    StaleCacheKey,
-                    result,
-                    TimeSpan.FromHours(24));
+            _cache.Set(
+                FreshCacheKey,
+                result,
+                TimeSpan.FromMinutes(30));
 
-                return result;
-            }
-            catch (ExternalServiceException exception)
-            {
-                _logger.LogWarning(
-                    exception,
-                    "Ana səhifə üçün IGDB trend məlumatları alına bilmədi.");
+            _cache.Set(
+                StaleCacheKey,
+                result,
+                TimeSpan.FromHours(24));
 
-                if (_cache.TryGetValue(
-                        StaleCacheKey,
-                        out HomeDiscoveryDTO? staleResult) &&
-                    staleResult is not null)
-                {
-                    return staleResult;
-                }
-
-                return CreateEmptyResult();
-            }
+            return result;
         }
         finally
         {
@@ -121,7 +108,53 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
         }
     }
 
-    private async Task<HomeDiscoveryDTO> LoadFromIgdbAsync(
+    private async Task<HomeDiscoveryDTO> LoadDiscoveryAsync(
+        HomeDiscoveryDTO? staleResult,
+        CancellationToken cancellationToken)
+    {
+        IReadOnlyList<GameListItemDTO> trendingGames = [];
+        IReadOnlyList<HomeComingSoonGameDTO> comingSoonGames = [];
+
+        if (_igdbClient.IsEnabled)
+        {
+            try
+            {
+                trendingGames = await LoadTrendingFromIgdbAsync(
+                    cancellationToken);
+            }
+            catch (ExternalServiceException exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Ana səhifə üçün IGDB trend məlumatları alına bilmədi.");
+
+                trendingGames = staleResult?.TrendingGames ?? [];
+            }
+        }
+
+        try
+        {
+            comingSoonGames = await LoadComingSoonFromSteamAsync(
+                cancellationToken);
+        }
+        catch (ExternalServiceException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Ana səhifə üçün Steam Top Wishlists məlumatları alına bilmədi.");
+
+            comingSoonGames = staleResult?.ComingSoonGames ?? [];
+        }
+
+        return new HomeDiscoveryDTO
+        {
+            TrendingGames = trendingGames,
+            ComingSoonGames = comingSoonGames,
+            GeneratedAtUtc = DateTime.UtcNow
+        };
+    }
+
+    private async Task<IReadOnlyList<GameListItemDTO>> LoadTrendingFromIgdbAsync(
         CancellationToken cancellationToken)
     {
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -132,34 +165,15 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
             popularityTypes,
             cancellationToken);
 
-        var comingSoonScores = await BuildComingSoonScoresAsync(
-            popularityTypes,
-            cancellationToken);
-
-        var fallbackUpcomingGames = await _igdbClient.GetUpcomingGamesAsync(
-            today.AddDays(1),
-            today.AddYears(1),
-            40,
-            cancellationToken);
-
         var trendingIds = trendingScores
             .OrderByDescending(x => x.Value)
             .Select(x => x.Key)
             .ToArray();
 
-        var comingSoonIds = comingSoonScores
-            .OrderByDescending(x => x.Value)
-            .Select(x => x.Key)
-            .Concat(fallbackUpcomingGames.Select(x => x.Id))
-            .Where(x => x > 0)
-            .Distinct()
-            .Take(150)
-            .ToArray();
+        if (trendingIds.Length == 0)
+            return [];
 
         var references = trendingIds
-            .Concat(comingSoonIds)
-            .Where(x => x > 0)
-            .Distinct()
             .Select(x => new CatalogReferenceDTO
             {
                 Source = CatalogSource.Igdb,
@@ -171,7 +185,7 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
             references,
             cancellationToken);
 
-        var trendingGames = trendingIds
+        return trendingIds
             .Select(id => gamesByReference.GetValueOrDefault(
                 (CatalogSource.Igdb, id)))
             .Where(x => x is not null)
@@ -181,24 +195,35 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
             .Take(SectionSize)
             .Select(MapGame)
             .ToList();
+    }
 
-        var comingSoonGames = comingSoonIds
-            .Select(id => gamesByReference.GetValueOrDefault(
-                (CatalogSource.Igdb, id)))
-            .Where(x => x is not null)
-            .Select(x => x!)
-            .Where(IsDisplayableGame)
-            .Where(x => IsUpcomingWithinOneYear(x, today))
+    private async Task<IReadOnlyList<HomeComingSoonGameDTO>>
+        LoadComingSoonFromSteamAsync(CancellationToken cancellationToken)
+    {
+        var games = await _steamStoreClient.GetComingSoonAsync(
+            SectionSize,
+            cancellationToken);
+
+        return games
+            .Where(x =>
+                x.AppId > 0 &&
+                !string.IsNullOrWhiteSpace(x.Name) &&
+                x.ReleaseDate.HasValue)
+            .Select(x => new HomeComingSoonGameDTO
+            {
+                WishlistRank = x.Rank,
+                SteamAppId = x.AppId,
+                Title = x.Name,
+                CoverImageUrl = x.PortraitImageUrl ??
+                                x.HeaderImageUrl ??
+                                x.SmallCapsuleImageUrl,
+                ReleaseDate = x.ReleaseDate,
+                StoreUrl = string.IsNullOrWhiteSpace(x.StoreUrl)
+                    ? $"https://store.steampowered.com/app/{x.AppId}/"
+                    : x.StoreUrl
+            })
             .Take(SectionSize)
-            .Select(MapGame)
             .ToList();
-
-        return new HomeDiscoveryDTO
-        {
-            TrendingGames = trendingGames,
-            ComingSoonGames = comingSoonGames,
-            GeneratedAtUtc = DateTime.UtcNow
-        };
     }
 
     private async Task<Dictionary<long, double>> BuildTrendingScoresAsync(
@@ -228,30 +253,6 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
             .OrderByDescending(x => x.Value)
             .Take(PopularityCandidateCount)
             .ToDictionary(x => x.Key, x => x.Value);
-    }
-
-    private async Task<Dictionary<long, double>> BuildComingSoonScoresAsync(
-        IReadOnlyList<IgdbPopularityTypeModel> popularityTypes,
-        CancellationToken cancellationToken)
-    {
-        var popularityType = FindPopularityType(
-            popularityTypes,
-            "Most Wishlisted Upcoming");
-
-        if (popularityType is null)
-            return [];
-
-        var primitives = await _igdbClient.GetPopularityPrimitivesAsync(
-            popularityType.Id,
-            PopularityCandidateCount,
-            cancellationToken);
-
-        return primitives
-            .Where(x => x.GameId > 0 && x.Value > 0)
-            .GroupBy(x => x.GameId)
-            .ToDictionary(
-                x => x.Key,
-                x => (double)x.Max(item => item.Value));
     }
 
     private static void AddNormalizedScores(
@@ -317,15 +318,6 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
                MainCatalogGameTypes.Contains(game.GameType);
     }
 
-    private static bool IsUpcomingWithinOneYear(
-        GameDetailDTO game,
-        DateOnly today)
-    {
-        return game.ReleaseDate.HasValue &&
-               game.ReleaseDate.Value > today &&
-               game.ReleaseDate.Value <= today.AddYears(1);
-    }
-
     private static GameListItemDTO MapGame(GameDetailDTO game)
     {
         return new GameListItemDTO
@@ -340,14 +332,6 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
             GameType = game.GameType,
             Genres = game.Genres,
             Platforms = game.Platforms
-        };
-    }
-
-    private static HomeDiscoveryDTO CreateEmptyResult()
-    {
-        return new HomeDiscoveryDTO
-        {
-            GeneratedAtUtc = DateTime.UtcNow
         };
     }
 }

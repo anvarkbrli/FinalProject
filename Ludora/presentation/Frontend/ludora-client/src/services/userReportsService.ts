@@ -9,6 +9,17 @@ export async function createUserReport(
 ): Promise<UserReportDTO> {
   const formData = new FormData();
   formData.append("category", request.category);
+  formData.append(
+    "reportedContentType",
+    request.reportedContentType,
+  );
+
+  if (request.reportedContentId !== null) {
+    formData.append(
+      "reportedContentId",
+      request.reportedContentId.toString(),
+    );
+  }
 
   if (request.description.trim()) {
     formData.append(

@@ -44,6 +44,7 @@ public static class ServiceRegistration
         services.AddScoped<IAdminUserService, AdminUserService>();
         services.AddScoped<IAdminPostService, AdminPostService>();
         services.AddScoped<IAdminUserReportService, AdminUserReportService>();
+        services.AddScoped<IAdminModerationAuditService, AdminModerationAuditService>();
         services.AddScoped<IUserWarningService, UserWarningService>();
         services.AddScoped<IUserReportService, UserReportService>();
         services.AddScoped<IAnnouncementService, AnnouncementService>();
@@ -54,6 +55,7 @@ public static class ServiceRegistration
         services.AddScoped<IJwtTokenService, JwtTokenService>();
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddScoped<IUserGameService, UserGameService>();
+        services.AddScoped<ISteamService, SteamService>();
         services.AddScoped<IUserActivityService, UserActivityService>();
         services.AddScoped<IPostService, PostService>();
         services.AddScoped<IPostInteractionService, PostInteractionService>();

@@ -19,7 +19,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { formatDateTime, resolveAssetUrl } from "../../lib/helpers";
+import { formatDateTime, formatRelativeDate, resolveAssetUrl } from "../../lib/helpers";
 import {
   getNotifications,
   getUnreadNotificationCount,
@@ -34,61 +34,12 @@ import type {
 } from "../../types/notifications";
 
 const pageSize = 10;
-const utcOffsetPattern = /(Z|[+-]\d{2}:?\d{2})$/i;
-const relativeTimeFormatter = new Intl.RelativeTimeFormat("az-AZ", {
-  numeric: "always",
-});
-
 interface NotificationTone {
   containerClassName: string;
   iconClassName: string;
   dotClassName: string;
   badgeLabel: string | null;
   badgeClassName: string;
-}
-
-function parseNotificationDate(value: string): Date | null {
-  const normalizedValue =
-    value.includes("T") && !utcOffsetPattern.test(value) ? `${value}Z` : value;
-  const date = new Date(normalizedValue);
-
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
-function formatNotificationRelativeTime(value: string, now: Date): string {
-  const date = parseNotificationDate(value);
-
-  if (!date) {
-    return formatDateTime(value);
-  }
-
-  const differenceInMilliseconds = date.getTime() - now.getTime();
-  const absoluteDifference = Math.abs(differenceInMilliseconds);
-
-  if (absoluteDifference < 45_000) {
-    return "İndicə";
-  }
-
-  const units: Array<{
-    unit: Intl.RelativeTimeFormatUnit;
-    milliseconds: number;
-  }> = [
-    { unit: "year", milliseconds: 365 * 24 * 60 * 60 * 1_000 },
-    { unit: "month", milliseconds: 30 * 24 * 60 * 60 * 1_000 },
-    { unit: "week", milliseconds: 7 * 24 * 60 * 60 * 1_000 },
-    { unit: "day", milliseconds: 24 * 60 * 60 * 1_000 },
-    { unit: "hour", milliseconds: 60 * 60 * 1_000 },
-    { unit: "minute", milliseconds: 60 * 1_000 },
-  ];
-
-  const selectedUnit =
-    units.find((item) => absoluteDifference >= item.milliseconds) ??
-    units[units.length - 1];
-  const valueForUnit = Math.round(
-    differenceInMilliseconds / selectedUnit.milliseconds,
-  );
-
-  return relativeTimeFormatter.format(valueForUnit, selectedUnit.unit);
 }
 
 function renderNotificationIcon(type: NotificationType) {
@@ -283,7 +234,7 @@ function NotificationItem({
           title={formatDateTime(notification.createdAtUtc)}
           className="notification-item__time mt-1.5 block text-[11px] font-medium text-zinc-600"
         >
-          {formatNotificationRelativeTime(notification.createdAtUtc, now)}
+          {formatRelativeDate(notification.createdAtUtc, now)}
         </time>
       </span>
 
@@ -411,6 +362,7 @@ export function NotificationBell() {
       return;
     }
 
+    setNow(new Date());
     const intervalId = window.setInterval(() => setNow(new Date()), 30_000);
 
     return () => window.clearInterval(intervalId);

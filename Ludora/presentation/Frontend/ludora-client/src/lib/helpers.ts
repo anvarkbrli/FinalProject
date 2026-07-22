@@ -164,6 +164,51 @@ export function isFutureReleaseDate(
 
 export function formatRelativeDate(
   value: string,
+  now = new Date(),
 ): string {
-  return formatDateTime(value);
+  const date = parseBackendDateTime(value);
+
+  if (!date) {
+    return formatDateTime(value);
+  }
+
+  const differenceInMilliseconds = now.getTime() - date.getTime();
+  const absoluteDifference = Math.abs(differenceInMilliseconds);
+
+  if (absoluteDifference < 45_000) {
+    return "İndicə";
+  }
+
+  const isFuture = differenceInMilliseconds < 0;
+  const absoluteMinutes = Math.max(1, Math.floor(absoluteDifference / 60_000));
+
+  const formatUnit = (amount: number, unit: string) =>
+    isFuture ? `${amount} ${unit} sonra` : `${amount} ${unit} əvvəl`;
+
+  if (absoluteMinutes < 60) {
+    return formatUnit(absoluteMinutes, "dəqiqə");
+  }
+
+  const hours = Math.floor(absoluteMinutes / 60);
+  if (hours < 24) {
+    return formatUnit(hours, "saat");
+  }
+
+  const days = Math.floor(hours / 24);
+  if (days < 7) {
+    return formatUnit(days, "gün");
+  }
+
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) {
+    return formatUnit(weeks, "həftə");
+  }
+
+  const months = Math.floor(days / 30);
+  if (months < 12) {
+    return formatUnit(months, "ay");
+  }
+
+  const years = Math.floor(days / 365);
+  return formatUnit(years, "il");
 }

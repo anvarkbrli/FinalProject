@@ -30,6 +30,18 @@ public sealed class ReviewConfiguration : IEntityTypeConfiguration<Review>
 
         builder.Property(x => x.PlaytimeMinutes);
 
+        builder.Property(x => x.IsSteamAutoLogged)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(x => x.IsSteamPlaytimeOverridden)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(x => x.IsSteamPlayedOnOverridden)
+            .IsRequired()
+            .HasDefaultValue(false);
+
         builder.Property(x => x.CreatedAt)
             .IsRequired();
 

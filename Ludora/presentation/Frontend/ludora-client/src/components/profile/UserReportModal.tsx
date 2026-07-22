@@ -17,12 +17,18 @@ import {
 } from "react";
 import { getApiErrorMessage } from "../../lib/api";
 import { createUserReport } from "../../services/userReportsService";
-import type { UserReportCategory } from "../../types/userReports";
+import type {
+  UserReportCategory,
+  UserReportContentType,
+} from "../../types/userReports";
 
 interface UserReportModalProps {
   isOpen: boolean;
   reportedUserId: string;
   reportedUserName: string;
+  reportedContentType?: UserReportContentType;
+  reportedContentId?: number | null;
+  reportedContentLabel?: string;
   onClose: () => void;
   onSubmitted: () => void;
 }
@@ -80,6 +86,9 @@ export function UserReportModal({
   isOpen,
   reportedUserId,
   reportedUserName,
+  reportedContentType = "UserProfile",
+  reportedContentId = null,
+  reportedContentLabel,
   onClose,
   onSubmitted,
 }: UserReportModalProps) {
@@ -143,6 +152,9 @@ export function UserReportModal({
   }
 
   const normalizedDescription = description.trim();
+  const hasConcreteContent =
+    reportedContentType !== "UserProfile" &&
+    reportedContentId !== null;
 
   function handleImageChange(
     event: ChangeEvent<HTMLInputElement>,
@@ -176,9 +188,13 @@ export function UserReportModal({
     event.preventDefault();
     setValidationMessage(null);
 
-    if (!normalizedDescription && !evidenceImage) {
+    if (
+      !hasConcreteContent &&
+      !normalizedDescription &&
+      !evidenceImage
+    ) {
       setValidationMessage(
-        "Sübut kimi ən azı açıqlama və ya şəkil əlavə et.",
+        "Profil şikayəti üçün ən azı açıqlama və ya şəkil əlavə et.",
       );
       return;
     }
@@ -198,6 +214,8 @@ export function UserReportModal({
       category,
       description: normalizedDescription,
       evidenceImage,
+      reportedContentType,
+      reportedContentId,
     });
   }
 
@@ -243,6 +261,11 @@ export function UserReportModal({
               <p className="mt-1 truncate text-sm text-zinc-500">
                 @{reportedUserName} haqqında şikayət göndərilir
               </p>
+              {reportedContentLabel ? (
+                <p className="mt-1 truncate text-xs text-zinc-600">
+                  Məzmun: {reportedContentLabel}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -294,7 +317,9 @@ export function UserReportModal({
                 htmlFor="report-description"
                 className="text-xs font-bold uppercase tracking-[0.14em] text-zinc-500"
               >
-                Açıqlama və sübut
+                {hasConcreteContent
+                  ? "Əlavə açıqlama"
+                  : "Açıqlama və sübut"}
               </label>
               <span className="text-xs text-zinc-600">
                 {description.length}/2000
@@ -311,7 +336,11 @@ export function UserReportModal({
               maxLength={2000}
               rows={6}
               disabled={reportMutation.isPending}
-              placeholder="Nə baş verdiyini, tarix və kontekst kimi yoxlanıla bilən detalları yaz..."
+              placeholder={
+                hasConcreteContent
+                  ? "Əlavə kontekst yazmaq istəsən burada qeyd et..."
+                  : "Nə baş verdiyini, tarix və kontekst kimi yoxlanıla bilən detalları yaz..."
+              }
               className="w-full resize-none rounded-2xl border border-white/[0.09] bg-white/[0.035] px-4 py-3 text-sm leading-6 text-zinc-200 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/40 focus:ring-2 focus:ring-violet-500/10 disabled:opacity-60"
             />
           </div>

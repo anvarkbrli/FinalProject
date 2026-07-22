@@ -14,6 +14,7 @@ public sealed class UserReportService : IUserReportService
 {
     private const int MaxDescriptionLength = 2000;
     private const int MinDescriptionLength = 10;
+    private const int MaxContentSnapshotLength = 2000;
     private const int MaxReportsPer24Hours = 10;
 
     private readonly AppDbContext _context;
@@ -60,6 +61,9 @@ public sealed class UserReportService : IUserReportService
         if (!Enum.IsDefined(dto.Category))
             throw new BadRequestException("Şikayət kateqoriyası düzgün deyil.");
 
+        if (!Enum.IsDefined(dto.ReportedContentType))
+            throw new BadRequestException("Şikayət edilən məzmun növü düzgün deyil.");
+
         var description = dto.Description.NormalizeOptionalText(
             "Şikayət açıqlaması",
             MaxDescriptionLength);
@@ -68,12 +72,6 @@ public sealed class UserReportService : IUserReportService
         {
             throw new BadRequestException(
                 $"Şikayət açıqlaması ən azı {MinDescriptionLength} simvol olmalıdır.");
-        }
-
-        if (description is null && dto.EvidenceImage is null)
-        {
-            throw new BadRequestException(
-                "Sübut kimi ən azı açıqlama və ya şəkil əlavə edilməlidir.");
         }
 
         var users = await _context.Users
@@ -92,11 +90,28 @@ public sealed class UserReportService : IUserReportService
         var reportedUser = users.FirstOrDefault(x => x.Id == reportedUserId)
             ?? throw new NotFoundException("Şikayət edilən istifadəçi tapılmadı.");
 
+        var contentReference = await ResolveReportedContentAsync(
+            dto.ReportedContentType,
+            dto.ReportedContentId,
+            reportedUserId,
+            reportedUser.UserName,
+            cancellationToken);
+
+        if (description is null &&
+            dto.EvidenceImage is null &&
+            contentReference.ContentId is null)
+        {
+            throw new BadRequestException(
+                "Sübut kimi ən azı açıqlama, şəkil və ya konkret məzmun əlavə edilməlidir.");
+        }
+
         var hasActiveReport = await _context.UserReports
             .AsNoTracking()
             .AnyAsync(x =>
                     x.ReporterUserId == reporterUserId &&
                     x.ReportedUserId == reportedUserId &&
+                    x.ReportedContentType == contentReference.ContentType &&
+                    x.ReportedContentId == contentReference.ContentId &&
                     (x.Status == UserReportStatus.Pending ||
                      x.Status == UserReportStatus.UnderReview),
                 cancellationToken);
@@ -104,7 +119,7 @@ public sealed class UserReportService : IUserReportService
         if (hasActiveReport)
         {
             throw new ConflictException(
-                "Bu istifadəçi üçün artıq baxılmaqda olan şikayətiniz var.");
+                "Bu istifadəçi və məzmun üçün artıq baxılmaqda olan şikayətiniz var.");
         }
 
         var last24Hours = DateTime.UtcNow.AddHours(-24);
@@ -121,14 +136,14 @@ public sealed class UserReportService : IUserReportService
                 "24 saat ərzində maksimum şikayət limitinə çatmısınız.");
         }
 
-        string? evidenceImageUrl = null;
+        string? evidenceImageStorageKey = null;
         var reportWasCommitted = false;
 
         try
         {
             if (dto.EvidenceImage is not null)
             {
-                evidenceImageUrl = await _fileStorageService
+                evidenceImageStorageKey = await _fileStorageService
                     .SaveReportEvidenceImageAsync(dto.EvidenceImage);
             }
 
@@ -138,7 +153,11 @@ public sealed class UserReportService : IUserReportService
                 ReportedUserId = reportedUserId,
                 Category = dto.Category,
                 Description = description,
-                EvidenceImageStorageKey = evidenceImageUrl,
+                EvidenceImageStorageKey = evidenceImageStorageKey,
+                ReportedContentType = contentReference.ContentType,
+                ReportedContentId = contentReference.ContentId,
+                ReportedContentSnapshot = contentReference.Snapshot,
+                ReportedContentUrl = contentReference.Url,
                 Status = UserReportStatus.Pending,
                 CreatedAtUtc = DateTime.UtcNow
             };
@@ -153,7 +172,7 @@ public sealed class UserReportService : IUserReportService
                 when (exception.IsUniqueConstraintViolation())
             {
                 throw new ConflictException(
-                    "Bu istifadəçi üçün artıq baxılmaqda olan şikayətiniz var.");
+                    "Bu istifadəçi və məzmun üçün artıq baxılmaqda olan şikayətiniz var.");
             }
 
             reportWasCommitted = true;
@@ -166,17 +185,254 @@ public sealed class UserReportService : IUserReportService
                 Category = report.Category,
                 Description = report.Description,
                 HasEvidenceImage = report.EvidenceImageStorageKey is not null,
+                ReportedContentType = report.ReportedContentType,
+                ReportedContentId = report.ReportedContentId,
+                ReportedContentSnapshot = report.ReportedContentSnapshot,
+                ReportedContentUrl = report.ReportedContentUrl,
                 Status = report.Status,
                 CreatedAtUtc = report.CreatedAtUtc
             };
         }
         catch
         {
-            if (!reportWasCommitted && evidenceImageUrl is not null)
-                await _fileStorageService.DeleteReportEvidenceImageAsync(evidenceImageUrl);
+            if (!reportWasCommitted && evidenceImageStorageKey is not null)
+            {
+                await _fileStorageService.DeleteReportEvidenceImageAsync(
+                    evidenceImageStorageKey);
+            }
 
             throw;
         }
+    }
+
+    private async Task<ReportedContentReference> ResolveReportedContentAsync(
+        UserReportContentType contentType,
+        long? contentId,
+        Guid reportedUserId,
+        string reportedUserName,
+        CancellationToken cancellationToken)
+    {
+        if (contentType == UserReportContentType.UserProfile)
+        {
+            if (contentId.HasValue)
+            {
+                throw new BadRequestException(
+                    "Profil şikayəti üçün məzmun ID-si göndərilməməlidir.");
+            }
+
+            return new ReportedContentReference(
+                contentType,
+                null,
+                $"İstifadəçi profili: @{reportedUserName}",
+                $"/users/{Uri.EscapeDataString(reportedUserName)}");
+        }
+
+        if (!contentId.HasValue || contentId.Value <= 0)
+        {
+            throw new BadRequestException(
+                "Seçilən məzmun növü üçün düzgün məzmun ID-si göndərilməlidir.");
+        }
+
+        var id = contentId.Value;
+
+        return contentType switch
+        {
+            UserReportContentType.Post => await ResolvePostAsync(
+                id,
+                reportedUserId,
+                cancellationToken),
+
+            UserReportContentType.PostComment => await ResolvePostCommentAsync(
+                id,
+                reportedUserId,
+                cancellationToken),
+
+            UserReportContentType.Review => await ResolveReviewAsync(
+                id,
+                reportedUserId,
+                cancellationToken),
+
+            UserReportContentType.ReviewComment => await ResolveReviewCommentAsync(
+                id,
+                reportedUserId,
+                cancellationToken),
+
+            UserReportContentType.Discussion => await ResolveDiscussionAsync(
+                id,
+                reportedUserId,
+                cancellationToken),
+
+            UserReportContentType.DiscussionReply => await ResolveDiscussionReplyAsync(
+                id,
+                reportedUserId,
+                cancellationToken),
+
+            UserReportContentType.DirectMessage => throw new BadRequestException(
+                "Mesaj sistemi layihədə olmadığı üçün mesaj reportu hələ aktiv deyil."),
+
+            _ => throw new BadRequestException(
+                "Şikayət edilən məzmun növü dəstəklənmir.")
+        };
+    }
+
+    private async Task<ReportedContentReference> ResolvePostAsync(
+        long postId,
+        Guid reportedUserId,
+        CancellationToken cancellationToken)
+    {
+        var post = await _context.UserPosts
+            .AsNoTracking()
+            .Where(x => x.Id == postId)
+            .Select(x => new { x.UserId, x.Content, x.ImageUrl })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Şikayət edilən post tapılmadı.");
+
+        EnsureContentOwner(post.UserId, reportedUserId);
+
+        var snapshot = post.Content ??
+            (post.ImageUrl is null ? "Post məzmunu yoxdur." : "Şəkilli post");
+
+        return new ReportedContentReference(
+            UserReportContentType.Post,
+            postId,
+            CreateSnapshot(snapshot),
+            null);
+    }
+
+    private async Task<ReportedContentReference> ResolvePostCommentAsync(
+        long commentId,
+        Guid reportedUserId,
+        CancellationToken cancellationToken)
+    {
+        var comment = await _context.PostComments
+            .AsNoTracking()
+            .Where(x => x.Id == commentId)
+            .Select(x => new { x.UserId, x.Content })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Şikayət edilən post şərhi tapılmadı.");
+
+        EnsureContentOwner(comment.UserId, reportedUserId);
+
+        return new ReportedContentReference(
+            UserReportContentType.PostComment,
+            commentId,
+            CreateSnapshot(comment.Content),
+            null);
+    }
+
+    private async Task<ReportedContentReference> ResolveReviewAsync(
+        long reviewId,
+        Guid reportedUserId,
+        CancellationToken cancellationToken)
+    {
+        var review = await _context.Reviews
+            .AsNoTracking()
+            .Where(x => x.Id == reviewId)
+            .Select(x => new { x.UserId, x.Content })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Şikayət edilən rəy tapılmadı.");
+
+        EnsureContentOwner(review.UserId, reportedUserId);
+
+        return new ReportedContentReference(
+            UserReportContentType.Review,
+            reviewId,
+            CreateSnapshot(review.Content),
+            null);
+    }
+
+    private async Task<ReportedContentReference> ResolveReviewCommentAsync(
+        long commentId,
+        Guid reportedUserId,
+        CancellationToken cancellationToken)
+    {
+        var comment = await _context.ReviewComments
+            .AsNoTracking()
+            .Where(x => x.Id == commentId)
+            .Select(x => new { x.UserId, x.Content })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Şikayət edilən rəy şərhi tapılmadı.");
+
+        EnsureContentOwner(comment.UserId, reportedUserId);
+
+        return new ReportedContentReference(
+            UserReportContentType.ReviewComment,
+            commentId,
+            CreateSnapshot(comment.Content),
+            null);
+    }
+
+    private async Task<ReportedContentReference> ResolveDiscussionAsync(
+        long discussionId,
+        Guid reportedUserId,
+        CancellationToken cancellationToken)
+    {
+        if (discussionId > int.MaxValue)
+            throw new BadRequestException("Forum mövzusu ID-si düzgün deyil.");
+
+        var discussion = await _context.Discussions
+            .AsNoTracking()
+            .Where(x => x.Id == (int)discussionId)
+            .Select(x => new { x.UserId, x.Title, x.Content, x.Slug })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Şikayət edilən forum mövzusu tapılmadı.");
+
+        EnsureContentOwner(discussion.UserId, reportedUserId);
+
+        return new ReportedContentReference(
+            UserReportContentType.Discussion,
+            discussionId,
+            CreateSnapshot($"{discussion.Title}\n{discussion.Content}"),
+            $"/forum/discussions/{Uri.EscapeDataString(discussion.Slug)}");
+    }
+
+    private async Task<ReportedContentReference> ResolveDiscussionReplyAsync(
+        long replyId,
+        Guid reportedUserId,
+        CancellationToken cancellationToken)
+    {
+        if (replyId > int.MaxValue)
+            throw new BadRequestException("Forum cavabı ID-si düzgün deyil.");
+
+        var reply = await _context.DiscussionReplies
+            .AsNoTracking()
+            .Where(x => x.Id == (int)replyId)
+            .Select(x => new { x.UserId, x.Content, x.DiscussionId })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Şikayət edilən forum cavabı tapılmadı.");
+
+        EnsureContentOwner(reply.UserId, reportedUserId);
+
+        return new ReportedContentReference(
+            UserReportContentType.DiscussionReply,
+            replyId,
+            CreateSnapshot(reply.Content),
+            $"/forum/discussions/{reply.DiscussionId}#reply-{replyId}");
+    }
+
+    private static void EnsureContentOwner(
+        Guid actualOwnerUserId,
+        Guid reportedUserId)
+    {
+        if (actualOwnerUserId != reportedUserId)
+        {
+            throw new BadRequestException(
+                "Seçilən məzmun şikayət edilən istifadəçiyə aid deyil.");
+        }
+    }
+
+    private static string CreateSnapshot(string value)
+    {
+        var normalized = string.Join(
+            " ",
+            value.Split(
+                ['\r', '\n', '\t'],
+                StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
+
+        if (normalized.Length <= MaxContentSnapshotLength)
+            return normalized;
+
+        return normalized[..MaxContentSnapshotLength];
     }
 
     private static UserReportCategoryOptionDTO CreateCategoryOption(
@@ -189,4 +445,10 @@ public sealed class UserReportService : IUserReportService
             Label = label
         };
     }
+
+    private sealed record ReportedContentReference(
+        UserReportContentType ContentType,
+        long? ContentId,
+        string? Snapshot,
+        string? Url);
 }
