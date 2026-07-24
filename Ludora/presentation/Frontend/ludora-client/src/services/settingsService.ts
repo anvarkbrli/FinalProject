@@ -1,4 +1,5 @@
 import { api } from "../lib/api";
+import type { PagedResultDTO } from "../types/home";
 import type { CurrentUserDTO } from "../types/auth";
 import type {
   BlockedUserDTO,
@@ -72,13 +73,22 @@ export async function updateUserSettings(
   return response.data;
 }
 
-export async function getBlockedUsers(): Promise<BlockedUserDTO[]> {
+export async function getBlockedUsers(
+  signal?: AbortSignal,
+): Promise<BlockedUserDTO[]> {
   const response =
-    await api.get<BlockedUserDTO[]>(
+    await api.get<PagedResultDTO<BlockedUserDTO>>(
       "/users/me/settings/blocked-users",
+      {
+        params: {
+          pageNumber: 1,
+          pageSize: 100,
+        },
+        signal,
+      },
     );
 
-  return response.data;
+  return response.data.items;
 }
 
 export async function unblockUser(
@@ -112,13 +122,22 @@ export async function requestEmailChange(
   return response.data;
 }
 
-export async function getFollowRequests(): Promise<FollowRequestDTO[]> {
+export async function getFollowRequests(
+  signal?: AbortSignal,
+): Promise<FollowRequestDTO[]> {
   const response =
-    await api.get<FollowRequestDTO[]>(
+    await api.get<PagedResultDTO<FollowRequestDTO>>(
       "/users/me/follow-requests",
+      {
+        params: {
+          pageNumber: 1,
+          pageSize: 100,
+        },
+        signal,
+      },
     );
 
-  return response.data;
+  return response.data.items;
 }
 
 export async function acceptFollowRequest(

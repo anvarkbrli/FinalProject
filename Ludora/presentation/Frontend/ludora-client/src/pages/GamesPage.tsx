@@ -407,9 +407,10 @@ export function GamesPage() {
       "companies",
       companyQuerySearch,
     ],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       getGameCompanies(
         companyQuerySearch || undefined,
+        signal,
       ),
     staleTime: 5 * 60_000,
   });
@@ -421,11 +422,12 @@ export function GamesPage() {
       selectedCompanyReference?.source,
       selectedCompanyReference?.id,
     ],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       getCatalogEntityById(
         "company",
         selectedCompanyReference!.source,
         selectedCompanyReference!.id,
+        signal,
       ),
     enabled: selectedCompanyReference !== null,
     staleTime: 5 * 60_000,
@@ -433,13 +435,13 @@ export function GamesPage() {
 
   const genresQuery = useQuery({
     queryKey: ["game-catalog", "genres"],
-    queryFn: getGameGenres,
+    queryFn: ({ signal }) => getGameGenres(signal),
     staleTime: 5 * 60_000,
   });
 
   const platformsQuery = useQuery({
     queryKey: ["game-catalog", "platforms"],
-    queryFn: getGamePlatforms,
+    queryFn: ({ signal }) => getGamePlatforms(signal),
     staleTime: 5 * 60_000,
   });
 
@@ -526,7 +528,7 @@ export function GamesPage() {
       sortBy,
       pageNumber,
     ],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       getGames({
         searchName: debouncedSearch || undefined,
         companySource: parsedCompany?.source,
@@ -540,7 +542,7 @@ export function GamesPage() {
         includeRelatedContent: false,
         pageNumber,
         pageSize: PAGE_SIZE,
-      }),
+      }, signal),
     placeholderData: (previousData) => previousData,
   });
 

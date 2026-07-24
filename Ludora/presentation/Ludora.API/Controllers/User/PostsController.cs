@@ -58,13 +58,15 @@ public class PostsController : ControllerBase
     }
 
     [HttpGet("user/{userId:guid}")]
-    public async Task<ActionResult<IReadOnlyList<PostDTO>>> GetUserPosts(
+    public async Task<ActionResult<PagedResultDTO<PostDTO>>> GetUserPosts(
         Guid userId,
+        [FromQuery] PaginationFilterDTO pagination,
         CancellationToken cancellationToken)
     {
         var result = await _postService.GetUserPostsAsync(
             userId,
             GetOptionalCurrentUserId(),
+            pagination,
             cancellationToken);
 
         return Ok(result);
@@ -72,11 +74,13 @@ public class PostsController : ControllerBase
 
     [Authorize]
     [HttpGet("feed")]
-    public async Task<ActionResult<IReadOnlyList<PostDTO>>> GetFeed(
+    public async Task<ActionResult<PagedResultDTO<PostDTO>>> GetFeed(
+        [FromQuery] PaginationFilterDTO pagination,
         CancellationToken cancellationToken)
     {
         var result = await _postService.GetFeedAsync(
             GetCurrentUserId(),
+            pagination,
             cancellationToken);
 
         return Ok(result);

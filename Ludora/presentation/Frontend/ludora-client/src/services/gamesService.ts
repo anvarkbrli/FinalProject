@@ -11,6 +11,7 @@ import type {
 
 export async function getGames(
   filter: GameCatalogFilterDTO,
+  signal?: AbortSignal,
 ): Promise<PagedResultDTO<GameCatalogItemDTO>> {
   const response =
     await api.get<PagedResultDTO<GameCatalogItemDTO>>(
@@ -51,6 +52,7 @@ export async function getGames(
           pageSize:
             filter.pageSize,
         },
+        signal,
       },
     );
 
@@ -67,10 +69,12 @@ export async function getGames(
 export async function getGameById(
   source: "Local" | "Igdb",
   id: number,
+  signal?: AbortSignal,
 ): Promise<GameDetailDTO> {
   const response =
     await api.get<GameDetailDTO>(
       `/games/${source}/${id}`,
+      { signal },
     );
 
   return response.data;
@@ -78,6 +82,7 @@ export async function getGameById(
 
 export async function getGameCompanies(
   searchName?: string,
+  signal?: AbortSignal,
 ): Promise<CatalogFilterItemDTO[]> {
   const response =
     await api.get<CatalogFilterItemDTO[]>(
@@ -87,29 +92,36 @@ export async function getGameCompanies(
           searchName:
             searchName?.trim() || undefined,
         },
+        signal,
       },
     );
 
   return response.data;
 }
 
-export async function getGameGenres(): Promise<
+export async function getGameGenres(
+  signal?: AbortSignal,
+): Promise<
   CatalogFilterItemDTO[]
 > {
   const response =
     await api.get<CatalogFilterItemDTO[]>(
       "/genres",
+      { signal },
     );
 
   return response.data;
 }
 
-export async function getGamePlatforms(): Promise<
+export async function getGamePlatforms(
+  signal?: AbortSignal,
+): Promise<
   CatalogFilterItemDTO[]
 > {
   const response =
     await api.get<CatalogFilterItemDTO[]>(
       "/platforms",
+      { signal },
     );
 
   return response.data;
@@ -119,6 +131,7 @@ export async function getCatalogEntityById(
   kind: CatalogEntityKind,
   source: "Local" | "Igdb",
   id: number,
+  signal?: AbortSignal,
 ): Promise<CatalogFilterItemDTO> {
   const endpointByKind: Record<
     CatalogEntityKind,
@@ -132,6 +145,7 @@ export async function getCatalogEntityById(
   const response =
     await api.get<CatalogFilterItemDTO>(
       `/${endpointByKind[kind]}/${source}/${id}`,
+      { signal },
     );
 
   return response.data;

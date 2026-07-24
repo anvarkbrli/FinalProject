@@ -14,8 +14,14 @@ public static class ServiceRegistration
 {
     public static void AddPersistenceServices(this IServiceCollection services, IConfiguration configuration)
     {
-        services.AddDbContext<AppDbContext>(options =>
-            options.UseSqlServer(configuration.GetConnectionString("default")));
+        services.AddDbContextPool<AppDbContext>(
+            options => options.UseSqlServer(
+                configuration.GetConnectionString("default"),
+                sqlOptions =>
+                {
+                    sqlOptions.MaxBatchSize(100);
+                }),
+            poolSize: 64);
 
         services.AddIdentityCore<AppUser>(options =>
         {
@@ -56,6 +62,8 @@ public static class ServiceRegistration
         services.AddScoped<IFileStorageService, LocalFileStorageService>();
         services.AddScoped<IUserGameService, UserGameService>();
         services.AddScoped<ISteamService, SteamService>();
+        services.AddScoped<IChatService, ChatService>();
+        services.AddScoped<IBadgeService, BadgeService>();
         services.AddScoped<IUserActivityService, UserActivityService>();
         services.AddScoped<IPostService, PostService>();
         services.AddScoped<IPostInteractionService, PostInteractionService>();

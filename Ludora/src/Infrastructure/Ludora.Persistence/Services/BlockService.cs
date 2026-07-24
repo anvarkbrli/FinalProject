@@ -18,18 +18,23 @@ public class BlockService : IBlockService
         _context = context;
     }
 
-    public async Task BlockAsync(Guid blockerId, Guid blockedUserId)
+    public async Task BlockAsync(
+        Guid blockerId,
+        Guid blockedUserId,
+        CancellationToken cancellationToken = default)
     {
         if (blockerId == blockedUserId)
             throw new BadRequestException("İstifadəçi özünü bloklaya bilməz.");
 
-        var blockedUserExists = await _context.Users.AnyAsync(u => u.Id == blockedUserId);
+        var blockedUserExists = await _context.Users
+            .AnyAsync(u => u.Id == blockedUserId, cancellationToken);
 
         if (!blockedUserExists)
             throw new NotFoundException("İstifadəçi tapılmadı.");
 
-        var alreadyBlocked = await _context.UserBlocks.AnyAsync(ub =>
-            ub.BlockerId == blockerId && ub.BlockedUserId == blockedUserId);
+        var alreadyBlocked = await _context.UserBlocks.AnyAsync(
+            ub => ub.BlockerId == blockerId && ub.BlockedUserId == blockedUserId,
+            cancellationToken);
 
         if (alreadyBlocked)
             throw new ConflictException("Bu istifadəçini artıq bloklamısınız.");
@@ -38,7 +43,7 @@ public class BlockService : IBlockService
             .Where(uf =>
                 uf.FollowerId == blockerId && uf.FollowingId == blockedUserId ||
                 uf.FollowerId == blockedUserId && uf.FollowingId == blockerId)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
 
         if (followRelations.Count > 0)
             _context.UserFollows.RemoveRange(followRelations);
@@ -50,20 +55,24 @@ public class BlockService : IBlockService
             CreatedAt = DateTime.UtcNow
         };
 
-        await _context.UserBlocks.AddAsync(userBlock);
+        await _context.UserBlocks.AddAsync(userBlock, cancellationToken);
 
         _context.AddUserActivity(
             blockerId,
             UserActivityType.UserBlocked,
             targetUserId: blockedUserId);
 
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task UnblockAsync(Guid blockerId, Guid blockedUserId)
+    public async Task UnblockAsync(
+        Guid blockerId,
+        Guid blockedUserId,
+        CancellationToken cancellationToken = default)
     {
-        var userBlock = await _context.UserBlocks.FirstOrDefaultAsync(ub =>
-            ub.BlockerId == blockerId && ub.BlockedUserId == blockedUserId);
+        var userBlock = await _context.UserBlocks.FirstOrDefaultAsync(
+            ub => ub.BlockerId == blockerId && ub.BlockedUserId == blockedUserId,
+            cancellationToken);
 
         if (userBlock is null)
             throw new NotFoundException("Bloklama əlaqəsi tapılmadı.");
@@ -75,22 +84,29 @@ public class BlockService : IBlockService
             UserActivityType.UserUnblocked,
             targetUserId: blockedUserId);
 
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task<List<BlockedUserDTO>> GetBlockedUsersAsync(Guid userId)
+    public async Task<PagedResultDTO<BlockedUserDTO>> GetBlockedUsersAsync(
+        Guid userId,
+        PaginationFilterDTO pagination,
+        CancellationToken cancellationToken = default)
     {
-        return await _context.UserBlocks
+        var query = _context.UserBlocks
             .AsNoTracking()
             .Where(ub => ub.BlockerId == userId)
             .OrderByDescending(ub => ub.CreatedAt)
+            .ThenByDescending(ub => ub.BlockedUserId)
             .Select(ub => new BlockedUserDTO
             {
                 Id = ub.BlockedUserId,
                 UserName = ub.BlockedUser.UserName ?? string.Empty,
                 ProfileImageUrl = ub.BlockedUser.ProfileImageUrl,
                 BlockedAt = ub.CreatedAt
-            })
-            .ToListAsync();
+            });
+
+        return await query.ToPagedResultAsync(
+            pagination,
+            cancellationToken);
     }
 }

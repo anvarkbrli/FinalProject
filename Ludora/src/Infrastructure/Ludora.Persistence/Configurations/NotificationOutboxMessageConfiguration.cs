@@ -28,6 +28,7 @@ public sealed class NotificationOutboxMessageConfiguration : IEntityTypeConfigur
         builder.HasIndex(x => new
         {
             x.ProcessedAtUtc,
+            x.DeadLetteredAtUtc,
             x.NextAttemptAtUtc,
             x.LockedUntilUtc,
             x.CreatedAtUtc

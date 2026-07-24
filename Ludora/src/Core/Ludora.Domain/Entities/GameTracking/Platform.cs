@@ -4,6 +4,6 @@ namespace Ludora.Domain.Entities.GameTracking
 {
     public class Platform : BaseEntity
     {
-        public string Name { get; set; }
+        public string Name { get; set; } = string.Empty;
     }
 }

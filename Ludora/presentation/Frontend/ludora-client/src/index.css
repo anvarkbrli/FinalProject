@@ -4,11 +4,204 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system,
     BlinkMacSystemFont, "Segoe UI", sans-serif;
-  color: #f4f4f5;
-  background: #07070a;
-  color-scheme: dark;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
+  color-scheme: light;
+
+  /* WellPlayd light theme */
+  --wp-page: #f5f7fb;
+  --wp-page-deep: #edf1f7;
+  --wp-surface: rgba(255, 255, 255, 0.86);
+  --wp-surface-strong: #ffffff;
+  --wp-surface-soft: rgba(238, 242, 248, 0.88);
+  --wp-surface-hover: rgba(109, 74, 255, 0.055);
+  --wp-nav: rgba(248, 250, 253, 0.84);
+  --wp-footer: #edf1f7;
+  --wp-text: #253044;
+  --wp-text-strong: #172033;
+  --wp-text-muted: #667085;
+  --wp-border: rgba(24, 32, 51, 0.1);
+  --wp-border-strong: rgba(24, 32, 51, 0.16);
+  --wp-accent: #6d4aff;
+  --wp-accent-strong: #5936e8;
+  --wp-accent-soft: rgba(109, 74, 255, 0.12);
+  --wp-accent-glow: rgba(109, 74, 255, 0.2);
+  --wp-electric: #1473e6;
+  --wp-emerald: #079455;
+  --wp-solid-light: #ffffff;
+  --wp-solid-light-text: #111827;
+  --wp-utility-white-text: #172033;
+  --wp-image-overlay: rgba(10, 15, 28, 0.68);
+  --wp-shadow-card: 0 14px 42px rgba(35, 45, 72, 0.09);
+  --wp-shadow-hover: 0 22px 56px rgba(59, 47, 112, 0.15);
+  --wp-shadow-floating: 0 26px 80px rgba(35, 45, 72, 0.2);
+  --wp-focus: 0 0 0 4px rgba(109, 74, 255, 0.13);
+
+  /* Tailwind palette remap for the existing dark-oriented utility classes. */
+  --color-white: #ffffff;
+  --color-zinc-50: #0f172a;
+  --color-zinc-100: #1d2736;
+  --color-zinc-200: #2d3748;
+  --color-zinc-300: #3f4a5c;
+  --color-zinc-400: #536075;
+  --color-zinc-500: #667085;
+  --color-zinc-600: #7f8a9b;
+  --color-zinc-700: #cbd3df;
+  --color-zinc-800: #e5eaf1;
+  --color-zinc-900: #f0f3f8;
+  --color-zinc-950: #f8fafc;
+
+  --color-violet-100: #4a2bc2;
+  --color-violet-200: #5637d6;
+  --color-violet-300: #6545e6;
+  --color-violet-400: #7658ee;
+  --color-violet-500: #6d4aff;
+  --color-violet-600: #5936e8;
+  --color-violet-950: #33216f;
+
+  --color-fuchsia-200: #9a2ca9;
+  --color-fuchsia-300: #ae38bd;
+  --color-fuchsia-400: #c044cf;
+  --color-fuchsia-500: #cf56dc;
+  --color-fuchsia-600: #a92ab8;
+
+  --color-emerald-200: #05603a;
+  --color-emerald-300: #067647;
+  --color-emerald-400: #079455;
+  --color-emerald-500: #12b76a;
+
+  --color-red-100: #7a271a;
+  --color-red-200: #912018;
+  --color-red-300: #b42318;
+  --color-red-400: #d92d20;
+  --color-red-500: #f04438;
+
+  --color-rose-200: #9f1239;
+  --color-rose-300: #be123c;
+  --color-rose-400: #e11d48;
+  --color-rose-500: #f43f5e;
+
+  --color-amber-100: #7a2e0e;
+  --color-amber-200: #93370d;
+  --color-amber-300: #b54708;
+  --color-amber-400: #dc6803;
+  --color-amber-500: #f79009;
+
+  --color-sky-200: #075985;
+  --color-sky-300: #026aa2;
+  --color-sky-400: #0284c7;
+  --color-sky-500: #0ba5ec;
+
+  --color-blue-200: #1849a9;
+  --color-blue-300: #175cd3;
+  --color-blue-400: #1570ef;
+  --color-blue-500: #2e90fa;
+
+  --color-cyan-200: #0e7090;
+  --color-cyan-300: #088ab2;
+  --color-cyan-400: #06aed4;
+  --color-cyan-500: #22ccee;
+
+  --color-orange-300: #c4320a;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  /* WellPlayd dark theme */
+  --wp-page: #0d1018;
+  --wp-page-deep: #10141e;
+  --wp-surface: rgba(25, 28, 38, 0.86);
+  --wp-surface-strong: #191c26;
+  --wp-surface-soft: rgba(31, 35, 47, 0.78);
+  --wp-surface-hover: rgba(132, 96, 255, 0.08);
+  --wp-nav: rgba(13, 16, 24, 0.82);
+  --wp-footer: #0b0e15;
+  --wp-text: #d6dbe5;
+  --wp-text-strong: #f7f8fb;
+  --wp-text-muted: #8791a3;
+  --wp-border: rgba(255, 255, 255, 0.08);
+  --wp-border-strong: rgba(255, 255, 255, 0.14);
+  --wp-accent: #8460ff;
+  --wp-accent-strong: #7650f2;
+  --wp-accent-soft: rgba(132, 96, 255, 0.14);
+  --wp-accent-glow: rgba(132, 96, 255, 0.28);
+  --wp-electric: #43a5ff;
+  --wp-emerald: #45d49b;
+  --wp-solid-light: #ffffff;
+  --wp-solid-light-text: #111318;
+  --wp-utility-white-text: #ffffff;
+  --wp-image-overlay: rgba(5, 7, 13, 0.76);
+  --wp-shadow-card: 0 18px 52px rgba(0, 0, 0, 0.22);
+  --wp-shadow-hover: 0 24px 64px rgba(25, 13, 65, 0.38);
+  --wp-shadow-floating: 0 30px 90px rgba(0, 0, 0, 0.48);
+  --wp-focus: 0 0 0 4px rgba(132, 96, 255, 0.14);
+
+  --color-white: #ffffff;
+  --color-zinc-50: #ffffff;
+  --color-zinc-100: #f3f5f8;
+  --color-zinc-200: #dde2ea;
+  --color-zinc-300: #c0c7d2;
+  --color-zinc-400: #9ba4b5;
+  --color-zinc-500: #7b8495;
+  --color-zinc-600: #596273;
+  --color-zinc-700: #353d4d;
+  --color-zinc-800: #202633;
+  --color-zinc-900: #151923;
+  --color-zinc-950: #0d1018;
+
+  --color-violet-100: #ede9fe;
+  --color-violet-200: #ddd6fe;
+  --color-violet-300: #c4b5fd;
+  --color-violet-400: #a78bfa;
+  --color-violet-500: #8b6cff;
+  --color-violet-600: #7650f2;
+  --color-violet-950: #2d175f;
+
+  --color-fuchsia-200: #f5d0fe;
+  --color-fuchsia-300: #f0abfc;
+  --color-fuchsia-400: #e879f9;
+  --color-fuchsia-500: #d946ef;
+  --color-fuchsia-600: #c026d3;
+
+  --color-emerald-200: #a7f3d0;
+  --color-emerald-300: #6ee7b7;
+  --color-emerald-400: #34d399;
+  --color-emerald-500: #10b981;
+
+  --color-red-100: #fee2e2;
+  --color-red-200: #fecaca;
+  --color-red-300: #fca5a5;
+  --color-red-400: #f87171;
+  --color-red-500: #ef4444;
+
+  --color-rose-200: #fecdd3;
+  --color-rose-300: #fda4af;
+  --color-rose-400: #fb7185;
+  --color-rose-500: #f43f5e;
+
+  --color-amber-100: #fef3c7;
+  --color-amber-200: #fde68a;
+  --color-amber-300: #fcd34d;
+  --color-amber-400: #fbbf24;
+  --color-amber-500: #f59e0b;
+
+  --color-sky-200: #bae6fd;
+  --color-sky-300: #7dd3fc;
+  --color-sky-400: #38bdf8;
+  --color-sky-500: #0ea5e9;
+
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+
+  --color-cyan-200: #a5f3fc;
+  --color-cyan-300: #67e8f9;
+  --color-cyan-400: #22d3ee;
+  --color-cyan-500: #06b6d4;
+
+  --color-orange-300: #fdba74;
 }
 
 * {
@@ -19,50 +212,34 @@ html {
   min-width: 320px;
   min-height: 100%;
   scroll-behavior: smooth;
-  background: #07070a;
+  background: var(--wp-page);
 }
 
 body {
   min-width: 320px;
   min-height: 100vh;
   margin: 0;
-  background-color: #07070a;
+  color: var(--wp-text);
+  background-color: var(--wp-page);
   background-image:
-    radial-gradient(
-      circle at 12% 6%,
-      rgba(109, 40, 217, 0.11),
-      transparent 30rem
-    ),
-    radial-gradient(
-      circle at 86% 18%,
-      rgba(76, 29, 149, 0.09),
-      transparent 34rem
-    ),
-    linear-gradient(180deg, #09080f 0%, #07070a 48%, #09080f 100%);
+    radial-gradient(circle at 10% 4%, color-mix(in srgb, var(--wp-accent) 13%, transparent), transparent 31rem),
+    radial-gradient(circle at 90% 18%, color-mix(in srgb, var(--wp-electric) 10%, transparent), transparent 35rem),
+    radial-gradient(circle at 52% 102%, color-mix(in srgb, var(--wp-emerald) 7%, transparent), transparent 38rem),
+    linear-gradient(180deg, var(--wp-page-deep) 0%, var(--wp-page) 46%, var(--wp-page-deep) 100%);
   background-attachment: fixed;
+  transition: background-color 220ms ease, color 220ms ease;
 }
 
 .wellplayd-page-bg {
-  background-color: #07070a;
+  background-color: var(--wp-page);
   background-image:
-    radial-gradient(
-      circle at 8% 4%,
-      rgba(124, 58, 237, 0.12),
-      transparent 32rem
-    ),
-    radial-gradient(
-      circle at 92% 26%,
-      rgba(88, 28, 135, 0.1),
-      transparent 36rem
-    ),
-    radial-gradient(
-      circle at 50% 100%,
-      rgba(76, 29, 149, 0.065),
-      transparent 38rem
-    ),
-    linear-gradient(180deg, rgba(12, 10, 19, 0.98), #07070a 45%, #09080f 100%);
+    radial-gradient(circle at 8% 3%, color-mix(in srgb, var(--wp-accent) 14%, transparent), transparent 32rem),
+    radial-gradient(circle at 92% 25%, color-mix(in srgb, var(--wp-electric) 9%, transparent), transparent 36rem),
+    radial-gradient(circle at 50% 100%, color-mix(in srgb, var(--wp-emerald) 6%, transparent), transparent 40rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--wp-page-deep) 96%, transparent), var(--wp-page) 46%, var(--wp-page-deep) 100%);
   background-attachment: fixed;
-  background-blend-mode: screen, screen, screen, normal;
+  background-blend-mode: normal;
+  transition: background-color 220ms ease, color 220ms ease;
 }
 
 button,
@@ -70,6 +247,18 @@ input,
 textarea,
 select {
   font: inherit;
+}
+
+input,
+textarea,
+select {
+  color: var(--wp-text-strong);
+  caret-color: var(--wp-accent);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--wp-text-muted);
 }
 
 input[type="search"]::-webkit-search-cancel-button,
@@ -83,26 +272,6 @@ input[type="search"]::-ms-reveal {
   display: none;
   width: 0;
   height: 0;
-}
-
-.coming-soon-badge {
-  position: absolute;
-  top: 0.75rem;
-  left: 0.75rem;
-  z-index: 10;
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid rgba(196, 181, 253, 0.35);
-  border-radius: 9999px;
-  padding: 0.35rem 0.65rem;
-  color: #ede9fe;
-  background: rgba(76, 29, 149, 0.88);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-  backdrop-filter: blur(8px);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.04em;
 }
 
 button {
@@ -126,5 +295,337 @@ img {
 
 ::selection {
   color: #ffffff;
-  background: rgba(139, 92, 246, 0.65);
+  background: color-mix(in srgb, var(--wp-accent) 76%, transparent);
+}
+
+/* Keep solid white UI pieces white while text-white remains theme-aware. */
+[class~="bg-white"] {
+  background-color: var(--wp-solid-light) !important;
+}
+
+[class~="text-zinc-950"] {
+  color: var(--wp-solid-light-text) !important;
+}
+
+[class~="text-white"] {
+  color: var(--wp-utility-white-text) !important;
+}
+
+[class~="hover:text-white"]:hover,
+.group:hover [class~="group-hover:text-white"] {
+  color: var(--wp-utility-white-text) !important;
+}
+
+:where(
+  [class*="bg-violet-"],
+  [class*="bg-fuchsia-"],
+  [class*="bg-red-"],
+  [class*="bg-rose-"],
+  [class*="bg-blue-"],
+  [class*="bg-sky-"],
+  [class*="from-violet-"],
+  [class*="from-fuchsia-"]
+)[class~="text-white"] {
+  color: #ffffff !important;
+}
+
+:where(
+  [class~="absolute"][class~="text-white"],
+  [class*="bg-black/"][class~="text-white"]
+) {
+  color: #ffffff !important;
+}
+
+.group:hover [class~="absolute"][class~="group-hover:text-white"] {
+  color: #ffffff !important;
+}
+
+/* Existing hard-coded dark surfaces are routed through theme tokens. */
+:where(
+  [class~="bg-[#101015]"],
+  [class~="bg-[#111116]"],
+  [class~="bg-[#111118]"],
+  [class~="bg-[#111218]"],
+  [class~="bg-[#11131a]"],
+  [class~="bg-[#111018]"],
+  [class~="bg-[#101116]"],
+  [class~="bg-[#15151b]"],
+  [class~="bg-[#15161c]"],
+  [class~="bg-[#15131d]"],
+  [class~="bg-[#16171d]"],
+  [class~="bg-[#181820]"],
+  [class~="bg-[#13131a]"],
+  [class~="bg-[#121218]"],
+  [class~="bg-[#12121a]"]
+) {
+  background-color: var(--wp-surface) !important;
+}
+
+:where(
+  [class~="bg-[#0a0a0e]"],
+  [class~="bg-[#09090d]"],
+  [class~="bg-[#08090d]"],
+  [class~="bg-[#0d0d12]"],
+  [class~="bg-[#0d0d11]"],
+  [class~="bg-[#0d0e12]"],
+  [class~="bg-[#0e0e13]"]
+) {
+  background-color: var(--wp-surface-soft) !important;
+}
+
+[data-theme="light"] :where(
+  section[class~="relative"][class~="isolate"][class~="bg-[#0a0a0e]"],
+  section[class~="relative"][class~="overflow-hidden"][class~="bg-[#0a0a0e]"]
+) {
+  --wp-utility-white-text: #ffffff;
+  --color-zinc-100: #f3f5f8;
+  --color-zinc-200: #dde2ea;
+  --color-zinc-300: #c0c7d2;
+  --color-zinc-400: #9ba4b5;
+  --color-zinc-500: #7b8495;
+  --color-zinc-600: #596273;
+  --color-zinc-700: #353d4d;
+  background-color: #111827 !important;
+}
+
+[class~="bg-[#101015]/95"] {
+  background-color: color-mix(in srgb, var(--wp-surface-strong) 95%, transparent) !important;
+}
+
+[class~="bg-[#0b0b0f]/90"] {
+  background-color: color-mix(in srgb, var(--wp-surface-strong) 92%, transparent) !important;
+}
+
+[class~="bg-[#1a1b22]/85"] {
+  background-color: color-mix(in srgb, var(--wp-surface-strong) 86%, transparent) !important;
+}
+
+[class~="bg-[#08080b]/85"] {
+  background-color: var(--wp-nav) !important;
+}
+
+[class~="bg-[#060608]"] {
+  background-color: var(--wp-footer) !important;
+}
+
+/* Hover variants containing arbitrary hard-coded colors. */
+[class~="hover:bg-[#15131d]"]:hover,
+[class~="hover:bg-[#13131a]"]:hover,
+[class~="focus:bg-[#111018]"]:focus {
+  background-color: var(--wp-surface-hover) !important;
+}
+
+/* Hard-coded gradients used by game covers and statistic cards. */
+:where(
+  [class~="from-[#09090c]/70"],
+  [class~="from-[#09090c]/80"],
+  [class~="from-[#09090c]/85"],
+  [class~="from-[#09090c]/90"],
+  [class~="from-[#090910]/90"],
+  [class~="from-[#09090d]"]
+) {
+  --tw-gradient-from: var(--wp-image-overlay) !important;
+}
+
+[class~="from-[#171a25]"] {
+  --tw-gradient-from: color-mix(in srgb, var(--wp-surface-strong) 88%, var(--wp-accent) 12%) !important;
+}
+
+[class~="via-[#141722]"] {
+  --tw-gradient-via: color-mix(in srgb, var(--wp-surface) 92%, var(--wp-electric) 8%) !important;
+}
+
+[class~="via-[#090910]/10"] {
+  --tw-gradient-via: color-mix(in srgb, var(--wp-image-overlay) 10%, transparent) !important;
+}
+
+:where([class~="to-[#10121a]"], [class~="to-[#11131b]"]) {
+  --tw-gradient-to: var(--wp-surface-strong) !important;
+}
+
+/* Navbar, cards and forum surfaces. */
+header[class*="sticky"] {
+  box-shadow: 0 1px 0 var(--wp-border), 0 12px 38px rgba(20, 24, 38, 0.08);
+  backdrop-filter: blur(20px) saturate(145%);
+  -webkit-backdrop-filter: blur(20px) saturate(145%);
+}
+
+footer {
+  box-shadow: inset 0 1px 0 var(--wp-border);
+}
+
+section[class*="rounded-3xl"][class*="border-white"],
+article[class*="rounded-2xl"][class*="border-white"],
+article[class*="rounded-3xl"][class*="border-white"] {
+  box-shadow: var(--wp-shadow-card);
+  backdrop-filter: blur(16px) saturate(125%);
+  -webkit-backdrop-filter: blur(16px) saturate(125%);
+}
+
+article[class*="border-white"][class*="transition"]:hover {
+  box-shadow: var(--wp-shadow-hover);
+}
+
+[class*="shadow-black/50"],
+[class*="shadow-black/55"],
+[class*="shadow-black/60"],
+[class*="shadow-black/70"] {
+  box-shadow: var(--wp-shadow-floating) !important;
+}
+
+/* Neutral borders and translucent surfaces follow each theme. */
+:where(
+  [class~="border-white/5"],
+  [class~="border-white/10"],
+  [class~="border-white/15"],
+  [class~="border-white/[0.05]"],
+  [class~="border-white/[0.055]"],
+  [class~="border-white/[0.06]"],
+  [class~="border-white/[0.07]"],
+  [class~="border-white/[0.08]"],
+  [class~="border-white/[0.09]"],
+  [class~="border-white/[0.1]"],
+  [class~="border-white/[0.12]"]
+) {
+  border-color: var(--wp-border) !important;
+}
+
+:where(
+  [class~="hover:border-white/15"],
+  [class~="hover:border-white/20"],
+  [class~="hover:border-white/[0.12]"],
+  [class~="hover:border-white/[0.14]"],
+  [class~="hover:border-white/[0.15]"]
+):hover {
+  border-color: var(--wp-border-strong) !important;
+}
+
+:where(
+  [class~="bg-white/5"],
+  [class~="bg-white/[0.01]"],
+  [class~="bg-white/[0.015]"],
+  [class~="bg-white/[0.018]"],
+  [class~="bg-white/[0.02]"],
+  [class~="bg-white/[0.025]"],
+  [class~="bg-white/[0.03]"],
+  [class~="bg-white/[0.035]"],
+  [class~="bg-white/[0.04]"],
+  [class~="bg-white/[0.05]"],
+  [class~="bg-white/[0.06]"],
+  [class~="bg-white/[0.07]"]
+) {
+  background-color: color-mix(in srgb, var(--wp-text-strong) 4%, transparent) !important;
+}
+
+:where(
+  [class~="hover:bg-white"],
+  [class~="hover:bg-white/5"],
+  [class~="hover:bg-white/10"],
+  [class~="hover:bg-white/[0.04]"],
+  [class~="hover:bg-white/[0.045]"],
+  [class~="hover:bg-white/[0.05]"],
+  [class~="hover:bg-white/[0.06]"],
+  [class~="hover:bg-white/[0.07]"],
+  [class~="hover:bg-white/[0.08]"],
+  [class~="hover:bg-white/[0.09]"]
+):hover {
+  background-color: color-mix(in srgb, var(--wp-text-strong) 7%, transparent) !important;
+}
+
+/* Inputs and selects receive a consistent glass field treatment. */
+:where(input, textarea, select)[class*="border-white"] {
+  background-color: color-mix(in srgb, var(--wp-surface-strong) 74%, transparent) !important;
+  border-color: var(--wp-border) !important;
+  box-shadow: none;
+  background-clip: padding-box;
+}
+
+:where(input, textarea, select):focus {
+  border-color: color-mix(in srgb, var(--wp-accent) 54%, transparent) !important;
+  box-shadow: var(--wp-focus);
+}
+
+:where(
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]),
+  textarea,
+  select
+) {
+  outline: none;
+  box-shadow: none;
+}
+
+select:not([multiple]) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.5rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238791a3' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.8rem center;
+  background-size: 1rem;
+}
+
+select option,
+select optgroup {
+  color: var(--wp-text-strong);
+  background: var(--wp-surface-strong);
+}
+
+/* Accessibility and motion polish. */
+:focus-visible {
+  outline-color: var(--wp-accent);
+}
+
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--wp-page-deep);
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid var(--wp-page-deep);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--wp-text-muted) 48%, transparent);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--wp-accent) 62%, var(--wp-text-muted));
+}
+
+.coming-soon-badge {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 10;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid color-mix(in srgb, var(--wp-accent) 40%, transparent);
+  border-radius: 9999px;
+  padding: 0.35rem 0.65rem;
+  color: #ffffff;
+  background: color-mix(in srgb, var(--wp-accent-strong) 88%, transparent);
+  box-shadow: 0 10px 28px var(--wp-accent-glow);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
 }

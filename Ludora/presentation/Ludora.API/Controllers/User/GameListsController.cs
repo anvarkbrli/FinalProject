@@ -21,11 +21,13 @@ public sealed class GameListsController : ControllerBase
     [HttpGet("user/{userId:guid}")]
     public async Task<IActionResult> GetUserLists(
         Guid userId,
+        [FromQuery] PaginationFilterDTO pagination,
         CancellationToken cancellationToken)
     {
         return Ok(await _gameListService.GetUserListsAsync(
             userId,
             GetOptionalCurrentUserId(),
+            pagination,
             cancellationToken));
     }
 

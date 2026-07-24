@@ -34,29 +34,44 @@ public sealed class UserReportsController : ControllerBase
         [FromForm] string? description,
         [FromForm] Ludora.Domain.Enums.UserReportContentType reportedContentType,
         [FromForm] long? reportedContentId,
+        [FromForm] List<IFormFile>? evidenceImages,
         IFormFile? evidenceImage,
         CancellationToken cancellationToken)
     {
-        await using var evidenceStream = evidenceImage is { Length: > 0 }
-            ? evidenceImage.OpenReadStream()
-            : null;
+        var allFiles = (evidenceImages ?? [])
+            .Concat(evidenceImage is { Length: > 0 } ? [evidenceImage] : [])
+            .Where(x => x.Length > 0)
+            .Take(6)
+            .ToList();
+        var streams = allFiles.Select(x => x.OpenReadStream()).ToList();
 
-        var result = await _userReportService.CreateAsync(
-            GetCurrentUserId(),
-            reportedUserId,
-            new UserReportCreateDTO
-            {
-                Category = category,
-                Description = description,
-                ReportedContentType = reportedContentType,
-                ReportedContentId = reportedContentId,
-                EvidenceImage = CreateEvidenceUpload(
-                    evidenceImage,
-                    evidenceStream)
-            },
-            cancellationToken);
+        try
+        {
+            var result = await _userReportService.CreateAsync(
+                GetCurrentUserId(),
+                reportedUserId,
+                new UserReportCreateDTO
+                {
+                    Category = category,
+                    Description = description,
+                    ReportedContentType = reportedContentType,
+                    ReportedContentId = reportedContentId,
+                    EvidenceImages = allFiles
+                        .Zip(streams)
+                        .Select(pair => CreateEvidenceUpload(
+                            pair.First,
+                            pair.Second)!)
+                        .ToList()
+                },
+                cancellationToken);
 
-        return StatusCode(StatusCodes.Status201Created, result);
+            return StatusCode(StatusCodes.Status201Created, result);
+        }
+        finally
+        {
+            foreach (var stream in streams)
+                await stream.DisposeAsync();
+        }
     }
 
     private static UserReportEvidenceUploadDTO? CreateEvidenceUpload(

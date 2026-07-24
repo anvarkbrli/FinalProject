@@ -1,14 +1,34 @@
 import { api } from "../lib/api";
-import type { CatalogSource } from "../types/home";
+import type { CatalogSource, PagedResultDTO } from "../types/home";
 import type {
   UserGameDTO,
+  UserGameDashboardDTO,
   UserGameStatus,
   WishlistedFriendDTO,
 } from "../types/userGames";
 
-export async function getMyUserGames(): Promise<UserGameDTO[]> {
-  const response = await api.get<UserGameDTO[]>(
+export async function getMyUserGameDashboard(
+  signal?: AbortSignal,
+): Promise<UserGameDashboardDTO> {
+  const response = await api.get<UserGameDashboardDTO>(
+    "/usergames/dashboard",
+    { signal },
+  );
+
+  return response.data;
+}
+
+export async function getMyUserGames(
+  pageNumber = 1,
+  pageSize = 20,
+  signal?: AbortSignal,
+): Promise<PagedResultDTO<UserGameDTO>> {
+  const response = await api.get<PagedResultDTO<UserGameDTO>>(
     "/usergames",
+    {
+      params: { pageNumber, pageSize },
+      signal,
+    },
   );
 
   return response.data;

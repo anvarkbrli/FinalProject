@@ -21,6 +21,19 @@ namespace Ludora.Persistence.Configurations
             builder.HasIndex(x => x.SteamAppId)
                 .IsUnique()
                 .HasFilter("[SteamAppId] IS NOT NULL");
+
+            builder.HasIndex(x => new { x.ReleaseDate, x.Name, x.Id })
+                .IsDescending(true, false, false)
+                .HasFilter("[IsDeleted] = 0");
+
+            builder.HasIndex(x => new { x.Name, x.Id })
+                .HasFilter("[IsDeleted] = 0");
+
+            builder.HasIndex(x => new { x.AverageRating, x.Id })
+                .HasFilter("[IsDeleted] = 0");
+
+            builder.HasIndex(x => new { x.PlayCount, x.Id })
+                .HasFilter("[IsDeleted] = 0");
         }
     }
 }

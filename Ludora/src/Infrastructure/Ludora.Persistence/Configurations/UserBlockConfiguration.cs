@@ -21,5 +21,19 @@ public class UserBlockConfiguration : IEntityTypeConfiguration<UserBlock>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.Property(ub => ub.CreatedAt).IsRequired();
+
+        builder.HasIndex(ub => new
+        {
+            ub.BlockedUserId,
+            ub.BlockerId
+        });
+
+        builder.HasIndex(ub => new
+        {
+            ub.BlockerId,
+            ub.CreatedAt,
+            ub.BlockedUserId
+        })
+            .IsDescending(false, true, false);
     }
 }

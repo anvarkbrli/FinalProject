@@ -1,5 +1,6 @@
 using System.Text;
 using Ludora.Application.DTOs;
+using Ludora.Application.DTOs.Badge;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Helpers;
@@ -22,18 +23,21 @@ public class UserService : IUserService
     private readonly AppDbContext _context;
     private readonly IEmailService _emailService;
     private readonly EmailSettings _emailSettings;
+    private readonly IBadgeEvaluationQueue _badgeEvaluationQueue;
 
     public UserService(
         UserManager<AppUser> userManager,
         IFileStorageService fileStorageService,
         AppDbContext context,
         IEmailService emailService,
+        IBadgeEvaluationQueue badgeEvaluationQueue,
         IOptions<EmailSettings> emailOptions)
     {
         _userManager = userManager;
         _fileStorageService = fileStorageService;
         _context = context;
         _emailService = emailService;
+        _badgeEvaluationQueue = badgeEvaluationQueue;
         _emailSettings = emailOptions.Value;
     }
 
@@ -88,6 +92,8 @@ public class UserService : IUserService
         }
 
         var summary = await GetProfileSummaryAsync(user.Id);
+        var badges = await GetUserBadgesAsync(user.Id);
+        _badgeEvaluationQueue.Enqueue(user.Id);
 
         return new UserProfileDTO
         {
@@ -104,7 +110,8 @@ public class UserService : IUserService
             FollowerCount = summary.FollowerCount,
             FollowingCount = summary.FollowingCount,
             PostCount = summary.PostCount,
-            Statistics = summary.Statistics
+            Statistics = summary.Statistics,
+            Badges = badges
         };
     }
 
@@ -331,7 +338,7 @@ public class UserService : IUserService
             .GroupBy(_ => 1)
             .Select(group => new
             {
-                Count = group.Count(x => x.Content != string.Empty),
+                Count = group.Count(x => x.Content.Trim() != string.Empty),
                 TotalPlaytimeMinutes = group.Sum(x => (long)(x.PlaytimeMinutes ?? 0))
             })
             .FirstOrDefaultAsync();
@@ -365,6 +372,27 @@ public class UserService : IUserService
                     : weightedRatingTotal / ratingCount,
                 RatingDistribution = ratingGroups
             });
+    }
+
+    private Task<List<UserBadgeDTO>> GetUserBadgesAsync(Guid userId)
+    {
+        return _context.UserBadges
+            .AsNoTracking()
+            .Where(x => x.UserId == userId && x.BadgeDefinition.IsActive)
+            .OrderBy(x => x.BadgeDefinition.DisplayOrder)
+            .ThenByDescending(x => x.AwardedAtUtc)
+            .Select(x => new UserBadgeDTO
+            {
+                Id = x.BadgeDefinitionId,
+                Code = x.BadgeDefinition.Code,
+                Name = x.BadgeDefinition.Name,
+                Description = x.BadgeDefinition.Description,
+                Icon = x.BadgeDefinition.Icon,
+                Color = x.BadgeDefinition.Color,
+                MetricValueAtAward = x.MetricValueAtAward,
+                AwardedAtUtc = x.AwardedAtUtc
+            })
+            .ToListAsync();
     }
 
     private sealed record ProfileSummary(

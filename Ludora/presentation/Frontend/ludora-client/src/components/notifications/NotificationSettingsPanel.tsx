@@ -126,27 +126,6 @@ const preferenceGroups: PreferenceGroup[] = [
       },
     ],
   },
-  {
-    title: "İzləmə əlaqələri",
-    description: "İzləmə sorğuları və yeni əlaqələr.",
-    items: [
-      {
-        type: "FollowRequestReceived",
-        title: "İzləmə sorğusu",
-        description: "Gizli profilinə yeni izləmə sorğusu gəldikdə.",
-      },
-      {
-        type: "UserFollowed",
-        title: "Yeni izləyici",
-        description: "Kimsə səni izləməyə başladıqda.",
-      },
-      {
-        type: "FollowRequestAccepted",
-        title: "Sorğu qəbul edildi",
-        description: "Göndərdiyin izləmə sorğusu qəbul edildikdə.",
-      },
-    ],
-  },
 ];
 
 export function NotificationSettingsPanel() {

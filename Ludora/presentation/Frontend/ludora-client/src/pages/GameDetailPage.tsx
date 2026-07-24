@@ -144,11 +144,14 @@ const gameTypeLabels: Record<
 function parseRouteSource(
   value: string | undefined,
 ): CatalogSource | null {
-  if (value === "Local" || value === "Igdb") {
-    return value;
+  switch (value?.trim().toLowerCase()) {
+    case "local":
+      return "Local";
+    case "igdb":
+      return "Igdb";
+    default:
+      return null;
   }
-
-  return null;
 }
 
 function formatReleaseDate(
@@ -1510,8 +1513,8 @@ export function GameDetailPage() {
       source,
       id,
     ],
-    queryFn: () =>
-      getGameById(source!, id),
+    queryFn: ({ signal }) =>
+      getGameById(source!, id, signal),
     enabled: isValidRoute,
   });
 

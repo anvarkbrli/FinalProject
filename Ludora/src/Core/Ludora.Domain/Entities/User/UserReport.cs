@@ -30,4 +30,5 @@ public class UserReport
     public string? AdminNote { get; set; }
 
     public ICollection<ModeratorActionLog> ModeratorActions { get; set; } = [];
+    public ICollection<UserReportEvidence> EvidenceImages { get; set; } = [];
 }

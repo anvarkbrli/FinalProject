@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text;
 using Ludora.Application.DTOs.Steam;
@@ -23,7 +24,10 @@ public sealed class SteamService : ISteamService
     private const int SqlServerSafeParameterBatchSize = 500;
     private const int MaxReviewPlaytimeMinutes = 600000;
     private const int AzerbaijanUtcOffsetHours = 4;
+    private const string LegacySteamAccountId = "legacy";
+    private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> SyncLocks = new();
     private readonly AppDbContext _context;
+    private readonly IIgdbClient _igdbClient;
     private readonly ISteamApiClient _steamApiClient;
     private readonly ISteamOpenIdClient _steamOpenIdClient;
     private readonly ISteamStoreClient _steamStoreClient;
@@ -32,6 +36,7 @@ public sealed class SteamService : ISteamService
 
     public SteamService(
         AppDbContext context,
+        IIgdbClient igdbClient,
         ISteamApiClient steamApiClient,
         ISteamOpenIdClient steamOpenIdClient,
         ISteamStoreClient steamStoreClient,
@@ -39,6 +44,7 @@ public sealed class SteamService : ISteamService
         ILogger<SteamService> logger)
     {
         _context = context;
+        _igdbClient = igdbClient;
         _steamApiClient = steamApiClient;
         _steamOpenIdClient = steamOpenIdClient;
         _steamStoreClient = steamStoreClient;
@@ -184,6 +190,7 @@ public sealed class SteamService : ISteamService
 
             return new SteamConnectionResultDTO
             {
+                UserId = user.Id,
                 Success = true,
                 SteamId = user.SteamId,
                 SteamName = user.SteamDisplayName,
@@ -243,42 +250,71 @@ public sealed class SteamService : ISteamService
         Guid userId,
         CancellationToken cancellationToken = default)
     {
-        var user = await _context.Users
-            .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken)
-            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
+        var syncLock = SyncLocks.GetOrAdd(
+            userId,
+            _ => new SemaphoreSlim(1, 1));
+        await syncLock.WaitAsync(cancellationToken);
 
-        await _context.SteamLinkChallenges
-            .Where(x => x.UserId == userId)
-            .ExecuteDeleteAsync(cancellationToken);
-        await _context.SteamFriendSnapshots
-            .Where(x => x.UserId == userId)
-            .ExecuteDeleteAsync(cancellationToken);
-        await _context.SteamOwnedGames
-            .Where(x => x.UserId == userId)
-            .ExecuteDeleteAsync(cancellationToken);
-        await _context.UserGamePlayLogs
-            .Where(x => x.UserId == userId)
-            .ExecuteDeleteAsync(cancellationToken);
+        try
+        {
+            var user = await _context.Users
+                .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken)
+                ?? throw new NotFoundException("İstifadəçi tapılmadı.");
 
-        user.SteamId = null;
-        user.SteamDisplayName = null;
-        user.SteamAvatarUrl = null;
-        user.SteamProfileUrl = null;
-        user.SteamLinkedAtUtc = null;
-        user.SteamLastSyncedAtUtc = null;
+            await _context.SteamLinkChallenges
+                .Where(x => x.UserId == userId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await _context.SteamFriendSnapshots
+                .Where(x => x.UserId == userId)
+                .ExecuteDeleteAsync(cancellationToken);
+            await _context.SteamOwnedGames
+                .Where(x => x.UserId == userId)
+                .ExecuteDeleteAsync(cancellationToken);
 
-        await _context.SaveChangesAsync(cancellationToken);
+            // Import baselines are deliberately retained. They make reconnecting
+            // the same Steam account idempotent and prevent full playtime from
+            // being added to Ludora a second time.
+            user.SteamId = null;
+            user.SteamDisplayName = null;
+            user.SteamAvatarUrl = null;
+            user.SteamProfileUrl = null;
+            user.SteamLinkedAtUtc = null;
+            user.SteamLastSyncedAtUtc = null;
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        finally
+        {
+            syncLock.Release();
+        }
     }
 
     public async Task<SteamSyncResultDTO> SyncOwnedGamesAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
     {
+        var syncLock = SyncLocks.GetOrAdd(userId, _ => new SemaphoreSlim(1, 1));
+        await syncLock.WaitAsync(cancellationToken);
+        try
+        {
+            return await SyncOwnedGamesCoreAsync(userId, cancellationToken);
+        }
+        finally
+        {
+            syncLock.Release();
+        }
+    }
+
+    private async Task<SteamSyncResultDTO> SyncOwnedGamesCoreAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
         EnsureEnabled();
 
         var user = await GetLinkedUserAsync(userId, tracking: true, cancellationToken: cancellationToken);
+        var steamAccountId = user.SteamId!;
         var remoteResult = await _steamApiClient.GetOwnedGamesAsync(
-            user.SteamId!,
+            steamAccountId,
             cancellationToken);
 
         if (!remoteResult.IsVisible)
@@ -292,7 +328,9 @@ public sealed class SteamService : ISteamService
             .Select(x => x.OrderByDescending(g => g.PlaytimeForeverMinutes).First())
             .ToList();
 
-        var localMatches = await MatchLocalGamesAsync(remoteGames, cancellationToken);
+        var catalogMatches = await MatchCatalogGamesAsync(
+            remoteGames,
+            cancellationToken);
         var now = DateTime.UtcNow;
 
         await using var transaction = await _context.Database.BeginTransactionAsync(cancellationToken);
@@ -302,35 +340,34 @@ public sealed class SteamService : ISteamService
             .ToListAsync(cancellationToken);
         var ownedMap = existingOwnedGames.ToDictionary(x => x.SteamAppId);
 
-        var matchedLocalGameIds = localMatches.Values
-            .Select(x => x.Id)
-            .Distinct()
-            .ToList();
-        var matchedLocalGameIdsAsLong = matchedLocalGameIds
-            .Select(x => (long)x)
-            .ToList();
-
         var existingUserGames = await _context.UserGames
-            .Where(x => x.UserId == userId &&
-                        x.Source == CatalogSource.Local &&
-                        matchedLocalGameIdsAsLong.Contains(x.GameId))
+            .Where(x => x.UserId == userId)
             .ToListAsync(cancellationToken);
         var userGameMap = existingUserGames
-            .ToDictionary(x => (int)x.GameId);
+            .ToDictionary(x => (x.Source, x.GameId));
 
         var existingReviews = await _context.Reviews
             .IgnoreQueryFilters()
-            .Where(x => x.UserId == userId &&
-                        x.Source == CatalogSource.Local &&
-                        matchedLocalGameIdsAsLong.Contains(x.GameId))
-            .ToListAsync(cancellationToken);
-        var reviewMap = existingReviews
-            .ToDictionary(x => (int)x.GameId);
-
-        var existingLogs = await _context.UserGamePlayLogs
             .Where(x => x.UserId == userId)
             .ToListAsync(cancellationToken);
-        var logMap = existingLogs.ToDictionary(x => x.SteamAppId);
+        var reviewMap = existingReviews
+            .ToDictionary(x => (x.Source, x.GameId));
+
+        var existingLogs = await _context.UserGamePlayLogs
+            .Where(x =>
+                x.UserId == userId &&
+                (x.SteamAccountId == steamAccountId ||
+                 x.SteamAccountId == LegacySteamAccountId))
+            .ToListAsync(cancellationToken);
+        var logMap = existingLogs
+            .GroupBy(x => x.SteamAppId)
+            .ToDictionary(
+                group => group.Key,
+                group => group
+                    .OrderByDescending(x =>
+                        x.SteamAccountId == steamAccountId)
+                    .ThenByDescending(x => x.LastSyncedAtUtc)
+                    .First());
 
         var createdUserGameCount = 0;
         var updatedUserGameCount = 0;
@@ -343,12 +380,25 @@ public sealed class SteamService : ISteamService
 
         foreach (var remoteGame in remoteGames)
         {
-            localMatches.TryGetValue(remoteGame.AppId, out var localGame);
+            catalogMatches.TryGetValue(remoteGame.AppId, out var match);
             var iconUrl = BuildSteamIconUrl(remoteGame.AppId, remoteGame.IconHash);
             var lastPlayedAtUtc = FromUnixSeconds(remoteGame.LastPlayedUnix);
+            var steamPlayedOn = GetSteamPlayedOn(lastPlayedAtUtc, now);
+            var steamTotalMinutes = Math.Max(
+                0,
+                remoteGame.PlaytimeForeverMinutes);
 
-            if (!ownedMap.TryGetValue(remoteGame.AppId, out var ownedGame))
+            var ownedGameWasExisting = ownedMap.TryGetValue(
+                remoteGame.AppId,
+                out var existingOwnedGame);
+            SteamOwnedGame ownedGame;
+            if (ownedGameWasExisting && existingOwnedGame is not null)
             {
+                ownedGame = existingOwnedGame;
+            }
+            else
+            {
+                ownedGameWasExisting = false;
                 ownedGame = new SteamOwnedGame
                 {
                     UserId = userId,
@@ -358,9 +408,22 @@ public sealed class SteamService : ISteamService
                 ownedMap[remoteGame.AppId] = ownedGame;
             }
 
-            ownedGame.LocalGameId = localGame?.Id;
+            ownedGame.LocalGameId =
+                match?.Source == CatalogSource.Local &&
+                match.GameId <= int.MaxValue
+                    ? (int)match.GameId
+                    : null;
+            ownedGame.MatchedGameSource = match?.Source;
+            ownedGame.MatchedGameId = match?.GameId;
+            ownedGame.MatchedGameName = match?.Name;
+            ownedGame.MatchedCoverImageUrl = match?.CoverImageUrl;
+            ownedGame.MatchedReleaseDate = match?.ReleaseDate;
+            ownedGame.MatchMethod =
+                match?.MatchMethod ?? SteamGameMatchMethod.None;
+            ownedGame.MatchConfidence = match is null ? 0m : 1m;
+            ownedGame.IsSteamFallback = false;
             ownedGame.Name = remoteGame.Name;
-            ownedGame.PlaytimeMinutes = remoteGame.PlaytimeForeverMinutes;
+            ownedGame.PlaytimeMinutes = steamTotalMinutes;
             ownedGame.PlaytimeWindowsMinutes = remoteGame.PlaytimeWindowsMinutes;
             ownedGame.PlaytimeMacMinutes = remoteGame.PlaytimeMacMinutes;
             ownedGame.PlaytimeLinuxMinutes = remoteGame.PlaytimeLinuxMinutes;
@@ -369,98 +432,191 @@ public sealed class SteamService : ISteamService
             ownedGame.IconUrl = iconUrl;
             ownedGame.SyncedAtUtc = now;
 
-            if (localGame is null)
+            if (match is null)
                 continue;
 
-            if (!userGameMap.TryGetValue(localGame.Id, out var userGame))
+            var gameKey = (match.Source, match.GameId);
+            reviewMap.TryGetValue(gameKey, out var review);
+            var hasVisibleReview = review is not null && !review.IsDeleted;
+
+            if (!userGameMap.TryGetValue(gameKey, out var userGame))
             {
                 userGame = new UserGame
                 {
                     UserId = userId,
-                    Source = CatalogSource.Local,
-                    GameId = localGame.Id,
-                    Status = remoteGame.PlaytimeForeverMinutes > 0
-                        ? UserGameStatus.Played
-                        : null,
+                    Source = match.Source,
+                    GameId = match.GameId,
+                    Status = UserGameStatus.Played,
                     CreatedAt = now,
                     UpdatedAt = now
                 };
                 _context.UserGames.Add(userGame);
-                userGameMap[localGame.Id] = userGame;
+                userGameMap[gameKey] = userGame;
                 createdUserGameCount++;
             }
-            else if (remoteGame.PlaytimeForeverMinutes > 0 && !userGame.Status.HasValue)
+            else if (!hasVisibleReview &&
+                     userGame.Status != UserGameStatus.Played)
             {
                 userGame.Status = UserGameStatus.Played;
                 userGame.UpdatedAt = now;
                 updatedUserGameCount++;
             }
 
-            var normalizedReviewPlaytime = NormalizeSteamReviewPlaytime(
-                remoteGame.PlaytimeForeverMinutes);
-            var steamPlayedOn = GetSteamPlayedOn(
-                lastPlayedAtUtc,
-                now);
+            logMap.TryGetValue(remoteGame.AppId, out var playLog);
+            if (playLog?.SteamAccountId == LegacySteamAccountId)
+                playLog.SteamAccountId = steamAccountId;
 
-            if (reviewMap.TryGetValue(localGame.Id, out var review))
+            var previousSteamTotal = playLog?.PlaytimeMinutes ?? 0;
+            var observedSteamDelta = Math.Max(
+                0,
+                steamTotalMinutes - previousSteamTotal);
+            var requiresHistoricalRepair =
+                ownedGameWasExisting &&
+                hasVisibleReview &&
+                review is not null &&
+                !review.IsSteamAutoLogged &&
+                !ownedGame.ResolutionConfirmedAtUtc.HasValue &&
+                steamTotalMinutes > 0;
+            var steamMinutesToApply = requiresHistoricalRepair
+                ? steamTotalMinutes
+                : observedSteamDelta;
+
+            if (hasVisibleReview && review is not null)
             {
-                if (!review.IsDeleted && review.IsSteamAutoLogged)
+                var hasSteamManagedPlaytime =
+                    review.IsSteamAutoLogged &&
+                    !review.IsSteamPlaytimeOverridden;
+
+                if (hasSteamManagedPlaytime)
                 {
-                    var autoLogChanged = false;
+                    var normalizedSteamMinutes =
+                        NormalizeSteamReviewPlaytime(steamTotalMinutes);
 
-                    if (!review.IsSteamPlaytimeOverridden &&
-                        review.PlaytimeMinutes != normalizedReviewPlaytime)
+                    if (review.PlaytimeMinutes != normalizedSteamMinutes)
                     {
-                        review.PlaytimeMinutes = normalizedReviewPlaytime;
-                        updatedReviewPlaytimeCount++;
-                        autoLogChanged = true;
-                    }
-
-                    if (!review.IsSteamPlayedOnOverridden &&
-                        lastPlayedAtUtc.HasValue &&
-                        review.PlayedOn != steamPlayedOn)
-                    {
-                        review.PlayedOn = steamPlayedOn;
-                        autoLogChanged = true;
-                    }
-
-                    if (autoLogChanged)
-                    {
+                        review.PlaytimeMinutes = normalizedSteamMinutes;
                         review.UpdatedAt = now;
+                        updatedReviewPlaytimeCount++;
                         updatedAutoLogCount++;
                     }
+
+                    ownedGame.ManualPlaytimeSnapshotMinutes = null;
+                    ownedGame.PlaytimeResolution =
+                        SteamPlaytimeResolution.SteamOnly;
+                    ownedGame.ResolvedPlaytimeMinutes = steamTotalMinutes;
+                    ownedGame.ResolutionConfirmedAtUtc = now;
+                }
+                else if (steamMinutesToApply > 0)
+                {
+                    var currentMinutes = Math.Max(
+                        0,
+                        review.PlaytimeMinutes ?? 0);
+                    var combinedMinutes = AddPlaytimeSafely(
+                        currentMinutes,
+                        steamMinutesToApply);
+
+                    if (combinedMinutes != currentMinutes)
+                    {
+                        review.PlaytimeMinutes =
+                            NormalizeSteamReviewPlaytime(combinedMinutes);
+                        review.UpdatedAt = now;
+                        updatedReviewPlaytimeCount++;
+                        updatedAutoLogCount++;
+                    }
+
+                    if (requiresHistoricalRepair)
+                    {
+                        ownedGame.ManualPlaytimeSnapshotMinutes = currentMinutes;
+                        ownedGame.ManualPlatformSourceSnapshot =
+                            review.PlatformSource;
+                        ownedGame.ManualPlatformIdSnapshot =
+                            review.PlatformId;
+                        ownedGame.ManualPlayedOnSnapshot = review.PlayedOn;
+                    }
+                    else if (!ownedGame.ManualPlaytimeSnapshotMinutes.HasValue)
+                    {
+                        ownedGame.ManualPlaytimeSnapshotMinutes = Math.Max(
+                            0,
+                            currentMinutes - previousSteamTotal);
+                        ownedGame.ManualPlatformSourceSnapshot =
+                            review.PlatformSource;
+                        ownedGame.ManualPlatformIdSnapshot =
+                            review.PlatformId;
+                        ownedGame.ManualPlayedOnSnapshot = review.PlayedOn;
+                    }
+
+                    ownedGame.PlaytimeResolution =
+                        SteamPlaytimeResolution.SeparateFromSteam;
+                    ownedGame.ResolvedPlaytimeMinutes = combinedMinutes;
+                    ownedGame.ResolutionConfirmedAtUtc ??= now;
+                }
+                else if (!ownedGameWasExisting && playLog is not null)
+                {
+                    // The current Steam account was synced before disconnecting.
+                    // Rebuild only the transient reconciliation snapshot; the
+                    // review already contains the imported Steam contribution.
+                    ownedGame.ManualPlaytimeSnapshotMinutes = Math.Max(
+                        0,
+                        (review.PlaytimeMinutes ?? 0) -
+                        playLog.PlaytimeMinutes);
+                    ownedGame.ManualPlatformSourceSnapshot =
+                        review.PlatformSource;
+                    ownedGame.ManualPlatformIdSnapshot =
+                        review.PlatformId;
+                    ownedGame.ManualPlayedOnSnapshot = review.PlayedOn;
+                    ownedGame.PlaytimeResolution =
+                        SteamPlaytimeResolution.SeparateFromSteam;
+                    ownedGame.ResolvedPlaytimeMinutes =
+                        review.PlaytimeMinutes;
+                    ownedGame.ResolutionConfirmedAtUtc = now;
                 }
             }
-            else if (remoteGame.PlaytimeForeverMinutes > 0)
+            else
             {
-                review = new Review
+                if (review is null)
                 {
-                    UserId = userId,
-                    Source = CatalogSource.Local,
-                    GameId = localGame.Id,
-                    Content = string.Empty,
-                    ContainsSpoilers = false,
-                    PlayedOn = steamPlayedOn,
-                    PlaytimeMinutes = normalizedReviewPlaytime,
-                    IsSteamAutoLogged = true,
-                    IsSteamPlaytimeOverridden = false,
-                    IsSteamPlayedOnOverridden = false,
-                    CreatedAt = now
-                };
+                    review = new Review
+                    {
+                        UserId = userId,
+                        Source = match.Source,
+                        GameId = match.GameId
+                    };
+                    _context.Reviews.Add(review);
+                    reviewMap[gameKey] = review;
+                }
 
-                _context.Reviews.Add(review);
-                reviewMap[localGame.Id] = review;
+                review.Content = string.Empty;
+                review.ContainsSpoilers = false;
+                review.PlayedOn = steamPlayedOn;
+                review.PlatformSource = CatalogSource.Igdb;
+                review.PlatformId = 6;
+                review.PlaytimeMinutes =
+                    NormalizeSteamReviewPlaytime(steamTotalMinutes);
+                review.IsSteamAutoLogged = true;
+                review.IsSteamPlaytimeOverridden = false;
+                review.IsSteamPlayedOnOverridden = false;
+                review.CreatedAt = now;
+                review.UpdatedAt = null;
+                review.IsDeleted = false;
+                review.DeletedAtUtc = null;
+
+                ownedGame.PlaytimeResolution = SteamPlaytimeResolution.SteamOnly;
+                ownedGame.ResolvedPlaytimeMinutes = steamTotalMinutes;
+                ownedGame.ResolutionConfirmedAtUtc = now;
                 createdAutoLogCount++;
             }
 
-            if (!logMap.TryGetValue(remoteGame.AppId, out var playLog))
+            if (playLog is null)
             {
                 playLog = new UserGamePlayLog
                 {
                     UserId = userId,
-                    GameId = localGame.Id,
+                    SteamAccountId = steamAccountId,
+                    GameSource = match.Source,
+                    GameId = match.GameId,
                     SteamAppId = remoteGame.AppId,
-                    PlaytimeMinutes = remoteGame.PlaytimeForeverMinutes,
+                    InitialImportedPlaytimeMinutes = steamTotalMinutes,
+                    PlaytimeMinutes = steamTotalMinutes,
                     LastPlayedAtUtc = lastPlayedAtUtc,
                     FirstSyncedAtUtc = now,
                     LastSyncedAtUtc = now
@@ -471,11 +627,27 @@ public sealed class SteamService : ISteamService
             }
             else
             {
-                playLog.GameId = localGame.Id;
-                playLog.PlaytimeMinutes = remoteGame.PlaytimeForeverMinutes;
+                playLog.GameSource = match.Source;
+                playLog.GameId = match.GameId;
+                playLog.PlaytimeMinutes = steamTotalMinutes;
                 playLog.LastPlayedAtUtc = lastPlayedAtUtc;
                 playLog.LastSyncedAtUtc = now;
                 updatedPlayLogCount++;
+            }
+
+            var deltaToRecord = requiresHistoricalRepair
+                ? steamTotalMinutes
+                : observedSteamDelta;
+            if (deltaToRecord > 0)
+            {
+                _context.SteamPlaytimeDeltas.Add(new SteamPlaytimeDelta
+                {
+                    UserGamePlayLog = playLog,
+                    DeltaMinutes = deltaToRecord,
+                    TotalPlaytimeMinutes = steamTotalMinutes,
+                    OccurredOn = steamPlayedOn,
+                    SyncedAtUtc = now
+                });
             }
         }
 
@@ -493,8 +665,8 @@ public sealed class SteamService : ISteamService
         return new SteamSyncResultDTO
         {
             SteamOwnedGameCount = remoteGames.Count,
-            MatchedGameCount = localMatches.Count,
-            UnmatchedGameCount = remoteGames.Count - localMatches.Count,
+            MatchedGameCount = catalogMatches.Count,
+            UnmatchedGameCount = remoteGames.Count - catalogMatches.Count,
             CreatedUserGameCount = createdUserGameCount,
             UpdatedUserGameCount = updatedUserGameCount,
             CreatedAutoLogCount = createdAutoLogCount,
@@ -503,6 +675,303 @@ public sealed class SteamService : ISteamService
             CreatedPlayLogCount = createdPlayLogCount,
             UpdatedPlayLogCount = updatedPlayLogCount,
             SyncedAtUtc = now
+        };
+    }
+
+    public async Task<SteamPlaytimeReconciliationDTO> GetPlaytimeReconciliationAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        _ = await GetLinkedUserAsync(
+            userId,
+            tracking: false,
+            cancellationToken: cancellationToken);
+
+        var ownedGames = await _context.SteamOwnedGames
+            .AsNoTracking()
+            .Where(x => x.UserId == userId && x.PlaytimeMinutes > 0)
+            .OrderByDescending(x => x.PlaytimeMinutes)
+            .ThenBy(x => x.Name)
+            .ToListAsync(cancellationToken);
+
+        var reviews = await _context.Reviews
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(x => x.UserId == userId && !x.IsDeleted)
+            .ToListAsync(cancellationToken);
+        var reviewMap = reviews.ToDictionary(x => (x.Source, x.GameId));
+        var localPlatformNames = await LoadLocalPlatformNamesAsync(
+            reviews,
+            cancellationToken);
+        var items = new List<SteamPlaytimeReconciliationItemDTO>();
+
+        foreach (var ownedGame in ownedGames)
+        {
+            if (!TryGetMatchedReference(
+                    ownedGame,
+                    out var source,
+                    out var gameId))
+            {
+                continue;
+            }
+
+            reviewMap.TryGetValue((source, gameId), out var review);
+            var manualMinutes = GetManualPlaytimeMinutes(ownedGame, review);
+            var platformReference = GetManualPlatformReference(
+                ownedGame,
+                review);
+            var platformName = ResolvePlatformName(
+                platformReference.Source,
+                platformReference.Id,
+                localPlatformNames);
+            var isConfirmed = IsConfirmedResolution(
+                ownedGame.PlaytimeResolution);
+            var needsDecision = !isConfirmed &&
+                                manualMinutes > 0 &&
+                                (!platformReference.Source.HasValue ||
+                                 IsPcPlatform(
+                                     platformReference.Source.Value,
+                                     platformReference.Id!.Value,
+                                     platformName));
+            var suggestedResolution = needsDecision
+                ? SteamPlaytimeResolution.ConservativeMaximum
+                : manualMinutes <= 0
+                    ? SteamPlaytimeResolution.SteamOnly
+                    : SteamPlaytimeResolution.SeparatePlatformAutomatic;
+            var effectiveResolution = isConfirmed
+                ? ownedGame.PlaytimeResolution
+                : suggestedResolution;
+
+            items.Add(new SteamPlaytimeReconciliationItemDTO
+            {
+                SteamAppId = ownedGame.SteamAppId,
+                SteamName = ownedGame.Name,
+                SteamIconUrl = ownedGame.IconUrl,
+                SteamPlaytimeMinutes = ownedGame.PlaytimeMinutes,
+                MatchedGameSource = source,
+                MatchedGameId = gameId,
+                MatchedGameName = ownedGame.MatchedGameName ??
+                                  ownedGame.Name,
+                MatchedCoverImageUrl = ownedGame.MatchedCoverImageUrl,
+                MatchMethod = ownedGame.MatchMethod,
+                ManualPlaytimeMinutes = manualMinutes,
+                ManualPlatformName = platformName,
+                CurrentResolution = needsDecision &&
+                                    ownedGame.PlaytimeResolution ==
+                                    SteamPlaytimeResolution.Unresolved
+                    ? SteamPlaytimeResolution.PendingUserDecision
+                    : ownedGame.PlaytimeResolution,
+                SuggestedResolution = suggestedResolution,
+                NeedsUserDecision = needsDecision,
+                PreviewResolvedPlaytimeMinutes = CalculateResolvedPlaytime(
+                    manualMinutes,
+                    ownedGame.PlaytimeMinutes,
+                    effectiveResolution)
+            });
+        }
+
+        return new SteamPlaytimeReconciliationDTO
+        {
+            TotalPlayedGames = ownedGames.Count,
+            PendingCount = items.Count(x => x.NeedsUserDecision),
+            ReadyToApplyCount = items.Count(x =>
+                !x.NeedsUserDecision &&
+                !IsConfirmedResolution(x.CurrentResolution)),
+            AlreadyConfirmedCount = items.Count(x =>
+                IsConfirmedResolution(x.CurrentResolution)),
+            Items = items
+        };
+    }
+
+    public async Task<SteamApplyPlaytimeResultDTO>
+        ApplyPlaytimeReconciliationAsync(
+            Guid userId,
+            SteamApplyPlaytimeReconciliationDTO dto,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        if (!IsUserSelectableResolution(dto.DefaultPendingResolution))
+        {
+            throw new BadRequestException(
+                "Standart Steam saat seçimi düzgün deyil.");
+        }
+
+        if (dto.Decisions.Any(x =>
+                x.SteamAppId < 1 ||
+                !IsUserSelectableResolution(x.Resolution)) ||
+            dto.Decisions
+                .GroupBy(x => x.SteamAppId)
+                .Any(group => group.Count() > 1))
+        {
+            throw new BadRequestException(
+                "Steam saat seçimlərindən biri düzgün deyil.");
+        }
+
+        _ = await GetLinkedUserAsync(
+            userId,
+            tracking: false,
+            cancellationToken: cancellationToken);
+
+        var ownedGames = await _context.SteamOwnedGames
+            .Where(x => x.UserId == userId && x.PlaytimeMinutes > 0)
+            .OrderBy(x => x.SteamAppId)
+            .ToListAsync(cancellationToken);
+        var reviews = await _context.Reviews
+            .IgnoreQueryFilters()
+            .Where(x => x.UserId == userId)
+            .ToListAsync(cancellationToken);
+        var reviewMap = reviews.ToDictionary(x => (x.Source, x.GameId));
+        var localPlatformNames = await LoadLocalPlatformNamesAsync(
+            reviews,
+            cancellationToken);
+        var decisionMap = dto.Decisions.ToDictionary(
+            x => x.SteamAppId,
+            x => x.Resolution);
+        var matchedAppIds = ownedGames
+            .Where(x => TryGetMatchedReference(x, out _, out _))
+            .Select(x => x.SteamAppId)
+            .ToHashSet();
+        var unknownDecision = decisionMap.Keys
+            .FirstOrDefault(x => !matchedAppIds.Contains(x));
+
+        if (unknownDecision > 0)
+        {
+            throw new BadRequestException(
+                $"Steam App ID {unknownDecision} uyğunlaşdırılmış oyun deyil.");
+        }
+
+        var now = DateTime.UtcNow;
+        var appliedGameCount = 0;
+        var createdAutoLogCount = 0;
+        var updatedAutoLogCount = 0;
+        var assignedPcPlatformCount = 0;
+
+        await using var transaction = await _context.Database
+            .BeginTransactionAsync(cancellationToken);
+
+        foreach (var ownedGame in ownedGames)
+        {
+            if (!TryGetMatchedReference(
+                    ownedGame,
+                    out var source,
+                    out var gameId))
+            {
+                continue;
+            }
+
+            reviewMap.TryGetValue((source, gameId), out var review);
+            var manualMinutes = GetManualPlaytimeMinutes(ownedGame, review);
+            var platformReference = GetManualPlatformReference(
+                ownedGame,
+                review);
+            var platformName = ResolvePlatformName(
+                platformReference.Source,
+                platformReference.Id,
+                localPlatformNames);
+            var needsDecision = manualMinutes > 0 &&
+                                (!platformReference.Source.HasValue ||
+                                 IsPcPlatform(
+                                     platformReference.Source.Value,
+                                     platformReference.Id!.Value,
+                                     platformName));
+            var automaticResolution = manualMinutes <= 0
+                ? SteamPlaytimeResolution.SteamOnly
+                : SteamPlaytimeResolution.SeparatePlatformAutomatic;
+            var resolution = needsDecision
+                ? decisionMap.GetValueOrDefault(
+                    ownedGame.SteamAppId,
+                    dto.DefaultPendingResolution)
+                : automaticResolution;
+
+            if (!IsApplicableResolution(resolution))
+            {
+                throw new BadRequestException(
+                    $"Steam App ID {ownedGame.SteamAppId} üçün seçim düzgün deyil.");
+            }
+
+            if (!ownedGame.ManualPlaytimeSnapshotMinutes.HasValue)
+            {
+                ownedGame.ManualPlaytimeSnapshotMinutes = manualMinutes;
+                ownedGame.ManualPlatformSourceSnapshot =
+                    platformReference.Source;
+                ownedGame.ManualPlatformIdSnapshot = platformReference.Id;
+                ownedGame.ManualPlayedOnSnapshot = review?.PlayedOn;
+            }
+
+            var resolvedMinutes = CalculateResolvedPlaytime(
+                manualMinutes,
+                ownedGame.PlaytimeMinutes,
+                resolution);
+            var playedOn = GetSteamPlayedOn(
+                ownedGame.LastPlayedAtUtc,
+                ownedGame.SyncedAtUtc);
+
+            if (review is null)
+            {
+                review = new Review
+                {
+                    UserId = userId,
+                    Source = source,
+                    GameId = gameId,
+                    Content = string.Empty,
+                    ContainsSpoilers = false,
+                    PlayedOn = playedOn,
+                    PlatformSource = CatalogSource.Igdb,
+                    PlatformId = 6,
+                    PlaytimeMinutes = NormalizeSteamReviewPlaytime(
+                        resolvedMinutes),
+                    IsSteamAutoLogged = true,
+                    IsSteamPlaytimeOverridden = false,
+                    IsSteamPlayedOnOverridden = false,
+                    CreatedAt = now
+                };
+                _context.Reviews.Add(review);
+                reviewMap[(source, gameId)] = review;
+                createdAutoLogCount++;
+                assignedPcPlatformCount++;
+            }
+            else
+            {
+                review.IsDeleted = false;
+                review.DeletedAtUtc = null;
+                review.PlaytimeMinutes = NormalizeSteamReviewPlaytime(
+                    resolvedMinutes);
+
+                if (!review.PlayedOn.HasValue)
+                    review.PlayedOn = playedOn;
+
+                if (!review.PlatformSource.HasValue ||
+                    !review.PlatformId.HasValue)
+                {
+                    review.PlatformSource = CatalogSource.Igdb;
+                    review.PlatformId = 6;
+                    assignedPcPlatformCount++;
+                }
+
+                if (string.IsNullOrWhiteSpace(review.Content))
+                    review.IsSteamAutoLogged = true;
+
+                review.UpdatedAt = now;
+                updatedAutoLogCount++;
+            }
+
+            ownedGame.PlaytimeResolution = resolution;
+            ownedGame.ResolvedPlaytimeMinutes = resolvedMinutes;
+            ownedGame.ResolutionConfirmedAtUtc = now;
+            appliedGameCount++;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        return new SteamApplyPlaytimeResultDTO
+        {
+            AppliedGameCount = appliedGameCount,
+            CreatedAutoLogCount = createdAutoLogCount,
+            UpdatedAutoLogCount = updatedAutoLogCount,
+            AssignedPcPlatformCount = assignedPcPlatformCount,
+            AppliedAtUtc = now
         };
     }
 
@@ -540,34 +1009,76 @@ public sealed class SteamService : ISteamService
         if ((refresh || !hasSnapshot) && currentUserId == userId)
             await SyncOwnedGamesAsync(userId, cancellationToken);
 
-        var ownedGames = await _context.SteamOwnedGames
+        return await _context.SteamOwnedGames
             .AsNoTracking()
-            .Include(x => x.LocalGame)
             .Where(x => x.UserId == userId)
             .OrderByDescending(x => x.PlaytimeMinutes)
             .ThenBy(x => x.Name)
+            .ThenBy(x => x.SteamAppId)
+            .Select(x => new SteamOwnedGameDTO
+            {
+                SteamAppId = x.SteamAppId,
+                Name = x.Name,
+                PlaytimeMinutes = x.PlaytimeMinutes,
+                PlaytimeHours = Math.Round(x.PlaytimeMinutes / 60m, 2),
+                PlaytimeWindowsMinutes = x.PlaytimeWindowsMinutes,
+                PlaytimeMacMinutes = x.PlaytimeMacMinutes,
+                PlaytimeLinuxMinutes = x.PlaytimeLinuxMinutes,
+                PlaytimeTwoWeeksMinutes = x.PlaytimeTwoWeeksMinutes,
+                LastPlayedAtUtc = x.LastPlayedAtUtc,
+                SteamIconUrl = x.IconUrl,
+                IsMatched = x.MatchedGameId.HasValue ||
+                            x.LocalGameId.HasValue,
+                MatchedGameSource = x.MatchedGameSource ??
+                    (x.LocalGameId.HasValue
+                        ? CatalogSource.Local
+                        : null),
+                MatchedGameId = x.MatchedGameId ??
+                                x.LocalGameId,
+                MatchedGameName = x.MatchedGameName ??
+                                  (x.LocalGame == null
+                                      ? null
+                                      : x.LocalGame.Name),
+                MatchedCoverImageUrl = x.MatchedCoverImageUrl ??
+                    (x.LocalGame == null
+                        ? null
+                        : x.LocalGame.CoverImageUrl),
+                MatchedReleaseDate = x.MatchedReleaseDate ??
+                    (x.LocalGame == null
+                        ? null
+                        : x.LocalGame.ReleaseDate),
+                MatchMethod = x.MatchMethod,
+                MatchConfidence = x.MatchConfidence,
+                IsSteamFallback = x.IsSteamFallback,
+                PlaytimeResolution = x.PlaytimeResolution,
+                ResolvedPlaytimeMinutes = x.ResolvedPlaytimeMinutes,
+                NeedsResolution =
+                    (x.PlaytimeResolution ==
+                         SteamPlaytimeResolution.Unresolved ||
+                     x.PlaytimeResolution ==
+                         SteamPlaytimeResolution.PendingUserDecision) &&
+                    x.PlaytimeMinutes > 0 &&
+                    (x.MatchedGameId.HasValue ||
+                     x.LocalGameId.HasValue),
+                DetailUrl = x.MatchedGameId.HasValue
+                    ? x.MatchedGameSource == CatalogSource.Igdb
+                        ? "/games/Igdb/" + x.MatchedGameId
+                        : "/games/Local/" + x.MatchedGameId
+                    : x.LocalGameId.HasValue
+                        ? "/games/Local/" + x.LocalGameId
+                        : null,
+                LocalGameId = x.LocalGameId,
+                LocalGameName = x.LocalGame == null ? null : x.LocalGame.Name,
+                LocalGameSlug = x.LocalGame == null ? null : x.LocalGame.Slug,
+                LocalCoverImageUrl = x.LocalGame == null
+                    ? null
+                    : x.LocalGame.CoverImageUrl,
+                LocalReleaseDate = x.LocalGame == null
+                    ? null
+                    : x.LocalGame.ReleaseDate,
+                SyncedAtUtc = x.SyncedAtUtc
+            })
             .ToListAsync(cancellationToken);
-
-        return ownedGames.Select(x => new SteamOwnedGameDTO
-        {
-            SteamAppId = x.SteamAppId,
-            Name = x.Name,
-            PlaytimeMinutes = x.PlaytimeMinutes,
-            PlaytimeHours = Math.Round(x.PlaytimeMinutes / 60m, 2),
-            PlaytimeWindowsMinutes = x.PlaytimeWindowsMinutes,
-            PlaytimeMacMinutes = x.PlaytimeMacMinutes,
-            PlaytimeLinuxMinutes = x.PlaytimeLinuxMinutes,
-            PlaytimeTwoWeeksMinutes = x.PlaytimeTwoWeeksMinutes,
-            LastPlayedAtUtc = x.LastPlayedAtUtc,
-            SteamIconUrl = x.IconUrl,
-            IsMatched = x.LocalGameId.HasValue,
-            LocalGameId = x.LocalGameId,
-            LocalGameName = x.LocalGame?.Name,
-            LocalGameSlug = x.LocalGame?.Slug,
-            LocalCoverImageUrl = x.LocalGame?.CoverImageUrl,
-            LocalReleaseDate = x.LocalGame?.ReleaseDate,
-            SyncedAtUtc = x.SyncedAtUtc
-        }).ToList();
     }
 
     public async Task<IReadOnlyList<SteamComingSoonGameDTO>> GetComingSoonAsync(
@@ -797,6 +1308,192 @@ public sealed class SteamService : ISteamService
         };
     }
 
+    private async Task<Dictionary<int, string>> LoadLocalPlatformNamesAsync(
+        IReadOnlyCollection<Review> reviews,
+        CancellationToken cancellationToken)
+    {
+        var platformIds = reviews
+            .Where(x =>
+                x.PlatformSource == CatalogSource.Local &&
+                x.PlatformId is > 0 and <= int.MaxValue)
+            .Select(x => (int)x.PlatformId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (platformIds.Length == 0)
+            return [];
+
+        return await _context.Platforms
+            .AsNoTracking()
+            .Where(x => platformIds.Contains(x.Id))
+            .Select(x => new { x.Id, x.Name })
+            .ToDictionaryAsync(
+                x => x.Id,
+                x => x.Name,
+                cancellationToken);
+    }
+
+    private static bool TryGetMatchedReference(
+        SteamOwnedGame ownedGame,
+        out CatalogSource source,
+        out long gameId)
+    {
+        if (ownedGame.MatchedGameSource.HasValue &&
+            ownedGame.MatchedGameId.HasValue &&
+            ownedGame.MatchedGameId.Value > 0)
+        {
+            source = ownedGame.MatchedGameSource.Value;
+            gameId = ownedGame.MatchedGameId.Value;
+            return true;
+        }
+
+        if (ownedGame.LocalGameId.HasValue)
+        {
+            source = CatalogSource.Local;
+            gameId = ownedGame.LocalGameId.Value;
+            return true;
+        }
+
+        source = default;
+        gameId = 0;
+        return false;
+    }
+
+    private static int GetManualPlaytimeMinutes(
+        SteamOwnedGame ownedGame,
+        Review? review)
+    {
+        if (ownedGame.ManualPlaytimeSnapshotMinutes.HasValue)
+            return Math.Max(0, ownedGame.ManualPlaytimeSnapshotMinutes.Value);
+
+        if (review is null || review.IsSteamAutoLogged)
+            return 0;
+
+        return Math.Max(0, review.PlaytimeMinutes ?? 0);
+    }
+
+    private static (
+        CatalogSource? Source,
+        long? Id) GetManualPlatformReference(
+        SteamOwnedGame ownedGame,
+        Review? review)
+    {
+        if (ownedGame.ManualPlatformSourceSnapshot.HasValue &&
+            ownedGame.ManualPlatformIdSnapshot.HasValue)
+        {
+            return (
+                ownedGame.ManualPlatformSourceSnapshot,
+                ownedGame.ManualPlatformIdSnapshot);
+        }
+
+        return (review?.PlatformSource, review?.PlatformId);
+    }
+
+    private static string? ResolvePlatformName(
+        CatalogSource? source,
+        long? platformId,
+        IReadOnlyDictionary<int, string> localPlatformNames)
+    {
+        if (!source.HasValue || !platformId.HasValue)
+            return null;
+
+        if (source == CatalogSource.Local &&
+            platformId.Value <= int.MaxValue &&
+            localPlatformNames.TryGetValue(
+                (int)platformId.Value,
+                out var localName))
+        {
+            return localName;
+        }
+
+        return source == CatalogSource.Igdb
+            ? platformId.Value switch
+            {
+                3 => "Linux",
+                6 => "PC (Microsoft Windows)",
+                14 => "Mac",
+                _ => $"IGDB platform #{platformId.Value}"
+            }
+            : $"Platform #{platformId.Value}";
+    }
+
+    private static bool IsPcPlatform(
+        CatalogSource source,
+        long platformId,
+        string? platformName)
+    {
+        if (source == CatalogSource.Igdb &&
+            platformId is 3 or 6 or 14)
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(platformName))
+            return false;
+
+        return platformName.Contains(
+                   "Windows",
+                   StringComparison.OrdinalIgnoreCase) ||
+               platformName.Contains(
+                   "Linux",
+                   StringComparison.OrdinalIgnoreCase) ||
+               platformName.Contains(
+                   "Mac",
+                   StringComparison.OrdinalIgnoreCase) ||
+               platformName.Contains(
+                   "PC",
+                   StringComparison.OrdinalIgnoreCase) ||
+               platformName.Contains(
+                   "Computer",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static int CalculateResolvedPlaytime(
+        int manualMinutes,
+        int steamMinutes,
+        SteamPlaytimeResolution resolution)
+    {
+        var manual = Math.Max(0, manualMinutes);
+        var steam = Math.Max(0, steamMinutes);
+        var result = resolution switch
+        {
+            SteamPlaytimeResolution.SeparateFromSteam or
+            SteamPlaytimeResolution.SeparatePlatformAutomatic =>
+                (long)manual + steam,
+            SteamPlaytimeResolution.SteamIncludesManual or
+            SteamPlaytimeResolution.ConservativeMaximum =>
+                Math.Max(manual, steam),
+            _ => steam
+        };
+
+        return (int)Math.Min(result, MaxReviewPlaytimeMinutes);
+    }
+
+    private static bool IsConfirmedResolution(
+        SteamPlaytimeResolution resolution)
+    {
+        return resolution is not SteamPlaytimeResolution.Unresolved and
+            not SteamPlaytimeResolution.PendingUserDecision;
+    }
+
+    private static bool IsUserSelectableResolution(
+        SteamPlaytimeResolution resolution)
+    {
+        return resolution is
+            SteamPlaytimeResolution.SteamIncludesManual or
+            SteamPlaytimeResolution.SeparateFromSteam or
+            SteamPlaytimeResolution.ConservativeMaximum;
+    }
+
+    private static bool IsApplicableResolution(
+        SteamPlaytimeResolution resolution)
+    {
+        return IsUserSelectableResolution(resolution) ||
+               resolution is
+                   SteamPlaytimeResolution.SteamOnly or
+                   SteamPlaytimeResolution.SeparatePlatformAutomatic;
+    }
+
     private async Task<AppUser> GetLinkedUserAsync(
         Guid userId,
         bool tracking,
@@ -857,6 +1554,76 @@ public sealed class SteamService : ISteamService
             localGame.SteamAppId = remoteGame.AppId;
             result[remoteGame.AppId] = localGame;
             claimedLocalIds.Add(localGame.Id);
+        }
+
+        return result;
+    }
+
+    private async Task<Dictionary<int, CatalogGameMatch>> MatchCatalogGamesAsync(
+        IReadOnlyList<SteamOwnedGameModel> remoteGames,
+        CancellationToken cancellationToken)
+    {
+        var localMatches = await MatchLocalGamesAsync(
+            remoteGames,
+            cancellationToken);
+        var result = localMatches.ToDictionary(
+            pair => pair.Key,
+            pair => new CatalogGameMatch(
+                CatalogSource.Local,
+                pair.Value.Id,
+                pair.Value.Name,
+                pair.Value.CoverImageUrl,
+                pair.Value.ReleaseDate,
+                SteamGameMatchMethod.SteamAppId));
+
+        var unmatchedAppIds = remoteGames
+            .Where(x => !result.ContainsKey(x.AppId))
+            .Select(x => x.AppId)
+            .Distinct()
+            .ToArray();
+
+        if (unmatchedAppIds.Length == 0 || !_igdbClient.IsEnabled)
+            return result;
+
+        try
+        {
+            var mappings = await _igdbClient.GetSteamGameMappingsAsync(
+                unmatchedAppIds,
+                cancellationToken);
+            if (mappings.Count == 0)
+                return result;
+
+            var igdbGames = await _igdbClient.GetGamesByIdsAsync(
+                mappings.Select(x => x.IgdbGameId).Distinct().ToArray(),
+                cancellationToken);
+            var igdbGameMap = igdbGames.ToDictionary(x => x.Id);
+
+            foreach (var mapping in mappings)
+            {
+                if (result.ContainsKey(mapping.SteamAppId) ||
+                    !igdbGameMap.TryGetValue(mapping.IgdbGameId, out var game))
+                {
+                    continue;
+                }
+
+                result[mapping.SteamAppId] = new CatalogGameMatch(
+                    CatalogSource.Igdb,
+                    game.Id,
+                    game.Name,
+                    game.CoverImageUrl,
+                    game.ReleaseDate,
+                    SteamGameMatchMethod.IgdbExternalId);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "IGDB Steam oyun xəritələməsi uğursuz oldu; lokal uyğunluqlarla davam edilir.");
         }
 
         return result;
@@ -1028,6 +1795,15 @@ public sealed class SteamService : ISteamService
         return Math.Min(playtimeMinutes, MaxReviewPlaytimeMinutes);
     }
 
+    private static int AddPlaytimeSafely(
+        int currentMinutes,
+        int additionalMinutes)
+    {
+        var result = (long)Math.Max(0, currentMinutes) +
+                     Math.Max(0, additionalMinutes);
+        return (int)Math.Min(result, MaxReviewPlaytimeMinutes);
+    }
+
     private static DateOnly GetSteamPlayedOn(
         DateTime? lastPlayedAtUtc,
         DateTime syncedAtUtc)
@@ -1061,4 +1837,12 @@ public sealed class SteamService : ISteamService
             _ => 100m
         };
     }
+
+    private sealed record CatalogGameMatch(
+        CatalogSource Source,
+        long GameId,
+        string Name,
+        string? CoverImageUrl,
+        DateOnly? ReleaseDate,
+        SteamGameMatchMethod MatchMethod);
 }

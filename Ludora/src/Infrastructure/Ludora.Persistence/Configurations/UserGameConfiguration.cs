@@ -31,6 +31,33 @@ namespace Ludora.Persistence.Configurations
             })
             .IsUnique();
 
+            builder.HasIndex(x => new
+                {
+                    x.Source,
+                    x.GameId
+                })
+                .IncludeProperties(x => new
+                {
+                    x.Rating,
+                    x.Status
+                });
+
+            builder.HasIndex(x => new
+                {
+                    x.UserId,
+                    x.UpdatedAt,
+                    x.CreatedAt,
+                    x.Id
+                })
+                .IsDescending(false, true, true, true)
+                .IncludeProperties(x => new
+                {
+                    x.Status,
+                    x.IsFavorite,
+                    x.IsWishlisted,
+                    x.Rating
+                });
+
             builder.HasOne(x => x.User)
                 .WithMany(x => x.UserGames)
                 .HasForeignKey(x => x.UserId)

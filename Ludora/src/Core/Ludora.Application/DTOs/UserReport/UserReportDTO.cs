@@ -10,6 +10,7 @@ public record UserReportDTO
     public UserReportCategory Category { get; init; }
     public string? Description { get; init; }
     public bool HasEvidenceImage { get; init; }
+    public int EvidenceImageCount { get; init; }
     public UserReportContentType ReportedContentType { get; init; }
     public long? ReportedContentId { get; init; }
     public string? ReportedContentSnapshot { get; init; }

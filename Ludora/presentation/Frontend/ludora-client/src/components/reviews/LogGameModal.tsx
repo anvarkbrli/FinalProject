@@ -814,6 +814,20 @@ export function LogGameModal({
                     <option value="">
                       Platforma seç
                     </option>
+                    {platformKey &&
+                      !selectedGame.platforms.some(
+                        (platform) =>
+                          formatPlatformKey(
+                            platform.source,
+                            platform.id,
+                          ) === platformKey,
+                      ) && (
+                        <option value={platformKey}>
+                          {platformKey === "Igdb:6"
+                            ? "PC (Microsoft Windows)"
+                            : "Yadda saxlanmış platforma"}
+                        </option>
+                      )}
                     {selectedGame.platforms.map(
                       (platform) => (
                         <option

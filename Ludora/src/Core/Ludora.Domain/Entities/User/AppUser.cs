@@ -59,5 +59,9 @@ public class AppUser : IdentityUser<Guid>
     public ICollection<SteamOwnedGame> SteamOwnedGames { get; set; } = new List<SteamOwnedGame>();
     public ICollection<UserGamePlayLog> SteamPlayLogs { get; set; } = new List<UserGamePlayLog>();
     public ICollection<SteamFriendSnapshot> SteamFriendSnapshots { get; set; } = new List<SteamFriendSnapshot>();
+    public ICollection<ChatConversation> ChatConversationsAsUserOne { get; set; } = [];
+    public ICollection<ChatConversation> ChatConversationsAsUserTwo { get; set; } = [];
+    public ICollection<ChatConversation> InitiatedChatConversations { get; set; } = [];
+    public ICollection<ChatMessage> SentChatMessages { get; set; } = [];
+    public ICollection<UserBadge> Badges { get; set; } = [];
 }
-

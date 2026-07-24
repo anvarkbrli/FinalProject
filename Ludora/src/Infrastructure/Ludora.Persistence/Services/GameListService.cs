@@ -30,9 +30,10 @@ public sealed class GameListService : IGameListService
         _notificationService = notificationService;
     }
 
-    public async Task<IReadOnlyList<GameListSummaryDTO>> GetUserListsAsync(
+    public async Task<PagedResultDTO<GameListSummaryDTO>> GetUserListsAsync(
         Guid userId,
         Guid? currentUserId,
+        PaginationFilterDTO pagination,
         CancellationToken cancellationToken = default)
     {
         var userExists = await _context.Users
@@ -64,8 +65,9 @@ public sealed class GameListService : IGameListService
                 : query.Where(x => x.Visibility == ListVisibility.Public);
         }
 
-        return await query
+        var projectedQuery = query
             .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.Id)
             .Select(x => new GameListSummaryDTO
             {
                 Id = x.Id,
@@ -82,8 +84,11 @@ public sealed class GameListService : IGameListService
                 CommentCount = x.Comments.Count,
                 IsLikedByCurrentUser = currentUserId.HasValue &&
                     x.Likes.Any(like => like.UserId == currentUserId.Value)
-            })
-            .ToListAsync(cancellationToken);
+            });
+
+        return await projectedQuery.ToPagedResultAsync(
+            pagination,
+            cancellationToken);
     }
 
     public async Task<GameListDetailDTO> GetByIdAsync(
@@ -95,36 +100,55 @@ public sealed class GameListService : IGameListService
 
         var gameList = await _context.GameLists
             .AsNoTracking()
-            .Include(x => x.User)
-            .Include(x => x.GameListItems)
+            .Select(x => new
+            {
+                x.Id,
+                x.Name,
+                x.Description,
+                x.Visibility,
+                x.IsRanked,
+                OwnerId = x.UserId,
+                OwnerUserName = x.User.UserName ?? string.Empty,
+                GameCount = x.GameListItems.Count,
+                x.CreatedAt,
+                x.UpdatedAt,
+                LikeCount = x.Likes.Count,
+                CommentCount = x.Comments.Count,
+                IsLikedByCurrentUser = currentUserId.HasValue &&
+                    x.Likes.Any(like => like.UserId == currentUserId.Value)
+            })
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new NotFoundException("Oyun siyahısı tapılmadı.");
 
-        await CheckListAccessAsync(gameList, currentUserId, cancellationToken);
+        await CheckListAccessAsync(
+            gameList.OwnerId,
+            gameList.Visibility,
+            currentUserId,
+            cancellationToken);
 
-        var likeCount = await _context.GameListLikes
+        var itemQuery = _context.GameListItems
             .AsNoTracking()
-            .CountAsync(x => x.GameListId == id, cancellationToken);
-
-        var commentCount = await _context.GameListComments
-            .AsNoTracking()
-            .CountAsync(x => x.GameListId == id, cancellationToken);
-
-        var isLikedByCurrentUser = currentUserId.HasValue &&
-            await _context.GameListLikes
-                .AsNoTracking()
-                .AnyAsync(x =>
-                    x.GameListId == id &&
-                    x.UserId == currentUserId.Value,
-                    cancellationToken);
-
+            .Where(x => x.GameListId == id);
         var orderedItems = gameList.IsRanked
-            ? gameList.GameListItems
+            ? itemQuery
                 .OrderBy(x => x.Position ?? int.MaxValue)
                 .ThenBy(x => x.AddedAt)
-            : gameList.GameListItems
+            : itemQuery
                 .OrderByDescending(x => x.AddedAt)
                 .ThenBy(x => x.GameTitle);
+        var games = await orderedItems
+            .Select(x => new GameListEntryDTO
+            {
+                Source = x.GameSource,
+                Id = x.GameSourceId,
+                Title = x.GameTitle,
+                CoverImageUrl = x.CoverImageUrl,
+                ReleaseDate = x.ReleaseDate,
+                AverageRating = x.Rating,
+                Position = x.Position,
+                AddedAt = x.AddedAt
+            })
+            .ToListAsync(cancellationToken);
 
         return new GameListDetailDTO
         {
@@ -133,28 +157,16 @@ public sealed class GameListService : IGameListService
             Description = gameList.Description,
             Visibility = gameList.Visibility,
             IsRanked = gameList.IsRanked,
-            OwnerId = gameList.UserId,
-            OwnerUserName = gameList.User.UserName ?? string.Empty,
-            IsOwner = currentUserId == gameList.UserId,
-            GameCount = gameList.GameListItems.Count,
+            OwnerId = gameList.OwnerId,
+            OwnerUserName = gameList.OwnerUserName,
+            IsOwner = currentUserId == gameList.OwnerId,
+            GameCount = gameList.GameCount,
             CreatedAt = gameList.CreatedAt,
             UpdatedAt = gameList.UpdatedAt,
-            LikeCount = likeCount,
-            CommentCount = commentCount,
-            IsLikedByCurrentUser = isLikedByCurrentUser,
-            Games = orderedItems
-                .Select(x => new GameListEntryDTO
-                {
-                    Source = x.GameSource,
-                    Id = x.GameSourceId,
-                    Title = x.GameTitle,
-                    CoverImageUrl = x.CoverImageUrl,
-                    ReleaseDate = x.ReleaseDate,
-                    AverageRating = x.Rating,
-                    Position = x.Position,
-                    AddedAt = x.AddedAt
-                })
-                .ToList()
+            LikeCount = gameList.LikeCount,
+            CommentCount = gameList.CommentCount,
+            IsLikedByCurrentUser = gameList.IsLikedByCurrentUser,
+            Games = games
         };
     }
 
@@ -447,16 +459,20 @@ public sealed class GameListService : IGameListService
         var removedPosition = item.Position;
         _context.GameListItems.Remove(item);
 
+        await using var transaction = await _context.Database
+            .BeginTransactionAsync(cancellationToken);
+
         if (gameList.IsRanked && removedPosition.HasValue)
         {
-            var followingItems = await _context.GameListItems
+            await _context.GameListItems
                 .Where(x =>
                     x.GameListId == listId &&
                     x.Position > removedPosition.Value)
-                .ToListAsync(cancellationToken);
-
-            foreach (var followingItem in followingItems)
-                followingItem.Position--;
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(
+                        x => x.Position,
+                        x => x.Position - 1),
+                    cancellationToken);
         }
 
         gameList.UpdatedAt = DateTime.UtcNow;
@@ -470,6 +486,7 @@ public sealed class GameListService : IGameListService
             subjectTitle: gameList.Name);
 
         await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async Task UpdateGamePositionAsync(
@@ -485,23 +502,25 @@ public sealed class GameListService : IGameListService
         var gameList = await GetUserGameListAsync(
             listId,
             userId,
-            includeItems: true,
+            includeItems: false,
             cancellationToken);
 
         if (!gameList.IsRanked)
             throw new BadRequestException("Yalnız sıralanmış siyahılarda oyunların mövqeyi dəyişdirilə bilər.");
 
-        var orderedItems = gameList.GameListItems
-            .OrderBy(x => x.Position ?? int.MaxValue)
-            .ThenBy(x => x.AddedAt)
-            .ToList();
+        var itemCount = await _context.GameListItems
+            .AsNoTracking()
+            .CountAsync(x => x.GameListId == listId, cancellationToken);
 
-        if (position < 1 || position > orderedItems.Count)
-            throw new BadRequestException($"Mövqe 1-{orderedItems.Count} aralığında olmalıdır.");
+        if (position < 1 || position > itemCount)
+            throw new BadRequestException($"Mövqe 1-{itemCount} aralığında olmalıdır.");
 
-        var item = orderedItems.FirstOrDefault(x =>
-            x.GameSource == source &&
-            x.GameSourceId == gameId)
+        var item = await _context.GameListItems
+            .FirstOrDefaultAsync(
+                x => x.GameListId == listId &&
+                     x.GameSource == source &&
+                     x.GameSourceId == gameId,
+                cancellationToken)
             ?? throw new NotFoundException("Oyun bu siyahıda tapılmadı.");
 
         var oldPosition = item.Position
@@ -510,23 +529,34 @@ public sealed class GameListService : IGameListService
         if (oldPosition == position)
             return;
 
+        await using var transaction = await _context.Database
+            .BeginTransactionAsync(cancellationToken);
+
         if (position < oldPosition)
         {
-            foreach (var otherItem in orderedItems.Where(x =>
-                         x.Position >= position &&
-                         x.Position < oldPosition))
-            {
-                otherItem.Position++;
-            }
+            await _context.GameListItems
+                .Where(x =>
+                    x.GameListId == listId &&
+                    x.Position >= position &&
+                    x.Position < oldPosition)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(
+                        x => x.Position,
+                        x => x.Position + 1),
+                    cancellationToken);
         }
         else
         {
-            foreach (var otherItem in orderedItems.Where(x =>
-                         x.Position > oldPosition &&
-                         x.Position <= position))
-            {
-                otherItem.Position--;
-            }
+            await _context.GameListItems
+                .Where(x =>
+                    x.GameListId == listId &&
+                    x.Position > oldPosition &&
+                    x.Position <= position)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(
+                        x => x.Position,
+                        x => x.Position - 1),
+                    cancellationToken);
         }
 
         item.Position = position;
@@ -541,6 +571,7 @@ public sealed class GameListService : IGameListService
             subjectTitle: gameList.Name);
 
         await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private async Task<GameList> GetUserGameListAsync(
@@ -567,19 +598,20 @@ public sealed class GameListService : IGameListService
     }
 
     private async Task CheckListAccessAsync(
-        GameList gameList,
+        Guid ownerId,
+        ListVisibility visibility,
         Guid? currentUserId,
         CancellationToken cancellationToken)
     {
-        await CheckBlockAccessAsync(gameList.UserId, currentUserId, cancellationToken);
+        await CheckBlockAccessAsync(ownerId, currentUserId, cancellationToken);
 
-        if (gameList.UserId == currentUserId ||
-            gameList.Visibility == ListVisibility.Public)
+        if (ownerId == currentUserId ||
+            visibility == ListVisibility.Public)
         {
             return;
         }
 
-        if (gameList.Visibility == ListVisibility.Private)
+        if (visibility == ListVisibility.Private)
             throw new ForbiddenException("Bu oyun siyahısı gizlidir.");
 
         if (!currentUserId.HasValue)
@@ -589,7 +621,7 @@ public sealed class GameListService : IGameListService
             .AsNoTracking()
             .AnyAsync(x =>
                 x.FollowerId == currentUserId.Value &&
-                x.FollowingId == gameList.UserId &&
+                x.FollowingId == ownerId &&
                 x.Status == FollowStatus.Accepted,
                 cancellationToken);
 

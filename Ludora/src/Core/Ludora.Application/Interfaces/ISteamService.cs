@@ -25,6 +25,15 @@ public interface ISteamService
         Guid userId,
         CancellationToken cancellationToken = default);
 
+    Task<SteamPlaytimeReconciliationDTO> GetPlaytimeReconciliationAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task<SteamApplyPlaytimeResultDTO> ApplyPlaytimeReconciliationAsync(
+        Guid userId,
+        SteamApplyPlaytimeReconciliationDTO dto,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<SteamOwnedGameDTO>> GetOwnedGamesAsync(
         Guid userId,
         Guid? currentUserId,

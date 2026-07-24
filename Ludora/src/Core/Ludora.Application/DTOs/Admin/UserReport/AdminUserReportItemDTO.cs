@@ -11,6 +11,8 @@ public record AdminUserReportItemDTO
     public UserReportCategory Category { get; init; }
     public string? Description { get; init; }
     public string? EvidenceImageUrl { get; init; }
+    public IReadOnlyList<string> EvidenceImageUrls { get; init; } = [];
+    public int EvidenceImageCount { get; init; }
     public UserReportContentType ReportedContentType { get; init; }
     public long? ReportedContentId { get; init; }
     public string? ReportedContentSnapshot { get; init; }

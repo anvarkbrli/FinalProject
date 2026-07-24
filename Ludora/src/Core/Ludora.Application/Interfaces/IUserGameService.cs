@@ -6,11 +6,16 @@ namespace Ludora.Application.Interfaces
 {
     public interface IUserGameService
     {
-        Task<IReadOnlyList<UserGameDTO>> GetMineAsync(
+        Task<PagedResultDTO<UserGameDTO>> GetMineAsync(
             Guid userId,
             UserGameStatus? status = null,
             bool? isFavorite = null,
             bool? isWishlisted = null,
+            PaginationFilterDTO? pagination = null,
+            CancellationToken cancellationToken = default);
+
+        Task<UserGameDashboardDTO> GetDashboardAsync(
+            Guid userId,
             CancellationToken cancellationToken = default);
 
         Task<PagedResultDTO<UserGameDTO>> GetByUserAsync(

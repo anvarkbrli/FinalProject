@@ -1,4 +1,5 @@
 using Ludora.Application.DTOs.GameList;
+using Ludora.Domain.Enums;
 
 namespace Ludora.Application.DTOs.Home;
 
@@ -11,10 +12,10 @@ public sealed record HomeDiscoveryDTO
 
 public sealed record HomeComingSoonGameDTO
 {
-    public int WishlistRank { get; init; }
-    public int SteamAppId { get; init; }
+    public int AnticipationRank { get; init; }
+    public CatalogSource Source { get; init; }
+    public long Id { get; init; }
     public string Title { get; init; } = string.Empty;
     public string? CoverImageUrl { get; init; }
     public DateOnly? ReleaseDate { get; init; }
-    public string StoreUrl { get; init; } = string.Empty;
 }

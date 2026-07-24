@@ -32,6 +32,24 @@ namespace Ludora.Persistence.Configurations
             builder
                 .Property(x => x.CreatedAt)
                 .IsRequired();
+
+            builder.HasIndex(x => new
+                {
+                    x.FollowingId,
+                    x.Status,
+                    x.CreatedAt,
+                    x.FollowerId
+                })
+                .IsDescending(false, false, true, false);
+
+            builder.HasIndex(x => new
+                {
+                    x.FollowerId,
+                    x.Status,
+                    x.CreatedAt,
+                    x.FollowingId
+                })
+                .IsDescending(false, false, true, false);
         }
     }
 }

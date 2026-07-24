@@ -35,6 +35,20 @@ namespace Ludora.Persistence.Configurations
                 })
                 .IsUnique();
 
+            builder.HasIndex(x => new
+                {
+                    x.UserId,
+                    x.CreatedAt,
+                    x.Id
+                })
+                .IsDescending(false, true, true)
+                .IncludeProperties(x => new
+                {
+                    x.Visibility,
+                    x.IsRanked,
+                    x.Name
+                });
+
             builder.HasQueryFilter(x => !x.IsDeleted);
         }
     }

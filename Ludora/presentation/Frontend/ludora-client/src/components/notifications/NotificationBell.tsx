@@ -362,7 +362,6 @@ export function NotificationBell() {
       return;
     }
 
-    setNow(new Date());
     const intervalId = window.setInterval(() => setNow(new Date()), 30_000);
 
     return () => window.clearInterval(intervalId);

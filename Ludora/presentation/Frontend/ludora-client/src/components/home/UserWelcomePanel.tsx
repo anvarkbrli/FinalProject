@@ -11,11 +11,7 @@ import {
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { resolveAssetUrl } from "../../lib/helpers";
-import {
-  getUserGameLists,
-  getUserReviews,
-} from "../../services/profileService";
-import { getMyUserGames } from "../../services/userGamesService";
+import { getMyUserGameDashboard } from "../../services/userGamesService";
 import {
   isAuthSessionValid,
   useAuthStore,
@@ -65,83 +61,35 @@ export function UserWelcomePanel() {
     user !== null;
 
   const userGamesQuery = useQuery({
-    queryKey: ["homepage", "my-user-games"],
-    queryFn: getMyUserGames,
-    enabled: hasValidSession,
-  });
-
-  const reviewsQuery = useQuery({
-    queryKey: ["homepage", "my-reviews", user?.id],
-    queryFn: () =>
-      getUserReviews(user!.id, {
-        pageNumber: 1,
-        pageSize: 100,
-      }),
-    enabled: hasValidSession,
-  });
-
-  const listsQuery = useQuery({
-    queryKey: ["homepage", "my-game-lists", user?.id],
-    queryFn: () => getUserGameLists(user!.id),
+    queryKey: ["homepage", "my-user-game-dashboard", user?.id],
+    queryFn: ({ signal }) =>
+      getMyUserGameDashboard(signal),
     enabled: hasValidSession,
   });
 
   const dashboardData = useMemo(() => {
-    const userGames = userGamesQuery.data ?? [];
-
-    const statusCounts: Record<UserGameStatus, number> = {
+    const statusCounts: Record<UserGameStatus, number> =
+      userGamesQuery.data?.statusCounts ?? {
       Playing: 0,
       PlanToPlay: 0,
       Played: 0,
       Dropped: 0,
     };
-
-    let wishlistCount = 0;
-    let ratingTotal = 0;
-    let ratingCount = 0;
-
     const ratingCounts = new Map<number, number>(
       ratingSteps.map((rating) => [rating, 0]),
     );
 
-    for (const game of userGames) {
-      if (game.status) {
-        statusCounts[game.status] += 1;
-      }
-
-      if (game.isWishlisted) {
-        wishlistCount += 1;
-      }
-
-      if (game.rating !== null) {
-        ratingTotal += game.rating;
-        ratingCount += 1;
-        ratingCounts.set(
-          game.rating,
-          (ratingCounts.get(game.rating) ?? 0) + 1,
-        );
-      }
+    for (const item of userGamesQuery.data?.ratingDistribution ?? []) {
+      ratingCounts.set(item.rating, item.count);
     }
-
-    const recentGame = [...userGames].sort((first, second) => {
-      const firstDate = new Date(
-        first.updatedAt ?? first.createdAt,
-      ).getTime();
-      const secondDate = new Date(
-        second.updatedAt ?? second.createdAt,
-      ).getTime();
-
-      return secondDate - firstDate;
-    })[0];
 
     return {
       statusCounts,
-      wishlistCount,
-      averageRating:
-        ratingCount > 0 ? ratingTotal / ratingCount : null,
-      ratingCount,
+      wishlistCount: userGamesQuery.data?.wishlistCount ?? 0,
+      averageRating: userGamesQuery.data?.averageRating ?? null,
+      ratingCount: userGamesQuery.data?.ratingCount ?? 0,
       ratingCounts,
-      recentGame,
+      recentGame: userGamesQuery.data?.recentGame ?? null,
     };
   }, [userGamesQuery.data]);
 
@@ -158,8 +106,8 @@ export function UserWelcomePanel() {
     userGamesQuery.isLoading || userGamesQuery.isError;
   const isRatingDataUnavailable =
     userGamesQuery.isLoading || userGamesQuery.isError;
-  const reviewCount = reviewsQuery.data?.totalCount;
-  const listCount = listsQuery.data?.length;
+  const reviewCount = userGamesQuery.data?.reviewCount;
+  const listCount = userGamesQuery.data?.gameListCount;
   const maximumRatingCount = Math.max(
     1,
     ...ratingSteps.map(
@@ -173,34 +121,40 @@ export function UserWelcomePanel() {
       value: isUserGamesUnavailable
         ? "—"
         : dashboardData.statusCounts.Played,
+      href: `/users/${user.userName}?tab=games&gameStatus=Played`,
     },
     {
       label: "Oynayır",
       value: isUserGamesUnavailable
         ? "—"
         : dashboardData.statusCounts.Playing,
+      href: `/users/${user.userName}?tab=games&gameStatus=Playing`,
     },
     {
       label: "Oynayacaq",
       value: isUserGamesUnavailable
         ? "—"
         : dashboardData.statusCounts.PlanToPlay,
+      href: `/users/${user.userName}?tab=games&gameStatus=PlanToPlay`,
     },
     {
       label: "Yarım qoyub",
       value: isUserGamesUnavailable
         ? "—"
         : dashboardData.statusCounts.Dropped,
+      href: `/users/${user.userName}?tab=games&gameStatus=Dropped`,
     },
     {
       label: "Wishlist",
       value: isUserGamesUnavailable
         ? "—"
         : dashboardData.wishlistCount,
+      href: `/users/${user.userName}?tab=wishlist`,
     },
     {
       label: "Rəylər",
-      value: reviewsQuery.isLoading ? "—" : (reviewCount ?? "—"),
+      value: userGamesQuery.isLoading ? "—" : (reviewCount ?? "—"),
+      href: `/users/${user.userName}?tab=reviews`,
     },
   ];
 
@@ -264,18 +218,20 @@ export function UserWelcomePanel() {
             <div className="border-b border-white/[0.06] p-5 sm:p-7 lg:border-b-0 lg:border-r">
               <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3">
                 {stats.map((stat) => (
-                  <div
+                  <Link
                     key={stat.label}
-                    className="rounded-xl border border-white/[0.055] bg-white/[0.025] px-3 py-3 text-center"
+                    to={stat.href}
+                    aria-label={`${stat.label} bölməsinə keç`}
+                    className="group rounded-xl border border-white/[0.055] bg-white/[0.025] px-3 py-3 text-center transition hover:border-violet-400/25 hover:bg-violet-500/[0.08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
                   >
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-zinc-500 transition group-hover:text-zinc-300">
                       {stat.label}
                     </p>
 
-                    <p className="mt-1 text-2xl font-bold tracking-tight text-zinc-100">
+                    <p className="mt-1 text-2xl font-bold tracking-tight text-zinc-100 transition group-hover:text-violet-200">
                       {stat.value}
                     </p>
-                  </div>
+                  </Link>
                 ))}
               </div>
 
@@ -284,7 +240,7 @@ export function UserWelcomePanel() {
                 <span>{user.followingCount} izlənilən</span>
                 <span>{user.postCount} paylaşım</span>
                 <span>
-                  {listsQuery.isLoading ? "—" : (listCount ?? "—")} siyahı
+                  {userGamesQuery.isLoading ? "—" : (listCount ?? "—")} siyahı
                 </span>
               </div>
             </div>

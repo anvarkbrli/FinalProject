@@ -22,6 +22,7 @@ interface ProfileSteamLibraryProps {
   isOwnProfile: boolean;
   isSyncing: boolean;
   onSync: () => void;
+  onResolvePlaytime: () => void;
 }
 
 function formatPlaytime(minutes: number): string {
@@ -38,15 +39,20 @@ function formatPlaytime(minutes: number): string {
 function formatLastPlayed(value: string | null | undefined): string {
   if (!value) return "Son oynanma yoxdur";
 
-  return new Intl.DateTimeFormat("az-AZ", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Son oynanma tarixi məlum deyil";
+  }
+
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
+
+  return `Son oynanma: ${day}.${month}.${year}`;
 }
 
 function SteamGameCover({ game }: { game: SteamOwnedGameDTO }) {
-  const localCoverUrl = resolveAssetUrl(game.localCoverImageUrl ?? null);
+  const localCoverUrl = resolveAssetUrl(game.matchedCoverImageUrl ?? game.localCoverImageUrl ?? null);
   const steamHeaderUrl = `https://cdn.akamai.steamstatic.com/steam/apps/${game.steamAppId}/header.jpg`;
   const [failedUrls, setFailedUrls] = useState<Set<string>>(() => new Set());
   const candidates = [localCoverUrl, steamHeaderUrl, game.steamIconUrl]
@@ -81,13 +87,19 @@ function SteamGameCover({ game }: { game: SteamOwnedGameDTO }) {
 
       <span
         className={`absolute right-2 top-2 inline-flex items-center gap-1.5 rounded-lg border px-2 py-1 text-[10px] font-bold backdrop-blur-sm ${
-          game.isMatched
-            ? "border-emerald-300/15 bg-emerald-500/15 text-emerald-200"
-            : "border-white/[0.08] bg-black/65 text-zinc-400"
+          game.isSteamFallback
+            ? "border-amber-300/15 bg-amber-500/15 text-amber-200"
+            : game.isMatched
+              ? "border-emerald-300/15 bg-emerald-500/15 text-emerald-200"
+              : "border-white/[0.08] bg-black/65 text-zinc-400"
         }`}
       >
-        {game.isMatched ? <Link2 size={11} /> : <Unlink size={11} />}
-        {game.isMatched ? "WellPlayd ilə uyğun" : "Yalnız Steam"}
+        {game.isSteamFallback ? <Unlink size={11} /> : <Link2 size={11} />}
+        {game.isSteamFallback
+          ? "Steam kataloqu"
+          : game.isMatched
+            ? "WellPlayd ilə uyğun"
+            : "Uyğunlaşdırılmayıb"}
       </span>
     </div>
   );
@@ -101,6 +113,7 @@ export function ProfileSteamLibrary({
   isOwnProfile,
   isSyncing,
   onSync,
+  onResolvePlaytime,
 }: ProfileSteamLibraryProps) {
   if (isLoading) {
     return (
@@ -129,7 +142,8 @@ export function ProfileSteamLibrary({
     (total, game) => total + game.playtimeMinutes,
     0,
   );
-  const matchedCount = games.filter((game) => game.isMatched).length;
+  const matchedCount = games.filter((game) => game.isMatched && !game.isSteamFallback).length;
+  const hasPendingResolution = games.some((game) => game.needsResolution);
 
   return (
     <div className="space-y-6">
@@ -145,19 +159,31 @@ export function ProfileSteamLibrary({
         </div>
 
         {isOwnProfile && (
-          <button
-            type="button"
-            onClick={onSync}
-            disabled={isSyncing}
-            className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {isSyncing ? (
-              <LoaderCircle size={17} className="animate-spin" />
-            ) : (
-              <RefreshCw size={17} />
+          <div className="flex flex-wrap gap-2 sm:justify-end">
+            {hasPendingResolution && (
+              <button
+                type="button"
+                onClick={onResolvePlaytime}
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-500/10 px-5 text-sm font-semibold text-amber-100 transition hover:bg-amber-500/15"
+              >
+                <Clock3 size={17} />
+                Oyun saatlarını təsdiqlə
+              </button>
             )}
-            Steam ilə yenilə
-          </button>
+            <button
+              type="button"
+              onClick={onSync}
+              disabled={isSyncing}
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isSyncing ? (
+                <LoaderCircle size={17} className="animate-spin" />
+              ) : (
+                <RefreshCw size={17} />
+              )}
+              Steam ilə yenilə
+            </button>
+          </div>
         )}
       </section>
 
@@ -194,16 +220,21 @@ export function ProfileSteamLibrary({
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {games.map((game) => {
-            const gameHref = game.isMatched && game.localGameId
-              ? `/games/Local/${game.localGameId}`
-              : `/games?search=${encodeURIComponent(game.name)}`;
+            const gameHref =
+              game.matchedGameSource && game.matchedGameId
+                ? `/games/${game.matchedGameSource}/${game.matchedGameId}`
+                : game.localGameId
+                  ? `/games/Local/${game.localGameId}`
+                  : game.detailUrl;
+            const steamStoreUrl =
+              `https://store.steampowered.com/app/${game.steamAppId}`;
             const cardContent = (
               <>
                 <SteamGameCover game={game} />
                 <div className="p-4">
                   <div className="flex min-w-0 items-start justify-between gap-3">
                     <h3 className="line-clamp-2 min-h-10 text-sm font-bold leading-5 text-zinc-100">
-                      {game.localGameName ?? game.name}
+                      {game.name}
                     </h3>
                     <ChevronRight
                       size={16}
@@ -215,10 +246,16 @@ export function ProfileSteamLibrary({
                     />
                   </div>
 
-                  {game.localReleaseDate && (
+                  {game.matchedGameName && game.matchedGameName !== game.name && (
+                    <p className="mt-2 line-clamp-1 text-xs text-zinc-600">
+                      Statistika: {game.matchedGameName}
+                    </p>
+                  )}
+
+                  {(game.matchedReleaseDate ?? game.localReleaseDate) && (
                     <span className="mt-3 inline-flex items-center gap-1.5 text-xs text-zinc-600">
                       <CalendarDays size={13} />
-                      Çıxış: {formatDate(game.localReleaseDate)}
+                      Çıxış: {formatDate(game.matchedReleaseDate ?? game.localReleaseDate!)}
                     </span>
                   )}
 
@@ -233,14 +270,14 @@ export function ProfileSteamLibrary({
               </>
             );
 
-            return (
+            return gameHref ? (
               <Link
                 key={game.steamAppId}
                 to={gameHref}
                 title={
-                  game.isMatched
-                    ? `${game.localGameName ?? game.name} səhifəsinə keç`
-                    : `${game.name} oyununu WellPlayd kataloqunda axtar`
+                  game.isSteamFallback
+                    ? `${game.name} üçün Steam kataloq səhifəsinə keç`
+                    : `${game.matchedGameName ?? game.name} səhifəsinə keç`
                 }
                 className={`group overflow-hidden rounded-2xl border bg-[#101015] transition duration-300 hover:-translate-y-1 hover:shadow-xl ${
                   game.isMatched
@@ -250,6 +287,17 @@ export function ProfileSteamLibrary({
               >
                 {cardContent}
               </Link>
+            ) : (
+              <a
+                key={game.steamAppId}
+                href={steamStoreUrl}
+                target="_blank"
+                rel="noreferrer"
+                title={`${game.name} üçün Steam mağaza səhifəsinə keç`}
+                className="group overflow-hidden rounded-2xl border border-white/[0.05] bg-[#101015] transition duration-300 hover:-translate-y-1 hover:border-white/[0.12] hover:shadow-xl hover:shadow-black/20"
+              >
+                {cardContent}
+              </a>
             );
           })}
         </div>

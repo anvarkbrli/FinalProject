@@ -55,7 +55,11 @@ public class PostService : IPostService
         try
         {
             if (dto.Image is not null)
-                imageUrl = await _fileStorageService.SavePostImageAsync(dto.Image);
+            {
+                imageUrl = await _fileStorageService.SavePostImageAsync(
+                    dto.Image,
+                    cancellationToken);
+            }
 
             var post = new UserPost
             {
@@ -129,9 +133,10 @@ public class PostService : IPostService
         return await MapPostAsync(postId, currentUserId, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<PostDTO>> GetUserPostsAsync(
+    public async Task<PagedResultDTO<PostDTO>> GetUserPostsAsync(
         Guid userId,
         Guid? currentUserId,
+        PaginationFilterDTO pagination,
         CancellationToken cancellationToken = default)
     {
         var user = await _context.Users
@@ -151,10 +156,11 @@ public class PostService : IPostService
             currentUserId,
             cancellationToken);
 
-        return await _context.UserPosts
+        var query = _context.UserPosts
             .AsNoTracking()
             .Where(x => x.UserId == userId)
             .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.Id)
             .Select(x => new PostDTO
             {
                 Id = x.Id,
@@ -170,12 +176,16 @@ public class PostService : IPostService
                 CommentCount = x.Comments.Count,
                 IsLikedByCurrentUser = currentUserId.HasValue &&
                     x.Likes.Any(like => like.UserId == currentUserId.Value)
-            })
-            .ToListAsync(cancellationToken);
+            });
+
+        return await query.ToPagedResultAsync(
+            pagination,
+            cancellationToken);
     }
 
-    public async Task<IReadOnlyList<PostDTO>> GetFeedAsync(
+    public async Task<PagedResultDTO<PostDTO>> GetFeedAsync(
         Guid currentUserId,
+        PaginationFilterDTO pagination,
         CancellationToken cancellationToken = default)
     {
         var blockedUserIds = _context.UserBlocks
@@ -193,12 +203,13 @@ public class PostService : IPostService
                 x.Status == FollowStatus.Accepted)
             .Select(x => x.FollowingId);
 
-        return await _context.UserPosts
+        var query = _context.UserPosts
             .AsNoTracking()
             .Where(x =>
                 (x.UserId == currentUserId || followedUserIds.Contains(x.UserId)) &&
                 !blockedUserIds.Contains(x.UserId))
             .OrderByDescending(x => x.CreatedAt)
+            .ThenByDescending(x => x.Id)
             .Select(x => new PostDTO
             {
                 Id = x.Id,
@@ -213,8 +224,11 @@ public class PostService : IPostService
                 LikeCount = x.Likes.Count,
                 CommentCount = x.Comments.Count,
                 IsLikedByCurrentUser = x.Likes.Any(like => like.UserId == currentUserId)
-            })
-            .ToListAsync(cancellationToken);
+            });
+
+        return await query.ToPagedResultAsync(
+            pagination,
+            cancellationToken);
     }
 
     public async Task<PostDTO> UpdateAsync(
@@ -251,7 +265,9 @@ public class PostService : IPostService
         {
             if (dto.Image is not null)
             {
-                newImageUrl = await _fileStorageService.SavePostImageAsync(dto.Image);
+                newImageUrl = await _fileStorageService.SavePostImageAsync(
+                    dto.Image,
+                    cancellationToken);
                 resultingImageUrl = newImageUrl;
             }
 

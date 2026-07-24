@@ -15,9 +15,6 @@ public sealed class UserReportConfiguration : IEntityTypeConfiguration<UserRepor
                 "CK_UserReports_DifferentUsers",
                 "[ReporterUserId] <> [ReportedUserId]");
             tableBuilder.HasCheckConstraint(
-                "CK_UserReports_Evidence",
-                "[Description] IS NOT NULL OR [EvidenceImageStorageKey] IS NOT NULL OR [ReportedContentId] IS NOT NULL");
-            tableBuilder.HasCheckConstraint(
                 "CK_UserReports_Category",
                 "[Category] BETWEEN 1 AND 9");
             tableBuilder.HasCheckConstraint(

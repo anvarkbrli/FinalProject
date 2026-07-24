@@ -16,12 +16,15 @@ public sealed class SteamSettingsController : ControllerBase
 {
     private readonly ISteamService _steamService;
     private readonly SteamSettings _settings;
+    private readonly ISteamSyncQueue _steamSyncQueue;
 
     public SteamSettingsController(
         ISteamService steamService,
+        ISteamSyncQueue steamSyncQueue,
         IOptions<SteamSettings> options)
     {
         _steamService = steamService;
+        _steamSyncQueue = steamSyncQueue;
         _settings = options.Value;
     }
 
@@ -53,6 +56,9 @@ public sealed class SteamSettingsController : ControllerBase
             state ?? string.Empty,
             parameters,
             cancellationToken);
+
+        if (result.Success && result.UserId.HasValue)
+            _steamSyncQueue.Enqueue(result.UserId.Value);
 
         if (string.Equals(responseMode, "json", StringComparison.OrdinalIgnoreCase))
             return Ok(result);

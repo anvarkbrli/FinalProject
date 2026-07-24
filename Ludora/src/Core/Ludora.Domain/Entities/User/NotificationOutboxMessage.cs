@@ -10,6 +10,7 @@ public sealed class NotificationOutboxMessage
     public string EventName { get; set; } = "NotificationCreated";
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? ProcessedAtUtc { get; set; }
+    public DateTime? DeadLetteredAtUtc { get; set; }
     public int AttemptCount { get; set; }
     public DateTime? NextAttemptAtUtc { get; set; }
     public string? LastError { get; set; }

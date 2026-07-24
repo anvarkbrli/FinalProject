@@ -15,6 +15,8 @@ namespace Ludora.Persistence.Services;
 public sealed class UserGameService : IUserGameService
 {
     private const int MaxPageSize = 50;
+    private const int MaxProfileCandidateWindow = 5000;
+    private const int SqlParameterBatchSize = 1000;
     private const int AzerbaijanUtcOffsetHours = 4;
     private readonly AppDbContext _context;
     private readonly IIgdbClient _igdbClient;
@@ -30,13 +32,17 @@ public sealed class UserGameService : IUserGameService
         _notificationService = notificationService;
     }
 
-    public async Task<IReadOnlyList<UserGameDTO>> GetMineAsync(
+    public async Task<PagedResultDTO<UserGameDTO>> GetMineAsync(
         Guid userId,
         UserGameStatus? status = null,
         bool? isFavorite = null,
         bool? isWishlisted = null,
+        PaginationFilterDTO? pagination = null,
         CancellationToken cancellationToken = default)
     {
+        pagination ??= new PaginationFilterDTO();
+        ValidatePagination(pagination.PageNumber, pagination.PageSize);
+
         var query = _context.UserGames
             .AsNoTracking()
             .Where(x => x.UserId == userId);
@@ -50,11 +56,103 @@ public sealed class UserGameService : IUserGameService
         if (isWishlisted.HasValue)
             query = query.Where(x => x.IsWishlisted == isWishlisted.Value);
 
+        var totalCount = await query.CountAsync(cancellationToken);
         var entities = await query
             .OrderByDescending(x => x.UpdatedAt ?? x.CreatedAt)
+            .ThenByDescending(x => x.Id)
+            .Skip((pagination.PageNumber - 1) * pagination.PageSize)
+            .Take(pagination.PageSize)
             .ToListAsync(cancellationToken);
 
-        return await MapManyAsync(entities, cancellationToken);
+        return new PagedResultDTO<UserGameDTO>
+        {
+            Items = await MapManyAsync(entities, cancellationToken),
+            PageNumber = pagination.PageNumber,
+            PageSize = pagination.PageSize,
+            TotalCount = totalCount,
+            TotalPages = totalCount == 0
+                ? 0
+                : (int)Math.Ceiling(totalCount / (double)pagination.PageSize)
+        };
+    }
+
+    public async Task<UserGameDashboardDTO> GetDashboardAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.UserGames
+            .AsNoTracking()
+            .Where(userGame => userGame.UserId == userId);
+
+        var aggregate = await query
+            .GroupBy(_ => 1)
+            .Select(group => new
+            {
+                PlayingCount = group.Count(
+                    game => game.Status == UserGameStatus.Playing),
+                PlanToPlayCount = group.Count(
+                    game => game.Status == UserGameStatus.PlanToPlay),
+                PlayedCount = group.Count(
+                    game => game.Status == UserGameStatus.Played),
+                DroppedCount = group.Count(
+                    game => game.Status == UserGameStatus.Dropped),
+                WishlistCount = group.Count(game => game.IsWishlisted),
+                RatingCount = group.Count(game => game.Rating.HasValue),
+                AverageRating = group.Average(game => game.Rating)
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var ratingDistribution = await query
+            .Where(game => game.Rating.HasValue)
+            .GroupBy(game => game.Rating!.Value)
+            .OrderBy(group => group.Key)
+            .Select(group => new UserRatingDistributionDTO
+            {
+                Rating = group.Key,
+                Count = group.Count()
+            })
+            .ToListAsync(cancellationToken);
+
+        var recentEntity = await query
+            .OrderByDescending(game => game.UpdatedAt ?? game.CreatedAt)
+            .ThenByDescending(game => game.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var contentCounts = await _context.Users
+            .AsNoTracking()
+            .Where(user => user.Id == userId)
+            .Select(_ => new
+            {
+                ReviewCount = _context.Reviews.Count(
+                    review =>
+                        review.UserId == userId &&
+                        review.Content.Trim() != string.Empty),
+                GameListCount = _context.GameLists.Count(
+                    gameList => gameList.UserId == userId)
+            })
+            .FirstAsync(cancellationToken);
+
+        var statusCounts = new Dictionary<UserGameStatus, int>
+        {
+            [UserGameStatus.Playing] = aggregate?.PlayingCount ?? 0,
+            [UserGameStatus.PlanToPlay] = aggregate?.PlanToPlayCount ?? 0,
+            [UserGameStatus.Played] = aggregate?.PlayedCount ?? 0,
+            [UserGameStatus.Dropped] = aggregate?.DroppedCount ?? 0
+        };
+
+        return new UserGameDashboardDTO
+        {
+            StatusCounts = statusCounts,
+            WishlistCount = aggregate?.WishlistCount ?? 0,
+            RatingCount = aggregate?.RatingCount ?? 0,
+            AverageRating = aggregate?.AverageRating,
+            RatingDistribution = ratingDistribution,
+            RecentGame = recentEntity is null
+                ? null
+                : await MapAsync(recentEntity, cancellationToken),
+            ReviewCount = contentCounts.ReviewCount,
+            GameListCount = contentCounts.GameListCount
+        };
     }
 
     public async Task<PagedResultDTO<UserGameDTO>> GetByUserAsync(
@@ -153,50 +251,75 @@ public sealed class UserGameService : IUserGameService
             currentUserId,
             cancellationToken);
 
-        var userGames = await _context.UserGames
-            .AsNoTracking()
-            .Where(x => x.UserId == userId)
-            .ToListAsync(cancellationToken);
+        var candidateQuery = BuildProfileCandidateQuery(userId);
 
-        var reviews = await _context.Reviews
-            .AsNoTracking()
-            .Where(x => x.UserId == userId && !x.IsDeleted)
-            .ToListAsync(cancellationToken);
+        if (filter.Status.HasValue)
+            candidateQuery = candidateQuery.Where(x => x.Status == filter.Status.Value);
 
-        var reviewMap = reviews
-            .GroupBy(x => (x.Source, x.GameId))
-            .ToDictionary(
-                x => x.Key,
-                x => x.OrderByDescending(review => review.UpdatedAt ?? review.CreatedAt)
-                    .ThenByDescending(review => review.Id)
-                    .First());
+        if (filter.Rating.HasValue)
+            candidateQuery = candidateQuery.Where(x => x.Rating == filter.Rating.Value);
 
-        var mergedMap = userGames.ToDictionary(
-            x => (x.Source, x.GameId),
-            x => x);
+        var requiresCatalogMappingBeforePagination =
+            !string.IsNullOrWhiteSpace(filter.Search) ||
+            !string.IsNullOrWhiteSpace(filter.Genre) ||
+            !string.IsNullOrWhiteSpace(filter.Company) ||
+            !string.IsNullOrWhiteSpace(filter.Platform) ||
+            !string.IsNullOrWhiteSpace(filter.PlayedPlatform) ||
+            filter.ReleaseYear.HasValue ||
+            filter.SortBy is UserProfileGameSortBy.RecentlyReleased or
+                UserProfileGameSortBy.OldestRelease or
+                UserProfileGameSortBy.NameAsc or
+                UserProfileGameSortBy.NameDesc;
 
-        foreach (var reviewEntry in reviewMap)
+        if (!requiresCatalogMappingBeforePagination)
         {
-            if (!mergedMap.ContainsKey(reviewEntry.Key))
+            var pageTotalCount = await candidateQuery.CountAsync(cancellationToken);
+            var candidatePage = await ApplyProfileCandidateSorting(
+                    candidateQuery,
+                    filter.SortBy)
+                .Skip((filter.PageNumber - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .ToListAsync(cancellationToken);
+            var reviewMap = await LoadProfileReviewsAsync(
+                candidatePage,
+                cancellationToken);
+            var pageItems = await MapProfileGameEntriesAsync(
+                ToUserGameEntities(candidatePage, userId),
+                reviewMap,
+                cancellationToken);
+
+            return new PagedResultDTO<ProfileGameEntryDTO>
             {
-                mergedMap[reviewEntry.Key] = new UserGame
-                {
-                    UserId = userId,
-                    Source = reviewEntry.Key.Source,
-                    GameId = reviewEntry.Key.GameId,
-                    CreatedAt = reviewEntry.Value.CreatedAt,
-                    UpdatedAt = reviewEntry.Value.UpdatedAt ?? reviewEntry.Value.CreatedAt
-                };
-            }
+                Items = pageItems,
+                PageNumber = filter.PageNumber,
+                PageSize = filter.PageSize,
+                TotalCount = pageTotalCount,
+                TotalPages = pageTotalCount == 0
+                    ? 0
+                    : (int)Math.Ceiling(pageTotalCount / (double)filter.PageSize)
+            };
         }
 
-        var candidateEntities = mergedMap.Values
-            .Where(x => x.Status.HasValue || x.Rating.HasValue || reviewMap.ContainsKey((x.Source, x.GameId)))
-            .ToList();
+        var candidates = await ApplyProfileCandidateSorting(
+                candidateQuery,
+                UserProfileGameSortBy.RecentlyUpdated)
+            .Take(MaxProfileCandidateWindow + 1)
+            .ToListAsync(cancellationToken);
+
+        if (candidates.Count > MaxProfileCandidateWindow)
+        {
+            throw new BadRequestException(
+                $"Profil kolleksiyası çox böyükdür. Axtarışı dəqiqləşdirin; eyni anda ən çox {MaxProfileCandidateWindow} namizəd emal olunur.");
+        }
+
+        var reviewMapForCandidates = await LoadProfileReviewsAsync(
+            candidates,
+            cancellationToken);
+        var candidateEntities = ToUserGameEntities(candidates, userId);
 
         var items = await MapProfileGameEntriesAsync(
             candidateEntities,
-            reviewMap,
+            reviewMapForCandidates,
             cancellationToken);
 
         items = ApplyProfileGameFilters(items, filter);
@@ -246,9 +369,30 @@ public sealed class UserGameService : IUserGameService
             currentUserId,
             cancellationToken);
 
-        var reviews = await _context.Reviews
+        var reviewQuery = _context.Reviews
             .AsNoTracking()
-            .Where(x => x.UserId == userId && !x.IsDeleted)
+            .Where(x => x.UserId == userId && !x.IsDeleted);
+
+        var today = GetTodayInAzerbaijan();
+        var chartRanges = BuildPlaytimeRanges(period, today);
+        var chartStart = chartRanges[0].StartDate;
+        var chartEnd = chartRanges[^1].EndDate;
+        var chartStartUtc = chartStart
+            .ToDateTime(TimeOnly.MinValue)
+            .AddHours(-AzerbaijanUtcOffsetHours);
+        var chartEndExclusiveUtc = chartEnd
+            .AddDays(1)
+            .ToDateTime(TimeOnly.MinValue)
+            .AddHours(-AzerbaijanUtcOffsetHours);
+
+        var chartReviews = await reviewQuery
+            .Where(x =>
+                (x.PlayedOn.HasValue &&
+                 x.PlayedOn.Value >= chartStart &&
+                 x.PlayedOn.Value <= chartEnd) ||
+                (!x.PlayedOn.HasValue &&
+                 x.CreatedAt >= chartStartUtc &&
+                 x.CreatedAt < chartEndExclusiveUtc))
             .Select(x => new PlaytimeReviewRow(
                 x.Source,
                 x.GameId,
@@ -259,21 +403,42 @@ public sealed class UserGameService : IUserGameService
                 x.CreatedAt))
             .ToListAsync(cancellationToken);
 
-        var positiveReviews = reviews
-            .Where(x => x.PlaytimeMinutes > 0)
+        var gameTotals = await reviewQuery
+            .Where(x => x.PlaytimeMinutes.HasValue && x.PlaytimeMinutes > 0)
+            .GroupBy(x => new { x.Source, x.GameId })
+            .Select(group => new
+            {
+                group.Key.Source,
+                group.Key.GameId,
+                PlaytimeMinutes = group.Sum(x => (long)(x.PlaytimeMinutes ?? 0))
+            })
+            .ToListAsync(cancellationToken);
+
+        var metadataRows = gameTotals
+            .Select(x => new PlaytimeReviewRow(
+                x.Source,
+                x.GameId,
+                null,
+                null,
+                null,
+                0,
+                DateTime.MinValue))
+            .Concat(chartReviews)
+            .GroupBy(x => (x.Source, x.GameId))
+            .Select(x => x.First())
             .ToList();
+
         var gameMetadata = await ResolvePlaytimeGameMetadataAsync(
-            reviews,
+            metadataRows,
             cancellationToken);
-        var today = GetTodayInAzerbaijan();
         var chart = BuildPlaytimeChart(
-            reviews,
+            chartReviews,
             period,
             today,
             gameMetadata);
-        var allTimeTotal = reviews.Sum(x => (long)x.PlaytimeMinutes);
+        var allTimeTotal = gameTotals.Sum(x => x.PlaytimeMinutes);
 
-        if (positiveReviews.Count == 0)
+        if (gameTotals.Count == 0)
         {
             return new UserPlaytimeStatisticsDTO
             {
@@ -284,14 +449,7 @@ public sealed class UserGameService : IUserGameService
             };
         }
 
-        var topGameGroup = positiveReviews
-            .GroupBy(x => (x.Source, x.GameId))
-            .Select(group => new
-            {
-                group.Key.Source,
-                group.Key.GameId,
-                PlaytimeMinutes = group.Sum(x => (long)x.PlaytimeMinutes)
-            })
+        var topGameGroup = gameTotals
             .OrderByDescending(x => x.PlaytimeMinutes)
             .ThenBy(x => x.GameId)
             .First();
@@ -303,17 +461,17 @@ public sealed class UserGameService : IUserGameService
         var genreTotals = new Dictionary<string, double>(
             StringComparer.OrdinalIgnoreCase);
 
-        foreach (var review in positiveReviews)
+        foreach (var gameTotal in gameTotals)
         {
             if (!gameMetadata.TryGetValue(
-                    (review.Source, review.GameId),
+                    (gameTotal.Source, gameTotal.GameId),
                     out var metadata) ||
                 metadata.Genres.Count == 0)
             {
                 continue;
             }
 
-            var share = review.PlaytimeMinutes /
+            var share = gameTotal.PlaytimeMinutes /
                         (double)metadata.Genres.Count;
 
             foreach (var genre in metadata.Genres)
@@ -328,12 +486,31 @@ public sealed class UserGameService : IUserGameService
             .ThenBy(x => x.Key)
             .FirstOrDefault();
 
-        var platformReferences = positiveReviews
-            .Where(x => x.PlatformSource.HasValue && x.PlatformId.HasValue)
-            .Select(x => new CatalogReferenceDTO
+        var platformPlaytimeRows = await reviewQuery
+            .Where(x =>
+                x.PlaytimeMinutes.HasValue &&
+                x.PlaytimeMinutes > 0 &&
+                x.PlatformSource.HasValue &&
+                x.PlatformId.HasValue)
+            .GroupBy(x => new
             {
                 Source = x.PlatformSource!.Value,
                 Id = x.PlatformId!.Value
+            })
+            .Select(group => new
+            {
+                group.Key.Source,
+                group.Key.Id,
+                PlaytimeMinutes = group.Sum(
+                    x => (long)(x.PlaytimeMinutes ?? 0))
+            })
+            .ToListAsync(cancellationToken);
+
+        var platformReferences = platformPlaytimeRows
+            .Select(x => new CatalogReferenceDTO
+            {
+                Source = x.Source,
+                Id = x.Id
             })
             .ToList();
 
@@ -343,12 +520,10 @@ public sealed class UserGameService : IUserGameService
         var platformTotals = new Dictionary<string, long>(
             StringComparer.OrdinalIgnoreCase);
 
-        foreach (var review in positiveReviews)
+        foreach (var platformTotal in platformPlaytimeRows)
         {
-            if (!review.PlatformSource.HasValue ||
-                !review.PlatformId.HasValue ||
-                !platformMap.TryGetValue(
-                    (review.PlatformSource.Value, review.PlatformId.Value),
+            if (!platformMap.TryGetValue(
+                    (platformTotal.Source, platformTotal.Id),
                     out var platform))
             {
                 continue;
@@ -356,7 +531,7 @@ public sealed class UserGameService : IUserGameService
 
             platformTotals[platform.Name] =
                 platformTotals.GetValueOrDefault(platform.Name) +
-                review.PlaytimeMinutes;
+                platformTotal.PlaytimeMinutes;
         }
 
         var topPlatform = platformTotals
@@ -764,6 +939,166 @@ public sealed class UserGameService : IUserGameService
         return await SaveOrDeleteAsync(entity, cancellationToken);
     }
 
+    private IQueryable<ProfileGameCandidateRow> BuildProfileCandidateQuery(
+        Guid userId)
+    {
+        var userGames = _context.UserGames
+            .AsNoTracking()
+            .Where(x => x.UserId == userId);
+        var reviews = _context.Reviews
+            .AsNoTracking()
+            .Where(x => x.UserId == userId && !x.IsDeleted);
+
+        var userGameCandidates = userGames
+            .Select(userGame => new ProfileGameCandidateRow
+            {
+                Source = userGame.Source,
+                GameId = userGame.GameId,
+                Status = userGame.Status,
+                IsFavorite = userGame.IsFavorite,
+                IsWishlisted = userGame.IsWishlisted,
+                Rating = userGame.Rating,
+                CreatedAt = userGame.CreatedAt,
+                UpdatedAt = userGame.UpdatedAt,
+                ReviewId = reviews
+                    .Where(review =>
+                        review.Source == userGame.Source &&
+                        review.GameId == userGame.GameId)
+                    .OrderByDescending(review =>
+                        review.UpdatedAt ?? review.CreatedAt)
+                    .ThenByDescending(review => review.Id)
+                    .Select(review => (long?)review.Id)
+                    .FirstOrDefault(),
+                PlayedOn = reviews
+                    .Where(review =>
+                        review.Source == userGame.Source &&
+                        review.GameId == userGame.GameId)
+                    .OrderByDescending(review =>
+                        review.UpdatedAt ?? review.CreatedAt)
+                    .ThenByDescending(review => review.Id)
+                    .Select(review => review.PlayedOn)
+                    .FirstOrDefault()
+            });
+
+        var reviewOnlyCandidates = reviews
+            .Where(review =>
+                !userGames.Any(userGame =>
+                    userGame.Source == review.Source &&
+                    userGame.GameId == review.GameId) &&
+                !reviews.Any(other =>
+                    other.Source == review.Source &&
+                    other.GameId == review.GameId &&
+                    ((other.UpdatedAt ?? other.CreatedAt) >
+                     (review.UpdatedAt ?? review.CreatedAt) ||
+                     ((other.UpdatedAt ?? other.CreatedAt) ==
+                      (review.UpdatedAt ?? review.CreatedAt) &&
+                      other.Id > review.Id))))
+            .Select(review => new ProfileGameCandidateRow
+            {
+                Source = review.Source,
+                GameId = review.GameId,
+                Status = null,
+                IsFavorite = false,
+                IsWishlisted = false,
+                Rating = null,
+                CreatedAt = review.CreatedAt,
+                UpdatedAt = review.UpdatedAt ?? review.CreatedAt,
+                ReviewId = review.Id,
+                PlayedOn = review.PlayedOn
+            });
+
+        return userGameCandidates
+            .Concat(reviewOnlyCandidates)
+            .Where(x =>
+                x.Status.HasValue ||
+                x.Rating.HasValue ||
+                x.ReviewId.HasValue);
+    }
+
+    private static IOrderedQueryable<ProfileGameCandidateRow>
+        ApplyProfileCandidateSorting(
+            IQueryable<ProfileGameCandidateRow> query,
+            UserProfileGameSortBy sortBy)
+    {
+        return sortBy switch
+        {
+            UserProfileGameSortBy.RatingHighToLow => query
+                .OrderByDescending(x => x.Rating ?? -1)
+                .ThenBy(x => x.Source)
+                .ThenBy(x => x.GameId),
+            UserProfileGameSortBy.RatingLowToHigh => query
+                .OrderBy(x => x.Rating ?? 11)
+                .ThenBy(x => x.Source)
+                .ThenBy(x => x.GameId),
+            UserProfileGameSortBy.RecentlyPlayed => query
+                .OrderByDescending(x => x.PlayedOn ?? DateOnly.MinValue)
+                .ThenByDescending(x => x.UpdatedAt ?? x.CreatedAt)
+                .ThenBy(x => x.Source)
+                .ThenBy(x => x.GameId),
+            _ => query
+                .OrderByDescending(x => x.UpdatedAt ?? x.CreatedAt)
+                .ThenByDescending(x => x.CreatedAt)
+                .ThenBy(x => x.Source)
+                .ThenBy(x => x.GameId)
+        };
+    }
+
+    private async Task<Dictionary<
+        (CatalogSource Source, long GameId),
+        Review>> LoadProfileReviewsAsync(
+        IReadOnlyCollection<ProfileGameCandidateRow> candidates,
+        CancellationToken cancellationToken)
+    {
+        var reviewIds = candidates
+            .Where(x => x.ReviewId.HasValue)
+            .Select(x => x.ReviewId!.Value)
+            .Distinct()
+            .ToArray();
+
+        if (reviewIds.Length == 0)
+            return [];
+
+        var reviews = new List<Review>(reviewIds.Length);
+
+        foreach (var batch in reviewIds.Chunk(SqlParameterBatchSize))
+        {
+            reviews.AddRange(await _context.Reviews
+                .AsNoTracking()
+                .Where(x => batch.Contains(x.Id))
+                .ToListAsync(cancellationToken));
+        }
+
+        var reviewById = reviews.ToDictionary(x => x.Id);
+
+        return candidates
+            .Where(x =>
+                x.ReviewId.HasValue &&
+                reviewById.ContainsKey(x.ReviewId.Value))
+            .ToDictionary(
+                x => (x.Source, x.GameId),
+                x => reviewById[x.ReviewId!.Value]);
+    }
+
+    private static List<UserGame> ToUserGameEntities(
+        IReadOnlyCollection<ProfileGameCandidateRow> candidates,
+        Guid userId)
+    {
+        return candidates
+            .Select(x => new UserGame
+            {
+                UserId = userId,
+                Source = x.Source,
+                GameId = x.GameId,
+                Status = x.Status,
+                IsFavorite = x.IsFavorite,
+                IsWishlisted = x.IsWishlisted,
+                Rating = x.Rating,
+                CreatedAt = x.CreatedAt,
+                UpdatedAt = x.UpdatedAt
+            })
+            .ToList();
+    }
+
     private async Task<List<ProfileGameEntryDTO>> MapProfileGameEntriesAsync(
         IReadOnlyCollection<UserGame> entities,
         IReadOnlyDictionary<(CatalogSource Source, long GameId), Review> reviewMap,
@@ -780,6 +1115,7 @@ public sealed class UserGameService : IUserGameService
 
         var localGames = await _context.Games
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(x => x.GameGenres)
             .Include(x => x.GamePlatforms)
             .Include(x => x.GameCompanies)
@@ -1681,6 +2017,18 @@ public sealed class UserGameService : IUserGameService
         }
     }
 
+    private static void ValidatePagination(int pageNumber, int pageSize)
+    {
+        if (pageNumber < 1)
+            throw new BadRequestException("Səhifə nömrəsi 1-dən kiçik ola bilməz.");
+
+        if (pageSize < 1 || pageSize > MaxPageSize)
+        {
+            throw new BadRequestException(
+                $"Səhifə ölçüsü 1-{MaxPageSize} aralığında olmalıdır.");
+        }
+    }
+
     private static void ValidateRating(double? rating)
     {
         if (!rating.HasValue)
@@ -1713,6 +2061,20 @@ public sealed class UserGameService : IUserGameService
     {
         return DateOnly.FromDateTime(
             DateTime.UtcNow.AddHours(AzerbaijanUtcOffsetHours));
+    }
+
+    private sealed class ProfileGameCandidateRow
+    {
+        public CatalogSource Source { get; init; }
+        public long GameId { get; init; }
+        public UserGameStatus? Status { get; init; }
+        public bool IsFavorite { get; init; }
+        public bool IsWishlisted { get; init; }
+        public double? Rating { get; init; }
+        public long? ReviewId { get; init; }
+        public DateOnly? PlayedOn { get; init; }
+        public DateTime CreatedAt { get; init; }
+        public DateTime? UpdatedAt { get; init; }
     }
 
     private sealed record PlaytimeReviewRow(

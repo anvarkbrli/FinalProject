@@ -2,36 +2,37 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Ban,
+  BellRing,
   Check,
+  ChevronRight,
   ExternalLink,
   Gamepad2,
   KeyRound,
   LoaderCircle,
   LockKeyhole,
   Mail,
+  Moon,
   RefreshCw,
   ShieldCheck,
+  Sun,
   Unplug,
-  UserCheck,
   UserRoundPen,
   UserX,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
 import { NotificationSettingsPanel } from "../components/notifications/NotificationSettingsPanel";
+import { EditProfilePage } from "./EditProfilePage";
 import { getApiErrorMessage } from "../lib/api";
-import { resolveAssetUrl } from "../lib/helpers";
+import { applyTheme, getActiveTheme, type WellPlaydTheme } from "../lib/theme";
 import {
-  acceptFollowRequest,
   changePassword,
   getBlockedUsers,
   getCurrentUser,
-  getFollowRequests,
   getUserSettings,
-  rejectFollowRequest,
   requestEmailChange,
   unblockUser,
   updateUserSettings,
@@ -44,6 +45,64 @@ import {
 } from "../services/steamService";
 import { useAuthStore } from "../stores/authStore";
 import type { SteamConnectionMessage } from "../types/steam";
+
+type SettingsSection =
+  | "profile"
+  | "account"
+  | "notifications"
+  | "integrations"
+  | "blocked";
+
+const settingsSections: Array<{
+  id: SettingsSection;
+  label: string;
+  description: string;
+  icon: typeof UserRoundPen;
+}> = [
+  {
+    id: "profile",
+    label: "Profil",
+    description: "Şəkil, istifadəçi adı, bio və sosial linklər",
+    icon: UserRoundPen,
+  },
+  {
+    id: "account",
+    label: "Hesab",
+    description: "Email, şifrə, məxfilik və görünüş",
+    icon: ShieldCheck,
+  },
+  {
+    id: "notifications",
+    label: "Bildirişlər",
+    description: "Fəaliyyət bildirişlərinin idarəsi",
+    icon: BellRing,
+  },
+  {
+    id: "integrations",
+    label: "İnteqrasiyalar",
+    description: "Steam və xarici hesab bağlantıları",
+    icon: Gamepad2,
+  },
+  {
+    id: "blocked",
+    label: "Bloklanmış istifadəçilər",
+    description: "Blok siyahısına nəzarət",
+    icon: Ban,
+  },
+];
+
+function parseSettingsSection(
+  value: string | null,
+  hasSteamResult: boolean,
+): SettingsSection {
+  if (hasSteamResult) {
+    return "integrations";
+  }
+
+  return settingsSections.some((section) => section.id === value)
+    ? (value as SettingsSection)
+    : "profile";
+}
 
 interface NoticeState {
   type: "success" | "error";
@@ -66,6 +125,11 @@ function getInitialSteamNotice(): NoticeState | null {
 
 export function SettingsPage() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeSection = parseSettingsSection(
+    searchParams.get("section"),
+    searchParams.has("steamSuccess"),
+  );
   const storedUser = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
   const [newEmail, setNewEmail] = useState("");
@@ -74,6 +138,18 @@ export function SettingsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [notice, setNotice] = useState<NoticeState | null>(getInitialSteamNotice);
+  const [theme, setTheme] = useState<WellPlaydTheme>(() => getActiveTheme());
+
+  const selectTheme = (nextTheme: WellPlaydTheme) => {
+    applyTheme(nextTheme);
+    setTheme(nextTheme);
+    setNotice({
+      type: "success",
+      message: nextTheme === "dark"
+        ? "Tünd görünüş aktiv edildi."
+        : "Açıq görünüş aktiv edildi.",
+    });
+  };
 
   const userQuery = useQuery({
     queryKey: ["current-user"],
@@ -88,18 +164,41 @@ export function SettingsPage() {
 
   const blockedUsersQuery = useQuery({
     queryKey: ["blocked-users"],
-    queryFn: getBlockedUsers,
-  });
-
-  const followRequestsQuery = useQuery({
-    queryKey: ["follow-requests"],
-    queryFn: getFollowRequests,
+    queryFn: ({ signal }) => getBlockedUsers(signal),
+    enabled: activeSection === "blocked",
   });
 
   const steamConnectionQuery = useQuery({
     queryKey: ["steam-connection"],
     queryFn: getSteamConnectionStatus,
+    enabled: activeSection === "integrations",
+    refetchInterval: (query) => {
+      const status = query.state.data;
+      return status?.isConnected && !status.lastSyncedAtUtc
+        ? 2_000
+        : false;
+    },
   });
+
+  const lastSteamSyncAt =
+    steamConnectionQuery.data?.lastSyncedAtUtc;
+
+  useEffect(() => {
+    if (!lastSteamSyncAt) return;
+
+    void Promise.all([
+      queryClient.invalidateQueries({ queryKey: ["steam-owned-games"] }),
+      queryClient.invalidateQueries({ queryKey: ["user-profile"] }),
+      queryClient.invalidateQueries({ queryKey: ["user-profile-games"] }),
+      queryClient.invalidateQueries({
+        queryKey: ["user-profile-recent-played-games"],
+      }),
+      queryClient.invalidateQueries({
+        queryKey: ["user-playtime-statistics"],
+      }),
+      queryClient.invalidateQueries({ queryKey: ["user-reviews"] }),
+    ]);
+  }, [lastSteamSyncAt, queryClient]);
 
   const privacyMutation = useMutation({
     mutationFn: updateUserSettings,
@@ -145,34 +244,6 @@ export function SettingsPage() {
     onError: (error) => setNotice({
       type: "error",
       message: getApiErrorMessage(error, "Şifrə dəyişdirilmədi."),
-    }),
-  });
-
-  const acceptMutation = useMutation({
-    mutationFn: acceptFollowRequest,
-    onSuccess: async () => {
-      setNotice({ type: "success", message: "İzləmə sorğusu qəbul edildi." });
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["follow-requests"] }),
-        queryClient.invalidateQueries({ queryKey: ["current-user"] }),
-        queryClient.invalidateQueries({ queryKey: ["user-profile"] }),
-      ]);
-    },
-    onError: (error) => setNotice({
-      type: "error",
-      message: getApiErrorMessage(error, "İzləmə sorğusu qəbul edilmədi."),
-    }),
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: rejectFollowRequest,
-    onSuccess: async () => {
-      setNotice({ type: "success", message: "İzləmə sorğusu rədd edildi." });
-      await queryClient.invalidateQueries({ queryKey: ["follow-requests"] });
-    },
-    onError: (error) => setNotice({
-      type: "error",
-      message: getApiErrorMessage(error, "İzləmə sorğusu rədd edilmədi."),
     }),
   });
 
@@ -259,7 +330,7 @@ export function SettingsPage() {
           message: `${event.data.steamName ?? "Steam hesabı"} uğurla bağlandı.`,
         });
         await queryClient.invalidateQueries({ queryKey: ["steam-connection"] });
-        document.getElementById("export")?.scrollIntoView({ behavior: "smooth" });
+        setSearchParams({ section: "integrations" }, { replace: true });
         return;
       }
 
@@ -271,13 +342,13 @@ export function SettingsPage() {
 
     window.addEventListener("message", handleSteamMessage);
     return () => window.removeEventListener("message", handleSteamMessage);
-  }, [queryClient]);
+  }, [queryClient, setSearchParams]);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
-    if (query.get("section") === "export" || query.has("steamSuccess")) {
+    if (query.get("section") === "integrations" || query.has("steamSuccess")) {
       requestAnimationFrame(() => {
-        document.getElementById("export")?.scrollIntoView({ behavior: "smooth" });
+        document.getElementById("integrations")?.scrollIntoView({ behavior: "smooth" });
       });
     }
 
@@ -291,7 +362,7 @@ export function SettingsPage() {
       <div className="min-h-screen wellplayd-page-bg text-zinc-100">
         <Navbar />
         <main className="flex min-h-[70vh] items-center justify-center gap-3 text-sm text-zinc-500">
-          <LoaderCircle size={20} className="animate-spin" /> Ayarlar yüklənir...
+          <LoaderCircle size={20} className="animate-spin" /> Parametrlər yüklənir...
         </main>
       </div>
     );
@@ -299,12 +370,10 @@ export function SettingsPage() {
 
   const user = userQuery.data;
   const settings = settingsQuery.data ?? { isPrivate: user.isPrivate };
-  const profileImageUrl = resolveAssetUrl(user.profileImageUrl);
-
   return (
     <div className="min-h-screen wellplayd-page-bg text-zinc-100">
       <Navbar />
-      <main className="mx-auto max-w-5xl px-5 py-10 lg:px-8 lg:py-14">
+      <main className="mx-auto max-w-7xl px-5 py-10 lg:px-8 lg:py-14">
         <Link
           to={`/users/${user.userName}`}
           className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-500 transition hover:text-violet-300"
@@ -318,18 +387,12 @@ export function SettingsPage() {
               <ShieldCheck size={22} />
             </span>
             <div>
-              <h1 className="text-3xl font-bold tracking-tight text-white">Ayarlar</h1>
+              <h1 className="text-3xl font-bold tracking-tight text-white">Parametrlər</h1>
               <p className="mt-2 text-sm leading-6 text-zinc-500">
-                Hesab təhlükəsizliyi, məxfilik və sistem sorğularını idarə et.
+                Profilini, hesab təhlükəsizliyini, bildirişləri və inteqrasiyaları bir yerdən idarə et.
               </p>
             </div>
           </div>
-          <Link
-            to="/profile/edit"
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.04] px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
-          >
-            <UserRoundPen size={17} /> Profil redaktəsi
-          </Link>
         </div>
 
         {notice && (
@@ -343,16 +406,66 @@ export function SettingsPage() {
           </div>
         )}
 
-        <div className="mt-7 space-y-6">
+        <div className="mt-7 grid items-start gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
+          <aside className="overflow-hidden rounded-3xl border border-white/[0.07] bg-[#101015] p-2 lg:sticky lg:top-24">
+            <nav aria-label="Parametr bölmələri" className="space-y-1">
+              {settingsSections.map((section) => {
+                const Icon = section.icon;
+                const isActive = activeSection === section.id;
+
+                return (
+                  <button
+                    key={section.id}
+                    type="button"
+                    onClick={() => {
+                      setNotice(null);
+                      setSearchParams(
+                        { section: section.id },
+                        { replace: true },
+                      );
+                    }}
+                    className={`group flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${
+                      isActive
+                        ? "bg-violet-500/12 text-violet-200"
+                        : "text-zinc-400 hover:bg-white/[0.05] hover:text-zinc-200"
+                    }`}
+                  >
+                    <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                      isActive
+                        ? "bg-violet-500/15 text-violet-300"
+                        : "bg-white/[0.035] text-zinc-500 group-hover:text-zinc-300"
+                    }`}>
+                      <Icon size={18} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <strong className="block text-sm font-semibold">
+                        {section.label}
+                      </strong>
+                      <span className="mt-0.5 hidden text-[11px] leading-4 text-zinc-600 xl:block">
+                        {section.description}
+                      </span>
+                    </span>
+                    <ChevronRight
+                      size={16}
+                      className={isActive ? "text-violet-300" : "text-zinc-700"}
+                    />
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
+
+          <div className="min-w-0 space-y-6">
+          {activeSection === "profile" && (
+            <EditProfilePage embedded />
+          )}
+
+          {activeSection === "account" && (
           <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div className="flex items-center gap-4">
-                <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-xl bg-violet-500/10 font-bold text-violet-300">
-                  {profileImageUrl ? (
-                    <img src={profileImageUrl} alt="Profil şəkli" className="h-full w-full object-cover" />
-                  ) : (
-                    user.userName.charAt(0).toUpperCase()
-                  )}
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                  <LockKeyhole size={21} />
                 </span>
                 <div>
                   <h2 className="font-semibold text-white">Hesab məxfiliyi</h2>
@@ -373,10 +486,128 @@ export function SettingsPage() {
               </button>
             </div>
           </section>
+          )}
 
-          <NotificationSettingsPanel />
+          {activeSection === "account" && (
+          <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                {theme === "dark" ? <Moon size={20} /> : <Sun size={20} />}
+              </span>
+              <div>
+                <h2 className="font-semibold text-white">Görünüş</h2>
+                <p className="mt-1 text-xs leading-5 text-zinc-600">
+                  Ludora interfeysinin rəng rejimini seç. Seçimin bu brauzerdə yadda qalacaq.
+                </p>
+              </div>
+            </div>
 
-          <section id="export" className="scroll-mt-24 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
+            <div
+              className="mt-5 grid gap-3 sm:grid-cols-2"
+              role="radiogroup"
+              aria-label="Rəng rejimi"
+            >
+              <button
+                type="button"
+                role="radio"
+                aria-checked={theme === "light"}
+                onClick={() => selectTheme("light")}
+                className={`group rounded-2xl border p-3 text-left transition ${
+                  theme === "light"
+                    ? "border-violet-400/50 bg-violet-500/[0.08] ring-2 ring-violet-500/15"
+                    : "border-white/[0.08] bg-white/[0.02] hover:border-violet-400/30"
+                }`}
+              >
+                <span
+                  className="block h-24 overflow-hidden rounded-xl border border-slate-200 bg-[#f5f7fb] p-3 shadow-sm"
+                  aria-hidden="true"
+                >
+                  <span className="flex items-center justify-between">
+                    <span className="h-2 w-14 rounded-full bg-slate-300" />
+                    <span className="h-5 w-5 rounded-full bg-violet-500" />
+                  </span>
+                  <span className="mt-3 grid grid-cols-[0.65fr_1fr] gap-2">
+                    <span className="h-11 rounded-lg bg-white shadow-sm" />
+                    <span className="space-y-2 rounded-lg bg-white p-2 shadow-sm">
+                      <span className="block h-1.5 w-3/4 rounded-full bg-slate-300" />
+                      <span className="block h-1.5 w-1/2 rounded-full bg-slate-200" />
+                    </span>
+                  </span>
+                </span>
+                <span className="mt-3 flex items-center justify-between gap-3 px-1">
+                  <span>
+                    <span className="flex items-center gap-2 text-sm font-semibold text-zinc-200">
+                      <Sun size={16} className="text-amber-400" /> Açıq rejim
+                    </span>
+                    <span className="mt-1 block text-xs text-zinc-600">
+                      Parlaq və təmiz interfeys
+                    </span>
+                  </span>
+                  <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${
+                    theme === "light"
+                      ? "border-violet-500 bg-violet-600 text-white"
+                      : "border-white/[0.14]"
+                  }`}>
+                    {theme === "light" && <Check size={13} />}
+                  </span>
+                </span>
+              </button>
+
+              <button
+                type="button"
+                role="radio"
+                aria-checked={theme === "dark"}
+                onClick={() => selectTheme("dark")}
+                className={`group rounded-2xl border p-3 text-left transition ${
+                  theme === "dark"
+                    ? "border-violet-400/50 bg-violet-500/[0.08] ring-2 ring-violet-500/15"
+                    : "border-white/[0.08] bg-white/[0.02] hover:border-violet-400/30"
+                }`}
+              >
+                <span
+                  className="block h-24 overflow-hidden rounded-xl border border-white/10 bg-[#0d1018] p-3 shadow-sm"
+                  aria-hidden="true"
+                >
+                  <span className="flex items-center justify-between">
+                    <span className="h-2 w-14 rounded-full bg-zinc-700" />
+                    <span className="h-5 w-5 rounded-full bg-violet-500" />
+                  </span>
+                  <span className="mt-3 grid grid-cols-[0.65fr_1fr] gap-2">
+                    <span className="h-11 rounded-lg bg-[#191c26] shadow-sm" />
+                    <span className="space-y-2 rounded-lg bg-[#191c26] p-2 shadow-sm">
+                      <span className="block h-1.5 w-3/4 rounded-full bg-zinc-600" />
+                      <span className="block h-1.5 w-1/2 rounded-full bg-zinc-700" />
+                    </span>
+                  </span>
+                </span>
+                <span className="mt-3 flex items-center justify-between gap-3 px-1">
+                  <span>
+                    <span className="flex items-center gap-2 text-sm font-semibold text-zinc-200">
+                      <Moon size={16} className="text-violet-300" /> Tünd rejim
+                    </span>
+                    <span className="mt-1 block text-xs text-zinc-600">
+                      Gözlər üçün rahat qaranlıq interfeys
+                    </span>
+                  </span>
+                  <span className={`flex h-5 w-5 items-center justify-center rounded-full border ${
+                    theme === "dark"
+                      ? "border-violet-500 bg-violet-600 text-white"
+                      : "border-white/[0.14]"
+                  }`}>
+                    {theme === "dark" && <Check size={13} />}
+                  </span>
+                </span>
+              </button>
+            </div>
+          </section>
+          )}
+
+          {activeSection === "notifications" && (
+            <NotificationSettingsPanel />
+          )}
+
+          {activeSection === "integrations" && (
+          <section id="integrations" className="scroll-mt-24 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
               <div className="flex items-start gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-500/10 text-sky-300">
@@ -514,7 +745,9 @@ export function SettingsPage() {
               )}
             </div>
           </section>
+          )}
 
+          {activeSection === "account" && (
           <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
             <div className="flex items-center gap-3">
               <Mail size={19} className="text-violet-300" />
@@ -559,32 +792,9 @@ export function SettingsPage() {
               Təsdiq linki göndər
             </button>
           </section>
+          )}
 
-          <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
-            <div className="flex items-center gap-3">
-              <UserCheck size={19} className="text-emerald-300" />
-              <div>
-                <h2 className="font-semibold text-white">İzləmə sorğuları</h2>
-                <p className="mt-1 text-xs text-zinc-600">Gizli profilə gələn sorğuları idarə et.</p>
-              </div>
-            </div>
-            <div className="mt-5 space-y-3">
-              {followRequestsQuery.isLoading ? (
-                <div className="flex items-center gap-2 text-sm text-zinc-600"><LoaderCircle size={16} className="animate-spin" /> Yüklənir...</div>
-              ) : (followRequestsQuery.data?.length ?? 0) === 0 ? (
-                <p className="rounded-2xl border border-dashed border-white/[0.07] p-5 text-sm text-zinc-600">Gözləyən izləmə sorğusu yoxdur.</p>
-              ) : followRequestsQuery.data?.map((request) => (
-                <div key={request.userId} className="flex flex-col gap-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <Link to={`/users/${request.userName}`} className="font-semibold text-zinc-200 hover:text-violet-300">{request.userName}</Link>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => acceptMutation.mutate(request.userId)} className="flex h-9 items-center gap-2 rounded-lg bg-emerald-500/10 px-3 text-xs font-semibold text-emerald-300"><Check size={15} /> Qəbul et</button>
-                    <button type="button" onClick={() => rejectMutation.mutate(request.userId)} className="flex h-9 items-center gap-2 rounded-lg bg-red-500/10 px-3 text-xs font-semibold text-red-300"><X size={15} /> Rədd et</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
-
+          {activeSection === "blocked" && (
           <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
             <div className="flex items-center gap-3">
               <Ban size={19} className="text-red-300" />
@@ -606,7 +816,9 @@ export function SettingsPage() {
               ))}
             </div>
           </section>
+          )}
 
+          {activeSection === "account" && (
           <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
             <div className="flex items-center gap-3">
               <LockKeyhole size={19} className="text-violet-300" />
@@ -688,6 +900,8 @@ export function SettingsPage() {
               Şifrəni yenilə
             </button>
           </section>
+          )}
+          </div>
         </div>
       </main>
       <Footer />

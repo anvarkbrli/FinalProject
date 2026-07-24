@@ -1,3 +1,5 @@
+using Ludora.Application.DTOs.Badge;
+
 namespace Ludora.Application.DTOs;
 
 public record UserProfileDTO
@@ -23,4 +25,6 @@ public record UserProfileDTO
     public int PostCount { get; set; }
 
     public UserProfileStatisticsDTO Statistics { get; set; } = new();
+
+    public IReadOnlyList<UserBadgeDTO> Badges { get; set; } = [];
 }

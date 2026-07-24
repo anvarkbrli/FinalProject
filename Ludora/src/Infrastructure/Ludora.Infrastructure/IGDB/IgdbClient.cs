@@ -147,6 +147,71 @@ public sealed class IgdbClient : IIgdbClient
             cancellationToken);
     }
 
+
+    public async Task<IReadOnlyList<IgdbSteamGameMappingModel>> GetSteamGameMappingsAsync(
+        IReadOnlyCollection<int> steamAppIds,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureEnabled();
+        ArgumentNullException.ThrowIfNull(steamAppIds);
+
+        var result = new List<IgdbSteamGameMappingModel>();
+
+        foreach (var batch in steamAppIds
+                     .Where(x => x > 0)
+                     .Distinct()
+                     .Chunk(MaximumIdsPerRequest))
+        {
+            var responses = await SendAsync<IgdbExternalGameResponse>(
+                "external_games",
+                IgdbQueryBuilder.BuildExternalGamesBySteamAppIds(batch),
+                cancellationToken);
+
+            foreach (var response in responses)
+            {
+                if (response.ExternalGameSource != 1 ||
+                    response.GameId < 1 ||
+                    !int.TryParse(response.Uid, out var steamAppId) ||
+                    steamAppId < 1)
+                {
+                    continue;
+                }
+
+                result.Add(new IgdbSteamGameMappingModel
+                {
+                    SteamAppId = steamAppId,
+                    IgdbGameId = response.GameId
+                });
+            }
+        }
+
+        return result
+            .GroupBy(x => x.SteamAppId)
+            .Select(x => x.First())
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<IgdbGameModel>> SearchGamesIncludingVersionsAsync(
+        string search,
+        int limit = 10,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureEnabled();
+
+        if (string.IsNullOrWhiteSpace(search))
+            return [];
+
+        var responses = await SendAsync<IgdbGameResponse>(
+            "games",
+            IgdbQueryBuilder.BuildGamesSearchIncludingVersions(search, limit),
+            cancellationToken);
+
+        return responses
+            .Where(IsValidNamedResponse)
+            .Select(MapGame)
+            .ToList();
+    }
+
     public async Task<IReadOnlyList<IgdbGameModel>> GetUpcomingGamesAsync(
         DateOnly fromDate,
         DateOnly toDate,
@@ -797,6 +862,8 @@ public sealed class IgdbClient : IIgdbClient
             GameType = response.GameType ?? GameType.MainGame,
 
             ParentGameId = response.ParentGameId,
+            VersionParentId = response.VersionParentId,
+            VersionTitle = string.IsNullOrWhiteSpace(response.VersionTitle) ? null : response.VersionTitle.Trim(),
 
             DlcIds = response.DlcIds?
             .Where(x => x > 0)

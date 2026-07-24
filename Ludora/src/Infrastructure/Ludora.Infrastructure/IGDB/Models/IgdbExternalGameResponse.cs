@@ -9,4 +9,7 @@ internal sealed class IgdbExternalGameResponse
 
     [JsonPropertyName("uid")]
     public string Uid { get; set; } = string.Empty;
+
+    [JsonPropertyName("external_game_source")]
+    public int ExternalGameSource { get; set; }
 }

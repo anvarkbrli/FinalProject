@@ -16,6 +16,7 @@ public sealed class UserReportService : IUserReportService
     private const int MinDescriptionLength = 10;
     private const int MaxContentSnapshotLength = 2000;
     private const int MaxReportsPer24Hours = 10;
+    private const int MaxEvidenceImages = 5;
 
     private readonly AppDbContext _context;
     private readonly IFileStorageService _fileStorageService;
@@ -97,8 +98,11 @@ public sealed class UserReportService : IUserReportService
             reportedUser.UserName,
             cancellationToken);
 
+        if (dto.EvidenceImages.Count > MaxEvidenceImages)
+            throw new BadRequestException($"Maksimum {MaxEvidenceImages} sübut şəkli əlavə edilə bilər.");
+
         if (description is null &&
-            dto.EvidenceImage is null &&
+            dto.EvidenceImages.Count == 0 &&
             contentReference.ContentId is null)
         {
             throw new BadRequestException(
@@ -136,15 +140,20 @@ public sealed class UserReportService : IUserReportService
                 "24 saat ərzində maksimum şikayət limitinə çatmısınız.");
         }
 
-        string? evidenceImageStorageKey = null;
+        var savedEvidence = new List<(string StorageKey, string OriginalFileName)>();
         var reportWasCommitted = false;
 
         try
         {
-            if (dto.EvidenceImage is not null)
+            foreach (var evidenceImage in dto.EvidenceImages)
             {
-                evidenceImageStorageKey = await _fileStorageService
-                    .SaveReportEvidenceImageAsync(dto.EvidenceImage);
+                var storageKey = await _fileStorageService
+                    .SaveReportEvidenceImageAsync(
+                        evidenceImage,
+                        cancellationToken);
+                savedEvidence.Add((
+                    storageKey,
+                    NormalizeFileName(evidenceImage.FileName)));
             }
 
             var report = new UserReport
@@ -153,7 +162,7 @@ public sealed class UserReportService : IUserReportService
                 ReportedUserId = reportedUserId,
                 Category = dto.Category,
                 Description = description,
-                EvidenceImageStorageKey = evidenceImageStorageKey,
+                EvidenceImageStorageKey = null,
                 ReportedContentType = contentReference.ContentType,
                 ReportedContentId = contentReference.ContentId,
                 ReportedContentSnapshot = contentReference.Snapshot,
@@ -161,6 +170,17 @@ public sealed class UserReportService : IUserReportService
                 Status = UserReportStatus.Pending,
                 CreatedAtUtc = DateTime.UtcNow
             };
+
+            for (var index = 0; index < savedEvidence.Count; index++)
+            {
+                report.EvidenceImages.Add(new UserReportEvidence
+                {
+                    StorageKey = savedEvidence[index].StorageKey,
+                    OriginalFileName = savedEvidence[index].OriginalFileName,
+                    DisplayOrder = index,
+                    CreatedAtUtc = report.CreatedAtUtc
+                });
+            }
 
             await _context.UserReports.AddAsync(report, cancellationToken);
 
@@ -184,7 +204,8 @@ public sealed class UserReportService : IUserReportService
                 ReportedUserName = reportedUser.UserName,
                 Category = report.Category,
                 Description = report.Description,
-                HasEvidenceImage = report.EvidenceImageStorageKey is not null,
+                HasEvidenceImage = savedEvidence.Count > 0,
+                EvidenceImageCount = savedEvidence.Count,
                 ReportedContentType = report.ReportedContentType,
                 ReportedContentId = report.ReportedContentId,
                 ReportedContentSnapshot = report.ReportedContentSnapshot,
@@ -195,10 +216,13 @@ public sealed class UserReportService : IUserReportService
         }
         catch
         {
-            if (!reportWasCommitted && evidenceImageStorageKey is not null)
+            if (!reportWasCommitted)
             {
-                await _fileStorageService.DeleteReportEvidenceImageAsync(
-                    evidenceImageStorageKey);
+                foreach (var evidence in savedEvidence)
+                {
+                    await _fileStorageService.DeleteReportEvidenceImageAsync(
+                        evidence.StorageKey);
+                }
             }
 
             throw;
@@ -444,6 +468,14 @@ public sealed class UserReportService : IUserReportService
             Value = value,
             Label = label
         };
+    }
+
+    private static string NormalizeFileName(string fileName)
+    {
+        var normalized = Path.GetFileName(fileName);
+        if (string.IsNullOrWhiteSpace(normalized))
+            return "evidence";
+        return normalized.Length <= 260 ? normalized : normalized[..260];
     }
 
     private sealed record ReportedContentReference(

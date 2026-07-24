@@ -23,46 +23,67 @@ public class FollowService : IFollowService
         _notificationService = notificationService;
     }
 
-    public async Task<FollowStatusDTO> FollowAsync(Guid followerId, Guid followingId)
+    public async Task<FollowStatusDTO> FollowAsync(
+        Guid followerId,
+        Guid followingId,
+        CancellationToken cancellationToken = default)
     {
         if (followerId == followingId)
             throw new BadRequestException("İstifadəçi özünü izləyə bilməz.");
 
         var followingUser = await _context.Users
             .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Id == followingId);
+            .FirstOrDefaultAsync(
+                user => user.Id == followingId,
+                cancellationToken)
+            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
 
-        if (followingUser is null)
-            throw new NotFoundException("İstifadəçi tapılmadı.");
+        var hasBlock = await _context.UserBlocks.AnyAsync(
+            block =>
+                block.BlockerId == followerId &&
+                block.BlockedUserId == followingId ||
+                block.BlockerId == followingId &&
+                block.BlockedUserId == followerId,
+            cancellationToken);
 
-        var hasBlock = await _context.UserBlocks.AnyAsync(ub =>
-            ub.BlockerId == followerId && ub.BlockedUserId == followingId ||
-            ub.BlockerId == followingId && ub.BlockedUserId == followerId);
+        if (hasBlock)
+        {
+            throw new ForbiddenException(
+                "Bloklanmış istifadəçilər arasında izləmə əməliyyatı mümkün deyil.");
+        }
 
-        if (hasBlock) throw new ForbiddenException("Bloklanmış istifadəçilər arasında izləmə əməliyyatı mümkün deyil.");
-
-        var existingFollow = await _context.UserFollows.FirstOrDefaultAsync(uf =>
-            uf.FollowerId == followerId && uf.FollowingId == followingId);
+        var existingFollow = await _context.UserFollows.FirstOrDefaultAsync(
+            follow =>
+                follow.FollowerId == followerId &&
+                follow.FollowingId == followingId,
+            cancellationToken);
 
         if (existingFollow is not null)
         {
-            if (existingFollow.Status == FollowStatus.Accepted) throw new ConflictException("Bu istifadəçini artıq izləyirsiniz.");
+            if (existingFollow.Status == FollowStatus.Accepted)
+                throw new ConflictException("Bu istifadəçini artıq izləyirsiniz.");
 
-            throw new ConflictException("Bu istifadəçiyə artıq izləmə sorğusu göndərmisiniz.");
+            throw new ConflictException(
+                "Bu istifadəçiyə artıq izləmə sorğusu göndərmisiniz.");
         }
 
-        var status = followingUser.IsPrivate ? FollowStatus.Pending : FollowStatus.Accepted;
+        var status = followingUser.IsPrivate
+            ? FollowStatus.Pending
+            : FollowStatus.Accepted;
+        var now = DateTime.UtcNow;
 
         var userFollow = new UserFollow
         {
             FollowerId = followerId,
             FollowingId = followingId,
             Status = status,
-            CreatedAt = DateTime.UtcNow,
-            AcceptedAt = status == FollowStatus.Accepted ? DateTime.UtcNow : null
+            CreatedAt = now,
+            AcceptedAt = status == FollowStatus.Accepted ? now : null
         };
 
-        await _context.UserFollows.AddAsync(userFollow);
+        await _context.UserFollows.AddAsync(
+            userFollow,
+            cancellationToken);
 
         _context.AddUserActivity(
             followerId,
@@ -90,9 +111,10 @@ public class FollowService : IFollowService
                 Message = status == FollowStatus.Accepted
                     ? "Sizi izləməyə başladı."
                     : "Sizə izləmə sorğusu göndərdi."
-            });
+            },
+            cancellationToken);
 
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
 
         return new FollowStatusDTO
         {
@@ -102,12 +124,18 @@ public class FollowService : IFollowService
         };
     }
 
-    public async Task UnfollowAsync(Guid followerId, Guid followingId)
+    public async Task UnfollowAsync(
+        Guid followerId,
+        Guid followingId,
+        CancellationToken cancellationToken = default)
     {
-        var userFollow = await _context.UserFollows.FirstOrDefaultAsync(uf =>
-            uf.FollowerId == followerId && uf.FollowingId == followingId);
-
-        if (userFollow is null) throw new NotFoundException("İzləmə və ya izləmə sorğusu tapılmadı.");
+        var userFollow = await _context.UserFollows.FirstOrDefaultAsync(
+            follow =>
+                follow.FollowerId == followerId &&
+                follow.FollowingId == followingId,
+            cancellationToken)
+            ?? throw new NotFoundException(
+                "İzləmə və ya izləmə sorğusu tapılmadı.");
 
         _context.UserFollows.Remove(userFollow);
 
@@ -118,18 +146,21 @@ public class FollowService : IFollowService
                 : UserActivityType.UserUnfollowed,
             targetUserId: followingId);
 
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task AcceptFollowRequestAsync(Guid currentUserId, Guid requesterId)
+    public async Task AcceptFollowRequestAsync(
+        Guid currentUserId,
+        Guid requesterId,
+        CancellationToken cancellationToken = default)
     {
-        var followRequest = await _context.UserFollows.FirstOrDefaultAsync(uf =>
-            uf.FollowerId == requesterId &&
-            uf.FollowingId == currentUserId &&
-            uf.Status == FollowStatus.Pending);
-
-        if (followRequest is null)
-            throw new NotFoundException("İzləmə sorğusu tapılmadı.");
+        var followRequest = await _context.UserFollows.FirstOrDefaultAsync(
+            follow =>
+                follow.FollowerId == requesterId &&
+                follow.FollowingId == currentUserId &&
+                follow.Status == FollowStatus.Pending,
+            cancellationToken)
+            ?? throw new NotFoundException("İzləmə sorğusu tapılmadı.");
 
         followRequest.Status = FollowStatus.Accepted;
         followRequest.AcceptedAt = DateTime.UtcNow;
@@ -150,67 +181,91 @@ public class FollowService : IFollowService
                 EntityId = currentUserId.ToString(),
                 Title = "İzləmə sorğusu qəbul edildi",
                 Message = "Göndərdiyiniz izləmə sorğusunu qəbul etdi."
-            });
+            },
+            cancellationToken);
 
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
-    public async Task RejectFollowRequestAsync(Guid currentUserId, Guid requesterId)
+    public async Task RejectFollowRequestAsync(
+        Guid currentUserId,
+        Guid requesterId,
+        CancellationToken cancellationToken = default)
     {
-        var followRequest = await _context.UserFollows.FirstOrDefaultAsync(uf =>
-            uf.FollowerId == requesterId &&
-            uf.FollowingId == currentUserId &&
-            uf.Status == FollowStatus.Pending);
-
-        if (followRequest is null)
-            throw new NotFoundException("İzləmə sorğusu tapılmadı.");
+        var followRequest = await _context.UserFollows.FirstOrDefaultAsync(
+            follow =>
+                follow.FollowerId == requesterId &&
+                follow.FollowingId == currentUserId &&
+                follow.Status == FollowStatus.Pending,
+            cancellationToken)
+            ?? throw new NotFoundException("İzləmə sorğusu tapılmadı.");
 
         _context.UserFollows.Remove(followRequest);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
     }
-    public async Task RemoveFollowerAsync(Guid currentUserId, Guid followerId)
-    {
-        var follow = await _context.UserFollows.FirstOrDefaultAsync(uf =>
-            uf.FollowerId == followerId &&
-            uf.FollowingId == currentUserId &&
-            uf.Status == FollowStatus.Accepted);
 
-        if (follow is null)
-            throw new NotFoundException("Bu istifadəçi sizi izləmir.");
+    public async Task RemoveFollowerAsync(
+        Guid currentUserId,
+        Guid followerId,
+        CancellationToken cancellationToken = default)
+    {
+        var follow = await _context.UserFollows.FirstOrDefaultAsync(
+            relation =>
+                relation.FollowerId == followerId &&
+                relation.FollowingId == currentUserId &&
+                relation.Status == FollowStatus.Accepted,
+            cancellationToken)
+            ?? throw new NotFoundException("Bu istifadəçi sizi izləmir.");
 
         _context.UserFollows.Remove(follow);
-        await _context.SaveChangesAsync();
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
-
-    public async Task<List<FollowRequestDTO>> GetFollowRequestsAsync(Guid userId)
+    public async Task<PagedResultDTO<FollowRequestDTO>> GetFollowRequestsAsync(
+        Guid userId,
+        PaginationFilterDTO pagination,
+        CancellationToken cancellationToken = default)
     {
-        return await _context.UserFollows
+        var query = _context.UserFollows
             .AsNoTracking()
-            .Where(uf => uf.FollowingId == userId && uf.Status == FollowStatus.Pending)
-            .OrderByDescending(uf => uf.CreatedAt)
-            .Select(uf => new FollowRequestDTO
+            .Where(follow =>
+                follow.FollowingId == userId &&
+                follow.Status == FollowStatus.Pending)
+            .OrderByDescending(follow => follow.CreatedAt)
+            .ThenByDescending(follow => follow.FollowerId)
+            .Select(follow => new FollowRequestDTO
             {
-                UserId = uf.FollowerId,
-                UserName = uf.Follower.UserName ?? string.Empty,
-                ProfileImageUrl = uf.Follower.ProfileImageUrl,
-                RequestedAt = uf.CreatedAt
-            })
-            .ToListAsync();
+                UserId = follow.FollowerId,
+                UserName = follow.Follower.UserName ?? string.Empty,
+                ProfileImageUrl = follow.Follower.ProfileImageUrl,
+                RequestedAt = follow.CreatedAt
+            });
+
+        return await query.ToPagedResultAsync(
+            pagination,
+            cancellationToken);
     }
 
-    public async Task<FollowStatusDTO> GetFollowStatusAsync(Guid currentUserId, Guid profileUserId)
+    public async Task<FollowStatusDTO> GetFollowStatusAsync(
+        Guid currentUserId,
+        Guid profileUserId,
+        CancellationToken cancellationToken = default)
     {
-        var userExists = await _context.Users.AnyAsync(u => u.Id == profileUserId);
+        var userExists = await _context.Users
+            .AnyAsync(
+                user => user.Id == profileUserId,
+                cancellationToken);
 
         if (!userExists)
             throw new NotFoundException("İstifadəçi tapılmadı.");
 
         var follow = await _context.UserFollows
             .AsNoTracking()
-            .FirstOrDefaultAsync(uf =>
-                uf.FollowerId == currentUserId &&
-                uf.FollowingId == profileUserId);
+            .FirstOrDefaultAsync(
+                relation =>
+                    relation.FollowerId == currentUserId &&
+                    relation.FollowingId == profileUserId,
+                cancellationToken);
 
         return new FollowStatusDTO
         {
@@ -220,47 +275,90 @@ public class FollowService : IFollowService
         };
     }
 
-    public async Task<List<UserListItemDTO>> GetFollowersAsync(Guid userId, Guid? currentUserId)
+    public async Task<PagedResultDTO<UserListItemDTO>> GetFollowersAsync(
+        Guid userId,
+        Guid? currentUserId,
+        PaginationFilterDTO pagination,
+        CancellationToken cancellationToken = default)
     {
-        await EnsureCanViewConnectionsAsync(userId, currentUserId);
+        await EnsureCanViewConnectionsAsync(
+            userId,
+            currentUserId,
+            cancellationToken);
 
-        var currentUserFollowingIds = await GetCurrentUserFollowingIdsAsync(currentUserId);
-
-        return await _context.UserFollows
+        var query = _context.UserFollows
             .AsNoTracking()
-            .Where(uf => uf.FollowingId == userId && uf.Status == FollowStatus.Accepted)
-            .Select(uf => new UserListItemDTO
+            .Where(follow =>
+                follow.FollowingId == userId &&
+                follow.Status == FollowStatus.Accepted)
+            .OrderByDescending(follow => follow.CreatedAt)
+            .ThenByDescending(follow => follow.FollowerId)
+            .Select(follow => new UserListItemDTO
             {
-                Id = uf.FollowerId,
-                UserName = uf.Follower.UserName ?? string.Empty,
-                ProfileImageUrl = uf.Follower.ProfileImageUrl,
-                IsFollowing = currentUserFollowingIds.Contains(uf.FollowerId)
-            })
-            .ToListAsync();
+                Id = follow.FollowerId,
+                UserName = follow.Follower.UserName ?? string.Empty,
+                ProfileImageUrl = follow.Follower.ProfileImageUrl,
+                IsFollowing = currentUserId.HasValue &&
+                    _context.UserFollows.Any(current =>
+                        current.FollowerId == currentUserId.Value &&
+                        current.FollowingId == follow.FollowerId &&
+                        current.Status == FollowStatus.Accepted)
+            });
+
+        return await query.ToPagedResultAsync(
+            pagination,
+            cancellationToken);
     }
 
-    public async Task<List<UserListItemDTO>> GetFollowingAsync(Guid userId, Guid? currentUserId)
+    public async Task<PagedResultDTO<UserListItemDTO>> GetFollowingAsync(
+        Guid userId,
+        Guid? currentUserId,
+        PaginationFilterDTO pagination,
+        CancellationToken cancellationToken = default)
     {
-        await EnsureCanViewConnectionsAsync(userId, currentUserId);
+        await EnsureCanViewConnectionsAsync(
+            userId,
+            currentUserId,
+            cancellationToken);
 
-        var currentUserFollowingIds = await GetCurrentUserFollowingIdsAsync(currentUserId);
-
-        return await _context.UserFollows
+        var query = _context.UserFollows
             .AsNoTracking()
-            .Where(uf => uf.FollowerId == userId && uf.Status == FollowStatus.Accepted)
-            .Select(uf => new UserListItemDTO
+            .Where(follow =>
+                follow.FollowerId == userId &&
+                follow.Status == FollowStatus.Accepted)
+            .OrderByDescending(follow => follow.CreatedAt)
+            .ThenByDescending(follow => follow.FollowingId)
+            .Select(follow => new UserListItemDTO
             {
-                Id = uf.FollowingId,
-                UserName = uf.Following.UserName ?? string.Empty,
-                ProfileImageUrl = uf.Following.ProfileImageUrl,
-                IsFollowing = currentUserFollowingIds.Contains(uf.FollowingId)
-            })
-            .ToListAsync();
+                Id = follow.FollowingId,
+                UserName = follow.Following.UserName ?? string.Empty,
+                ProfileImageUrl = follow.Following.ProfileImageUrl,
+                IsFollowing = currentUserId.HasValue &&
+                    _context.UserFollows.Any(current =>
+                        current.FollowerId == currentUserId.Value &&
+                        current.FollowingId == follow.FollowingId &&
+                        current.Status == FollowStatus.Accepted)
+            });
+
+        return await query.ToPagedResultAsync(
+            pagination,
+            cancellationToken);
     }
 
-    private async Task EnsureCanViewConnectionsAsync(Guid userId, Guid? currentUserId)
+    private async Task EnsureCanViewConnectionsAsync(
+        Guid userId,
+        Guid? currentUserId,
+        CancellationToken cancellationToken)
     {
-        var user = await _context.Users.AsNoTracking().FirstOrDefaultAsync(x => x.Id == userId)
+        var user = await _context.Users
+            .AsNoTracking()
+            .Where(candidate => candidate.Id == userId)
+            .Select(candidate => new
+            {
+                candidate.Id,
+                candidate.IsPrivate
+            })
+            .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("İstifadəçi tapılmadı.");
 
         if (currentUserId == userId)
@@ -268,38 +366,37 @@ public class FollowService : IFollowService
 
         if (currentUserId.HasValue)
         {
-            var blocked = await _context.UserBlocks.AsNoTracking().AnyAsync(x =>
-                (x.BlockerId == currentUserId.Value && x.BlockedUserId == userId) ||
-                (x.BlockerId == userId && x.BlockedUserId == currentUserId.Value));
+            var blocked = await _context.UserBlocks
+                .AsNoTracking()
+                .AnyAsync(
+                    block =>
+                        block.BlockerId == currentUserId.Value &&
+                        block.BlockedUserId == userId ||
+                        block.BlockerId == userId &&
+                        block.BlockedUserId == currentUserId.Value,
+                    cancellationToken);
+
             if (blocked)
-                throw new ForbiddenException("Bu istifadəçinin əlaqələrinə baxmaq mümkün deyil.");
+            {
+                throw new ForbiddenException(
+                    "Bu istifadəçinin əlaqələrinə baxmaq mümkün deyil.");
+            }
         }
 
         if (!user.IsPrivate)
             return;
 
-        var follows = currentUserId.HasValue && await _context.UserFollows.AsNoTracking().AnyAsync(x =>
-            x.FollowerId == currentUserId.Value && x.FollowingId == userId && x.Status == FollowStatus.Accepted);
+        var follows = currentUserId.HasValue &&
+            await _context.UserFollows
+                .AsNoTracking()
+                .AnyAsync(
+                    follow =>
+                        follow.FollowerId == currentUserId.Value &&
+                        follow.FollowingId == userId &&
+                        follow.Status == FollowStatus.Accepted,
+                    cancellationToken);
+
         if (!follows)
             throw new ForbiddenException("Bu profil gizlidir.");
-    }
-
-    private async Task CheckUserExistsAsync(Guid userId)
-    {
-        var userExists = await _context.Users.AnyAsync(u => u.Id == userId);
-
-        if (!userExists)
-            throw new NotFoundException("İstifadəçi tapılmadı.");
-    }
-
-    private async Task<List<Guid>> GetCurrentUserFollowingIdsAsync(Guid? currentUserId)
-    {
-        if (!currentUserId.HasValue)
-            return new List<Guid>();
-
-        return await _context.UserFollows
-            .Where(uf => uf.FollowerId == currentUserId.Value && uf.Status == FollowStatus.Accepted)
-            .Select(uf => uf.FollowingId)
-            .ToListAsync();
     }
 }

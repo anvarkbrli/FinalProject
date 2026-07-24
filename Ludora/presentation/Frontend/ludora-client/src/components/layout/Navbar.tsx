@@ -1,11 +1,17 @@
 import {
+  Activity,
+  Bookmark,
   ChevronDown,
   Gamepad2,
+  Heart,
+  ListChecks,
   LogIn,
   LogOut,
   Menu,
+  MessageCircle,
   Plus,
   Settings,
+  Star,
   UserPlus,
   UserRound,
   X,
@@ -261,6 +267,17 @@ export function Navbar() {
           {hasValidSession && <NotificationBell />}
 
           {hasValidSession && (
+            <Link
+              to="/messages"
+              onClick={closeMenus}
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-zinc-400 transition hover:border-violet-400/20 hover:bg-violet-500/10 hover:text-violet-200"
+              aria-label="Mesajlar"
+            >
+              <MessageCircle size={18} />
+            </Link>
+          )}
+
+          {hasValidSession && (
             <button
               type="button"
               onClick={() => {
@@ -312,7 +329,7 @@ export function Navbar() {
               {isUserMenuOpen && (
                 <div
                   role="menu"
-                  className="absolute right-0 top-[calc(100%+10px)] w-64 overflow-hidden rounded-2xl border border-white/[0.09] bg-[#111116] p-2 shadow-2xl shadow-black/50"
+                  className="absolute right-0 top-[calc(100%+10px)] max-h-[calc(100vh-6rem)] w-64 overflow-y-auto rounded-2xl border border-white/[0.09] bg-[#111116] p-2 shadow-2xl shadow-black/50"
                 >
                   <div className="flex items-center gap-3 border-b border-white/[0.06] px-3 py-3">
                     {renderProfileAvatar(
@@ -342,13 +359,75 @@ export function Navbar() {
                     </Link>
 
                     <Link
-                      to="/settings"
+                      to={`/users/${user.userName}?tab=lists`}
+                      onClick={closeMenus}
+                      role="menuitem"
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                    >
+                      <ListChecks size={17} />
+                      Siyahılar
+                    </Link>
+
+                    <Link
+                      to={`/users/${user.userName}?tab=reviews`}
+                      onClick={closeMenus}
+                      role="menuitem"
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                    >
+                      <Star size={17} />
+                      Rəylər
+                    </Link>
+
+                    <Link
+                      to={`/users/${user.userName}?tab=wishlist`}
+                      onClick={closeMenus}
+                      role="menuitem"
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                    >
+                      <Bookmark size={17} />
+                      Wishlist
+                    </Link>
+
+                    <Link
+                      to={`/users/${user.userName}?tab=favorites`}
+                      onClick={closeMenus}
+                      role="menuitem"
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                    >
+                      <Heart size={17} />
+                      Sevimlilər
+                    </Link>
+
+                    <Link
+                      to={`/users/${user.userName}?tab=feed`}
+                      onClick={closeMenus}
+                      role="menuitem"
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                    >
+                      <Activity size={17} />
+                      Axın
+                    </Link>
+
+                    <Link
+                      to="/messages"
+                      onClick={closeMenus}
+                      role="menuitem"
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                    >
+                      <MessageCircle size={17} />
+                      Mesajlar
+                    </Link>
+                  </div>
+
+                  <div className="border-t border-white/[0.06] py-2">
+                    <Link
+                      to="/settings?section=profile"
                       onClick={closeMenus}
                       role="menuitem"
                       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                     >
                       <Settings size={17} />
-                      Ayarlar
+                      Parametrlər
                     </Link>
                   </div>
 
@@ -480,23 +559,74 @@ export function Navbar() {
                 </button>
 
                 {user && (
-                  <Link
-                    to={`/users/${user.userName}`}
-                    onClick={closeMenus}
-                    className="mt-2 flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.07]"
-                  >
-                    <UserRound size={17} />
-                    Profilim
-                  </Link>
+                  <>
+                    <Link
+                      to={`/users/${user.userName}`}
+                      onClick={closeMenus}
+                      className="mt-2 flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.07]"
+                    >
+                      <UserRound size={17} />
+                      Profilim
+                    </Link>
+                    <Link
+                      to={`/users/${user.userName}?tab=lists`}
+                      onClick={closeMenus}
+                      className="mt-2 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06]"
+                    >
+                      <ListChecks size={17} />
+                      Siyahılar
+                    </Link>
+                    <Link
+                      to={`/users/${user.userName}?tab=reviews`}
+                      onClick={closeMenus}
+                      className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06]"
+                    >
+                      <Star size={17} />
+                      Rəylər
+                    </Link>
+                    <Link
+                      to={`/users/${user.userName}?tab=wishlist`}
+                      onClick={closeMenus}
+                      className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06]"
+                    >
+                      <Bookmark size={17} />
+                      Wishlist
+                    </Link>
+                    <Link
+                      to={`/users/${user.userName}?tab=favorites`}
+                      onClick={closeMenus}
+                      className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06]"
+                    >
+                      <Heart size={17} />
+                      Sevimlilər
+                    </Link>
+                    <Link
+                      to={`/users/${user.userName}?tab=feed`}
+                      onClick={closeMenus}
+                      className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06]"
+                    >
+                      <Activity size={17} />
+                      Axın
+                    </Link>
+                  </>
                 )}
 
                 <Link
-                  to="/settings"
+                  to="/messages"
+                  onClick={closeMenus}
+                  className="mt-2 flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.07]"
+                >
+                  <MessageCircle size={17} />
+                  Mesajlar
+                </Link>
+
+                <Link
+                  to="/settings?section=profile"
                   onClick={closeMenus}
                   className="mt-2 flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.07]"
                 >
                   <Settings size={17} />
-                  Ayarlar
+                  Parametrlər
                 </Link>
 
                 <button

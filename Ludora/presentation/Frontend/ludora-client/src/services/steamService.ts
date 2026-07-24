@@ -2,7 +2,10 @@ import { api } from "../lib/api";
 import type {
   SteamConnectStartDTO,
   SteamConnectionStatusDTO,
+  SteamApplyPlaytimeReconciliationDTO,
+  SteamApplyPlaytimeResultDTO,
   SteamOwnedGameDTO,
+  SteamPlaytimeReconciliationDTO,
   SteamSyncResultDTO,
 } from "../types/steam";
 
@@ -30,6 +33,27 @@ export async function syncSteamOwnedGames(): Promise<SteamSyncResultDTO> {
   const response = await api.post<SteamSyncResultDTO>(
     "/steam/sync/owned-games",
     undefined,
+    { timeout: 60_000 },
+  );
+
+  return response.data;
+}
+
+
+export async function getSteamPlaytimeReconciliation(): Promise<SteamPlaytimeReconciliationDTO> {
+  const response = await api.get<SteamPlaytimeReconciliationDTO>(
+    "/steam/playtime-reconciliation",
+  );
+
+  return response.data;
+}
+
+export async function applySteamPlaytimeReconciliation(
+  payload: SteamApplyPlaytimeReconciliationDTO,
+): Promise<SteamApplyPlaytimeResultDTO> {
+  const response = await api.post<SteamApplyPlaytimeResultDTO>(
+    "/steam/playtime-reconciliation/apply",
+    payload,
     { timeout: 60_000 },
   );
 

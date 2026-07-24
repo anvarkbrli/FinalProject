@@ -4,13 +4,42 @@ namespace Ludora.Application.Interfaces;
 
 public interface IFollowService
 {
-    Task<FollowStatusDTO> FollowAsync(Guid followerId, Guid followingId);
-    Task UnfollowAsync(Guid followerId, Guid followingId);
-    Task AcceptFollowRequestAsync(Guid currentUserId, Guid requesterId);
-    Task RejectFollowRequestAsync(Guid currentUserId, Guid requesterId);
-    Task RemoveFollowerAsync(Guid currentUserId, Guid followerId);
-    Task<List<FollowRequestDTO>> GetFollowRequestsAsync(Guid userId);
-    Task<FollowStatusDTO> GetFollowStatusAsync(Guid currentUserId, Guid profileUserId);
-    Task<List<UserListItemDTO>> GetFollowersAsync(Guid userId, Guid? currentUserId);
-    Task<List<UserListItemDTO>> GetFollowingAsync(Guid userId, Guid? currentUserId);
+    Task<FollowStatusDTO> FollowAsync(
+        Guid followerId,
+        Guid followingId,
+        CancellationToken cancellationToken = default);
+    Task UnfollowAsync(
+        Guid followerId,
+        Guid followingId,
+        CancellationToken cancellationToken = default);
+    Task AcceptFollowRequestAsync(
+        Guid currentUserId,
+        Guid requesterId,
+        CancellationToken cancellationToken = default);
+    Task RejectFollowRequestAsync(
+        Guid currentUserId,
+        Guid requesterId,
+        CancellationToken cancellationToken = default);
+    Task RemoveFollowerAsync(
+        Guid currentUserId,
+        Guid followerId,
+        CancellationToken cancellationToken = default);
+    Task<PagedResultDTO<FollowRequestDTO>> GetFollowRequestsAsync(
+        Guid userId,
+        PaginationFilterDTO pagination,
+        CancellationToken cancellationToken = default);
+    Task<FollowStatusDTO> GetFollowStatusAsync(
+        Guid currentUserId,
+        Guid profileUserId,
+        CancellationToken cancellationToken = default);
+    Task<PagedResultDTO<UserListItemDTO>> GetFollowersAsync(
+        Guid userId,
+        Guid? currentUserId,
+        PaginationFilterDTO pagination,
+        CancellationToken cancellationToken = default);
+    Task<PagedResultDTO<UserListItemDTO>> GetFollowingAsync(
+        Guid userId,
+        Guid? currentUserId,
+        PaginationFilterDTO pagination,
+        CancellationToken cancellationToken = default);
 }

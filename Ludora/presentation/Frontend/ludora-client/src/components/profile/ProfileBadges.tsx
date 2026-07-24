@@ -1,10 +1,11 @@
 import { Award, LockKeyhole, Sparkles } from "lucide-react";
 
 export interface ProfileBadgeItem {
-  id: string;
+  id: string | number;
   name: string;
   description: string;
   iconUrl?: string | null;
+  color?: string;
 }
 
 interface ProfileBadgesProps {
@@ -53,8 +54,16 @@ export function ProfileBadges({ badges = [] }: ProfileBadgesProps) {
             <article
               key={badge.id}
               className="rounded-2xl border border-amber-300/15 bg-amber-500/[0.05] p-4"
+              style={{
+                borderColor: badge.color ? `${badge.color}40` : undefined,
+                backgroundColor: badge.color ? `${badge.color}0d` : undefined,
+              }}
             >
-              <Sparkles size={20} className="text-amber-300" />
+              <Sparkles
+                size={20}
+                className="text-amber-300"
+                style={{ color: badge.color }}
+              />
               <h3 className="mt-3 font-semibold text-zinc-100">
                 {badge.name}
               </h3>

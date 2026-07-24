@@ -21,6 +21,7 @@ namespace Ludora.Persistence.Services;
 public sealed class GameService : IGameService
 {
     private const int MaxPageSize = 100;
+    private const int MaxCombinedResultWindow = 5000;
     private const string SqlLetterStartPattern =
         "[A-Za-zƏĞİÖŞÜÇəğıöşüç]%";
 
@@ -100,6 +101,7 @@ public sealed class GameService : IGameService
             var localTotalCount = await localQuery.CountAsync(cancellationToken);
 
             var localGames = await ApplyLocalSort(localQuery, filter.SortBy)
+                .AsSplitQuery()
                 .Include(x => x.GameGenres)
                 .Include(x => x.GamePlatforms)
                 .Include(x => x.GameCompanies)
@@ -167,21 +169,16 @@ public sealed class GameService : IGameService
 
         var requestedEnd = checked((long)pageNumber * pageSize);
 
-        if (requestedEnd > int.MaxValue)
+        if (requestedEnd > MaxCombinedResultWindow)
         {
             throw new BadRequestException(
                 "Sorğu edilən səhifə aralığı çox böyükdür.");
         }
 
-        var fetchMultiplier = string.IsNullOrWhiteSpace(filter.SearchName)
-            ? 1
-            : 3;
+        var fetchCount = (int)requestedEnd;
 
-        var fetchCount = (int)Math.Min(
-            requestedEnd * fetchMultiplier,
-            int.MaxValue);
-
-        var details = new List<GameDetailDTO>();
+        var details = new List<GameDetailDTO>(
+            Math.Min(fetchCount * 2, MaxCombinedResultWindow * 2));
 
         var combinedLocalQuery = BuildLocalQuery(filter);
         var localCount = await combinedLocalQuery.CountAsync(cancellationToken);
@@ -189,6 +186,7 @@ public sealed class GameService : IGameService
         var localCombinedGames = await ApplyLocalSort(
                 combinedLocalQuery,
                 filter.SortBy)
+            .AsSplitQuery()
             .Include(x => x.GameGenres)
             .Include(x => x.GamePlatforms)
             .Include(x => x.GameCompanies)
@@ -253,20 +251,7 @@ public sealed class GameService : IGameService
             }
         }
 
-        var distinctDetails = details
-            .GroupBy(
-                game => game.Title.Trim(),
-                StringComparer.OrdinalIgnoreCase)
-            .Select(group => group
-                .OrderByDescending(game => game.IsOverridden)
-                .ThenByDescending(game => game.ReleaseDate.HasValue)
-                .ThenByDescending(game => !string.IsNullOrWhiteSpace(game.CoverImageUrl))
-                .ThenByDescending(game => game.AverageRating)
-                .ThenByDescending(game => game.Source == CatalogSource.Igdb)
-                .First())
-            .ToList();
-
-        var itemsForPage = SortGames(distinctDetails, filter.SortBy)
+        var itemsForPage = SortGames(details, filter.SortBy)
             .Skip(skip)
             .Take(pageSize)
             .Select(ToListItem)
@@ -305,139 +290,6 @@ public sealed class GameService : IGameService
         var pageNumber = filter.PageNumber;
         var pageSize = filter.PageSize;
         var skip = checked((pageNumber - 1) * pageSize);
-
-        var rankedGames = await GetCommunityRankedGamesAsync(
-            filter,
-            cancellationToken);
-
-        var localCount = 0;
-        var igdbCount = 0;
-        IReadOnlyList<long> hiddenIgdbGameIds = Array.Empty<long>();
-
-        if (filter.Source != CatalogSource.Igdb)
-        {
-            localCount = await BuildLocalQuery(filter)
-                .CountAsync(cancellationToken);
-        }
-
-        if (
-            filter.Source != CatalogSource.Local &&
-            _igdbClient.IsEnabled &&
-            CanQueryIgdb(filter))
-        {
-            hiddenIgdbGameIds = await GetHiddenIgdbGameIdsAsync(
-                cancellationToken);
-
-            var igdbFilter = filter with
-            {
-                Source = CatalogSource.Igdb,
-                SortBy = null
-            };
-
-            igdbCount = await _igdbClient.GetGamesCountAsync(
-                igdbFilter,
-                hiddenIgdbGameIds,
-                cancellationToken);
-        }
-
-        var totalCount = checked(localCount + igdbCount);
-        var items = rankedGames
-            .Skip(skip)
-            .Take(pageSize)
-            .ToList();
-
-        var missingItemCount = pageSize - items.Count;
-
-        if (missingItemCount > 0)
-        {
-            var fallbackSkip = Math.Max(0, skip - rankedGames.Count);
-            var fallbackEnd = checked(fallbackSkip + missingItemCount);
-            var fallbackGames = new List<GameDetailDTO>();
-
-            var rankedLocalIds = rankedGames
-                .Where(game => game.Source == CatalogSource.Local)
-                .Select(game => game.Id)
-                .Where(id => id <= int.MaxValue)
-                .Select(id => (int)id)
-                .Distinct()
-                .ToArray();
-
-            if (filter.Source != CatalogSource.Igdb && fallbackEnd > 0)
-            {
-                var localQuery = BuildLocalQuery(filter);
-
-                if (rankedLocalIds.Length > 0)
-                {
-                    localQuery = localQuery.Where(
-                        game => !rankedLocalIds.Contains(game.Id));
-                }
-
-                var localGames = await ApplyLocalSort(localQuery, null)
-                    .Include(game => game.GameGenres)
-                    .Include(game => game.GamePlatforms)
-                    .Include(game => game.GameCompanies)
-                    .Take(fallbackEnd)
-                    .ToListAsync(cancellationToken);
-
-                fallbackGames.AddRange(
-                    await MapLocalGamesAsync(
-                        localGames,
-                        cancellationToken));
-            }
-
-            if (
-                filter.Source != CatalogSource.Local &&
-                fallbackEnd > 0 &&
-                _igdbClient.IsEnabled &&
-                CanQueryIgdb(filter))
-            {
-                var rankedIgdbIds = rankedGames
-                    .Where(game => game.Source == CatalogSource.Igdb)
-                    .Select(game => game.Id)
-                    .Distinct()
-                    .ToArray();
-
-                var excludedIgdbIds = hiddenIgdbGameIds
-                    .Concat(rankedIgdbIds)
-                    .Distinct()
-                    .ToArray();
-
-                var igdbFilter = filter with
-                {
-                    Source = CatalogSource.Igdb,
-                    SortBy = null,
-                    PageNumber = 1
-                };
-
-                var igdbGames = await GetIgdbGamesUpToAsync(
-                    igdbFilter,
-                    fallbackEnd,
-                    excludedIgdbIds,
-                    cancellationToken);
-
-                fallbackGames.AddRange(
-                    await MapIgdbGamesAsync(
-                        igdbGames,
-                        cancellationToken));
-            }
-
-            items.AddRange(
-                SortGames(fallbackGames, null)
-                    .Skip(fallbackSkip)
-                    .Take(missingItemCount));
-        }
-
-        return CreatePagedResult(
-            items.Select(ToListItem).ToList(),
-            pageNumber,
-            pageSize,
-            totalCount);
-    }
-
-    private async Task<IReadOnlyList<GameDetailDTO>> GetCommunityRankedGamesAsync(
-        GameFilterDTO filter,
-        CancellationToken cancellationToken)
-    {
         var normalizedSort = filter.SortBy!
             .Trim()
             .ToLowerInvariant();
@@ -457,7 +309,17 @@ public sealed class GameService : IGameService
             : userGamesQuery.Where(
                 userGame => userGame.Status == UserGameStatus.Played);
 
-        var rows = await userGamesQuery
+        if (filter.Source != CatalogSource.Igdb)
+        {
+            var filteredLocalIds = BuildLocalQuery(filter)
+                .Select(game => (long)game.Id);
+
+            userGamesQuery = userGamesQuery.Where(userGame =>
+                userGame.Source != CatalogSource.Local ||
+                filteredLocalIds.Contains(userGame.GameId));
+        }
+
+        var groupedQuery = userGamesQuery
             .GroupBy(userGame => new
             {
                 userGame.Source,
@@ -473,36 +335,53 @@ public sealed class GameService : IGameService
                     userGame => userGame.Rating.HasValue),
                 PlayedCount = group.Count(
                     userGame => userGame.Status == UserGameStatus.Played)
-            })
-            .ToListAsync(cancellationToken);
+            });
 
-        if (rows.Count == 0)
-        {
-            return Array.Empty<GameDetailDTO>();
-        }
+        var totalCount = await groupedQuery.CountAsync(cancellationToken);
 
-        IEnumerable<CommunityRankRow> orderedRows = normalizedSort switch
+        IQueryable<CommunityRankRow> orderedQuery = normalizedSort switch
         {
-            "rating_asc" => rows
+            "rating_asc" => groupedQuery
                 .OrderBy(row => row.AverageRating ?? double.MaxValue)
                 .ThenByDescending(row => row.RatingCount)
+                .ThenBy(row => row.Source)
                 .ThenBy(row => row.GameId),
-            "rating_desc" => rows
+            "rating_desc" => groupedQuery
                 .OrderByDescending(row => row.AverageRating ?? double.MinValue)
                 .ThenByDescending(row => row.RatingCount)
+                .ThenBy(row => row.Source)
                 .ThenBy(row => row.GameId),
-            "play_asc" => rows
+            "play_asc" => groupedQuery
                 .OrderBy(row => row.PlayedCount)
                 .ThenByDescending(row => row.AverageRating ?? double.MinValue)
+                .ThenBy(row => row.Source)
                 .ThenBy(row => row.GameId),
-            _ => rows
+            _ => groupedQuery
                 .OrderByDescending(row => row.PlayedCount)
                 .ThenByDescending(row => row.AverageRating ?? double.MinValue)
+                .ThenBy(row => row.Source)
                 .ThenBy(row => row.GameId)
         };
 
-        var orderedRowList = orderedRows.ToList();
-        var references = orderedRowList
+        var requiresProviderSidePostFilter =
+            filter.Source != CatalogSource.Local &&
+            (filter.CompanyId.HasValue ||
+             filter.GenreId.HasValue ||
+             filter.PlatformId.HasValue ||
+             filter.ReleaseYear.HasValue ||
+             !string.IsNullOrWhiteSpace(filter.SearchName) ||
+             !filter.IncludeRelatedContent);
+
+        var fetchSize = requiresProviderSidePostFilter
+            ? Math.Min(pageSize * 4, MaxPageSize * 4)
+            : pageSize;
+
+        var rows = await orderedQuery
+            .Skip(skip)
+            .Take(fetchSize)
+            .ToListAsync(cancellationToken);
+
+        var references = rows
             .Select(row => new CatalogReferenceDTO
             {
                 Source = row.Source,
@@ -514,13 +393,21 @@ public sealed class GameService : IGameService
             references,
             cancellationToken);
 
-        return orderedRowList
+        var items = rows
             .Select(row => gameMap.GetValueOrDefault(
                 (row.Source, row.GameId)))
             .Where(game => game is not null)
             .Select(game => game!)
             .Where(game => MatchesFilter(game, filter))
+            .Take(pageSize)
+            .Select(ToListItem)
             .ToList();
+
+        return CreatePagedResult(
+            items,
+            pageNumber,
+            pageSize,
+            totalCount);
     }
 
     private static bool MatchesFilter(
@@ -837,6 +724,7 @@ public sealed class GameService : IGameService
 
             var game = await _context.Games
                 .AsNoTracking()
+                .AsSplitQuery()
                 .Include(x => x.GameGenres)
                 .Include(x => x.GamePlatforms)
                 .Include(x => x.GameCompanies)
@@ -1310,6 +1198,7 @@ public sealed class GameService : IGameService
                 throw new NotFoundException("Oyun tapılmadı.");
 
             var game = await _context.Games
+                .AsSplitQuery()
                 .Include(x => x.GameGenres)
                 .Include(x => x.GamePlatforms)
                 .Include(x => x.GameCompanies)
@@ -1371,6 +1260,7 @@ public sealed class GameService : IGameService
 
 
             var gameOverride = await _context.IgdbGameOverrides
+                .AsSplitQuery()
                 .Include(x => x.Genres)
                 .Include(x => x.Platforms)
                 .Include(x => x.Companies)
@@ -1544,6 +1434,7 @@ public sealed class GameService : IGameService
         {
             var localGames = await _context.Games
                 .AsNoTracking()
+                .AsSplitQuery()
                 .Include(x => x.GameGenres)
                 .Include(x => x.GamePlatforms)
                 .Include(x => x.GameCompanies)
@@ -1625,22 +1516,37 @@ public sealed class GameService : IGameService
                     EF.Functions.Like(
                         game.Name,
                         SqlLetterStartPattern))
-                .ThenBy(game => game.Name),
+                .ThenBy(game => game.Name)
+                .ThenBy(game => game.Id),
             "name_desc" => query
                 .OrderByDescending(game =>
                     EF.Functions.Like(
                         game.Name,
                         SqlLetterStartPattern))
-                .ThenByDescending(game => game.Name),
-            "rating_asc" => query.OrderBy(x => x.AverageRating),
-            "rating_desc" => query.OrderByDescending(x => x.AverageRating),
-            "play_asc" => query.OrderBy(x => x.PlayCount),
-            "play_desc" => query.OrderByDescending(x => x.PlayCount),
-            "year_asc" => query.OrderBy(x => x.ReleaseDate),
-            "year_desc" => query.OrderByDescending(x => x.ReleaseDate),
+                .ThenByDescending(game => game.Name)
+                .ThenBy(game => game.Id),
+            "rating_asc" => query
+                .OrderBy(x => x.AverageRating)
+                .ThenBy(x => x.Id),
+            "rating_desc" => query
+                .OrderByDescending(x => x.AverageRating)
+                .ThenBy(x => x.Id),
+            "play_asc" => query
+                .OrderBy(x => x.PlayCount)
+                .ThenBy(x => x.Id),
+            "play_desc" => query
+                .OrderByDescending(x => x.PlayCount)
+                .ThenBy(x => x.Id),
+            "year_asc" => query
+                .OrderBy(x => x.ReleaseDate)
+                .ThenBy(x => x.Id),
+            "year_desc" => query
+                .OrderByDescending(x => x.ReleaseDate)
+                .ThenBy(x => x.Id),
             _ => query
                 .OrderByDescending(x => x.ReleaseDate)
                 .ThenBy(x => x.Name)
+                .ThenBy(x => x.Id)
         };
     }
 
@@ -1652,19 +1558,43 @@ public sealed class GameService : IGameService
         {
             "name_asc" => games
                 .OrderByDescending(game => StartsWithLetter(game.Title))
-                .ThenBy(game => game.Title, GameTitleComparer),
+                .ThenBy(game => game.Title, GameTitleComparer)
+                .ThenBy(game => game.Source)
+                .ThenBy(game => game.Id),
             "name_desc" => games
                 .OrderByDescending(game => StartsWithLetter(game.Title))
-                .ThenByDescending(game => game.Title, GameTitleComparer),
-            "rating_asc" => games.OrderBy(x => x.AverageRating ?? double.MaxValue),
-            "rating_desc" => games.OrderByDescending(x => x.AverageRating ?? double.MinValue),
-            "play_asc" => games.OrderBy(x => x.PlayCount),
-            "play_desc" => games.OrderByDescending(x => x.PlayCount),
-            "year_asc" => games.OrderBy(x => x.ReleaseDate ?? DateOnly.MaxValue),
-            "year_desc" => games.OrderByDescending(x => x.ReleaseDate ?? DateOnly.MinValue),
+                .ThenByDescending(game => game.Title, GameTitleComparer)
+                .ThenBy(game => game.Source)
+                .ThenBy(game => game.Id),
+            "rating_asc" => games
+                .OrderBy(x => x.AverageRating ?? double.MaxValue)
+                .ThenBy(x => x.Source)
+                .ThenBy(x => x.Id),
+            "rating_desc" => games
+                .OrderByDescending(x => x.AverageRating ?? double.MinValue)
+                .ThenBy(x => x.Source)
+                .ThenBy(x => x.Id),
+            "play_asc" => games
+                .OrderBy(x => x.PlayCount)
+                .ThenBy(x => x.Source)
+                .ThenBy(x => x.Id),
+            "play_desc" => games
+                .OrderByDescending(x => x.PlayCount)
+                .ThenBy(x => x.Source)
+                .ThenBy(x => x.Id),
+            "year_asc" => games
+                .OrderBy(x => x.ReleaseDate ?? DateOnly.MaxValue)
+                .ThenBy(x => x.Source)
+                .ThenBy(x => x.Id),
+            "year_desc" => games
+                .OrderByDescending(x => x.ReleaseDate ?? DateOnly.MinValue)
+                .ThenBy(x => x.Source)
+                .ThenBy(x => x.Id),
             _ => games
                 .OrderByDescending(x => x.ReleaseDate ?? DateOnly.MinValue)
                 .ThenBy(x => x.Title, GameTitleComparer)
+                .ThenBy(x => x.Source)
+                .ThenBy(x => x.Id)
         };
     }
 
@@ -1785,6 +1715,7 @@ public sealed class GameService : IGameService
         var ids = games.Select(x => x.Id).ToArray();
         var overrides = await _context.IgdbGameOverrides
             .AsNoTracking()
+            .AsSplitQuery()
             .Include(x => x.Genres)
             .Include(x => x.Platforms)
             .Include(x => x.Companies)

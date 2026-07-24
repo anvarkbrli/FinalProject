@@ -775,7 +775,7 @@ export function ProfileOverview({
         </div>
       )}
 
-      <ProfileBadges />
+      <ProfileBadges badges={profile.badges} />
     </div>
   );
 }

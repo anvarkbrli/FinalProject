@@ -13,6 +13,8 @@ namespace Ludora.Application.Models
 
         public GameType GameType { get; init; } = GameType.MainGame;
         public long? ParentGameId { get; init; }
+        public long? VersionParentId { get; init; }
+        public string? VersionTitle { get; init; }
         public IReadOnlyList<long> DlcIds { get; init; } = [];
         public IReadOnlyList<long> ExpansionIds { get; init; } = [];
         public IReadOnlyList<long> StandaloneExpansionIds { get; init; } = [];

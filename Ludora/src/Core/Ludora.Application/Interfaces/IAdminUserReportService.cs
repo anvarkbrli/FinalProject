@@ -20,5 +20,6 @@ public interface IAdminUserReportService
 
     Task<StoredFileDTO> GetEvidenceAsync(
         long reportId,
+        int index,
         CancellationToken cancellationToken = default);
 }

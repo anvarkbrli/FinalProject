@@ -326,8 +326,30 @@ public sealed class AdminUserReportService : IAdminUserReportService
 
     public async Task<StoredFileDTO> GetEvidenceAsync(
         long reportId,
+        int index,
         CancellationToken cancellationToken = default)
     {
+        if (index < 0 || index >= 5)
+            throw new BadRequestException("Sübut şəkli indeksi düzgün deyil.");
+
+        var multiStorageKey = await _context.UserReportEvidenceImages
+            .AsNoTracking()
+            .Where(x => x.UserReportId == reportId)
+            .OrderBy(x => x.DisplayOrder)
+            .Skip(index)
+            .Select(x => x.StorageKey)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (multiStorageKey is not null)
+        {
+            return await _fileStorageService.ReadReportEvidenceImageAsync(
+                multiStorageKey,
+                cancellationToken);
+        }
+
+        if (index > 0)
+            throw new NotFoundException("Bu şikayət üçün həmin sübut şəkli yoxdur.");
+
         if (reportId <= 0)
             throw new BadRequestException("Şikayət ID-si düzgün deyil.");
 
@@ -339,7 +361,9 @@ public sealed class AdminUserReportService : IAdminUserReportService
             ?? throw new NotFoundException("Bu şikayət üçün şəkil sübutu yoxdur.");
 
         return await _fileStorageService
-            .ReadReportEvidenceImageAsync(storageKey);
+            .ReadReportEvidenceImageAsync(
+                storageKey,
+                cancellationToken);
     }
 
     private static AdminUserReportItemDTO MapEvidenceUrl(
@@ -347,9 +371,13 @@ public sealed class AdminUserReportService : IAdminUserReportService
     {
         return report with
         {
-            EvidenceImageUrl = report.EvidenceImageUrl is null
+            EvidenceImageUrl = report.EvidenceImageCount == 0
                 ? null
-                : $"/api/admin/user-reports/{report.Id}/evidence"
+                : $"/api/admin/user-reports/{report.Id}/evidence?index=0",
+            EvidenceImageUrls = Enumerable.Range(0, report.EvidenceImageCount)
+                .Select(index =>
+                    $"/api/admin/user-reports/{report.Id}/evidence?index={index}")
+                .ToList()
         };
     }
 
@@ -365,6 +393,8 @@ public sealed class AdminUserReportService : IAdminUserReportService
             Category = x.Category,
             Description = x.Description,
             EvidenceImageUrl = x.EvidenceImageStorageKey,
+            EvidenceImageCount = x.EvidenceImages.Count +
+                (x.EvidenceImageStorageKey == null ? 0 : 1),
             ReportedContentType = x.ReportedContentType,
             ReportedContentId = x.ReportedContentId,
             ReportedContentSnapshot = x.ReportedContentSnapshot,

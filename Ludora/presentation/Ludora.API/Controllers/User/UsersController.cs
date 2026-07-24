@@ -193,116 +193,166 @@ public class UsersController : ControllerBase
 
     [Authorize]
     [HttpPost("{userId:guid}/follow")]
-    public async Task<IActionResult> Follow(Guid userId)
+    public async Task<IActionResult> Follow(
+        Guid userId,
+        CancellationToken cancellationToken)
     {
-        await _followService.FollowAsync(GetCurrentUserId(), userId);
+        await _followService.FollowAsync(
+            GetCurrentUserId(),
+            userId,
+            cancellationToken);
         return NoContent();
     }
 
     [Authorize]
     [HttpDelete("{userId:guid}/unfollow")]
-    public async Task<IActionResult> Unfollow(Guid userId)
+    public async Task<IActionResult> Unfollow(
+        Guid userId,
+        CancellationToken cancellationToken)
     {
-        await _followService.UnfollowAsync(GetCurrentUserId(), userId);
+        await _followService.UnfollowAsync(
+            GetCurrentUserId(),
+            userId,
+            cancellationToken);
         return NoContent();
     }
 
     [Authorize]
     [HttpPost("{userId:guid}/block")]
-    public async Task<IActionResult> Block(Guid userId)
+    public async Task<IActionResult> Block(
+        Guid userId,
+        CancellationToken cancellationToken)
     {
-        await _blockService.BlockAsync(GetCurrentUserId(), userId);
+        await _blockService.BlockAsync(
+            GetCurrentUserId(),
+            userId,
+            cancellationToken);
         return NoContent();
     }
 
     [Authorize]
     [HttpDelete("{userId:guid}/unblock")]
-    public async Task<IActionResult> Unblock(Guid userId)
+    public async Task<IActionResult> Unblock(
+        Guid userId,
+        CancellationToken cancellationToken)
     {
-        await _blockService.UnblockAsync(GetCurrentUserId(), userId);
+        await _blockService.UnblockAsync(
+            GetCurrentUserId(),
+            userId,
+            cancellationToken);
         return NoContent();
     }
 
     [Authorize]
     [HttpGet("me/settings/blocked-users")]
-    public async Task<IActionResult> GetBlockedUsers()
+    public async Task<IActionResult> GetBlockedUsers(
+        [FromQuery] PaginationFilterDTO pagination,
+        CancellationToken cancellationToken)
     {
         var result = await _blockService.GetBlockedUsersAsync(
-            GetCurrentUserId());
+            GetCurrentUserId(),
+            pagination,
+            cancellationToken);
 
         return Ok(result);
     }
 
     [Authorize]
     [HttpGet("{userId:guid}/follow-status")]
-    public async Task<IActionResult> GetFollowStatus(Guid userId)
+    public async Task<IActionResult> GetFollowStatus(
+        Guid userId,
+        CancellationToken cancellationToken)
     {
         var result = await _followService.GetFollowStatusAsync(
             GetCurrentUserId(),
-            userId);
+            userId,
+            cancellationToken);
 
         return Ok(result);
     }
 
     [Authorize]
     [HttpGet("me/follow-requests")]
-    public async Task<IActionResult> GetFollowRequests()
+    public async Task<IActionResult> GetFollowRequests(
+        [FromQuery] PaginationFilterDTO pagination,
+        CancellationToken cancellationToken)
     {
         var result = await _followService.GetFollowRequestsAsync(
-            GetCurrentUserId());
+            GetCurrentUserId(),
+            pagination,
+            cancellationToken);
 
         return Ok(result);
     }
 
     [Authorize]
     [HttpPost("me/follow-requests/{requesterId:guid}/accept-follow")]
-    public async Task<IActionResult> AcceptFollowRequest(Guid requesterId)
+    public async Task<IActionResult> AcceptFollowRequest(
+        Guid requesterId,
+        CancellationToken cancellationToken)
     {
         await _followService.AcceptFollowRequestAsync(
             GetCurrentUserId(),
-            requesterId);
+            requesterId,
+            cancellationToken);
 
         return NoContent();
     }
 
     [Authorize]
     [HttpDelete("me/follow-requests/{requesterId:guid}/reject-follow")]
-    public async Task<IActionResult> RejectFollowRequest(Guid requesterId)
+    public async Task<IActionResult> RejectFollowRequest(
+        Guid requesterId,
+        CancellationToken cancellationToken)
     {
         await _followService.RejectFollowRequestAsync(
             GetCurrentUserId(),
-            requesterId);
+            requesterId,
+            cancellationToken);
 
         return NoContent();
     }
 
     [Authorize]
     [HttpDelete("me/followers/{followerId:guid}/remove-follower")]
-    public async Task<IActionResult> RemoveFollower(Guid followerId)
+    public async Task<IActionResult> RemoveFollower(
+        Guid followerId,
+        CancellationToken cancellationToken)
     {
         await _followService.RemoveFollowerAsync(
             GetCurrentUserId(),
-            followerId);
+            followerId,
+            cancellationToken);
 
         return NoContent();
     }
 
     [HttpGet("{userId:guid}/followers")]
-    public async Task<IActionResult> GetFollowers(Guid userId)
+    public async Task<IActionResult> GetFollowers(
+        Guid userId,
+        [FromQuery] PaginationFilterDTO pagination,
+        CancellationToken cancellationToken)
     {
         var result = await _followService.GetFollowersAsync(
             userId,
-            GetOptionalCurrentUserId());
+            GetOptionalCurrentUserId(),
+            pagination,
+            cancellationToken);
 
         return Ok(result);
     }
 
     [HttpGet("{userId:guid}/following")]
-    public async Task<IActionResult> GetFollowing(Guid userId)
+    public async Task<IActionResult> GetFollowing(
+        Guid userId,
+        [FromQuery] PaginationFilterDTO pagination,
+        CancellationToken cancellationToken)
     {
         var result = await _followService.GetFollowingAsync(
             userId,
-            GetOptionalCurrentUserId());
+            GetOptionalCurrentUserId(),
+            pagination,
+            cancellationToken);
 
         return Ok(result);
     }

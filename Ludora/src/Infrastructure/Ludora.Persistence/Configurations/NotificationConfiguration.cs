@@ -39,11 +39,24 @@ public sealed class NotificationConfiguration : IEntityTypeConfiguration<Notific
         builder.Property(x => x.IsRead)
             .HasDefaultValue(false);
 
-        builder.HasIndex(x => new { x.RecipientUserId, x.IsRead, x.Priority, x.CreatedAtUtc })
-            .IsDescending(false, false, true, true);
+        builder.HasIndex(x => new
+            {
+                x.RecipientUserId,
+                x.IsRead,
+                x.Priority,
+                x.CreatedAtUtc,
+                x.Id
+            })
+            .IsDescending(false, false, true, true, true);
 
-        builder.HasIndex(x => new { x.RecipientUserId, x.Type, x.CreatedAtUtc })
-            .IsDescending(false, false, true);
+        builder.HasIndex(x => new
+            {
+                x.RecipientUserId,
+                x.Type,
+                x.CreatedAtUtc,
+                x.Id
+            })
+            .IsDescending(false, false, true, true);
 
         builder.HasIndex(x => new { x.ActorUserId, x.CreatedAtUtc })
             .IsDescending(false, true);

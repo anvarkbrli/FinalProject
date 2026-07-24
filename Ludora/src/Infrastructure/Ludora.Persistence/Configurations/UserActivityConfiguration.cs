@@ -22,8 +22,10 @@ public sealed class UserActivityConfiguration : IEntityTypeConfiguration<UserAct
         builder.HasIndex(x => new
         {
             x.UserId,
-            x.CreatedAt
-        });
+            x.CreatedAt,
+            x.Id
+        })
+            .IsDescending(false, true, true);
 
         builder.HasOne(x => x.User)
             .WithMany(x => x.Activities)

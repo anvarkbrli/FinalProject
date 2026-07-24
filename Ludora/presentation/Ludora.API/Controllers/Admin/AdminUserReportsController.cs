@@ -44,10 +44,12 @@ public sealed class AdminUserReportsController : ControllerBase
     [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
     public async Task<IActionResult> GetEvidence(
         long reportId,
+        [FromQuery] int index,
         CancellationToken cancellationToken)
     {
         var file = await _adminUserReportService.GetEvidenceAsync(
             reportId,
+            index,
             cancellationToken);
 
         return File(file.Content, file.ContentType);

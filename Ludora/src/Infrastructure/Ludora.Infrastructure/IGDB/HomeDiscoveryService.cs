@@ -13,10 +13,13 @@ namespace Ludora.Infrastructure.IGDB;
 
 public sealed class HomeDiscoveryService : IHomeDiscoveryService
 {
-    private const string FreshCacheKey = "home-discovery:v3:fresh";
-    private const string StaleCacheKey = "home-discovery:v3:stale";
+    private const string FreshCacheKey = "home-discovery:v4:fresh";
+    private const string StaleCacheKey = "home-discovery:v4:stale";
     private const int SectionSize = 6;
     private const int PopularityCandidateCount = 80;
+    private const int UpcomingCandidateCount = 200;
+    private const int UpcomingWindowMonths = 18;
+    private const int AzerbaijanUtcOffsetHours = 4;
 
     private static readonly SemaphoreSlim CacheLock = new(1, 1);
 
@@ -41,20 +44,17 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
 
     private readonly IIgdbClient _igdbClient;
     private readonly IGameService _gameService;
-    private readonly ISteamStoreClient _steamStoreClient;
     private readonly IMemoryCache _cache;
     private readonly ILogger<HomeDiscoveryService> _logger;
 
     public HomeDiscoveryService(
         IIgdbClient igdbClient,
         IGameService gameService,
-        ISteamStoreClient steamStoreClient,
         IMemoryCache cache,
         ILogger<HomeDiscoveryService> logger)
     {
         _igdbClient = igdbClient;
         _gameService = gameService;
-        _steamStoreClient = steamStoreClient;
         _cache = cache;
         _logger = logger;
     }
@@ -130,19 +130,24 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
 
                 trendingGames = staleResult?.TrendingGames ?? [];
             }
-        }
 
-        try
-        {
-            comingSoonGames = await LoadComingSoonFromSteamAsync(
-                cancellationToken);
-        }
-        catch (ExternalServiceException exception)
-        {
-            _logger.LogWarning(
-                exception,
-                "Ana səhifə üçün Steam Top Wishlists məlumatları alına bilmədi.");
+            try
+            {
+                comingSoonGames = await LoadMostAnticipatedUpcomingAsync(
+                    cancellationToken);
+            }
+            catch (ExternalServiceException exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Ana səhifə üçün gözlənilən oyun məlumatları alına bilmədi.");
 
+                comingSoonGames = staleResult?.ComingSoonGames ?? [];
+            }
+        }
+        else
+        {
+            trendingGames = staleResult?.TrendingGames ?? [];
             comingSoonGames = staleResult?.ComingSoonGames ?? [];
         }
 
@@ -157,7 +162,7 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
     private async Task<IReadOnlyList<GameListItemDTO>> LoadTrendingFromIgdbAsync(
         CancellationToken cancellationToken)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = GetAzerbaijanToday();
         var popularityTypes = await _igdbClient.GetPopularityTypesAsync(
             cancellationToken);
 
@@ -198,32 +203,156 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
     }
 
     private async Task<IReadOnlyList<HomeComingSoonGameDTO>>
-        LoadComingSoonFromSteamAsync(CancellationToken cancellationToken)
+        LoadMostAnticipatedUpcomingAsync(
+            CancellationToken cancellationToken)
     {
-        var games = await _steamStoreClient.GetComingSoonAsync(
-            SectionSize,
+        var today = GetAzerbaijanToday();
+        var maximumReleaseDate = today.AddMonths(UpcomingWindowMonths);
+        var popularityTypes = await _igdbClient.GetPopularityTypesAsync(
             cancellationToken);
 
-        return games
-            .Where(x =>
-                x.AppId > 0 &&
-                !string.IsNullOrWhiteSpace(x.Name) &&
-                x.ReleaseDate.HasValue)
-            .Select(x => new HomeComingSoonGameDTO
+        var scores = new Dictionary<long, double>();
+
+        await AddPopularityMetricAsync(
+            scores,
+            popularityTypes,
+            "Most Wishlisted Upcoming",
+            0.50,
+            cancellationToken);
+
+        await AddPopularityMetricAsync(
+            scores,
+            popularityTypes,
+            "Want to Play",
+            0.30,
+            cancellationToken);
+
+        var hypeOrderedGames = await _igdbClient.GetUpcomingGamesAsync(
+            today,
+            maximumReleaseDate,
+            UpcomingCandidateCount,
+            cancellationToken);
+
+        AddRankScores(
+            scores,
+            hypeOrderedGames.Select(x => x.Id),
+            0.20);
+
+        var candidateIds = scores
+            .OrderByDescending(x => x.Value)
+            .Select(x => x.Key)
+            .Take(UpcomingCandidateCount * 2)
+            .ToArray();
+
+        if (candidateIds.Length == 0)
+            return [];
+
+        var references = candidateIds
+            .Select(id => new CatalogReferenceDTO
             {
-                WishlistRank = x.Rank,
-                SteamAppId = x.AppId,
-                Title = x.Name,
-                CoverImageUrl = x.PortraitImageUrl ??
-                                x.HeaderImageUrl ??
-                                x.SmallCapsuleImageUrl,
-                ReleaseDate = x.ReleaseDate,
-                StoreUrl = string.IsNullOrWhiteSpace(x.StoreUrl)
-                    ? $"https://store.steampowered.com/app/{x.AppId}/"
-                    : x.StoreUrl
+                Source = CatalogSource.Igdb,
+                Id = id
             })
+            .ToArray();
+
+        var gamesByReference = await _gameService.GetByReferencesAsync(
+            references,
+            cancellationToken);
+
+        var releaseWindowDays = Math.Max(
+            1,
+            maximumReleaseDate.DayNumber - today.DayNumber);
+
+        var rankedGames = candidateIds
+            .Select(id => gamesByReference.GetValueOrDefault(
+                (CatalogSource.Igdb, id)))
+            .Where(x => x is not null)
+            .Select(x => x!)
+            .Where(IsDisplayableGame)
+            .Where(x =>
+                x.ReleaseDate.HasValue &&
+                x.ReleaseDate.Value >= today &&
+                x.ReleaseDate.Value <= maximumReleaseDate)
+            .Select(game =>
+            {
+                var daysUntilRelease = Math.Clamp(
+                    game.ReleaseDate!.Value.DayNumber - today.DayNumber,
+                    0,
+                    releaseWindowDays);
+
+                var proximityScore =
+                    1d - (double)daysUntilRelease / releaseWindowDays;
+
+                return new
+                {
+                    Game = game,
+                    Score = scores.GetValueOrDefault(game.Id) +
+                            proximityScore * 0.08
+                };
+            })
+            .OrderByDescending(x => x.Score)
+            .ThenBy(x => x.Game.ReleaseDate)
+            .ThenBy(x => x.Game.Title)
             .Take(SectionSize)
             .ToList();
+
+        return rankedGames
+            .Select((item, index) => new HomeComingSoonGameDTO
+            {
+                AnticipationRank = index + 1,
+                Source = item.Game.Source,
+                Id = item.Game.Id,
+                Title = item.Game.Title,
+                CoverImageUrl = item.Game.CoverImageUrl,
+                ReleaseDate = item.Game.ReleaseDate
+            })
+            .ToList();
+    }
+
+    private async Task AddPopularityMetricAsync(
+        IDictionary<long, double> scores,
+        IReadOnlyList<IgdbPopularityTypeModel> popularityTypes,
+        string metricName,
+        double weight,
+        CancellationToken cancellationToken)
+    {
+        var popularityType = FindPopularityType(
+            popularityTypes,
+            metricName);
+
+        if (popularityType is null)
+            return;
+
+        var primitives = await _igdbClient.GetPopularityPrimitivesAsync(
+            popularityType.Id,
+            UpcomingCandidateCount,
+            cancellationToken);
+
+        AddNormalizedScores(scores, primitives, weight);
+    }
+
+    private static void AddRankScores(
+        IDictionary<long, double> scores,
+        IEnumerable<long> orderedGameIds,
+        double weight)
+    {
+        var ids = orderedGameIds
+            .Where(x => x > 0)
+            .Distinct()
+            .Take(UpcomingCandidateCount)
+            .ToArray();
+
+        if (ids.Length == 0)
+            return;
+
+        for (var index = 0; index < ids.Length; index++)
+        {
+            var normalizedRank = 1d - (double)index / ids.Length;
+            var weightedValue = normalizedRank * weight;
+
+            scores.TryGetValue(ids[index], out var currentScore);
+            scores[ids[index]] = currentScore + weightedValue;
+        }
     }
 
     private async Task<Dictionary<long, double>> BuildTrendingScoresAsync(
@@ -308,6 +437,12 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
         }
 
         return builder.ToString();
+    }
+
+    private static DateOnly GetAzerbaijanToday()
+    {
+        return DateOnly.FromDateTime(
+            DateTime.UtcNow.AddHours(AzerbaijanUtcOffsetHours));
     }
 
     private static bool IsDisplayableGame(GameDetailDTO game)

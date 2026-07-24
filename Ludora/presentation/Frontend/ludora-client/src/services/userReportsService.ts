@@ -28,12 +28,12 @@ export async function createUserReport(
     );
   }
 
-  if (request.evidenceImage) {
+  request.evidenceImages.forEach((evidenceImage) => {
     formData.append(
-      "evidenceImage",
-      request.evidenceImage,
+      "evidenceImages",
+      evidenceImage,
     );
-  }
+  });
 
   const response = await api.post<UserReportDTO>(
     `/user-reports/users/${request.reportedUserId}`,

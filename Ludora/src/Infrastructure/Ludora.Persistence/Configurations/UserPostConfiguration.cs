@@ -22,8 +22,10 @@ public class UserPostConfiguration : IEntityTypeConfiguration<UserPost>
             .HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasIndex(x => new { x.UserId, x.CreatedAt });
-        builder.HasIndex(x => new { x.IsDeleted, x.CreatedAt });
+        builder.HasIndex(x => new { x.UserId, x.CreatedAt, x.Id })
+            .IsDescending(false, true, true);
+        builder.HasIndex(x => new { x.IsDeleted, x.CreatedAt, x.Id })
+            .IsDescending(false, true, true);
 
         builder.ToTable(tableBuilder =>
             tableBuilder.HasCheckConstraint(

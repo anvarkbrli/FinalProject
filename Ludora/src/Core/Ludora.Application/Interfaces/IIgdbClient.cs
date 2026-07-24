@@ -35,6 +35,16 @@ public interface IIgdbClient
         IReadOnlyCollection<long> ids,
         CancellationToken cancellationToken = default);
 
+
+    Task<IReadOnlyList<IgdbSteamGameMappingModel>> GetSteamGameMappingsAsync(
+        IReadOnlyCollection<int> steamAppIds,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<IgdbGameModel>> SearchGamesIncludingVersionsAsync(
+        string search,
+        int limit = 10,
+        CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<IgdbGameModel>> GetUpcomingGamesAsync(
         DateOnly fromDate,
         DateOnly toDate,

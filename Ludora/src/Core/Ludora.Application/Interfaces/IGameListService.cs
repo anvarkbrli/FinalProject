@@ -5,9 +5,10 @@ namespace Ludora.Application.Interfaces;
 
 public interface IGameListService
 {
-    Task<IReadOnlyList<GameListSummaryDTO>> GetUserListsAsync(
+    Task<PagedResultDTO<GameListSummaryDTO>> GetUserListsAsync(
         Guid userId,
         Guid? currentUserId,
+        PaginationFilterDTO pagination,
         CancellationToken cancellationToken = default);
 
     Task<GameListDetailDTO> GetByIdAsync(

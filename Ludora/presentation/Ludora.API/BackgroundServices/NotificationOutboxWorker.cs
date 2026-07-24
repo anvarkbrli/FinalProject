@@ -11,6 +11,7 @@ namespace Ludora.API.BackgroundServices;
 public sealed class NotificationOutboxWorker : BackgroundService
 {
     private const int BatchSize = 50;
+    private const int MaxAttempts = 8;
     private static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan ProcessedMessageRetention = TimeSpan.FromDays(7);
@@ -71,6 +72,7 @@ public sealed class NotificationOutboxWorker : BackgroundService
             .AsNoTracking()
             .Where(x =>
                 x.ProcessedAtUtc == null &&
+                x.DeadLetteredAtUtc == null &&
                 (x.NextAttemptAtUtc == null || x.NextAttemptAtUtc <= now) &&
                 (x.LockedUntilUtc == null || x.LockedUntilUtc < now))
             .OrderBy(x => x.CreatedAtUtc)
@@ -88,6 +90,7 @@ public sealed class NotificationOutboxWorker : BackgroundService
             .Where(x =>
                 candidateIds.Contains(x.Id) &&
                 x.ProcessedAtUtc == null &&
+                x.DeadLetteredAtUtc == null &&
                 (x.LockedUntilUtc == null || x.LockedUntilUtc < now))
             .ExecuteUpdateAsync(
                 setters => setters
@@ -98,7 +101,10 @@ public sealed class NotificationOutboxWorker : BackgroundService
         var messages = await context.NotificationOutboxMessages
             .Include(x => x.Notification)
                 .ThenInclude(x => x.ActorUser)
-            .Where(x => x.LockToken == lockToken && x.ProcessedAtUtc == null)
+            .Where(x =>
+                x.LockToken == lockToken &&
+                x.ProcessedAtUtc == null &&
+                x.DeadLetteredAtUtc == null)
             .OrderBy(x => x.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
@@ -121,15 +127,31 @@ public sealed class NotificationOutboxWorker : BackgroundService
             {
                 message.AttemptCount++;
                 message.LastError = Truncate(exception.Message, 2000);
-                message.NextAttemptAtUtc = DateTime.UtcNow.Add(GetRetryDelay(message.AttemptCount));
                 message.LockToken = null;
                 message.LockedUntilUtc = null;
 
-                _logger.LogWarning(
-                    exception,
-                    "Notification {NotificationId} real-time göndərilmədi. Cəhd: {AttemptCount}",
-                    message.NotificationId,
-                    message.AttemptCount);
+                if (message.AttemptCount >= MaxAttempts)
+                {
+                    message.DeadLetteredAtUtc = DateTime.UtcNow;
+                    message.NextAttemptAtUtc = null;
+
+                    _logger.LogError(
+                        exception,
+                        "Notification {NotificationId} {AttemptCount} cəhddən sonra dead-letter edildi.",
+                        message.NotificationId,
+                        message.AttemptCount);
+                }
+                else
+                {
+                    message.NextAttemptAtUtc = DateTime.UtcNow.Add(
+                        GetRetryDelay(message.AttemptCount));
+
+                    _logger.LogWarning(
+                        exception,
+                        "Notification {NotificationId} real-time göndərilmədi. Cəhd: {AttemptCount}",
+                        message.NotificationId,
+                        message.AttemptCount);
+                }
             }
         }
 

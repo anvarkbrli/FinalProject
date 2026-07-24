@@ -37,6 +37,12 @@ internal sealed class IgdbGameResponse
     [JsonPropertyName("parent_game")]
     public long? ParentGameId { get; set; }
 
+    [JsonPropertyName("version_parent")]
+    public long? VersionParentId { get; set; }
+
+    [JsonPropertyName("version_title")]
+    public string? VersionTitle { get; set; }
+
     [JsonPropertyName("dlcs")]
     public List<long>? DlcIds { get; set; }
 

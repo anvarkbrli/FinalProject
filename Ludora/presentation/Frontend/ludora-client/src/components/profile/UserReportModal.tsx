@@ -95,26 +95,27 @@ export function UserReportModal({
   const [category, setCategory] =
     useState<UserReportCategory>("Spam");
   const [description, setDescription] = useState("");
-  const [evidenceImage, setEvidenceImage] =
-    useState<File | null>(null);
+  const [evidenceImages, setEvidenceImages] =
+    useState<File[]>([]);
   const [validationMessage, setValidationMessage] =
     useState<string | null>(null);
 
-  const imagePreviewUrl = useMemo(
+  const imagePreviews = useMemo(
     () =>
-      evidenceImage
-        ? URL.createObjectURL(evidenceImage)
-        : null,
-    [evidenceImage],
+      evidenceImages.map((file) => ({
+        file,
+        url: URL.createObjectURL(file),
+      })),
+    [evidenceImages],
   );
 
   useEffect(() => {
     return () => {
-      if (imagePreviewUrl) {
-        URL.revokeObjectURL(imagePreviewUrl);
-      }
+      imagePreviews.forEach((preview) =>
+        URL.revokeObjectURL(preview.url),
+      );
     };
-  }, [imagePreviewUrl]);
+  }, [imagePreviews]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -141,7 +142,7 @@ export function UserReportModal({
     onSuccess: () => {
       setCategory("Spam");
       setDescription("");
-      setEvidenceImage(null);
+      setEvidenceImages([]);
       setValidationMessage(null);
       onSubmitted();
     },
@@ -159,21 +160,28 @@ export function UserReportModal({
   function handleImageChange(
     event: ChangeEvent<HTMLInputElement>,
   ) {
-    const file = event.target.files?.[0] ?? null;
+    const files = Array.from(event.target.files ?? []);
     event.target.value = "";
 
-    if (!file) {
+    if (files.length === 0) {
       return;
     }
 
-    if (!allowedImageTypes.includes(file.type)) {
+    if (evidenceImages.length + files.length > 5) {
+      setValidationMessage(
+        "Maksimum 5 sübut şəkli əlavə edə bilərsən.",
+      );
+      return;
+    }
+
+    if (files.some((file) => !allowedImageTypes.includes(file.type))) {
       setValidationMessage(
         "Yalnız JPEG, PNG və WEBP şəkilləri qəbul edilir.",
       );
       return;
     }
 
-    if (file.size > maxImageSize) {
+    if (files.some((file) => file.size > maxImageSize)) {
       setValidationMessage(
         "Sübut şəkli maksimum 5 MB ola bilər.",
       );
@@ -181,7 +189,7 @@ export function UserReportModal({
     }
 
     setValidationMessage(null);
-    setEvidenceImage(file);
+    setEvidenceImages((current) => [...current, ...files]);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -191,7 +199,7 @@ export function UserReportModal({
     if (
       !hasConcreteContent &&
       !normalizedDescription &&
-      !evidenceImage
+      evidenceImages.length === 0
     ) {
       setValidationMessage(
         "Profil şikayəti üçün ən azı açıqlama və ya şəkil əlavə et.",
@@ -213,7 +221,7 @@ export function UserReportModal({
       reportedUserId,
       category,
       description: normalizedDescription,
-      evidenceImage,
+      evidenceImages,
       reportedContentType,
       reportedContentId,
     });
@@ -243,7 +251,7 @@ export function UserReportModal({
     >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-xl overflow-hidden rounded-3xl border border-white/[0.09] bg-[#111116] shadow-2xl shadow-black/60"
+        className="flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-white/[0.09] bg-[#111116] shadow-2xl shadow-black/60"
       >
         <div className="flex items-start justify-between gap-4 border-b border-white/[0.07] px-6 py-5">
           <div className="flex min-w-0 items-start gap-3">
@@ -280,7 +288,7 @@ export function UserReportModal({
           </button>
         </div>
 
-        <div className="space-y-5 px-6 py-6">
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-6">
           <div>
             <label
               htmlFor="report-category"
@@ -350,23 +358,26 @@ export function UserReportModal({
               Şəkil sübutu
             </p>
 
-            {imagePreviewUrl ? (
+            {imagePreviews.length > 0 ? (
               <div className="overflow-hidden rounded-2xl border border-white/[0.09] bg-black/20">
                 <img
-                  src={imagePreviewUrl}
+                  src={imagePreviews[0].url}
                   alt="Şikayət sübutunun önizləməsi"
-                  className="max-h-64 w-full object-contain"
+                  className="h-64 max-h-64 w-full object-cover"
                 />
                 <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] px-4 py-3">
                   <span className="flex min-w-0 items-center gap-2 text-xs text-zinc-500">
                     <FileImage size={15} />
                     <span className="truncate">
-                      {evidenceImage?.name}
+                      {imagePreviews[0].file.name}
+                      {imagePreviews.length > 1
+                        ? ` və daha ${imagePreviews.length - 1} şəkil`
+                        : ""}
                     </span>
                   </span>
                   <button
                     type="button"
-                    onClick={() => setEvidenceImage(null)}
+                    onClick={() => setEvidenceImages([])}
                     disabled={reportMutation.isPending}
                     className="text-xs font-semibold text-red-300 transition hover:text-red-200 disabled:opacity-50"
                   >
@@ -388,6 +399,21 @@ export function UserReportModal({
                 </span>
                 <input
                   type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handleImageChange}
+                  disabled={reportMutation.isPending}
+                  className="sr-only"
+                />
+              </label>
+            )}
+            {imagePreviews.length > 0 && imagePreviews.length < 5 && (
+              <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.1] px-4 py-3 text-xs font-semibold text-zinc-400 transition hover:border-violet-400/25 hover:text-violet-200">
+                <ImagePlus size={15} />
+                Başqa şəkil əlavə et ({imagePreviews.length}/5)
+                <input
+                  type="file"
+                  multiple
                   accept="image/jpeg,image/png,image/webp"
                   onChange={handleImageChange}
                   disabled={reportMutation.isPending}
@@ -413,7 +439,7 @@ export function UserReportModal({
           )}
         </div>
 
-        <div className="flex flex-col-reverse gap-3 border-t border-white/[0.07] px-6 py-5 sm:flex-row sm:justify-end">
+        <div className="flex shrink-0 flex-col-reverse gap-3 border-t border-white/[0.07] px-6 py-5 sm:flex-row sm:justify-end">
           <button
             type="button"
             onClick={onClose}

@@ -49,7 +49,11 @@ function useObjectUrl(file: File | null): string | null {
   return objectUrl;
 }
 
-export function EditProfilePage() {
+export function EditProfilePage({
+  embedded = false,
+}: {
+  embedded?: boolean;
+} = {}) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const storedUser = useAuthStore((state) => state.user);
@@ -129,7 +133,10 @@ export function EditProfilePage() {
         queryClient.invalidateQueries({ queryKey: ["user-profile"] }),
       ]);
 
-      if (updatedUser.userName !== storedUser?.userName) {
+      if (
+        !embedded &&
+        updatedUser.userName !== storedUser?.userName
+      ) {
         navigate(`/users/${updatedUser.userName}`, { replace: true });
       }
     },
@@ -146,6 +153,15 @@ export function EditProfilePage() {
   const profileImageUrl = imagePreview ?? resolveAssetUrl(userQuery.data?.profileImageUrl ?? null);
 
   if (userQuery.isLoading || !userQuery.data) {
+    if (embedded) {
+      return (
+        <div className="flex min-h-56 items-center justify-center gap-3 text-sm text-zinc-500">
+          <LoaderCircle size={20} className="animate-spin" />
+          Profil redaktəsi yüklənir...
+        </div>
+      );
+    }
+
     return (
       <div className="min-h-screen wellplayd-page-bg text-zinc-100">
         <Navbar />
@@ -158,27 +174,31 @@ export function EditProfilePage() {
   }
 
   return (
-    <div className="min-h-screen wellplayd-page-bg text-zinc-100">
-      <Navbar />
-      <main className="mx-auto max-w-5xl px-5 py-10 lg:px-8 lg:py-14">
-        <Link
-          to={`/users/${userQuery.data.userName}`}
-          className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-500 transition hover:text-violet-300"
-        >
-          <ArrowLeft size={16} /> Profilə qayıt
-        </Link>
+    <div className={embedded ? "" : "min-h-screen wellplayd-page-bg text-zinc-100"}>
+      {!embedded && <Navbar />}
+      <main className={embedded ? "" : "mx-auto max-w-5xl px-5 py-10 lg:px-8 lg:py-14"}>
+        {!embedded && (
+          <>
+            <Link
+              to={`/users/${userQuery.data.userName}`}
+              className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-500 transition hover:text-violet-300"
+            >
+              <ArrowLeft size={16} /> Profilə qayıt
+            </Link>
 
-        <div className="mt-6 flex items-start gap-4">
-          <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/12 text-violet-300">
-            <UserRoundPen size={22} />
-          </span>
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight text-white">Profil redaktəsi</h1>
-            <p className="mt-2 text-sm leading-6 text-zinc-500">
-              İctimai profil məlumatlarını və sosial keçidlərini burada idarə et.
-            </p>
-          </div>
-        </div>
+            <div className="mt-6 flex items-start gap-4">
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/12 text-violet-300">
+                <UserRoundPen size={22} />
+              </span>
+              <div>
+                <h1 className="text-3xl font-bold tracking-tight text-white">Profil redaktəsi</h1>
+                <p className="mt-2 text-sm leading-6 text-zinc-500">
+                  İctimai profil məlumatlarını və sosial keçidlərini burada idarə et.
+                </p>
+              </div>
+            </div>
+          </>
+        )}
 
         {notice && (
           <div className={`mt-6 flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm ${
@@ -322,7 +342,7 @@ export function EditProfilePage() {
           </div>
         </div>
       </main>
-      <Footer />
+      {!embedded && <Footer />}
     </div>
   );
 }

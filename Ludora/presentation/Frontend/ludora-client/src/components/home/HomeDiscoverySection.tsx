@@ -23,12 +23,6 @@ interface DiscoveryGameCardProps {
   variant: "trending" | "comingSoon";
 }
 
-function isSteamComingSoonGame(
-  game: DiscoveryGame,
-): game is HomeComingSoonGameDTO {
-  return "steamAppId" in game;
-}
-
 function getReleaseDateValue(
   releaseDate: string | null,
 ): Date | null {
@@ -208,20 +202,6 @@ function DiscoveryGameCard({
     </article>
   );
 
-  if (isSteamComingSoonGame(game)) {
-    return (
-      <a
-        href={game.storeUrl}
-        target="_blank"
-        rel="noreferrer"
-        className={wrapperClassName}
-        aria-label={`${game.title} oyununu Steam-də aç`}
-      >
-        {card}
-      </a>
-    );
-  }
-
   return (
     <Link
       to={`/games/${game.source}/${game.id}`}
@@ -303,11 +283,7 @@ function DiscoveryRail({
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {games.map((game, index) => (
             <DiscoveryGameCard
-              key={
-                isSteamComingSoonGame(game)
-                  ? `comingSoon-steam-${game.steamAppId}`
-                  : `${variant}-${game.source}-${game.id}`
-              }
+              key={`${variant}-${game.source}-${game.id}`}
               game={game}
               index={index}
               variant={variant}
@@ -357,7 +333,7 @@ export function HomeDiscoverySection({
             <DiscoveryRail
               eyebrow="Buraxılışa hazırlaş"
               title="Tezliklə çıxacaq"
-              description="Steam-də ən çox istək siyahısına əlavə edilən və növbəti bir il ərzində çıxacaq oyunlar."
+              description="Steam Top Wishlists əsas götürülür; Steam səhifəsi olmayan böyük oyunlar ümumi gözlənti və buraxılış yaxınlığı ilə tamamlanır."
               games={comingSoonGames}
               variant="comingSoon"
               isLoading={isLoading}

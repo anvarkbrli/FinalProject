@@ -22,9 +22,11 @@ import type { ReviewSort } from "../types/reviews";
 
 export async function getUserProfile(
   userName: string,
+  signal?: AbortSignal,
 ): Promise<UserProfileDTO> {
   const response = await api.get<UserProfileDTO>(
     `/users/${encodeURIComponent(userName)}`,
+    { signal },
   );
 
   return response.data;
@@ -32,9 +34,11 @@ export async function getUserProfile(
 
 export async function getFollowStatus(
   userId: string,
+  signal?: AbortSignal,
 ): Promise<FollowStatusDTO> {
   const response = await api.get<FollowStatusDTO>(
     `/users/${userId}/follow-status`,
+    { signal },
   );
 
   return response.data;
@@ -68,32 +72,56 @@ export async function removeFollower(
 
 export async function getFollowers(
   userId: string,
+  signal?: AbortSignal,
 ): Promise<UserListItemDTO[]> {
-  const response = await api.get<UserListItemDTO[]>(
+  const response = await api.get<PagedResultDTO<UserListItemDTO>>(
     `/users/${userId}/followers`,
+    {
+      params: {
+        pageNumber: 1,
+        pageSize: 100,
+      },
+      signal,
+    },
   );
 
-  return response.data;
+  return response.data.items;
 }
 
 export async function getFollowing(
   userId: string,
+  signal?: AbortSignal,
 ): Promise<UserListItemDTO[]> {
-  const response = await api.get<UserListItemDTO[]>(
+  const response = await api.get<PagedResultDTO<UserListItemDTO>>(
     `/users/${userId}/following`,
+    {
+      params: {
+        pageNumber: 1,
+        pageSize: 100,
+      },
+      signal,
+    },
   );
 
-  return response.data;
+  return response.data.items;
 }
 
 export async function getUserPosts(
   userId: string,
+  signal?: AbortSignal,
 ): Promise<PostDTO[]> {
-  const response = await api.get<PostDTO[]>(
+  const response = await api.get<PagedResultDTO<PostDTO>>(
     `/posts/user/${userId}`,
+    {
+      params: {
+        pageNumber: 1,
+        pageSize: 50,
+      },
+      signal,
+    },
   );
 
-  return response.data;
+  return response.data.items;
 }
 
 export async function createPost(
@@ -156,11 +184,17 @@ export async function deletePost(
 export async function getUserGameLists(
   userId: string,
 ): Promise<GameListSummaryDTO[]> {
-  const response = await api.get<GameListSummaryDTO[]>(
+  const response = await api.get<PagedResultDTO<GameListSummaryDTO>>(
     `/game-lists/user/${userId}`,
+    {
+      params: {
+        pageNumber: 1,
+        pageSize: 100,
+      },
+    },
   );
 
-  return response.data;
+  return response.data.items;
 }
 
 export async function getUserReviews(

@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.IO.Compression;
 using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
@@ -6,6 +7,7 @@ using Ludora.API.BackgroundServices;
 using Ludora.API.Hubs;
 using Ludora.API.Middlewares;
 using Ludora.Application.Common;
+using Ludora.Application.Interfaces;
 using Ludora.Application.Settings;
 using Ludora.Domain.Entities.User;
 using Ludora.Infrastructure.Email;
@@ -14,6 +16,7 @@ using Ludora.Infrastructure.Steam;
 using Ludora.Persistence.ServiceRegistration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -27,6 +30,16 @@ public class Program
 
         builder.Services.AddControllers().AddJsonOptions(options =>
             options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+        builder.Services.AddResponseCompression(options =>
+        {
+            options.EnableForHttps = true;
+            options.Providers.Add<BrotliCompressionProvider>();
+            options.Providers.Add<GzipCompressionProvider>();
+        });
+        builder.Services.Configure<BrotliCompressionProviderOptions>(options =>
+            options.Level = CompressionLevel.Fastest);
+        builder.Services.Configure<GzipCompressionProviderOptions>(options =>
+            options.Level = CompressionLevel.Fastest);
         builder.Services
             .AddSignalR(options =>
             {
@@ -36,6 +49,10 @@ public class Program
                 options.PayloadSerializerOptions.Converters.Add(
                     new JsonStringEnumConverter()));
         builder.Services.AddHostedService<NotificationOutboxWorker>();
+        builder.Services.AddSingleton<IBadgeEvaluationQueue, BadgeEvaluationQueue>();
+        builder.Services.AddSingleton<ISteamSyncQueue, SteamSyncQueue>();
+        builder.Services.AddHostedService<BadgeEvaluationWorker>();
+        builder.Services.AddHostedService<SteamSyncWorker>();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen(options =>
         {
@@ -94,7 +111,8 @@ public class Program
                     var path = context.HttpContext.Request.Path;
 
                     if (!string.IsNullOrWhiteSpace(accessToken) &&
-                        path.StartsWithSegments("/hubs/notifications"))
+                        (path.StartsWithSegments("/hubs/notifications") ||
+                         path.StartsWithSegments("/hubs/chat")))
                     {
                         context.Token = accessToken;
                     }
@@ -185,6 +203,18 @@ public class Program
                     QueueLimit = 0,
                     AutoReplenishment = true
                 }));
+            options.AddPolicy("Chat", context => RateLimitPartition.GetTokenBucketLimiter(
+                context.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                context.Connection.RemoteIpAddress?.ToString() ??
+                "unknown",
+                _ => new TokenBucketRateLimiterOptions
+                {
+                    TokenLimit = 30,
+                    TokensPerPeriod = 15,
+                    ReplenishmentPeriod = TimeSpan.FromSeconds(10),
+                    QueueLimit = 0,
+                    AutoReplenishment = true
+                }));
         });
 
         builder.Services.AddPersistenceServices(builder.Configuration);
@@ -213,6 +243,7 @@ public class Program
         }
 
         app.UseMiddleware<GlobalExceptionMiddleware>();
+        app.UseResponseCompression();
         app.UseHttpsRedirection();
         app.UseStaticFiles();
         app.UseCors("Frontend");
@@ -221,6 +252,7 @@ public class Program
         app.UseAuthorization();
         app.MapControllers();
         app.MapHub<NotificationHub>("/hubs/notifications");
+        app.MapHub<ChatHub>("/hubs/chat");
         await app.RunAsync();
     }
 

@@ -1,46 +1,21 @@
-# .NET build outputs
+# .NET
 **/bin/
 **/obj/
-**/TestResults/
+.vs/
 
-# Visual Studio and IDE files
-**/.vs/
-.vscode/
-.idea/
-*.user
-*.suo
-*.userosscache
-*.sln.docstates
-
-# Frontend dependencies and build output
+# Frontend
 **/node_modules/
 **/dist/
 **/.vite/
-*.tsbuildinfo
 
-# Local frontend environment files
-**/.env
-**/.env.*
-!**/.env.example
-
-# Local backend secrets and settings
-**/appsettings.Local.json
-**/appsettings.*.Local.json
-**/appsettings.*.local.json
-**/secrets.json
-
-# Runtime uploaded files
-**/wwwroot/uploads/
+# Local configuration and runtime data
+.env
+.env.*
+!.env.example
+**/private-storage/
 **/uploads/
 
-# Logs and temporary files
+# Tooling and logs
+.tools/
 *.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-.gitignore.backup
 
-# Operating system files
-.DS_Store
-Thumbs.db

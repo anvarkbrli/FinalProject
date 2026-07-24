@@ -21,6 +21,19 @@ export interface UserGameDTO {
   updatedAt: string | null;
 }
 
+export interface UserGameDashboardDTO {
+  statusCounts: Record<UserGameStatus, number>;
+  wishlistCount: number;
+  averageRating: number | null;
+  ratingCount: number;
+  ratingDistribution: Array<{
+    rating: number;
+    count: number;
+  }>;
+  recentGame: UserGameDTO | null;
+  reviewCount: number;
+  gameListCount: number;
+}
 
 export interface WishlistedFriendDTO {
   userId: string;

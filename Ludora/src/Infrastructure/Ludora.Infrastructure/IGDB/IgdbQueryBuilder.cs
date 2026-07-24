@@ -9,7 +9,7 @@ internal static class IgdbQueryBuilder
 {
     private const string GameFields =
         "fields id,name,summary,first_release_date,total_rating," +
-        "game_type,parent_game,dlcs,expansions,standalone_expansions," +
+        "game_type,parent_game,version_parent,version_title,dlcs,expansions,standalone_expansions," +
         "bundles,remakes,remasters," +
         "cover.image_id,genres.id,genres.name,platforms.id,platforms.name," +
         "involved_companies.company.id,involved_companies.company.name," +
@@ -88,6 +88,40 @@ internal static class IgdbQueryBuilder
     public static string BuildGamesByIds(IReadOnlyCollection<long> ids)
     {
         return BuildByIds(GameFields, ids);
+    }
+
+
+    public static string BuildExternalGamesBySteamAppIds(
+        IReadOnlyCollection<int> steamAppIds)
+    {
+        var normalizedIds = steamAppIds
+            .Where(id => id > 0)
+            .Distinct()
+            .Take(500)
+            .Select(id => $"\"{id.ToString(CultureInfo.InvariantCulture)}\"")
+            .ToArray();
+
+        if (normalizedIds.Length == 0)
+            return "fields game,uid,external_game_source; where id = -1; limit 1;";
+
+        return $"fields game,uid,external_game_source; where external_game_source = 1 & uid = ({string.Join(',', normalizedIds)}); limit {normalizedIds.Length};";
+    }
+
+    public static string BuildGamesSearchIncludingVersions(
+        string search,
+        int limit)
+    {
+        if (string.IsNullOrWhiteSpace(search))
+            throw new ArgumentException("Axtarış mətni boş ola bilməz.", nameof(search));
+
+        return new StringBuilder(GameFields)
+            .Append(" search \"")
+            .Append(Escape(search.Trim()))
+            .Append("\";")
+            .Append(" limit ")
+            .Append(Math.Clamp(limit, 1, 50).ToString(CultureInfo.InvariantCulture))
+            .Append(';')
+            .ToString();
     }
 
     public static string BuildUpcomingGames(

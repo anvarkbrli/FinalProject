@@ -1,3 +1,6 @@
+using System.Text.Json.Serialization;
+using Ludora.Domain.Enums;
+
 namespace Ludora.Application.DTOs.Steam;
 
 public sealed record SteamConnectStartDTO
@@ -8,6 +11,8 @@ public sealed record SteamConnectStartDTO
 
 public sealed record SteamConnectionResultDTO
 {
+    [JsonIgnore]
+    public Guid? UserId { get; init; }
     public bool Success { get; init; }
     public string? SteamId { get; init; }
     public string? SteamName { get; init; }
@@ -40,6 +45,10 @@ public sealed record SteamSyncResultDTO
     public int UpdatedReviewPlaytimeCount { get; init; }
     public int CreatedPlayLogCount { get; init; }
     public int UpdatedPlayLogCount { get; init; }
+    public int PendingResolutionCount { get; init; }
+    public int ReadyToApplyCount { get; init; }
+    public int AutoUpdatedResolvedLogCount { get; init; }
+    public bool RequiresConfirmation => PendingResolutionCount > 0 || ReadyToApplyCount > 0;
     public DateTime SyncedAtUtc { get; init; }
 }
 
@@ -56,12 +65,74 @@ public sealed record SteamOwnedGameDTO
     public DateTime? LastPlayedAtUtc { get; init; }
     public string? SteamIconUrl { get; init; }
     public bool IsMatched { get; init; }
+    public CatalogSource? MatchedGameSource { get; init; }
+    public long? MatchedGameId { get; init; }
+    public string? MatchedGameName { get; init; }
+    public string? MatchedCoverImageUrl { get; init; }
+    public DateOnly? MatchedReleaseDate { get; init; }
+    public SteamGameMatchMethod MatchMethod { get; init; }
+    public decimal MatchConfidence { get; init; }
+    public bool IsSteamFallback { get; init; }
+    public SteamPlaytimeResolution PlaytimeResolution { get; init; }
+    public int? ResolvedPlaytimeMinutes { get; init; }
+    public bool NeedsResolution { get; init; }
+    public string? DetailUrl { get; init; }
     public int? LocalGameId { get; init; }
     public string? LocalGameName { get; init; }
     public string? LocalGameSlug { get; init; }
     public string? LocalCoverImageUrl { get; init; }
     public DateOnly? LocalReleaseDate { get; init; }
     public DateTime SyncedAtUtc { get; init; }
+}
+
+public sealed record SteamPlaytimeReconciliationItemDTO
+{
+    public int SteamAppId { get; init; }
+    public string SteamName { get; init; } = string.Empty;
+    public string? SteamIconUrl { get; init; }
+    public int SteamPlaytimeMinutes { get; init; }
+    public CatalogSource MatchedGameSource { get; init; }
+    public long MatchedGameId { get; init; }
+    public string MatchedGameName { get; init; } = string.Empty;
+    public string? MatchedCoverImageUrl { get; init; }
+    public SteamGameMatchMethod MatchMethod { get; init; }
+    public int ManualPlaytimeMinutes { get; init; }
+    public string? ManualPlatformName { get; init; }
+    public SteamPlaytimeResolution CurrentResolution { get; init; }
+    public SteamPlaytimeResolution SuggestedResolution { get; init; }
+    public bool NeedsUserDecision { get; init; }
+    public int PreviewResolvedPlaytimeMinutes { get; init; }
+}
+
+public sealed record SteamPlaytimeReconciliationDTO
+{
+    public int TotalPlayedGames { get; init; }
+    public int PendingCount { get; init; }
+    public int ReadyToApplyCount { get; init; }
+    public int AlreadyConfirmedCount { get; init; }
+    public IReadOnlyList<SteamPlaytimeReconciliationItemDTO> Items { get; init; } = [];
+}
+
+public sealed record SteamPlaytimeDecisionDTO
+{
+    public int SteamAppId { get; init; }
+    public SteamPlaytimeResolution Resolution { get; init; }
+}
+
+public sealed record SteamApplyPlaytimeReconciliationDTO
+{
+    public SteamPlaytimeResolution DefaultPendingResolution { get; init; } =
+        SteamPlaytimeResolution.ConservativeMaximum;
+    public IReadOnlyList<SteamPlaytimeDecisionDTO> Decisions { get; init; } = [];
+}
+
+public sealed record SteamApplyPlaytimeResultDTO
+{
+    public int AppliedGameCount { get; init; }
+    public int CreatedAutoLogCount { get; init; }
+    public int UpdatedAutoLogCount { get; init; }
+    public int AssignedPcPlatformCount { get; init; }
+    public DateTime AppliedAtUtc { get; init; }
 }
 
 public sealed record SteamComingSoonGameDTO

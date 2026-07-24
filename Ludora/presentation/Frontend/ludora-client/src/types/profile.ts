@@ -94,6 +94,18 @@ export interface UserProfileDTO {
   followingCount: number;
   postCount: number;
   statistics: UserProfileStatisticsDTO;
+  badges: UserBadgeDTO[];
+}
+
+export interface UserBadgeDTO {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  metricValueAtAward: number;
+  awardedAtUtc: string;
 }
 
 export interface FollowStatusDTO {

@@ -13,6 +13,8 @@ import {
   ChevronDown,
   Clock3,
   Eye,
+  EllipsisVertical,
+  Flag,
   Gamepad2,
   Heart,
   History,
@@ -38,6 +40,7 @@ import {
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -55,10 +58,12 @@ import { ProfileActivityFeed } from "../components/profile/ProfileActivityFeed";
 import { ProfileGamesGallery } from "../components/profile/ProfileGamesGallery";
 import { ProfileOverview } from "../components/profile/ProfileOverview";
 import { ProfileSteamLibrary } from "../components/profile/ProfileSteamLibrary";
+import { UserReportModal } from "../components/profile/UserReportModal";
 import { SocialPlatformIcon } from "../components/profile/SocialPlatformIcon";
 import { ReviewCommentsPanel } from "../components/reviews/ReviewCommentsPanel";
 import { ReviewLikesModal } from "../components/reviews/ReviewLikesModal";
 import { ProfileGameCollection } from "../components/profile/ProfileGameCollection";
+import { SteamPlaytimeReconciliationModal } from "../components/steam/SteamPlaytimeReconciliationModal";
 import { getApiErrorMessage } from "../lib/api";
 import { socialPlatformLabels } from "../lib/socialPlatforms";
 import {
@@ -123,7 +128,12 @@ type ProfileTab =
   | "reviews"
   | "owned-games"
   | "wishlist"
+  | "favorites"
   | "feed";
+
+type ProfileGameStatus = NonNullable<
+  ProfileGameEntryDTO["status"]
+>;
 
 type ConnectionModal =
   | "followers"
@@ -175,6 +185,12 @@ const profileTabs: Array<{
     id: "wishlist",
     label: "Wishlist",
     icon: Bookmark,
+    ownerOnly: true,
+  },
+  {
+    id: "favorites",
+    label: "Sevimlilər",
+    icon: Heart,
     ownerOnly: true,
   },
   {
@@ -250,6 +266,21 @@ const reviewRatingScaleLabels = [
 function parseProfileTab(value: string | null): ProfileTab | null {
   return profileTabs.some((tab) => tab.id === value)
     ? (value as ProfileTab)
+    : null;
+}
+
+function parseProfileGameStatus(
+  value: string | null,
+): ProfileGameStatus | null {
+  const validStatuses: ProfileGameStatus[] = [
+    "Playing",
+    "PlanToPlay",
+    "Played",
+    "Dropped",
+  ];
+
+  return validStatuses.includes(value as ProfileGameStatus)
+    ? (value as ProfileGameStatus)
     : null;
 }
 
@@ -425,6 +456,11 @@ export function ProfilePage() {
     activeTab === "games"
       ? parseReviewRating(searchParams.get("gameRating"))
       : null;
+  const gameStatusFromUrl =
+    activeTab === "games"
+      ? parseProfileGameStatus(searchParams.get("gameStatus"))
+      : null;
+  const gamesStatus = gameStatusFromUrl;
   const gamesRating = gameRatingFromUrl;
   const reviewSortState = getReviewSortState(reviewSort);
   const activeReviewSortCategory: ReviewSortCategory =
@@ -476,8 +512,6 @@ export function ProfilePage() {
   const [gamesPlatform, setGamesPlatform] = useState<string | null>(null);
   const [gamesPlayedPlatform, setGamesPlayedPlatform] =
     useState<string | null>(null);
-  const [gamesStatus, setGamesStatus] =
-    useState<ProfileGameEntryDTO["status"]>(null);
   const [gamesReleaseYear, setGamesReleaseYear] =
     useState<number | null>(null);
   const [gamesSortBy, setGamesSortBy] =
@@ -492,9 +526,40 @@ export function ProfilePage() {
     useState<UserActivityFeedScope>("Mine");
   const [isReviewFilterOpen, setIsReviewFilterOpen] =
     useState(false);
+  const [isProfileActionOpen, setIsProfileActionOpen] =
+    useState(false);
+  const profileActionMenuRef = useRef<HTMLDivElement>(null);
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isPlaytimeReconciliationOpen, setIsPlaytimeReconciliationOpen] =
+    useState(false);
 
   const newPostImagePreview = useObjectUrl(newPostImage);
   const editingPostImagePreview = useObjectUrl(editingPostImage);
+
+  useEffect(() => {
+    if (!isProfileActionOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        profileActionMenuRef.current &&
+        !profileActionMenuRef.current.contains(event.target as Node)
+      ) {
+        setIsProfileActionOpen(false);
+      }
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsProfileActionOpen(false);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [isProfileActionOpen]);
 
   useEffect(() => {
     if (!isFavoritesModalOpen) return;
@@ -524,7 +589,8 @@ export function ProfilePage() {
 
   const profileQuery = useQuery({
     queryKey: ["user-profile", userName],
-    queryFn: () => getUserProfile(userName),
+    queryFn: ({ signal }) =>
+      getUserProfile(userName, signal),
     enabled: userName.trim().length > 0,
   });
 
@@ -543,8 +609,8 @@ export function ProfilePage() {
       "follow-status",
       profile?.id,
     ],
-    queryFn: () =>
-      getFollowStatus(profile!.id),
+    queryFn: ({ signal }) =>
+      getFollowStatus(profile!.id, signal),
     enabled:
       isAuthenticated &&
       profile !== undefined &&
@@ -553,7 +619,8 @@ export function ProfilePage() {
 
   const postsQuery = useQuery({
     queryKey: ["user-posts", profile?.id],
-    queryFn: () => getUserPosts(profile!.id),
+    queryFn: ({ signal }) =>
+      getUserPosts(profile!.id, signal),
     enabled:
       profile !== undefined &&
       visibleActiveTab === "posts",
@@ -717,7 +784,8 @@ export function ProfilePage() {
     enabled:
       profile !== undefined &&
       isOwnProfile &&
-      isFavoritesModalOpen,
+      (isFavoritesModalOpen ||
+        visibleActiveTab === "favorites"),
   });
 
   const ownedGamesQuery = useQuery({
@@ -778,14 +846,14 @@ export function ProfilePage() {
       profile?.id,
       connectionModal,
     ],
-    queryFn: () => {
+    queryFn: ({ signal }) => {
       if (!profile || !connectionModal) {
         return Promise.resolve<UserListItemDTO[]>([]);
       }
 
       return connectionModal === "followers"
-        ? getFollowers(profile.id)
-        : getFollowing(profile.id);
+        ? getFollowers(profile.id, signal)
+        : getFollowing(profile.id, signal);
     },
     enabled:
       profile !== undefined &&
@@ -1096,6 +1164,7 @@ export function ProfilePage() {
 
     if (tab !== "games") {
       nextParams.delete("gameRating");
+      nextParams.delete("gameStatus");
     }
 
     setSearchParams(nextParams);
@@ -1182,13 +1251,30 @@ export function ProfilePage() {
     setGamesCompany(null);
     setGamesPlatform(null);
     setGamesPlayedPlatform(null);
-    setGamesStatus(null);
     setGamesReleaseYear(null);
     setGamesSortBy("RecentlyUpdated");
     setGamesPage(1);
 
     const nextParams = new URLSearchParams(searchParams);
     nextParams.delete("gameRating");
+    nextParams.delete("gameStatus");
+    setSearchParams(nextParams, { replace: true });
+  }
+
+  function updateGamesStatus(
+    status: ProfileGameEntryDTO["status"],
+  ) {
+    setGamesPage(1);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.set("tab", "games");
+
+    if (status === null) {
+      nextParams.delete("gameStatus");
+    } else {
+      nextParams.set("gameStatus", status);
+    }
+
     setSearchParams(nextParams, { replace: true });
   }
 
@@ -1213,7 +1299,6 @@ export function ProfilePage() {
     setGamesCompany(null);
     setGamesPlatform(null);
     setGamesPlayedPlatform(null);
-    setGamesStatus(null);
     setGamesReleaseYear(null);
     setGamesSortBy("RecentlyUpdated");
     setGamesPage(1);
@@ -1222,6 +1307,7 @@ export function ProfilePage() {
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set("tab", "games");
     nextParams.set("gameRating", rating.toString());
+    nextParams.delete("gameStatus");
     nextParams.delete("sort");
     nextParams.delete("rating");
 
@@ -1234,7 +1320,6 @@ export function ProfilePage() {
     setGamesCompany(null);
     setGamesPlatform(null);
     setGamesPlayedPlatform(null);
-    setGamesStatus("Played");
     setGamesReleaseYear(null);
     setGamesSortBy("RecentlyPlayed");
     setGamesPage(1);
@@ -1242,6 +1327,7 @@ export function ProfilePage() {
 
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set("tab", "games");
+    nextParams.set("gameStatus", "Played");
     nextParams.delete("gameRating");
     nextParams.delete("sort");
     nextParams.delete("rating");
@@ -1255,7 +1341,6 @@ export function ProfilePage() {
     setGamesCompany(null);
     setGamesPlatform(null);
     setGamesPlayedPlatform(null);
-    setGamesStatus(null);
     setGamesReleaseYear(null);
     setGamesSortBy("RecentlyUpdated");
     setGamesPage(1);
@@ -1263,6 +1348,7 @@ export function ProfilePage() {
 
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set("tab", "games");
+    nextParams.delete("gameStatus");
     nextParams.delete("gameRating");
     nextParams.delete("sort");
     nextParams.delete("rating");
@@ -1276,7 +1362,6 @@ export function ProfilePage() {
     setGamesCompany(null);
     setGamesPlatform(null);
     setGamesPlayedPlatform(platform);
-    setGamesStatus(null);
     setGamesReleaseYear(null);
     setGamesSortBy("RecentlyUpdated");
     setGamesPage(1);
@@ -1284,6 +1369,7 @@ export function ProfilePage() {
 
     const nextParams = new URLSearchParams(searchParams);
     nextParams.set("tab", "games");
+    nextParams.delete("gameStatus");
     nextParams.delete("gameRating");
     nextParams.delete("sort");
     nextParams.delete("rating");
@@ -1632,7 +1718,7 @@ export function ProfilePage() {
               <div className="flex shrink-0 flex-wrap gap-3">
                 {isOwnProfile ? (
                   <Link
-                    to="/profile/edit"
+                    to="/settings?section=profile"
                     className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-5 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.09] hover:text-white"
                   >
                     <Pencil size={17} />
@@ -1671,15 +1757,75 @@ export function ProfilePage() {
                           : "İzlə"}
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={handleBlock}
-                      disabled={actionIsPending}
-                      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-red-400/15 bg-red-500/[0.06] px-4 text-sm font-semibold text-red-300 transition hover:bg-red-500/15 disabled:opacity-60"
-                    >
-                      <Ban size={17} />
-                      Blokla
-                    </button>
+                    <div ref={profileActionMenuRef} className="relative">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setIsProfileActionOpen((current) => !current)
+                          }
+                          aria-expanded={isProfileActionOpen}
+                          aria-haspopup="menu"
+                          aria-label="Profil əməliyyatları"
+                          className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.05] text-zinc-300 transition hover:bg-white/[0.09] hover:text-white"
+                        >
+                          <EllipsisVertical size={19} />
+                        </button>
+
+                        {isProfileActionOpen && (
+                          <div
+                            role="menu"
+                            className="absolute right-0 top-[calc(100%+8px)] z-30 w-48 rounded-2xl border border-white/[0.09] bg-[#15151b] p-2 shadow-2xl shadow-black/50"
+                          >
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setIsProfileActionOpen(false);
+                                if (!isAuthenticated) {
+                                  navigate("/login");
+                                  return;
+                                }
+                                navigate(
+                                  `/messages?userId=${loadedProfile.id}&userName=${encodeURIComponent(loadedProfile.userName)}`,
+                                );
+                              }}
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                            >
+                              <MessageCircle size={16} />
+                              Mesaj yaz
+                            </button>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setIsProfileActionOpen(false);
+                                handleBlock();
+                              }}
+                              disabled={actionIsPending}
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-red-300 transition hover:bg-red-500/[0.08] disabled:opacity-50"
+                            >
+                              <Ban size={16} />
+                              Blokla
+                            </button>
+                            <button
+                              type="button"
+                              role="menuitem"
+                              onClick={() => {
+                                setIsProfileActionOpen(false);
+                                if (!isAuthenticated) {
+                                  navigate("/login");
+                                  return;
+                                }
+                                setIsReportOpen(true);
+                              }}
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                            >
+                              <Flag size={16} />
+                              Şikayət et
+                            </button>
+                          </div>
+                        )}
+                    </div>
                   </>
                 )}
               </div>
@@ -1841,7 +1987,9 @@ export function ProfilePage() {
                       )
                     : null
                 }
-                isFilterOpen={isGamesFilterOpen}
+                isFilterOpen={
+                  isGamesFilterOpen || gamesStatus !== null
+                }
                 onToggleFilter={() => {
                   setIsGamesFilterOpen((currentValue) => !currentValue);
                 }}
@@ -1882,8 +2030,7 @@ export function ProfilePage() {
                   setGamesPage(1);
                 }}
                 onStatusChange={(value) => {
-                  setGamesStatus(value);
-                  setGamesPage(1);
+                  updateGamesStatus(value);
                 }}
                 onReleaseYearChange={(value) => {
                   setGamesReleaseYear(value);
@@ -1913,6 +2060,9 @@ export function ProfilePage() {
                 onSync={() => {
                   setNotice(null);
                   steamSyncMutation.mutate();
+                }}
+                onResolvePlaytime={() => {
+                  setIsPlaytimeReconciliationOpen(true);
                 }}
               />
             )}
@@ -2880,6 +3030,18 @@ export function ProfilePage() {
               />
             )}
 
+            {visibleActiveTab === "favorites" && (
+              <ProfileGameCollection
+                kind="favorites"
+                result={favoritesQuery.data}
+                isLoading={favoritesQuery.isLoading}
+                isError={favoritesQuery.isError}
+                error={favoritesQuery.error}
+                page={favoritesPage}
+                onPageChange={setFavoritesPage}
+              />
+            )}
+
             {visibleActiveTab === "feed" &&
               isOwnProfile && storedUser && (
                 <ProfileActivityFeed
@@ -3142,6 +3304,32 @@ export function ProfilePage() {
           </div>
         </div>
       )}
+
+      <SteamPlaytimeReconciliationModal
+        isOpen={isPlaytimeReconciliationOpen}
+        onClose={() => setIsPlaytimeReconciliationOpen(false)}
+        onApplied={async (result) => {
+          setNotice({
+            type: "success",
+            message: `${result.appliedGameCount} oyunun saatları yeniləndi.`,
+          });
+          await queryClient.invalidateQueries();
+        }}
+      />
+
+      <UserReportModal
+        isOpen={isReportOpen}
+        reportedUserId={loadedProfile.id}
+        reportedUserName={loadedProfile.userName}
+        onClose={() => setIsReportOpen(false)}
+        onSubmitted={() => {
+          setIsReportOpen(false);
+          setNotice({
+            type: "success",
+            message: "Şikayət moderasiya komandasına göndərildi.",
+          });
+        }}
+      />
     </div>
   );
 }

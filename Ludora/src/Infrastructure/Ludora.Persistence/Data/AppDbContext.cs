@@ -44,6 +44,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<UserBanHistory> UserBanHistories { get; set; }
     public DbSet<UserWarning> UserWarnings { get; set; }
     public DbSet<UserReport> UserReports { get; set; }
+    public DbSet<UserReportEvidence> UserReportEvidenceImages { get; set; }
     public DbSet<ModeratorActionLog> ModeratorActionLogs { get; set; }
     public DbSet<Announcement> Announcements { get; set; }
     public DbSet<Notification> Notifications { get; set; }
@@ -52,7 +53,12 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<SteamLinkChallenge> SteamLinkChallenges { get; set; }
     public DbSet<SteamOwnedGame> SteamOwnedGames { get; set; }
     public DbSet<UserGamePlayLog> UserGamePlayLogs { get; set; }
+    public DbSet<SteamPlaytimeDelta> SteamPlaytimeDeltas { get; set; }
     public DbSet<SteamFriendSnapshot> SteamFriendSnapshots { get; set; }
+    public DbSet<ChatConversation> ChatConversations { get; set; }
+    public DbSet<ChatMessage> ChatMessages { get; set; }
+    public DbSet<BadgeDefinition> BadgeDefinitions { get; set; }
+    public DbSet<UserBadge> UserBadges { get; set; }
 
     public DbSet<IgdbGameOverride> IgdbGameOverrides { get; set; }
     public DbSet<IgdbGenreOverride> IgdbGenreOverrides { get; set; }

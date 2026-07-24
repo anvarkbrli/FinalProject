@@ -20,10 +20,11 @@ public class UserGamesController : ControllerBase
 
     [Authorize]
     [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<UserGameDTO>>> GetMine(
+    public async Task<ActionResult<PagedResultDTO<UserGameDTO>>> GetMine(
         [FromQuery] UserGameStatus? status,
         [FromQuery] bool? isFavorite,
         [FromQuery] bool? isWishlisted,
+        [FromQuery] PaginationFilterDTO pagination,
         CancellationToken cancellationToken)
     {
         var result = await _userGameService.GetMineAsync(
@@ -31,6 +32,19 @@ public class UserGamesController : ControllerBase
             status,
             isFavorite,
             isWishlisted,
+            pagination,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpGet("dashboard")]
+    public async Task<ActionResult<UserGameDashboardDTO>> GetDashboard(
+        CancellationToken cancellationToken)
+    {
+        var result = await _userGameService.GetDashboardAsync(
+            GetCurrentUserId(),
             cancellationToken);
 
         return Ok(result);

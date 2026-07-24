@@ -12,10 +12,14 @@ namespace Ludora.API.Controllers;
 public sealed class SteamController : ControllerBase
 {
     private readonly ISteamService _steamService;
+    private readonly IBadgeEvaluationQueue _badgeQueue;
 
-    public SteamController(ISteamService steamService)
+    public SteamController(
+        ISteamService steamService,
+        IBadgeEvaluationQueue badgeQueue)
     {
         _steamService = steamService;
+        _badgeQueue = badgeQueue;
     }
 
     [Authorize]
@@ -26,6 +30,33 @@ public sealed class SteamController : ControllerBase
     {
         var result = await _steamService.SyncOwnedGamesAsync(
             GetCurrentUserId(),
+            cancellationToken);
+        _badgeQueue.Enqueue(GetCurrentUserId());
+
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpGet("playtime-reconciliation")]
+    public async Task<ActionResult<SteamPlaytimeReconciliationDTO>> GetPlaytimeReconciliation(
+        CancellationToken cancellationToken)
+    {
+        var result = await _steamService.GetPlaytimeReconciliationAsync(
+            GetCurrentUserId(),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpPost("playtime-reconciliation/apply")]
+    public async Task<ActionResult<SteamApplyPlaytimeResultDTO>> ApplyPlaytimeReconciliation(
+        [FromBody] SteamApplyPlaytimeReconciliationDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await _steamService.ApplyPlaytimeReconciliationAsync(
+            GetCurrentUserId(),
+            dto,
             cancellationToken);
 
         return Ok(result);

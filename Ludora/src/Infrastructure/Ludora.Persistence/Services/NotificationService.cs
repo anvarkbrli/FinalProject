@@ -30,10 +30,7 @@ public sealed class NotificationService : INotificationService
         NotificationType.GameListCommented,
         NotificationType.DiscussionLiked,
         NotificationType.DiscussionReplied,
-        NotificationType.DiscussionReplyLiked,
-        NotificationType.FollowRequestReceived,
-        NotificationType.UserFollowed,
-        NotificationType.FollowRequestAccepted
+        NotificationType.DiscussionReplyLiked
     ];
 
     private static readonly HashSet<NotificationType> FollowerBroadcastTypes =
@@ -285,47 +282,119 @@ public sealed class NotificationService : INotificationService
         ArgumentNullException.ThrowIfNull(request);
         ValidateFollowerRequest(request);
 
-        var recipients = await _context.UserFollows
-            .AsNoTracking()
-            .Where(x =>
-                x.FollowingId == request.ActorUserId &&
-                x.Status == FollowStatus.Accepted &&
-                !_context.UserBlocks.Any(block =>
-                    (block.BlockerId == request.ActorUserId && block.BlockedUserId == x.FollowerId) ||
-                    (block.BlockerId == x.FollowerId && block.BlockedUserId == request.ActorUserId)))
-            .Select(x => new
-            {
-                RecipientUserId = x.FollowerId,
-                Audience = _context.NotificationPreferences
-                    .Where(preference =>
-                        preference.UserId == x.FollowerId &&
-                        preference.Type == request.Type)
-                    .Select(preference => (NotificationAudience?)preference.Audience)
-                    .FirstOrDefault()
-            })
-            .ToListAsync(cancellationToken);
+        var entityId = NormalizeOptional(request.EntityId, 64);
+        var title = NormalizeRequired(request.Title, 200, "Bildiriş başlığı");
+        var message = NormalizeRequired(request.Message, 1000, "Bildiriş mətni");
+        var actionUrl = NormalizeActionUrl(request.ActionUrl);
+        var dataJson = NormalizeDataJson(request.DataJson);
+        var now = DateTime.UtcNow;
+        var followStatus = (int)FollowStatus.Accepted;
+        var type = (int)request.Type;
+        var priority = (int)request.Priority;
+        var entityType = (int)request.EntityType;
+        var neverAudience = (int)NotificationAudience.Never;
+        var defaultAudience = (int)GetDefaultAudience(request.Type);
+        var ownsTransaction = _context.Database.CurrentTransaction is null;
+        await using var transaction = ownsTransaction
+            ? await _context.Database.BeginTransactionAsync(cancellationToken)
+            : null;
 
-        foreach (var recipient in recipients)
+        try
         {
-            var audience = recipient.Audience ?? GetDefaultAudience(request.Type);
+            if (ownsTransaction)
+                await _context.SaveChangesAsync(cancellationToken);
 
-            if (audience == NotificationAudience.Never)
-                continue;
+            await _context.Database.ExecuteSqlInterpolatedAsync($@"
+DECLARE @InsertedNotifications TABLE
+(
+    [Id] bigint NOT NULL,
+    [CreatedAtUtc] datetime2 NOT NULL
+);
 
-            AddNotification(new NotificationCreateRequest
-            {
-                RecipientUserId = recipient.RecipientUserId,
-                ActorUserId = request.ActorUserId,
-                Type = request.Type,
-                Priority = request.Priority,
-                EntityType = request.EntityType,
-                EntityId = request.EntityId,
-                Title = request.Title,
-                Message = request.Message,
-                ActionUrl = request.ActionUrl,
-                DataJson = request.DataJson,
-                BypassPreferences = true
-            });
+INSERT INTO [Notifications]
+(
+    [RecipientUserId],
+    [ActorUserId],
+    [Type],
+    [Priority],
+    [EntityType],
+    [EntityId],
+    [Title],
+    [Message],
+    [ActionUrl],
+    [DataJson],
+    [IsRead],
+    [ReadAtUtc],
+    [CreatedAtUtc]
+)
+OUTPUT INSERTED.[Id], INSERTED.[CreatedAtUtc]
+INTO @InsertedNotifications ([Id], [CreatedAtUtc])
+SELECT
+    [Follow].[FollowerId],
+    {request.ActorUserId},
+    {type},
+    {priority},
+    {entityType},
+    {entityId},
+    {title},
+    {message},
+    {actionUrl},
+    {dataJson},
+    CAST(0 AS bit),
+    NULL,
+    {now}
+FROM [UserFollows] AS [Follow]
+LEFT JOIN [NotificationPreferences] AS [Preference]
+    ON [Preference].[UserId] = [Follow].[FollowerId]
+    AND [Preference].[Type] = {type}
+WHERE [Follow].[FollowingId] = {request.ActorUserId}
+  AND [Follow].[Status] = {followStatus}
+  AND COALESCE([Preference].[Audience], {defaultAudience}) <> {neverAudience}
+  AND NOT EXISTS
+  (
+      SELECT 1
+      FROM [UserBlocks] AS [Block]
+      WHERE
+          ([Block].[BlockerId] = {request.ActorUserId}
+           AND [Block].[BlockedUserId] = [Follow].[FollowerId])
+          OR
+          ([Block].[BlockerId] = [Follow].[FollowerId]
+           AND [Block].[BlockedUserId] = {request.ActorUserId})
+  );
+
+INSERT INTO [NotificationOutboxMessages]
+(
+    [NotificationId],
+    [EventName],
+    [CreatedAtUtc],
+    [ProcessedAtUtc],
+    [AttemptCount],
+    [NextAttemptAtUtc],
+    [LastError],
+    [LockToken],
+    [LockedUntilUtc]
+)
+SELECT
+    [Id],
+    'NotificationCreated',
+    [CreatedAtUtc],
+    NULL,
+    0,
+    [CreatedAtUtc],
+    NULL,
+    NULL,
+    NULL
+FROM @InsertedNotifications;", cancellationToken);
+
+            if (transaction is not null)
+                await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            if (transaction is not null)
+                await transaction.RollbackAsync(CancellationToken.None);
+
+            throw;
         }
     }
 
@@ -421,7 +490,8 @@ FROM @InsertedNotifications;", cancellationToken);
         NotificationType type,
         CancellationToken cancellationToken)
     {
-        if (IsAdminNotification(type))
+        if (IsAdminNotification(type) ||
+            IsMandatoryFollowNotification(type))
             return true;
 
         var audience = await _context.NotificationPreferences
@@ -555,6 +625,14 @@ FROM @InsertedNotifications;", cancellationToken);
     private static bool IsAdminNotification(NotificationType type)
     {
         return type is NotificationType.AnnouncementPublished or NotificationType.WarningIssued;
+    }
+
+    private static bool IsMandatoryFollowNotification(NotificationType type)
+    {
+        return type is
+            NotificationType.FollowRequestReceived or
+            NotificationType.UserFollowed or
+            NotificationType.FollowRequestAccepted;
     }
 
     private static void ValidateFilter(NotificationFilterDTO filter)
