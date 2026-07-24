@@ -15,6 +15,8 @@ public class LocalFileStorageService : IFileStorageService
     private const int MaxReportEvidenceImageSize = 5;
     private const long MaxChatImageBytes = 10L * 1024 * 1024;
     private const long MaxChatVideoBytes = 50L * 1024 * 1024;
+    private const long MaxDiscussionImageBytes = 10L * 1024 * 1024;
+    private const long MaxDiscussionVideoBytes = 100L * 1024 * 1024;
 
     private readonly FileStorageSettings _settings;
 
@@ -48,6 +50,34 @@ public class LocalFileStorageService : IFileStorageService
             dto.Length,
             MaxPostImageSize,
             "post-images",
+            cancellationToken);
+    }
+
+    public async Task<string> SaveCommunityIconAsync(
+        ProfileImageUploadDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        dto.ValidateUpload(MaxProfileImageSize, FileSize.MB);
+
+        return await SavePublicImageAsync(
+            dto.Stream,
+            dto.Length,
+            MaxProfileImageSize,
+            "community-icons",
+            cancellationToken);
+    }
+
+    public async Task<string> SaveCommunityCoverImageAsync(
+        ProfileImageUploadDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        dto.ValidateUpload(MaxPostImageSize, FileSize.MB);
+
+        return await SavePublicImageAsync(
+            dto.Stream,
+            dto.Length,
+            MaxPostImageSize,
+            "community-covers",
             cancellationToken);
     }
 
@@ -260,6 +290,117 @@ public class LocalFileStorageService : IFileStorageService
             File.Delete(fullPath);
 
         return Task.CompletedTask;
+    }
+
+    public async Task<(string Url, string ContentType, long Length)> SaveDiscussionMediaAsync(
+        DiscussionMediaUploadDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        if (dto.Stream == Stream.Null || dto.Length <= 0)
+            throw new BadRequestException("Müzakirə mediası boşdur.");
+
+        var declaredType = dto.ContentType.Trim().ToLowerInvariant();
+        var isVideo = declaredType.StartsWith("video/", StringComparison.Ordinal);
+        var maxLength = isVideo
+            ? MaxDiscussionVideoBytes
+            : MaxDiscussionImageBytes;
+
+        if (!isVideo &&
+            !declaredType.StartsWith("image/", StringComparison.Ordinal))
+        {
+            throw new BadRequestException(
+                "Müzakirəyə yalnız şəkil və video faylları əlavə edilə bilər.");
+        }
+
+        if (dto.Length > maxLength)
+        {
+            throw new BadRequestException(
+                isVideo
+                    ? "Hər video maksimum 100 MB ola bilər."
+                    : "Hər şəkil maksimum 10 MB ola bilər.");
+        }
+
+        var folderPath = Path.Combine(
+            _settings.WebRootPath,
+            "uploads",
+            "discussion-media");
+        Directory.CreateDirectory(folderPath);
+
+        var temporaryPath = Path.Combine(
+            folderPath,
+            $"{Guid.NewGuid():N}.uploading");
+        long written = 0;
+        var header = new byte[16];
+        var headerLength = 0;
+
+        try
+        {
+            await using (var output = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                64 * 1024,
+                FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                var buffer = new byte[64 * 1024];
+                int read;
+
+                while ((read = await dto.Stream.ReadAsync(buffer, cancellationToken)) > 0)
+                {
+                    written += read;
+                    if (written > maxLength)
+                        throw new BadRequestException(
+                            "Media faylı icazə verilən ölçünü keçir.");
+
+                    if (headerLength < header.Length)
+                    {
+                        var copyLength = Math.Min(header.Length - headerLength, read);
+                        Buffer.BlockCopy(buffer, 0, header, headerLength, copyLength);
+                        headerLength += copyLength;
+                    }
+
+                    await output.WriteAsync(
+                        buffer.AsMemory(0, read),
+                        cancellationToken);
+                }
+            }
+
+            if (written == 0 || written != dto.Length)
+                throw new BadRequestException(
+                    "Media faylının ölçüsü doğrulana bilmədi.");
+
+            var detected = DetectChatMedia(header.AsSpan(0, headerLength));
+            if (detected.ContentType is null)
+                throw new BadRequestException(
+                    "Yalnız JPEG, PNG, WEBP, MP4 və WEBM formatları dəstəklənir.");
+
+            if (!string.Equals(
+                    detected.ContentType,
+                    declaredType,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BadRequestException(
+                    "Media faylının real formatı Content-Type ilə uyğun deyil.");
+            }
+
+            var fileName = $"{Guid.NewGuid():N}{detected.Extension}";
+            var finalPath = Path.Combine(folderPath, fileName);
+            File.Move(temporaryPath, finalPath);
+
+            return (
+                $"/uploads/discussion-media/{fileName}",
+                detected.ContentType,
+                written);
+        }
+        catch
+        {
+            if (File.Exists(temporaryPath))
+                File.Delete(temporaryPath);
+            throw;
+        }
     }
 
     public Task DeleteAsync(string? relativePath)

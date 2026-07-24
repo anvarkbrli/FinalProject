@@ -176,7 +176,7 @@ export function SearchPage() {
                 data.discussions.map((item) => (
                   <ResultLink
                     key={item.id}
-                    to="/#forum"
+                    to="/forum"
                     icon={<MessageSquareText size={20} />}
                     title={item.title}
                     description={`${item.categoryName} · ${item.authorUserName} · ${formatDateTime(item.createdAt)}`}

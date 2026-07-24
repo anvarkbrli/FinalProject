@@ -291,6 +291,11 @@ public sealed class UserReportService : IUserReportService
                 reportedUserId,
                 cancellationToken),
 
+            UserReportContentType.Community => await ResolveCommunityAsync(
+                id,
+                reportedUserId,
+                cancellationToken),
+
             UserReportContentType.DirectMessage => throw new BadRequestException(
                 "Mesaj sistemi layihədə olmadığı üçün mesaj reportu hələ aktiv deyil."),
 
@@ -421,7 +426,12 @@ public sealed class UserReportService : IUserReportService
         var reply = await _context.DiscussionReplies
             .AsNoTracking()
             .Where(x => x.Id == (int)replyId)
-            .Select(x => new { x.UserId, x.Content, x.DiscussionId })
+            .Select(x => new
+            {
+                x.UserId,
+                x.Content,
+                DiscussionSlug = x.Discussion.Slug
+            })
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("Şikayət edilən forum cavabı tapılmadı.");
 
@@ -431,7 +441,37 @@ public sealed class UserReportService : IUserReportService
             UserReportContentType.DiscussionReply,
             replyId,
             CreateSnapshot(reply.Content),
-            $"/forum/discussions/{reply.DiscussionId}#reply-{replyId}");
+            $"/forum/discussions/{Uri.EscapeDataString(reply.DiscussionSlug)}#reply-{replyId}");
+    }
+
+    private async Task<ReportedContentReference> ResolveCommunityAsync(
+        long communityId,
+        Guid reportedUserId,
+        CancellationToken cancellationToken)
+    {
+        if (communityId > int.MaxValue)
+            throw new BadRequestException("İcma ID-si düzgün deyil.");
+
+        var community = await _context.ForumCommunities
+            .AsNoTracking()
+            .Where(x => x.Id == (int)communityId)
+            .Select(x => new
+            {
+                x.OwnerId,
+                x.Name,
+                x.Description,
+                x.Slug
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Şikayət edilən icma tapılmadı.");
+
+        EnsureContentOwner(community.OwnerId, reportedUserId);
+
+        return new ReportedContentReference(
+            UserReportContentType.Community,
+            communityId,
+            CreateSnapshot($"{community.Name}\n{community.Description}"),
+            $"/forum/communities/{Uri.EscapeDataString(community.Slug)}");
     }
 
     private static void EnsureContentOwner(

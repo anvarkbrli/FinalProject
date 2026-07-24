@@ -30,7 +30,8 @@ public sealed class NotificationService : INotificationService
         NotificationType.GameListCommented,
         NotificationType.DiscussionLiked,
         NotificationType.DiscussionReplied,
-        NotificationType.DiscussionReplyLiked
+        NotificationType.DiscussionReplyLiked,
+        NotificationType.FollowedDiscussionReplyActivity
     ];
 
     private static readonly HashSet<NotificationType> FollowerBroadcastTypes =

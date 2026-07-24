@@ -45,5 +45,19 @@ public interface IDiscussionReplyService
 
     Task LikeAsync(int replyId, Guid userId, CancellationToken cancellationToken = default);
     Task UnlikeAsync(int replyId, Guid userId, CancellationToken cancellationToken = default);
+    Task<DiscussionReplyDTO> SetVoteAsync(
+        int replyId,
+        Guid userId,
+        short value,
+        bool canModerate,
+        CancellationToken cancellationToken = default);
+    Task FollowAsync(
+        int replyId,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+    Task UnfollowAsync(
+        int replyId,
+        Guid userId,
+        CancellationToken cancellationToken = default);
     Task<DiscussionReplyDTO> RestoreAsync(int replyId, CancellationToken cancellationToken = default);
 }

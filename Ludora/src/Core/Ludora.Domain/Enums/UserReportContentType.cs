@@ -9,5 +9,6 @@ public enum UserReportContentType
     ReviewComment = 4,
     Discussion = 5,
     DiscussionReply = 6,
-    DirectMessage = 7
+    DirectMessage = 7,
+    Community = 8
 }

@@ -16,7 +16,7 @@ const footerLinks = [
   },
   {
     label: "Forum",
-    href: "#forum",
+    href: "/forum",
   },
 ];
 

@@ -6,7 +6,8 @@ export type UserReportContentType =
   | "ReviewComment"
   | "Discussion"
   | "DiscussionReply"
-  | "DirectMessage";
+  | "DirectMessage"
+  | "Community";
 
 export type UserReportCategory =
   | "Spam"

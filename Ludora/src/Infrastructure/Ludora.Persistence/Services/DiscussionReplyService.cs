@@ -40,10 +40,25 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
             .Select(x => new
             {
                 ReplyAuthorId = x.UserId,
-                DiscussionAuthorId = x.Discussion.UserId
+                DiscussionAuthorId = x.Discussion.UserId,
+                CommunityVisibility = x.Discussion.CommunityId.HasValue
+                    ? (ForumCommunityVisibility?)x.Discussion.Community!.Visibility
+                    : null,
+                IsCommunityMember = currentUserId.HasValue &&
+                    x.Discussion.CommunityId.HasValue &&
+                    x.Discussion.Community!.Members.Any(member =>
+                        member.UserId == currentUserId.Value &&
+                        member.Status == ForumCommunityMembershipStatus.Active)
             })
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("Cavab tapılmadı.");
+
+        if (replyInfo.CommunityVisibility == ForumCommunityVisibility.Private &&
+            !canModerate &&
+            !replyInfo.IsCommunityMember)
+        {
+            throw new NotFoundException("Cavab tapılmadı.");
+        }
 
         if (currentUserId.HasValue && !canModerate)
         {
@@ -76,35 +91,56 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
         discussionId.EnsureValidId("Mövzu ID-si");
         ValidatePagination(pageNumber, pageSize);
 
-        var discussionAuthorId = await _context.Discussions
+        var discussionInfo = await _context.Discussions
             .AsNoTracking()
             .Where(x => x.Id == discussionId)
-            .Select(x => (Guid?)x.UserId)
+            .Select(x => new
+            {
+                x.UserId,
+                CommunityVisibility = x.CommunityId.HasValue
+                    ? (ForumCommunityVisibility?)x.Community!.Visibility
+                    : null,
+                IsCommunityMember = currentUserId.HasValue &&
+                    x.CommunityId.HasValue &&
+                    x.Community!.Members.Any(member =>
+                        member.UserId == currentUserId.Value &&
+                        member.Status == ForumCommunityMembershipStatus.Active)
+            })
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("Mövzu tapılmadı.");
+
+        if (discussionInfo.CommunityVisibility == ForumCommunityVisibility.Private &&
+            !canModerate &&
+            !discussionInfo.IsCommunityMember)
+        {
+            throw new NotFoundException("Mövzu tapılmadı.");
+        }
 
         if (currentUserId.HasValue && !canModerate)
         {
             await EnsureUsersAreNotBlockedAsync(
                 currentUserId.Value,
-                discussionAuthorId,
+                discussionInfo.UserId,
                 cancellationToken);
         }
 
         var query = _context.DiscussionReplies
+            .IgnoreQueryFilters()
             .AsNoTracking()
             .Where(x => x.DiscussionId == discussionId);
 
         if (currentUserId.HasValue && !canModerate)
             query = ExcludeBlockedAuthors(query, currentUserId.Value);
 
-        var totalCount = await query.CountAsync(cancellationToken);
+        var flatItems = await ProjectReplies(query, currentUserId, canModerate)
+            .ToListAsync(cancellationToken);
 
-        var items = await ProjectReplies(query, currentUserId, canModerate)
-            .OrderBy(x => x.CreatedAt)
+        var tree = BuildReplyTree(flatItems);
+        var totalCount = tree.Count;
+        var items = tree
             .Skip((pageNumber - 1) * pageSize)
             .Take(pageSize)
-            .ToListAsync(cancellationToken);
+            .ToList();
 
         return CreatePagedResult(items, pageNumber, pageSize, totalCount);
     }
@@ -154,7 +190,16 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
             .Select(x => new
             {
                 x.UserId,
-                x.IsLocked
+                x.Slug,
+                x.IsLocked,
+                x.CommunityId,
+                CommunityVisibility = x.CommunityId.HasValue
+                    ? (ForumCommunityVisibility?)x.Community!.Visibility
+                    : null,
+                IsCommunityMember = x.CommunityId.HasValue &&
+                    x.Community!.Members.Any(member =>
+                        member.UserId == userId &&
+                        member.Status == ForumCommunityMembershipStatus.Active)
             })
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("Mövzu tapılmadı.");
@@ -162,14 +207,64 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
         if (discussion.IsLocked)
             throw new ConflictException("Bu mövzu kilidlənib və yeni cavab qəbul etmir.");
 
+        if (discussion.CommunityVisibility == ForumCommunityVisibility.Private &&
+            !discussion.IsCommunityMember)
+        {
+            throw new NotFoundException("Mövzu tapılmadı.");
+        }
+
         await EnsureUsersAreNotBlockedAsync(userId, discussion.UserId, cancellationToken);
 
         var content = dto.Content.NormalizeRequiredText("Cavab mətni", MaxContentLength);
+        Guid[] followedReplyRecipientIds = [];
+
+        if (dto.ParentReplyId.HasValue)
+        {
+            dto.ParentReplyId.Value.EnsureValidId("Ana cavab ID-si");
+
+            var parent = await _context.DiscussionReplies
+                .AsNoTracking()
+                .Where(x => x.Id == dto.ParentReplyId.Value)
+                .Select(x => new
+                {
+                    x.DiscussionId,
+                    x.ParentReplyId
+                })
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? throw new NotFoundException("Cavab verilən şərh tapılmadı.");
+
+            if (parent.DiscussionId != discussionId)
+                throw new BadRequestException(
+                    "Cavab yalnız eyni müzakirədəki şərhə yazıla bilər.");
+
+            var depth = 1;
+            var nextParentId = parent.ParentReplyId;
+            while (nextParentId.HasValue)
+            {
+                depth++;
+                if (depth >= 8)
+                    throw new BadRequestException(
+                        "Şərhlər maksimum 8 səviyyə iç-içə ola bilər.");
+
+                nextParentId = await _context.DiscussionReplies
+                    .AsNoTracking()
+                    .Where(x => x.Id == nextParentId.Value)
+                    .Select(x => x.ParentReplyId)
+                    .FirstOrDefaultAsync(cancellationToken);
+            }
+
+            followedReplyRecipientIds = await _context.DiscussionReplyFollows
+                .AsNoTracking()
+                .Where(x => x.ReplyId == dto.ParentReplyId.Value)
+                .Select(x => x.UserId)
+                .ToArrayAsync(cancellationToken);
+        }
 
         var reply = new DiscussionReply
         {
             DiscussionId = discussionId,
             UserId = userId,
+            ParentReplyId = dto.ParentReplyId,
             Content = content,
             CreatedAt = DateTime.UtcNow
         };
@@ -186,9 +281,29 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
                 EntityId = discussionId.ToString(),
                 Title = "Müzakirənizə cavab yazıldı",
                 Message = "Açdığınız müzakirəyə cavab yazdı.",
-                ActionUrl = "/#forum"
+                ActionUrl = $"/forum/discussions/{discussion.Slug}"
             },
             cancellationToken);
+
+        foreach (var recipientUserId in followedReplyRecipientIds)
+        {
+            if (recipientUserId == discussion.UserId)
+                continue;
+
+            await _notificationService.QueueAsync(
+                new NotificationCreateRequest
+                {
+                    RecipientUserId = recipientUserId,
+                    ActorUserId = userId,
+                    Type = NotificationType.FollowedDiscussionReplyActivity,
+                    EntityType = NotificationEntityType.DiscussionReply,
+                    EntityId = dto.ParentReplyId!.Value.ToString(),
+                    Title = "İzlədiyiniz şərhə yeni cavab yazıldı",
+                    Message = "İzlədiyiniz forum şərhinə yeni cavab əlavə etdi.",
+                    ActionUrl = $"/forum/discussions/{discussion.Slug}"
+                },
+                cancellationToken);
+        }
 
         await _context.SaveChangesAsync(cancellationToken);
 
@@ -208,6 +323,14 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
     {
         replyId.EnsureValidId("Cavab ID-si");
         ArgumentNullException.ThrowIfNull(dto);
+
+        if (!canModerate)
+        {
+            await EnsureReplyCommunityAccessAsync(
+                replyId,
+                userId,
+                cancellationToken);
+        }
 
         var reply = await _context.DiscussionReplies
             .Include(x => x.Discussion)
@@ -239,11 +362,26 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
     {
         replyId.EnsureValidId("Cavab ID-si");
 
+        if (!canModerate)
+        {
+            await EnsureReplyCommunityAccessAsync(
+                replyId,
+                userId,
+                cancellationToken);
+        }
+
         var reply = await _context.DiscussionReplies
+            .Include(x => x.Discussion)
             .FirstOrDefaultAsync(x => x.Id == replyId, cancellationToken)
             ?? throw new NotFoundException("Cavab tapılmadı.");
 
-        EnsureCanModify(reply.UserId, userId, canModerate);
+        if (reply.UserId != userId &&
+            reply.Discussion.UserId != userId &&
+            !canModerate)
+        {
+            throw new ForbiddenException(
+                "Bu şərhi silmək üçün icazəniz yoxdur.");
+        }
 
         reply.IsDeleted = true;
         reply.UpdatedAt = DateTime.UtcNow;
@@ -257,6 +395,11 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
         CancellationToken cancellationToken = default)
     {
         replyId.EnsureValidId("Cavab ID-si");
+
+        await EnsureReplyCommunityAccessAsync(
+            replyId,
+            userId,
+            cancellationToken);
 
         var replyInfo = await _context.DiscussionReplies
             .AsNoTracking()
@@ -317,6 +460,11 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
     {
         replyId.EnsureValidId("Cavab ID-si");
 
+        await EnsureReplyCommunityAccessAsync(
+            replyId,
+            userId,
+            cancellationToken);
+
         var like = await _context.DiscussionReplyLikes
             .FirstOrDefaultAsync(
                 x => x.ReplyId == replyId && x.UserId == userId,
@@ -324,6 +472,169 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
             ?? throw new NotFoundException("Cavab bəyənməsi tapılmadı.");
 
         _context.DiscussionReplyLikes.Remove(like);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<DiscussionReplyDTO> SetVoteAsync(
+        int replyId,
+        Guid userId,
+        short value,
+        bool canModerate,
+        CancellationToken cancellationToken = default)
+    {
+        replyId.EnsureValidId("Cavab ID-si");
+
+        if (value is not (-1 or 0 or 1))
+            throw new BadRequestException(
+                "Səs dəyəri yalnız -1, 0 və ya 1 ola bilər.");
+
+        var replyInfo = await _context.DiscussionReplies
+            .AsNoTracking()
+            .Where(x => x.Id == replyId)
+            .Select(x => new
+            {
+                ReplyAuthorId = x.UserId,
+                DiscussionAuthorId = x.Discussion.UserId,
+                DiscussionSlug = x.Discussion.Slug
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Cavab tapılmadı.");
+
+        await EnsureUsersAreNotBlockedAsync(
+            userId,
+            replyInfo.DiscussionAuthorId,
+            cancellationToken);
+        await EnsureUsersAreNotBlockedAsync(
+            userId,
+            replyInfo.ReplyAuthorId,
+            cancellationToken);
+
+        var vote = await _context.DiscussionReplyVotes
+            .FirstOrDefaultAsync(
+                x => x.ReplyId == replyId && x.UserId == userId,
+                cancellationToken);
+        var previousValue = vote?.Value ?? 0;
+
+        if (value == 0)
+        {
+            if (vote is not null)
+                _context.DiscussionReplyVotes.Remove(vote);
+        }
+        else if (vote is null)
+        {
+            await _context.DiscussionReplyVotes.AddAsync(
+                new DiscussionReplyVote
+                {
+                    ReplyId = replyId,
+                    UserId = userId,
+                    Value = value,
+                    CreatedAt = DateTime.UtcNow
+                },
+                cancellationToken);
+        }
+        else if (vote.Value != value)
+        {
+            vote.Value = value;
+            vote.UpdatedAt = DateTime.UtcNow;
+        }
+
+        if (value == 1 && previousValue != 1)
+        {
+            await _notificationService.QueueAsync(
+                new NotificationCreateRequest
+                {
+                    RecipientUserId = replyInfo.ReplyAuthorId,
+                    ActorUserId = userId,
+                    Type = NotificationType.DiscussionReplyLiked,
+                    Priority = NotificationPriority.Low,
+                    EntityType = NotificationEntityType.DiscussionReply,
+                    EntityId = replyId.ToString(),
+                    Title = "Şərhinizə müsbət səs verildi",
+                    Message = "Müzakirədəki şərhinizə müsbət səs verdi.",
+                    ActionUrl = $"/forum/discussions/{replyInfo.DiscussionSlug}"
+                },
+                cancellationToken);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return await ProjectReplies(
+                _context.DiscussionReplies
+                    .AsNoTracking()
+                    .Where(x => x.Id == replyId),
+                userId,
+                canModerate)
+            .FirstAsync(cancellationToken);
+    }
+
+    public async Task FollowAsync(
+        int replyId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        replyId.EnsureValidId("Şərh ID-si");
+
+        await EnsureReplyCommunityAccessAsync(
+            replyId,
+            userId,
+            cancellationToken);
+
+        var replyInfo = await _context.DiscussionReplies
+            .AsNoTracking()
+            .Where(x => x.Id == replyId)
+            .Select(x => new
+            {
+                ReplyAuthorId = x.UserId,
+                DiscussionAuthorId = x.Discussion.UserId
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Şərh tapılmadı.");
+
+        await EnsureUsersAreNotBlockedAsync(
+            userId,
+            replyInfo.DiscussionAuthorId,
+            cancellationToken);
+        await EnsureUsersAreNotBlockedAsync(
+            userId,
+            replyInfo.ReplyAuthorId,
+            cancellationToken);
+
+        var alreadyFollowing = await _context.DiscussionReplyFollows
+            .AnyAsync(
+                x => x.ReplyId == replyId && x.UserId == userId,
+                cancellationToken);
+
+        if (alreadyFollowing)
+            return;
+
+        await _context.DiscussionReplyFollows.AddAsync(
+            new DiscussionReplyFollow
+            {
+                ReplyId = replyId,
+                UserId = userId,
+                CreatedAt = DateTime.UtcNow
+            },
+            cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UnfollowAsync(
+        int replyId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        replyId.EnsureValidId("Şərh ID-si");
+
+        var follow = await _context.DiscussionReplyFollows
+            .FirstOrDefaultAsync(
+                x => x.ReplyId == replyId && x.UserId == userId,
+                cancellationToken);
+
+        if (follow is null)
+            return;
+
+        _context.DiscussionReplyFollows.Remove(follow);
         await _context.SaveChangesAsync(cancellationToken);
     }
 
@@ -388,21 +699,74 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
         {
             Id = x.Id,
             DiscussionId = x.DiscussionId,
+            ParentReplyId = x.ParentReplyId,
             AuthorId = x.UserId,
             AuthorUserName = x.User.UserName ?? string.Empty,
             AuthorProfileImageUrl = x.User.ProfileImageUrl,
-            Content = x.Content,
-            LikeCount = x.Likes.Count,
-            IsLikedByCurrentUser = currentUserId.HasValue &&
-                                   x.Likes.Any(like => like.UserId == currentUserId.Value),
+            Content = x.IsDeleted ? string.Empty : x.Content,
+            NetScore = x.Votes.Sum(vote => (int?)vote.Value) ?? 0,
+            CurrentUserVote = currentUserId.HasValue
+                ? x.Votes
+                    .Where(vote => vote.UserId == currentUserId.Value)
+                    .Select(vote => (short?)vote.Value)
+                    .FirstOrDefault() ?? 0
+                : (short)0,
+            IsFollowedByCurrentUser = currentUserId.HasValue &&
+                                      x.Followers.Any(
+                                          follow => follow.UserId == currentUserId.Value),
+            ChildCount = x.ChildReplies.Count,
             IsDeleted = x.IsDeleted,
-            CanEdit = currentUserId.HasValue &&
+            CanEdit = !x.IsDeleted &&
+                      currentUserId.HasValue &&
                       (canModerate || x.UserId == currentUserId.Value),
             CanDelete = currentUserId.HasValue &&
-                        (canModerate || x.UserId == currentUserId.Value),
+                        !x.IsDeleted &&
+                        (canModerate ||
+                         x.UserId == currentUserId.Value ||
+                         x.Discussion.UserId == currentUserId.Value),
             CreatedAt = x.CreatedAt,
             UpdatedAt = x.UpdatedAt
         });
+    }
+
+    private static IReadOnlyList<DiscussionReplyDTO> BuildReplyTree(
+        IReadOnlyList<DiscussionReplyDTO> flatItems)
+    {
+        var itemIds = flatItems.Select(x => x.Id).ToHashSet();
+        var childrenByParent = flatItems
+            .Where(x => x.ParentReplyId.HasValue)
+            .ToLookup(x => x.ParentReplyId!.Value);
+
+        DiscussionReplyDTO AttachChildren(
+            DiscussionReplyDTO item,
+            HashSet<int> path)
+        {
+            if (!path.Add(item.Id))
+                return item with { Children = [] };
+
+            var children = childrenByParent[item.Id]
+                .Where(child => !path.Contains(child.Id))
+                .OrderByDescending(child => child.NetScore)
+                .ThenBy(child => child.CreatedAt)
+                .Select(child =>
+                    AttachChildren(child, new HashSet<int>(path)))
+                .ToList();
+
+            return item with
+            {
+                Children = children,
+                ChildCount = children.Count
+            };
+        }
+
+        return flatItems
+            .Where(x =>
+                !x.ParentReplyId.HasValue ||
+                !itemIds.Contains(x.ParentReplyId.Value))
+            .OrderByDescending(x => x.NetScore)
+            .ThenBy(x => x.CreatedAt)
+            .Select(x => AttachChildren(x, []))
+            .ToList();
     }
 
     private async Task EnsureUsersAreNotBlockedAsync(
@@ -422,6 +786,34 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
 
         if (isBlocked)
             throw new ForbiddenException("Bloklanmış istifadəçilər arasında bu əməliyyat mümkün deyil.");
+    }
+
+    private async Task EnsureReplyCommunityAccessAsync(
+        int replyId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        var access = await _context.DiscussionReplies
+            .AsNoTracking()
+            .Where(x => x.Id == replyId)
+            .Select(x => new
+            {
+                CommunityVisibility = x.Discussion.CommunityId.HasValue
+                    ? (ForumCommunityVisibility?)x.Discussion.Community!.Visibility
+                    : null,
+                IsCommunityMember = !x.Discussion.CommunityId.HasValue ||
+                    x.Discussion.Community!.Members.Any(member =>
+                        member.UserId == userId &&
+                        member.Status == ForumCommunityMembershipStatus.Active)
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Cavab tapılmadı.");
+
+        if (access.CommunityVisibility == ForumCommunityVisibility.Private &&
+            !access.IsCommunityMember)
+        {
+            throw new NotFoundException("Cavab tapılmadı.");
+        }
     }
 
     private static void EnsureCanModify(

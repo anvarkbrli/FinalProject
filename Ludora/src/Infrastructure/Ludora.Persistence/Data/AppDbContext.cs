@@ -41,6 +41,14 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<DiscussionReply> DiscussionReplies { get; set; }
     public DbSet<DiscussionLike> DiscussionLikes { get; set; }
     public DbSet<DiscussionReplyLike> DiscussionReplyLikes { get; set; }
+    public DbSet<DiscussionReplyVote> DiscussionReplyVotes { get; set; }
+    public DbSet<DiscussionMedia> DiscussionMedia { get; set; }
+    public DbSet<DiscussionSave> DiscussionSaves { get; set; }
+    public DbSet<DiscussionReplyFollow> DiscussionReplyFollows { get; set; }
+    public DbSet<DiscussionView> DiscussionViews { get; set; }
+    public DbSet<ForumCommunity> ForumCommunities { get; set; }
+    public DbSet<ForumCommunityMember> ForumCommunityMembers { get; set; }
+    public DbSet<ForumCommunityFollow> ForumCommunityFollows { get; set; }
     public DbSet<UserBanHistory> UserBanHistories { get; set; }
     public DbSet<UserWarning> UserWarnings { get; set; }
     public DbSet<UserReport> UserReports { get; set; }

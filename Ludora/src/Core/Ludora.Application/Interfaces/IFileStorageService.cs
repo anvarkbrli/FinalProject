@@ -11,6 +11,12 @@ public interface IFileStorageService
     Task<string> SavePostImageAsync(
         PostImageUploadDTO dto,
         CancellationToken cancellationToken = default);
+    Task<string> SaveCommunityIconAsync(
+        ProfileImageUploadDTO dto,
+        CancellationToken cancellationToken = default);
+    Task<string> SaveCommunityCoverImageAsync(
+        ProfileImageUploadDTO dto,
+        CancellationToken cancellationToken = default);
     Task<string> SaveReportEvidenceImageAsync(
         UserReportEvidenceUploadDTO dto,
         CancellationToken cancellationToken = default);
@@ -25,5 +31,8 @@ public interface IFileStorageService
         string storageKey,
         CancellationToken cancellationToken = default);
     Task DeleteChatMediaAsync(string? storageKey);
+    Task<(string Url, string ContentType, long Length)> SaveDiscussionMediaAsync(
+        DiscussionMediaUploadDTO dto,
+        CancellationToken cancellationToken = default);
     Task DeleteAsync(string? relativePath);
 }

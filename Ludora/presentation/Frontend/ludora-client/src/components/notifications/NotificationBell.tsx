@@ -57,6 +57,7 @@ function renderNotificationIcon(type: NotificationType) {
     case "ReviewCommented":
     case "GameListCommented":
     case "DiscussionReplied":
+    case "FollowedDiscussionReplyActivity":
     case "FollowingDiscussionCreated":
       return <MessageCircle size={18} />;
     case "FollowingReviewCreated":

@@ -22,7 +22,7 @@ public sealed class UserReportConfiguration : IEntityTypeConfiguration<UserRepor
                 "[Status] BETWEEN 0 AND 3");
             tableBuilder.HasCheckConstraint(
                 "CK_UserReports_ContentType",
-                "[ReportedContentType] BETWEEN 0 AND 7");
+                "[ReportedContentType] BETWEEN 0 AND 8");
             tableBuilder.HasCheckConstraint(
                 "CK_UserReports_ContentReference",
                 "([ReportedContentType] = 0 AND [ReportedContentId] IS NULL) OR ([ReportedContentType] <> 0 AND [ReportedContentId] IS NOT NULL)");

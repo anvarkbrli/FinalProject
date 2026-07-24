@@ -20,6 +20,7 @@ public enum NotificationType
     DiscussionLiked = 26,
     DiscussionReplied = 27,
     DiscussionReplyLiked = 28,
+    FollowedDiscussionReplyActivity = 29,
 
     FollowRequestReceived = 30,
     UserFollowed = 31,

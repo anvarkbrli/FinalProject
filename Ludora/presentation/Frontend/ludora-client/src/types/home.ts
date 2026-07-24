@@ -41,10 +41,17 @@ export interface DiscussionListItemDTO {
   id: number;
   title: string;
   slug: string;
+  contentPreview: string;
+  media: DiscussionMediaDTO[];
 
   categoryId: number;
   categoryName: string;
   categorySlug: string;
+
+  communityId: number | null;
+  communityName: string | null;
+  communitySlug: string | null;
+  communityIconUrl: string | null;
 
   authorId: string;
   authorUserName: string;
@@ -55,6 +62,7 @@ export interface DiscussionListItemDTO {
   viewCount: number;
 
   isLikedByCurrentUser: boolean;
+  isSavedByCurrentUser: boolean;
   isPinned: boolean;
   isLocked: boolean;
   isDeleted: boolean;
@@ -63,6 +71,16 @@ export interface DiscussionListItemDTO {
 
   createdAt: string;
   updatedAt: string | null;
+}
+
+export interface DiscussionMediaDTO {
+  id: number;
+  url: string;
+  contentType: string;
+  originalFileName: string;
+  fileSize: number;
+  sortOrder: number;
+  isVideo: boolean;
 }
 
 export interface ForumCategoryDTO {

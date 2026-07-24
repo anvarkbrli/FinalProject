@@ -14,6 +14,7 @@ public sealed class DiscussionReplyConfiguration : IEntityTypeConfiguration<Disc
 
         builder.HasIndex(x => new { x.DiscussionId, x.CreatedAt });
         builder.HasIndex(x => new { x.UserId, x.CreatedAt });
+        builder.HasIndex(x => new { x.ParentReplyId, x.CreatedAt });
 
         builder.HasOne(x => x.Discussion)
             .WithMany(x => x.Replies)
@@ -23,6 +24,11 @@ public sealed class DiscussionReplyConfiguration : IEntityTypeConfiguration<Disc
         builder.HasOne(x => x.User)
             .WithMany(x => x.DiscussionReplies)
             .HasForeignKey(x => x.UserId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ParentReply)
+            .WithMany(x => x.ChildReplies)
+            .HasForeignKey(x => x.ParentReplyId)
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasQueryFilter(x => !x.IsDeleted);

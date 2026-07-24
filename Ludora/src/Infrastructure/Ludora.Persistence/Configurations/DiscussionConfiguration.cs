@@ -25,6 +25,7 @@ public sealed class DiscussionConfiguration : IEntityTypeConfiguration<Discussio
 
         builder.HasIndex(x => new { x.CategoryId, x.CreatedAt });
         builder.HasIndex(x => new { x.UserId, x.CreatedAt });
+        builder.HasIndex(x => new { x.CommunityId, x.CreatedAt });
         builder.HasIndex(x => new { x.IsPinned, x.CreatedAt });
 
         builder.HasOne(x => x.Category)
@@ -36,6 +37,11 @@ public sealed class DiscussionConfiguration : IEntityTypeConfiguration<Discussio
             .WithMany(x => x.Discussions)
             .HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.Community)
+            .WithMany(x => x.Discussions)
+            .HasForeignKey(x => x.CommunityId)
+            .OnDelete(DeleteBehavior.SetNull);
 
         builder.HasQueryFilter(x => !x.IsDeleted);
     }

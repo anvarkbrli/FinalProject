@@ -15,6 +15,7 @@ export type NotificationType =
   | "DiscussionLiked"
   | "DiscussionReplied"
   | "DiscussionReplyLiked"
+  | "FollowedDiscussionReplyActivity"
   | "FollowRequestReceived"
   | "UserFollowed"
   | "FollowRequestAccepted";

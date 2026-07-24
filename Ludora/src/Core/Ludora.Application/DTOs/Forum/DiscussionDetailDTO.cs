@@ -6,10 +6,16 @@ public record DiscussionDetailDTO
     public string Title { get; init; } = string.Empty;
     public string Slug { get; init; } = string.Empty;
     public string Content { get; init; } = string.Empty;
+    public IReadOnlyList<DiscussionMediaDTO> Media { get; init; } = [];
 
     public int CategoryId { get; init; }
     public string CategoryName { get; init; } = string.Empty;
     public string CategorySlug { get; init; } = string.Empty;
+
+    public int? CommunityId { get; init; }
+    public string? CommunityName { get; init; }
+    public string? CommunitySlug { get; init; }
+    public string? CommunityIconUrl { get; init; }
 
     public Guid AuthorId { get; init; }
     public string AuthorUserName { get; init; } = string.Empty;
@@ -20,6 +26,7 @@ public record DiscussionDetailDTO
     public int ViewCount { get; init; }
 
     public bool IsLikedByCurrentUser { get; init; }
+    public bool IsSavedByCurrentUser { get; init; }
     public bool IsPinned { get; init; }
     public bool IsLocked { get; init; }
     public bool IsDeleted { get; init; }

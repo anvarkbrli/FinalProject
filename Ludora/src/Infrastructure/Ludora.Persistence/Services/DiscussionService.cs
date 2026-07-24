@@ -1,3 +1,4 @@
+using System.Data;
 using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
@@ -17,16 +18,20 @@ public sealed class DiscussionService : IDiscussionService
     private const int MaxContentLength = 10000;
     private const int MaxSearchLength = 200;
     private const int MaxPageSize = 100;
+    private const int MaxMediaCount = 8;
 
     private readonly AppDbContext _context;
     private readonly INotificationService _notificationService;
+    private readonly IFileStorageService _fileStorageService;
 
     public DiscussionService(
         AppDbContext context,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IFileStorageService fileStorageService)
     {
         _context = context;
         _notificationService = notificationService;
+        _fileStorageService = fileStorageService;
     }
 
     public async Task<PagedResultDTO<DiscussionListItemDTO>> GetAllAsync(
@@ -42,8 +47,30 @@ public sealed class DiscussionService : IDiscussionService
         var categorySlug = filter.CategorySlug
             .NormalizeOptionalText("Kateqoriya slug-u", 120)?
             .ToLowerInvariant();
+        var communitySlug = filter.CommunitySlug
+            .NormalizeOptionalText("İcma slug-u", 80)?
+            .ToLowerInvariant();
 
         var query = _context.Discussions.AsNoTracking();
+
+        if (communitySlug is null)
+        {
+            query = query.Where(x =>
+                x.CommunityId == null ||
+                x.Community!.Visibility != ForumCommunityVisibility.Private);
+        }
+        else
+        {
+            query = query.Where(x => x.Community != null &&
+                                     x.Community.Slug == communitySlug);
+
+            query = query.Where(x =>
+                x.Community!.Visibility != ForumCommunityVisibility.Private ||
+                (currentUserId.HasValue &&
+                 x.Community.Members.Any(member =>
+                     member.UserId == currentUserId.Value &&
+                     member.Status == ForumCommunityMembershipStatus.Active)));
+        }
 
         if (currentUserId.HasValue && !canModerate)
             query = ExcludeBlockedAuthors(query, currentUserId.Value);
@@ -121,7 +148,7 @@ public sealed class DiscussionService : IDiscussionService
             canModerate,
             cancellationToken);
 
-        await IncrementViewCountAsync(id, cancellationToken);
+        await RecordUniqueViewAsync(id, currentUserId, cancellationToken);
 
         return await ProjectDetails(
                 _context.Discussions.AsNoTracking().Where(x => x.Id == id),
@@ -175,8 +202,35 @@ public sealed class DiscussionService : IDiscussionService
         if (!categoryExists)
             throw new NotFoundException("Forum kateqoriyası tapılmadı.");
 
+        if (dto.CommunityId.HasValue)
+        {
+            var canPostInCommunity = await _context.ForumCommunityMembers
+                .AsNoTracking()
+                .AnyAsync(member =>
+                    member.CommunityId == dto.CommunityId.Value &&
+                    member.UserId == userId &&
+                    member.Status == ForumCommunityMembershipStatus.Active,
+                    cancellationToken);
+
+            if (!canPostInCommunity)
+            {
+                throw new ForbiddenException(
+                    "Bu icmada müzakirə açmaq üçün aktiv üzv olmalısınız.");
+            }
+        }
+
         var title = dto.Title.NormalizeRequiredText("Mövzu başlığı", MaxTitleLength);
-        var content = dto.Content.NormalizeRequiredText("Mövzu mətni", MaxContentLength);
+        var content = dto.Content.NormalizeOptionalText("Mövzu mətni", MaxContentLength)
+            ?? string.Empty;
+
+        if (dto.Media.Count > MaxMediaCount)
+            throw new BadRequestException(
+                $"Bir müzakirəyə maksimum {MaxMediaCount} media əlavə edilə bilər.");
+
+        if (content.Length == 0 && dto.Media.Count == 0)
+            throw new BadRequestException(
+                "Müzakirə mətni və ya ən azı bir media əlavə edilməlidir.");
+
         var slug = await CreateUniqueSlugAsync(title, cancellationToken);
 
         var discussion = new Discussion
@@ -185,31 +239,100 @@ public sealed class DiscussionService : IDiscussionService
             Slug = slug,
             Content = content,
             CategoryId = dto.CategoryId,
+            CommunityId = dto.CommunityId,
             UserId = userId,
             CreatedAt = DateTime.UtcNow
         };
 
+        var savedUrls = new List<string>();
+
         await using var transaction = await _context.Database
             .BeginTransactionAsync(cancellationToken);
 
-        await _context.Discussions.AddAsync(discussion, cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await _context.Discussions.AddAsync(discussion, cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
 
-        await _notificationService.QueueForFollowersAsync(
-            new FollowerNotificationRequest
+            for (var index = 0; index < dto.Media.Count; index++)
             {
-                ActorUserId = userId,
-                Type = NotificationType.FollowingDiscussionCreated,
-                EntityType = NotificationEntityType.Discussion,
-                EntityId = discussion.Id.ToString(),
-                Title = "Yeni müzakirə",
-                Message = $"{discussion.Title} mövzusunda yeni müzakirə açdı.",
-                ActionUrl = "/#forum"
-            },
-            cancellationToken);
+                var upload = dto.Media[index];
+                var stored = await _fileStorageService.SaveDiscussionMediaAsync(
+                    upload,
+                    cancellationToken);
+                savedUrls.Add(stored.Url);
 
-        await _context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+                await _context.DiscussionMedia.AddAsync(
+                    new DiscussionMedia
+                    {
+                        DiscussionId = discussion.Id,
+                        Url = stored.Url,
+                        ContentType = stored.ContentType,
+                        OriginalFileName = Path.GetFileName(upload.FileName),
+                        FileSize = stored.Length,
+                        SortOrder = index,
+                        CreatedAt = DateTime.UtcNow
+                    },
+                    cancellationToken);
+            }
+
+            await _notificationService.QueueForFollowersAsync(
+                new FollowerNotificationRequest
+                {
+                    ActorUserId = userId,
+                    Type = NotificationType.FollowingDiscussionCreated,
+                    EntityType = NotificationEntityType.Discussion,
+                    EntityId = discussion.Id.ToString(),
+                    Title = "Yeni müzakirə",
+                    Message = $"{discussion.Title} mövzusunda yeni müzakirə açdı.",
+                    ActionUrl = $"/forum/discussions/{discussion.Slug}"
+                },
+                cancellationToken);
+
+            if (discussion.CommunityId.HasValue)
+            {
+                var community = await _context.ForumCommunities
+                    .AsNoTracking()
+                    .Where(x => x.Id == discussion.CommunityId.Value)
+                    .Select(x => new
+                    {
+                        x.Name,
+                        x.Slug,
+                        FollowerIds = x.Followers
+                            .Where(follow => follow.UserId != userId)
+                            .Select(follow => follow.UserId)
+                            .ToList()
+                    })
+                    .FirstAsync(cancellationToken);
+
+                foreach (var followerId in community.FollowerIds)
+                {
+                    await _notificationService.QueueAsync(
+                        new NotificationCreateRequest
+                        {
+                            RecipientUserId = followerId,
+                            ActorUserId = userId,
+                            Type = NotificationType.FollowingDiscussionCreated,
+                            EntityType = NotificationEntityType.Discussion,
+                            EntityId = discussion.Id.ToString(),
+                            Title = $"{community.Name} icmasında yeni müzakirə",
+                            Message = discussion.Title,
+                            ActionUrl = $"/forum/discussions/{discussion.Slug}"
+                        },
+                        cancellationToken);
+                }
+            }
+
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            foreach (var url in savedUrls)
+                await _fileStorageService.DeleteAsync(url);
+            throw;
+        }
 
         return await ProjectDetails(
                 _context.Discussions.AsNoTracking().Where(x => x.Id == discussion.Id),
@@ -283,6 +406,12 @@ public sealed class DiscussionService : IDiscussionService
     {
         id.EnsureValidId();
 
+        await EnsureCanViewAsync(
+            _context.Discussions.Where(x => x.Id == id),
+            userId,
+            false,
+            cancellationToken);
+
         var authorId = await _context.Discussions
             .AsNoTracking()
             .Where(x => x.Id == id)
@@ -337,6 +466,67 @@ public sealed class DiscussionService : IDiscussionService
             ?? throw new NotFoundException("Mövzu bəyənməsi tapılmadı.");
 
         _context.DiscussionLikes.Remove(like);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task SaveAsync(
+        int id,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidId();
+
+        await EnsureCanViewAsync(
+            _context.Discussions.Where(x => x.Id == id),
+            userId,
+            false,
+            cancellationToken);
+
+        var authorId = await _context.Discussions
+            .AsNoTracking()
+            .Where(x => x.Id == id)
+            .Select(x => (Guid?)x.UserId)
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Müzakirə tapılmadı.");
+
+        await EnsureUsersAreNotBlockedAsync(userId, authorId, cancellationToken);
+
+        var alreadySaved = await _context.DiscussionSaves
+            .AnyAsync(
+                x => x.DiscussionId == id && x.UserId == userId,
+                cancellationToken);
+
+        if (alreadySaved)
+            return;
+
+        await _context.DiscussionSaves.AddAsync(
+            new DiscussionSave
+            {
+                DiscussionId = id,
+                UserId = userId,
+                CreatedAt = DateTime.UtcNow
+            },
+            cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task UnsaveAsync(
+        int id,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        id.EnsureValidId();
+
+        var savedDiscussion = await _context.DiscussionSaves
+            .FirstOrDefaultAsync(
+                x => x.DiscussionId == id && x.UserId == userId,
+                cancellationToken);
+
+        if (savedDiscussion is null)
+            return;
+
+        _context.DiscussionSaves.Remove(savedDiscussion);
         await _context.SaveChangesAsync(cancellationToken);
     }
 
@@ -488,9 +678,28 @@ public sealed class DiscussionService : IDiscussionService
             Id = x.Id,
             Title = x.Title,
             Slug = x.Slug,
+            ContentPreview = x.Content.Length > 280
+                ? x.Content.Substring(0, 280)
+                : x.Content,
+            Media = x.Media
+                .OrderBy(media => media.SortOrder)
+                .Select(media => new DiscussionMediaDTO
+                {
+                    Id = media.Id,
+                    Url = media.Url,
+                    ContentType = media.ContentType,
+                    OriginalFileName = media.OriginalFileName,
+                    FileSize = media.FileSize,
+                    SortOrder = media.SortOrder
+                })
+                .ToList(),
             CategoryId = x.CategoryId,
             CategoryName = x.Category.Name,
             CategorySlug = x.Category.Slug,
+            CommunityId = x.CommunityId,
+            CommunityName = x.Community != null ? x.Community.Name : null,
+            CommunitySlug = x.Community != null ? x.Community.Slug : null,
+            CommunityIconUrl = x.Community != null ? x.Community.IconUrl : null,
             AuthorId = x.UserId,
             AuthorUserName = x.User.UserName ?? string.Empty,
             AuthorProfileImageUrl = x.User.ProfileImageUrl,
@@ -501,6 +710,8 @@ public sealed class DiscussionService : IDiscussionService
             ViewCount = x.ViewCount,
             IsLikedByCurrentUser = currentUserId.HasValue &&
                                    x.Likes.Any(like => like.UserId == currentUserId.Value),
+            IsSavedByCurrentUser = currentUserId.HasValue &&
+                                   x.Saves.Any(saved => saved.UserId == currentUserId.Value),
             IsPinned = x.IsPinned,
             IsLocked = x.IsLocked,
             IsDeleted = x.IsDeleted,
@@ -524,9 +735,25 @@ public sealed class DiscussionService : IDiscussionService
             Title = x.Title,
             Slug = x.Slug,
             Content = x.Content,
+            Media = x.Media
+                .OrderBy(media => media.SortOrder)
+                .Select(media => new DiscussionMediaDTO
+                {
+                    Id = media.Id,
+                    Url = media.Url,
+                    ContentType = media.ContentType,
+                    OriginalFileName = media.OriginalFileName,
+                    FileSize = media.FileSize,
+                    SortOrder = media.SortOrder
+                })
+                .ToList(),
             CategoryId = x.CategoryId,
             CategoryName = x.Category.Name,
             CategorySlug = x.Category.Slug,
+            CommunityId = x.CommunityId,
+            CommunityName = x.Community != null ? x.Community.Name : null,
+            CommunitySlug = x.Community != null ? x.Community.Slug : null,
+            CommunityIconUrl = x.Community != null ? x.Community.IconUrl : null,
             AuthorId = x.UserId,
             AuthorUserName = x.User.UserName ?? string.Empty,
             AuthorProfileImageUrl = x.User.ProfileImageUrl,
@@ -535,6 +762,8 @@ public sealed class DiscussionService : IDiscussionService
             ViewCount = x.ViewCount,
             IsLikedByCurrentUser = currentUserId.HasValue &&
                                    x.Likes.Any(like => like.UserId == currentUserId.Value),
+            IsSavedByCurrentUser = currentUserId.HasValue &&
+                                   x.Saves.Any(saved => saved.UserId == currentUserId.Value),
             IsPinned = x.IsPinned,
             IsLocked = x.IsLocked,
             IsDeleted = x.IsDeleted,
@@ -553,19 +782,38 @@ public sealed class DiscussionService : IDiscussionService
         bool canModerate,
         CancellationToken cancellationToken)
     {
-        var authorId = await query
+        var access = await query
             .AsNoTracking()
-            .Select(x => (Guid?)x.UserId)
+            .Select(x => new
+            {
+                x.UserId,
+                x.CommunityId,
+                CommunityVisibility = x.CommunityId.HasValue
+                    ? (ForumCommunityVisibility?)x.Community!.Visibility
+                    : null,
+                IsCommunityMember = currentUserId.HasValue &&
+                    x.CommunityId.HasValue &&
+                    x.Community!.Members.Any(member =>
+                        member.UserId == currentUserId.Value &&
+                        member.Status == ForumCommunityMembershipStatus.Active)
+            })
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("Mövzu tapılmadı.");
 
-        if (!currentUserId.HasValue || canModerate)
-            return;
+        if (access.CommunityVisibility == ForumCommunityVisibility.Private &&
+            !canModerate &&
+            !access.IsCommunityMember)
+        {
+            throw new NotFoundException("Mövzu tapılmadı.");
+        }
 
-        await EnsureUsersAreNotBlockedAsync(
-            currentUserId.Value,
-            authorId,
-            cancellationToken);
+        if (currentUserId.HasValue && !canModerate)
+        {
+            await EnsureUsersAreNotBlockedAsync(
+                currentUserId.Value,
+                access.UserId,
+                cancellationToken);
+        }
     }
 
     private async Task EnsureUsersAreNotBlockedAsync(
@@ -596,17 +844,60 @@ public sealed class DiscussionService : IDiscussionService
             throw new ForbiddenException("Bu mövzunu dəyişmək üçün icazəniz yoxdur.");
     }
 
-    private async Task IncrementViewCountAsync(
+    private async Task RecordUniqueViewAsync(
         int id,
+        Guid? currentUserId,
         CancellationToken cancellationToken)
     {
-        await _context.Discussions
-            .Where(x => x.Id == id)
-            .ExecuteUpdateAsync(
-                setters => setters.SetProperty(
-                    x => x.ViewCount,
-                    x => x.ViewCount + 1),
+        if (!currentUserId.HasValue)
+            return;
+
+        await using var transaction = await _context.Database
+            .BeginTransactionAsync(
+                IsolationLevel.Serializable,
                 cancellationToken);
+
+        var authorId = await _context.Discussions
+            .AsNoTracking()
+            .Where(x => x.Id == id)
+            .Select(x => (Guid?)x.UserId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (!authorId.HasValue || authorId.Value == currentUserId.Value)
+        {
+            await transaction.CommitAsync(cancellationToken);
+            return;
+        }
+
+        var alreadyViewed = await _context.DiscussionViews
+            .AnyAsync(
+                x => x.DiscussionId == id &&
+                     x.UserId == currentUserId.Value,
+                cancellationToken);
+
+        if (!alreadyViewed)
+        {
+            await _context.DiscussionViews.AddAsync(
+                new DiscussionView
+                {
+                    DiscussionId = id,
+                    UserId = currentUserId.Value,
+                    FirstViewedAt = DateTime.UtcNow
+                },
+                cancellationToken);
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await _context.Discussions
+                .Where(x => x.Id == id)
+                .ExecuteUpdateAsync(
+                    setters => setters.SetProperty(
+                        x => x.ViewCount,
+                        x => x.ViewCount + 1),
+                    cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
     private async Task<string> CreateUniqueSlugAsync(

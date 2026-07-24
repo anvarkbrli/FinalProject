@@ -120,6 +120,51 @@ public sealed class DiscussionRepliesController : ControllerBase
         return NoContent();
     }
 
+    [Authorize]
+    [HttpPut("discussion-replies/{replyId:int}/vote")]
+    public async Task<ActionResult<DiscussionReplyDTO>> Vote(
+        int replyId,
+        [FromBody] DiscussionReplyVoteRequestDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await _replyService.SetVoteAsync(
+            replyId,
+            GetCurrentUserId(),
+            dto.Value,
+            CanModerate(),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpPut("discussion-replies/{replyId:int}/follow")]
+    public async Task<IActionResult> Follow(
+        int replyId,
+        CancellationToken cancellationToken)
+    {
+        await _replyService.FollowAsync(
+            replyId,
+            GetCurrentUserId(),
+            cancellationToken);
+
+        return NoContent();
+    }
+
+    [Authorize]
+    [HttpDelete("discussion-replies/{replyId:int}/follow")]
+    public async Task<IActionResult> Unfollow(
+        int replyId,
+        CancellationToken cancellationToken)
+    {
+        await _replyService.UnfollowAsync(
+            replyId,
+            GetCurrentUserId(),
+            cancellationToken);
+
+        return NoContent();
+    }
+
     private bool CanModerate()
     {
         return User.IsInRole("Admin");

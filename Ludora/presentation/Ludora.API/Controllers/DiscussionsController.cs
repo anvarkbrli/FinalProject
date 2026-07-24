@@ -61,13 +61,36 @@ public sealed class DiscussionsController : ControllerBase
 
     [Authorize]
     [HttpPost]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(220_000_000)]
     public async Task<ActionResult<DiscussionDetailDTO>> Create(
-        [FromBody] DiscussionCreateDTO dto,
+        [FromForm] string title,
+        [FromForm] string? content,
+        [FromForm] int categoryId,
+        [FromForm] int? communityId,
+        [FromForm] List<IFormFile>? mediaFiles,
         CancellationToken cancellationToken)
     {
+        var uploads = (mediaFiles ?? [])
+            .Select(file => new DiscussionMediaUploadDTO
+            {
+                Stream = file.OpenReadStream(),
+                Length = file.Length,
+                ContentType = file.ContentType,
+                FileName = file.FileName
+            })
+            .ToList();
+
         var result = await _discussionService.CreateAsync(
             GetCurrentUserId(),
-            dto,
+            new DiscussionCreateDTO
+            {
+                Title = title,
+                Content = content,
+                CategoryId = categoryId,
+                CommunityId = communityId,
+                Media = uploads
+            },
             cancellationToken);
 
         return CreatedAtAction(
@@ -125,6 +148,34 @@ public sealed class DiscussionsController : ControllerBase
         CancellationToken cancellationToken)
     {
         await _discussionService.UnlikeAsync(id, GetCurrentUserId(), cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
+    [HttpPut("{id:int}/save")]
+    public async Task<IActionResult> Save(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        await _discussionService.SaveAsync(
+            id,
+            GetCurrentUserId(),
+            cancellationToken);
+
+        return NoContent();
+    }
+
+    [Authorize]
+    [HttpDelete("{id:int}/save")]
+    public async Task<IActionResult> Unsave(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        await _discussionService.UnsaveAsync(
+            id,
+            GetCurrentUserId(),
+            cancellationToken);
+
         return NoContent();
     }
 

@@ -46,7 +46,7 @@ const navigationItems = [
   },
   {
     label: "Forum",
-    to: "/#forum",
+    to: "/forum",
   },
 ];
 
@@ -167,11 +167,8 @@ export function Navbar() {
       return location.pathname === "/games";
     }
 
-    if (to === "/#forum") {
-      return (
-        location.pathname === "/" &&
-        location.hash === "#forum"
-      );
+    if (to === "/forum") {
+      return location.pathname.startsWith("/forum");
     }
 
     if (to === "/") {

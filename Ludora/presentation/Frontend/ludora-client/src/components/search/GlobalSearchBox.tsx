@@ -83,7 +83,7 @@ export function GlobalSearchBox({ mobile = false }: { mobile?: boolean }) {
         score: item.score,
         imageUrl: null,
         icon: MessageSquareText,
-        target: `/#forum`,
+        target: `/forum`,
       })),
       ...data.reviews.map((item) => ({
         key: `review-${item.id}`,

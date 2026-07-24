@@ -124,6 +124,11 @@ const preferenceGroups: PreferenceGroup[] = [
         title: "Cavab bəyənməsi",
         description: "Kimsə forum cavabını bəyəndikdə.",
       },
+      {
+        type: "FollowedDiscussionReplyActivity",
+        title: "İzlənən şərh",
+        description: "İzlədiyin forum şərhinə yeni cavab yazıldıqda.",
+      },
     ],
   },
 ];

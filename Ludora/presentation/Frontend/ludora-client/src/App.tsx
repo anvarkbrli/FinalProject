@@ -62,6 +62,21 @@ const MessagesPage = lazy(() =>
     default: module.MessagesPage,
   })),
 );
+const ForumPage = lazy(() =>
+  import("./pages/ForumPage").then((module) => ({
+    default: module.ForumPage,
+  })),
+);
+const ForumDiscussionPage = lazy(() =>
+  import("./pages/ForumDiscussionPage").then((module) => ({
+    default: module.ForumDiscussionPage,
+  })),
+);
+const ForumCommunityPage = lazy(() =>
+  import("./pages/ForumCommunityPage").then((module) => ({
+    default: module.ForumCommunityPage,
+  })),
+);
 
 function RouteFallback() {
   return (
@@ -101,6 +116,15 @@ function App() {
           element={<GameListDetailPage />}
         />
         <Route path="/search" element={<SearchPage />} />
+        <Route path="/forum" element={<ForumPage />} />
+        <Route
+          path="/forum/discussions/:slug"
+          element={<ForumDiscussionPage />}
+        />
+        <Route
+          path="/forum/communities/:slug"
+          element={<ForumCommunityPage />}
+        />
         <Route
           path="/messages"
           element={

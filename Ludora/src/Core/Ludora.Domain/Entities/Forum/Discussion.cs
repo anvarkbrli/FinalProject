@@ -15,10 +15,16 @@ public class Discussion : BaseEntity
     public int CategoryId { get; set; }
     public ForumCategory Category { get; set; } = null!;
 
+    public int? CommunityId { get; set; }
+    public ForumCommunity? Community { get; set; }
+
     public bool IsPinned { get; set; }
     public bool IsLocked { get; set; }
     public int ViewCount { get; set; }
 
     public ICollection<DiscussionReply> Replies { get; set; } = [];
     public ICollection<DiscussionLike> Likes { get; set; } = [];
+    public ICollection<DiscussionMedia> Media { get; set; } = [];
+    public ICollection<DiscussionSave> Saves { get; set; } = [];
+    public ICollection<DiscussionView> Views { get; set; } = [];
 }

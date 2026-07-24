@@ -29,6 +29,7 @@ interface UserReportModalProps {
   reportedContentType?: UserReportContentType;
   reportedContentId?: number | null;
   reportedContentLabel?: string;
+  subjectKind?: "user" | "community";
   onClose: () => void;
   onSubmitted: () => void;
 }
@@ -89,6 +90,7 @@ export function UserReportModal({
   reportedContentType = "UserProfile",
   reportedContentId = null,
   reportedContentLabel,
+  subjectKind = "user",
   onClose,
   onSubmitted,
 }: UserReportModalProps) {
@@ -264,10 +266,14 @@ export function UserReportModal({
                 id="user-report-title"
                 className="text-lg font-bold text-white"
               >
-                İstifadəçini şikayət et
+                {subjectKind === "community"
+                  ? "İcmanı şikayət et"
+                  : "İstifadəçini şikayət et"}
               </h2>
               <p className="mt-1 truncate text-sm text-zinc-500">
-                @{reportedUserName} haqqında şikayət göndərilir
+                {subjectKind === "community"
+                  ? `${reportedUserName} icması haqqında şikayət göndərilir`
+                  : `@${reportedUserName} haqqında şikayət göndərilir`}
               </p>
               {reportedContentLabel ? (
                 <p className="mt-1 truncate text-xs text-zinc-600">

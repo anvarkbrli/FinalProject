@@ -46,6 +46,8 @@ public interface IDiscussionService
 
     Task LikeAsync(int id, Guid userId, CancellationToken cancellationToken = default);
     Task UnlikeAsync(int id, Guid userId, CancellationToken cancellationToken = default);
+    Task SaveAsync(int id, Guid userId, CancellationToken cancellationToken = default);
+    Task UnsaveAsync(int id, Guid userId, CancellationToken cancellationToken = default);
     Task SetPinnedAsync(int id, bool isPinned, CancellationToken cancellationToken = default);
     Task SetLockedAsync(int id, bool isLocked, CancellationToken cancellationToken = default);
     Task<DiscussionDetailDTO> RestoreAsync(int id, CancellationToken cancellationToken = default);
