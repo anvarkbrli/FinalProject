@@ -23,6 +23,7 @@ public sealed class SteamService : ISteamService
 {
     private const int SqlServerSafeParameterBatchSize = 500;
     private const int MaxReviewPlaytimeMinutes = 600000;
+    private const int AutoLogPlayedThresholdMinutes = 60;
     private const int AzerbaijanUtcOffsetHours = 4;
     private const string LegacySteamAccountId = "legacy";
     private static readonly ConcurrentDictionary<Guid, SemaphoreSlim> SyncLocks = new();
@@ -439,6 +440,39 @@ public sealed class SteamService : ISteamService
             reviewMap.TryGetValue(gameKey, out var review);
             var hasVisibleReview = review is not null && !review.IsDeleted;
 
+            if (steamTotalMinutes == 0)
+            {
+                if (review is { IsSteamAutoLogged: true })
+                {
+                    if (!review.IsDeleted)
+                    {
+                        review.IsDeleted = true;
+                        review.DeletedAtUtc = now;
+                        review.UpdatedAt = now;
+                        updatedAutoLogCount++;
+                    }
+
+                    if (userGameMap.TryGetValue(gameKey, out var autoLoggedUserGame) &&
+                        autoLoggedUserGame.Status is UserGameStatus.Played or UserGameStatus.Dropped &&
+                        !autoLoggedUserGame.IsFavorite &&
+                        !autoLoggedUserGame.IsWishlisted &&
+                        !autoLoggedUserGame.Rating.HasValue)
+                    {
+                        _context.UserGames.Remove(autoLoggedUserGame);
+                        userGameMap.Remove(gameKey);
+                    }
+                }
+
+                ownedGame.PlaytimeResolution = SteamPlaytimeResolution.Unresolved;
+                ownedGame.ResolvedPlaytimeMinutes = null;
+                ownedGame.ResolutionConfirmedAtUtc = null;
+                continue;
+            }
+
+            var autoLogStatus = steamTotalMinutes < AutoLogPlayedThresholdMinutes
+                ? UserGameStatus.Dropped
+                : UserGameStatus.Played;
+
             if (!userGameMap.TryGetValue(gameKey, out var userGame))
             {
                 userGame = new UserGame
@@ -446,7 +480,7 @@ public sealed class SteamService : ISteamService
                     UserId = userId,
                     Source = match.Source,
                     GameId = match.GameId,
-                    Status = UserGameStatus.Played,
+                    Status = autoLogStatus,
                     CreatedAt = now,
                     UpdatedAt = now
                 };
@@ -454,10 +488,10 @@ public sealed class SteamService : ISteamService
                 userGameMap[gameKey] = userGame;
                 createdUserGameCount++;
             }
-            else if (!hasVisibleReview &&
-                     userGame.Status != UserGameStatus.Played)
+            else if ((!hasVisibleReview || review?.IsSteamAutoLogged == true) &&
+                     userGame.Status != autoLogStatus)
             {
-                userGame.Status = UserGameStatus.Played;
+                userGame.Status = autoLogStatus;
                 userGame.UpdatedAt = now;
                 updatedUserGameCount++;
             }

@@ -15,6 +15,7 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { getApiErrorMessage } from "../../lib/api";
 import { createUserReport } from "../../services/userReportsService";
 import type {
@@ -236,9 +237,9 @@ export function UserReportModal({
       )
     : null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/75 px-4 py-8 backdrop-blur-sm"
+      className="fixed inset-0 z-[1000] grid place-items-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm sm:p-6"
       role="dialog"
       aria-modal="true"
       aria-labelledby="user-report-title"
@@ -253,7 +254,7 @@ export function UserReportModal({
     >
       <form
         onSubmit={handleSubmit}
-        className="flex max-h-[calc(100vh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-white/[0.09] bg-[#111116] shadow-2xl shadow-black/60"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-white/[0.09] bg-[#111116] shadow-2xl shadow-black/60 sm:max-h-[calc(100dvh-3rem)]"
       >
         <div className="flex items-start justify-between gap-4 border-b border-white/[0.07] px-6 py-5">
           <div className="flex min-w-0 items-start gap-3">
@@ -471,6 +472,7 @@ export function UserReportModal({
           </button>
         </div>
       </form>
-    </div>
+    </div>,
+    document.body,
   );
 }

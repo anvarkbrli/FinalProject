@@ -18,20 +18,18 @@
   border-bottom: 1px solid rgba(94, 234, 212, 0.3);
   border-left: 1px solid rgba(94, 234, 212, 0.3);
   border-bottom-left-radius: 0.75rem;
+  pointer-events: none;
   content: "";
 }
 
 .forum-comment-branch:not(:last-child)::after {
   position: absolute;
-  top: 2.15rem;
-  bottom: -0.75rem;
+  top: 2rem;
+  bottom: -1rem;
   left: calc(var(--forum-branch-offset) * -1);
   width: 1px;
-  background: linear-gradient(
-    180deg,
-    rgba(94, 234, 212, 0.3),
-    rgba(94, 234, 212, 0.16)
-  );
+  background: rgba(94, 234, 212, 0.3);
+  pointer-events: none;
   content: "";
 }
 
@@ -96,4 +94,262 @@
     --forum-branch-offset: 0.9rem;
     margin-left: 0.35rem;
   }
+}
+
+/* --------------------------------------------------------------------------
+   Forum theme bridge
+   Dark mode keeps the current forum appearance. Light mode replaces the
+   previously hard-coded dark green surfaces with a soft, readable palette.
+   -------------------------------------------------------------------------- */
+.forum-theme {
+  --forum-page: #f2f7f6;
+  --forum-page-deep: #e7f0ee;
+  --forum-sidebar: rgba(248, 252, 251, 0.94);
+  --forum-surface: rgba(255, 255, 255, 0.9);
+  --forum-surface-strong: #ffffff;
+  --forum-surface-soft: rgba(247, 251, 250, 0.96);
+  --forum-surface-raised: #f7fbfa;
+  --forum-control: rgba(15, 118, 110, 0.045);
+  --forum-control-strong: rgba(15, 118, 110, 0.075);
+  --forum-hover: #edf7f5;
+  --forum-border: rgba(18, 83, 76, 0.13);
+  --forum-border-soft: rgba(18, 83, 76, 0.085);
+  --forum-branch: rgba(13, 148, 136, 0.32);
+  --forum-branch-soft: rgba(13, 148, 136, 0.14);
+  --forum-match: rgba(13, 148, 136, 0.075);
+  --forum-gradient-middle: #f0f8f6;
+  --forum-overlay: rgba(13, 31, 29, 0.58);
+  --forum-shadow-card: 0 14px 38px rgba(31, 73, 67, 0.08);
+  --forum-shadow-menu: 0 20px 60px rgba(31, 73, 67, 0.18);
+  --forum-shadow-floating: 0 30px 90px rgba(31, 73, 67, 0.22);
+
+  min-height: 100vh;
+  background-color: var(--forum-page);
+  background-image:
+    radial-gradient(circle at 88% 5%, rgba(13, 148, 136, 0.09), transparent 32rem),
+    radial-gradient(circle at 18% 100%, rgba(109, 74, 255, 0.055), transparent 34rem),
+    linear-gradient(180deg, var(--forum-page-deep), var(--forum-page) 42%, var(--forum-page-deep));
+  color: var(--wp-text);
+  transition: background-color 220ms ease, color 220ms ease;
+}
+
+[data-theme="dark"] .forum-theme {
+  --forum-page: #07100f;
+  --forum-page-deep: #07100f;
+  --forum-sidebar: rgba(9, 18, 17, 0.9);
+  --forum-surface: rgba(13, 23, 22, 0.8);
+  --forum-surface-strong: rgba(12, 23, 22, 0.9);
+  --forum-surface-soft: rgba(12, 23, 22, 0.7);
+  --forum-surface-raised: #111c1b;
+  --forum-control: rgba(255, 255, 255, 0.025);
+  --forum-control-strong: rgba(255, 255, 255, 0.055);
+  --forum-hover: #101c1b;
+  --forum-border: rgba(255, 255, 255, 0.075);
+  --forum-border-soft: rgba(255, 255, 255, 0.06);
+  --forum-branch: rgba(94, 234, 212, 0.3);
+  --forum-branch-soft: rgba(94, 234, 212, 0.16);
+  --forum-match: rgba(94, 234, 212, 0.045);
+  --forum-gradient-middle: #101719;
+  --forum-overlay: rgba(2, 8, 8, 0.82);
+  --forum-shadow-card: none;
+  --forum-shadow-menu: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+  --forum-shadow-floating: 0 30px 100px rgba(0, 0, 0, 0.65);
+
+  background-image:
+    radial-gradient(circle at 88% 5%, rgba(45, 212, 191, 0.055), transparent 34rem),
+    radial-gradient(circle at 18% 100%, rgba(139, 92, 246, 0.045), transparent 30rem),
+    linear-gradient(180deg, #07100f, #07100f);
+}
+
+/* Hard-coded forum surfaces are redirected to semantic theme tokens. */
+.forum-theme :where(
+  [class~="bg-[#0d1716]/80"],
+  [class~="bg-[#0d1716]/70"]
+) {
+  background-color: var(--forum-surface) !important;
+}
+
+.forum-theme :where(
+  [class~="bg-[#0c1716]/90"],
+  [class~="bg-[#0c1716]/70"]
+) {
+  background-color: var(--forum-surface-strong) !important;
+}
+
+.forum-theme :where(
+  [class~="bg-[#091211]"],
+  [class~="bg-[#091211]/90"]
+) {
+  background-color: var(--forum-sidebar) !important;
+}
+
+.forum-theme :where(
+  [class~="bg-[#111c1b]"],
+  [class~="bg-[#0d1a19]/95"],
+  [class~="bg-[#101a19]"]
+) {
+  background-color: var(--forum-surface-raised) !important;
+}
+
+.forum-theme :where(
+  [class~="bg-[#091312]"],
+  [class~="bg-[#0a1212]"],
+  [class~="bg-[#0a1212]/95"],
+  [class~="bg-[#0a1413]"]
+) {
+  background-color: var(--forum-surface-strong) !important;
+}
+
+.forum-theme :where(
+  [class~="hover:bg-[#101c1b]"],
+  [class~="hover:bg-[#10191a]"]
+):hover {
+  background-color: var(--forum-hover) !important;
+}
+
+.forum-theme :where(
+  [class~="bg-white/[0.02]"],
+  [class~="bg-white/[0.025]"],
+  [class~="bg-white/[0.03]"],
+  [class~="bg-white/[0.035]"],
+  [class~="bg-white/[0.04]"]
+) {
+  background-color: var(--forum-control) !important;
+}
+
+.forum-theme :where(
+  [class~="bg-white/[0.05]"],
+  [class~="bg-white/[0.055]"],
+  [class~="bg-white/[0.06]"],
+  [class~="bg-white/[0.07]"],
+  [class~="bg-white/[0.08]"]
+) {
+  background-color: var(--forum-control-strong) !important;
+}
+
+.forum-theme :where(
+  [class~="hover:bg-white/[0.035]"],
+  [class~="hover:bg-white/[0.04]"],
+  [class~="hover:bg-white/[0.045]"],
+  [class~="hover:bg-white/[0.055]"],
+  [class~="hover:bg-white/[0.07]"]
+):hover,
+.forum-theme [class~="focus:bg-white/[0.05]"]:focus {
+  background-color: var(--forum-control-strong) !important;
+}
+
+.forum-theme :where(
+  [class~="border-white/[0.05]"],
+  [class~="border-white/[0.055]"],
+  [class~="border-white/[0.06]"],
+  [class~="border-white/[0.07]"],
+  [class~="border-white/[0.075]"],
+  [class~="border-white/[0.08]"],
+  [class~="border-white/[0.09]"]
+) {
+  border-color: var(--forum-border) !important;
+}
+
+.forum-theme :where(
+  [class~="hover:border-white/[0.06]"],
+  [class~="hover:border-white/[0.15]"],
+  [class~="hover:border-white/[0.16]"]
+):hover {
+  border-color: color-mix(in srgb, var(--color-teal-300) 34%, var(--forum-border)) !important;
+}
+
+.forum-theme :where(
+  [class~="border-[#0c1716]"],
+  [class~="border-[#0d1716]"],
+  [class~="border-[#101a19]"]
+) {
+  border-color: var(--forum-surface-strong) !important;
+}
+
+.forum-theme [class~="via-[#101719]"] {
+  --tw-gradient-via: var(--forum-gradient-middle) !important;
+}
+
+.forum-theme [class~="via-[#13201f]"],
+.forum-theme [class~="via-[#172221]"] {
+  --tw-gradient-via: color-mix(in srgb, var(--forum-gradient-middle) 90%, var(--color-teal-300) 10%) !important;
+}
+
+/* Light mode needs solid contrast on the darker teal action buttons. */
+[data-theme="light"] .forum-theme [class~="bg-teal-300"][class~="text-[#07100f]"],
+[data-theme="light"] .forum-theme [class~="from-teal-300"][class~="text-[#07100f]"] {
+  color: #ffffff !important;
+}
+
+[data-theme="light"] .forum-theme [class~="text-zinc-700"] {
+  color: #98a2b3 !important;
+}
+
+[data-theme="light"] .forum-theme :where(
+  [class*="shadow-black/"],
+  [class*="shadow-teal-950/"]
+) {
+  --tw-shadow-color: rgba(31, 73, 67, 0.17) !important;
+}
+
+.forum-theme :where(
+  article[class*="rounded-[22px]"],
+  section[class*="rounded-[22px]"],
+  section[class*="rounded-[24px]"],
+  article[class*="rounded-[26px]"]
+) {
+  box-shadow: var(--forum-shadow-card);
+}
+
+.forum-theme [class~="shadow-[0_30px_100px_rgba(0,0,0,0.65)]"] {
+  box-shadow: var(--forum-shadow-floating) !important;
+}
+
+.forum-theme .forum-comment-branch::before {
+  border-color: transparent transparent var(--forum-branch) var(--forum-branch);
+}
+
+.forum-theme .forum-comment-branch:not(:last-child)::after {
+  background: var(--forum-branch);
+}
+
+.forum-theme .forum-comment-branch > .forum-comment-node > .forum-comment-card {
+  border-color: var(--forum-border-soft);
+  background: var(--forum-surface-soft);
+}
+
+.forum-theme .forum-comment-match {
+  border-color: var(--forum-branch);
+  background: var(--forum-match);
+}
+
+.forum-theme .forum-lightbox::before {
+  background: var(--forum-overlay);
+}
+
+.forum-theme .forum-lightbox__media {
+  box-shadow: var(--forum-shadow-floating);
+}
+
+/* Login CTA keeps readable contrast in every theme. */
+.forum-theme .forum-login-cta {
+  background-color: #0f766e !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 24px rgba(15, 118, 110, 0.2);
+}
+
+.forum-theme .forum-login-cta:hover {
+  background-color: #115e59 !important;
+  color: #ffffff !important;
+}
+
+[data-theme="dark"] .forum-theme .forum-login-cta {
+  background-color: #5eead4 !important;
+  color: #052e2b !important;
+  box-shadow: 0 10px 24px rgba(45, 212, 191, 0.18);
+}
+
+[data-theme="dark"] .forum-theme .forum-login-cta:hover {
+  background-color: #99f6e4 !important;
+  color: #052e2b !important;
 }

@@ -70,6 +70,18 @@ const preferenceGroups: PreferenceGroup[] = [
     ],
   },
   {
+    title: "İcmalar",
+    description: "Üzv olduğun və ya izlədiyin icmalardakı yeniliklər.",
+    items: [
+      {
+        type: "CommunityDiscussionCreated",
+        title: "İcmada yeni müzakirə",
+        description:
+          "Üzv olduğum və ya izlədiyim icmada yeni müzakirə açıldıqda.",
+      },
+    ],
+  },
+  {
     title: "Post və rəylərim",
     description: "Paylaşdığın məzmuna gələn reaksiyalar.",
     items: [

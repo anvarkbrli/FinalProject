@@ -21,13 +21,14 @@ export type ForumSection =
 interface ForumSidebarProps {
   activeSection: ForumSection;
   onSectionChange: (section: ForumSection) => void;
+  onCreateCommunity?: () => void;
 }
 
 const navigationItems = [
   {
     id: "home" as const,
     label: "Ana lent",
-    description: "Sənin üçün seçilənlər",
+    description: "İzlədiklərində yeniliklər",
     icon: House,
   },
   {
@@ -51,7 +52,7 @@ const navigationItems = [
   {
     id: "explore" as const,
     label: "Kəşf et",
-    description: "Yeni mövzular tap",
+    description: "İzləmədiyin yeniliklər",
     icon: Compass,
   },
 ];
@@ -59,6 +60,7 @@ const navigationItems = [
 export function ForumSidebar({
   activeSection,
   onSectionChange,
+  onCreateCommunity,
 }: ForumSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(() => {
     return localStorage.getItem("ludora-forum-sidebar") ===
@@ -193,9 +195,11 @@ export function ForumSidebar({
           </p>
           <button
             type="button"
-            className="mt-3 text-xs font-bold text-teal-300 transition hover:text-teal-200"
+            onClick={onCreateCommunity}
+            disabled={!onCreateCommunity}
+            className="mt-3 text-xs font-bold text-teal-300 transition hover:text-teal-200 disabled:cursor-not-allowed disabled:text-zinc-600"
           >
-            Tezliklə
+            İcma yarat
           </button>
         </div>
       )}

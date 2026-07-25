@@ -68,6 +68,16 @@ public sealed class GameService : IGameService
         public int PlayedCount { get; init; }
     }
 
+    private sealed record CompanyFilterMatchContext
+    {
+        public required CatalogSource Source { get; init; }
+        public required long Id { get; init; }
+        public string? FamilyPrefix { get; init; }
+
+        public bool RequiresFamilyMatch =>
+            !string.IsNullOrWhiteSpace(FamilyPrefix);
+    }
+
     private readonly AppDbContext _context;
     private readonly IIgdbClient _igdbClient;
 
@@ -87,6 +97,21 @@ public sealed class GameService : IGameService
         var pageNumber = filter.PageNumber;
         var pageSize = filter.PageSize;
         var skip = checked((pageNumber - 1) * pageSize);
+
+        var companyMatchContext =
+            await ResolveCompanyFilterMatchContextAsync(
+                filter,
+                cancellationToken);
+
+        if (
+            companyMatchContext?.RequiresFamilyMatch == true &&
+            HasAdditionalNarrowingFilter(filter))
+        {
+            return await GetCompanyFamilyFilteredGamesAsync(
+                filter,
+                companyMatchContext,
+                cancellationToken);
+        }
 
         if (IsCommunitySort(filter.SortBy))
         {
@@ -266,6 +291,168 @@ public sealed class GameService : IGameService
             totalCount);
     }
 
+    private static bool HasAdditionalNarrowingFilter(
+        GameFilterDTO filter)
+    {
+        return
+            !string.IsNullOrWhiteSpace(filter.SearchName) ||
+            filter.GenreId.HasValue ||
+            filter.PlatformId.HasValue ||
+            filter.ReleaseYear.HasValue;
+    }
+
+    private async Task<PagedResultDTO<GameListItemDTO>>
+        GetCompanyFamilyFilteredGamesAsync(
+            GameFilterDTO filter,
+            CompanyFilterMatchContext companyContext,
+            CancellationToken cancellationToken)
+    {
+        var candidateFilter = filter with
+        {
+            CompanySource = null,
+            CompanyId = null,
+            PageNumber = 1,
+            PageSize = MaxPageSize
+        };
+
+        var matchedGames = new List<GameDetailDTO>();
+        var seenReferences = new HashSet<(CatalogSource Source, long Id)>();
+        var candidatePageNumber = 1;
+        var scannedCount = 0;
+        var candidateTotalCount = 0;
+
+        do
+        {
+            var candidatePage = await GetFilteredGamesAsync(
+                candidateFilter with
+                {
+                    PageNumber = candidatePageNumber
+                },
+                cancellationToken);
+
+            candidateTotalCount = candidatePage.TotalCount;
+
+            if (candidatePage.Items.Count == 0)
+            {
+                break;
+            }
+
+            var references = candidatePage.Items
+                .Select(item => new CatalogReferenceDTO
+                {
+                    Source = item.Source,
+                    Id = item.Id
+                })
+                .ToList();
+
+            var gameMap = await GetByReferencesAsync(
+                references,
+                cancellationToken);
+
+            foreach (var item in candidatePage.Items)
+            {
+                var key = (item.Source, item.Id);
+
+                if (
+                    !seenReferences.Add(key) ||
+                    !gameMap.TryGetValue(key, out var game) ||
+                    !MatchesCompanyFilter(game, companyContext))
+                {
+                    continue;
+                }
+
+                matchedGames.Add(game);
+            }
+
+            scannedCount += candidatePage.Items.Count;
+            candidatePageNumber++;
+        }
+        while (
+            scannedCount < candidateTotalCount &&
+            scannedCount < MaxCombinedResultWindow);
+
+        var skip = checked(
+            (filter.PageNumber - 1) * filter.PageSize);
+
+        var items = matchedGames
+            .Skip(skip)
+            .Take(filter.PageSize)
+            .Select(ToListItem)
+            .ToList();
+
+        return CreatePagedResult(
+            items,
+            filter.PageNumber,
+            filter.PageSize,
+            matchedGames.Count);
+    }
+
+    private async Task<CompanyFilterMatchContext?>
+        ResolveCompanyFilterMatchContextAsync(
+            GameFilterDTO filter,
+            CancellationToken cancellationToken)
+    {
+        if (
+            !filter.CompanySource.HasValue ||
+            !filter.CompanyId.HasValue)
+        {
+            return null;
+        }
+
+        var reference = new CatalogReferenceDTO
+        {
+            Source = filter.CompanySource.Value,
+            Id = filter.CompanyId.Value
+        };
+
+        var companyMap = await ResolveCompanyLookupsAsync(
+            [reference],
+            cancellationToken,
+            allowIgdbFallback: true);
+
+        if (!companyMap.TryGetValue(
+                (reference.Source, reference.Id),
+                out var company))
+        {
+            return null;
+        }
+
+        var normalizedName = NormalizeSearchText(company.Name);
+
+        return new CompanyFilterMatchContext
+        {
+            Source = reference.Source,
+            Id = reference.Id,
+            FamilyPrefix = normalizedName switch
+            {
+                "rockstargames" => "rockstar",
+                _ => null
+            }
+        };
+    }
+
+    private static bool MatchesCompanyFilter(
+        GameDetailDTO game,
+        CompanyFilterMatchContext context)
+    {
+        if (game.Companies.Any(company =>
+                company.Source == context.Source &&
+                company.Id == context.Id))
+        {
+            return true;
+        }
+
+        if (!context.RequiresFamilyMatch)
+        {
+            return false;
+        }
+
+        return game.Companies.Any(company =>
+            NormalizeSearchText(company.Name).StartsWith(
+                context.FamilyPrefix!,
+                StringComparison.Ordinal));
+    }
+
     private static bool IsCommunitySort(string? sortBy)
     {
         return sortBy?.Trim().ToLowerInvariant() is
@@ -337,8 +524,6 @@ public sealed class GameService : IGameService
                     userGame => userGame.Status == UserGameStatus.Played)
             });
 
-        var totalCount = await groupedQuery.CountAsync(cancellationToken);
-
         IQueryable<CommunityRankRow> orderedQuery = normalizedSort switch
         {
             "rating_asc" => groupedQuery
@@ -372,42 +557,102 @@ public sealed class GameService : IGameService
              !string.IsNullOrWhiteSpace(filter.SearchName) ||
              !filter.IncludeRelatedContent);
 
-        var fetchSize = requiresProviderSidePostFilter
-            ? Math.Min(pageSize * 4, MaxPageSize * 4)
-            : pageSize;
+        if (!requiresProviderSidePostFilter)
+        {
+            var totalCount = await groupedQuery.CountAsync(cancellationToken);
 
-        var rows = await orderedQuery
-            .Skip(skip)
-            .Take(fetchSize)
-            .ToListAsync(cancellationToken);
+            var rows = await orderedQuery
+                .Skip(skip)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
 
-        var references = rows
-            .Select(row => new CatalogReferenceDTO
+            var references = rows
+                .Select(row => new CatalogReferenceDTO
+                {
+                    Source = row.Source,
+                    Id = row.GameId
+                })
+                .ToList();
+
+            var gameMap = await GetByReferencesAsync(
+                references,
+                cancellationToken);
+
+            var items = rows
+                .Select(row => gameMap.GetValueOrDefault(
+                    (row.Source, row.GameId)))
+                .Where(game => game is not null)
+                .Select(game => ToListItem(game!))
+                .ToList();
+
+            return CreatePagedResult(
+                items,
+                pageNumber,
+                pageSize,
+                totalCount);
+        }
+
+        // IGDB metadata-based filters cannot be applied to UserGames in SQL.
+        // Scan the ranked references in stable batches, resolve their catalog
+        // metadata, and calculate both the page and total count from the same
+        // filtered sequence. This prevents cases where the UI reports matches
+        // but renders an empty result list.
+        const int metadataBatchSize = 200;
+        var filteredTotalCount = 0;
+        var matchedItems = new List<GameListItemDTO>(pageSize);
+        var offset = 0;
+
+        while (true)
+        {
+            var rows = await orderedQuery
+                .Skip(offset)
+                .Take(metadataBatchSize)
+                .ToListAsync(cancellationToken);
+
+            if (rows.Count == 0)
             {
-                Source = row.Source,
-                Id = row.GameId
-            })
-            .ToList();
+                break;
+            }
 
-        var gameMap = await GetByReferencesAsync(
-            references,
-            cancellationToken);
+            var references = rows
+                .Select(row => new CatalogReferenceDTO
+                {
+                    Source = row.Source,
+                    Id = row.GameId
+                })
+                .ToList();
 
-        var items = rows
-            .Select(row => gameMap.GetValueOrDefault(
-                (row.Source, row.GameId)))
-            .Where(game => game is not null)
-            .Select(game => game!)
-            .Where(game => MatchesFilter(game, filter))
-            .Take(pageSize)
-            .Select(ToListItem)
-            .ToList();
+            var gameMap = await GetByReferencesAsync(
+                references,
+                cancellationToken);
+
+            foreach (var row in rows)
+            {
+                if (!gameMap.TryGetValue(
+                        (row.Source, row.GameId),
+                        out var game) ||
+                    !MatchesFilter(game, filter))
+                {
+                    continue;
+                }
+
+                if (filteredTotalCount >= skip &&
+                    matchedItems.Count < pageSize)
+                {
+                    matchedItems.Add(ToListItem(game));
+                }
+
+                filteredTotalCount++;
+            }
+
+            offset += rows.Count;
+        }
 
         return CreatePagedResult(
-            items,
+            matchedItems,
             pageNumber,
             pageSize,
-            totalCount);
+            filteredTotalCount);
     }
 
     private static bool MatchesFilter(

@@ -207,7 +207,7 @@ export function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-white/5 bg-[#08080b]/85 backdrop-blur-xl">
+      <header className="site-navbar fixed inset-x-0 top-0 z-50 w-full border-b border-white/5 bg-[#08080b]/85 backdrop-blur-xl">
       <div className="mx-auto flex h-[72px] max-w-7xl items-center justify-between px-5 lg:px-8">
         <Link
           to="/"
@@ -262,17 +262,6 @@ export function Navbar() {
           <GlobalSearchBox />
 
           {hasValidSession && <NotificationBell />}
-
-          {hasValidSession && (
-            <Link
-              to="/messages"
-              onClick={closeMenus}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-zinc-400 transition hover:border-violet-400/20 hover:bg-violet-500/10 hover:text-violet-200"
-              aria-label="Mesajlar"
-            >
-              <MessageCircle size={18} />
-            </Link>
-          )}
 
           {hasValidSession && (
             <button
@@ -660,6 +649,8 @@ export function Navbar() {
         </nav>
       )}
       </header>
+
+      <div aria-hidden="true" className="h-[72px] shrink-0" />
 
       <LogGameModal
         open={isLogModalOpen}

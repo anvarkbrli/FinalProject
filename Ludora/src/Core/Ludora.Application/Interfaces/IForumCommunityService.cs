@@ -53,6 +53,12 @@ public interface IForumCommunityService
         Guid ownerId,
         CancellationToken cancellationToken = default);
 
+    Task RejectMembershipAsync(
+        int id,
+        int membershipId,
+        Guid ownerId,
+        CancellationToken cancellationToken = default);
+
     Task InviteAsync(
         int id,
         Guid ownerId,

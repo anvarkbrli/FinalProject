@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ForumMediaGallery } from "../components/forum/ForumMediaGallery";
 import { ForumContentMenu } from "../components/forum/ForumContentMenu";
 import "../components/forum/forum.css";
@@ -26,10 +26,13 @@ import {
 } from "../lib/helpers";
 import {
   createDiscussionReply,
+  deleteDiscussion,
   deleteDiscussionReply,
   getDiscussionBySlug,
   getDiscussionReplies,
   setDiscussionLike,
+  updateDiscussion,
+  updateDiscussionReply,
   voteDiscussionReply,
 } from "../services/forumService";
 import {
@@ -65,7 +68,8 @@ interface CommentItemProps {
   searchQuery: string;
   busyReplyId: number | null;
   onVote: (reply: DiscussionReplyDTO, value: -1 | 1) => void;
-  onDelete: (replyId: number) => void;
+  onDelete: (replyId: number) => Promise<boolean>;
+  onUpdate: (replyId: number, content: string) => Promise<void>;
   onReply: (parentReplyId: number, content: string) => Promise<void>;
 }
 
@@ -77,10 +81,15 @@ function CommentItem({
   busyReplyId,
   onVote,
   onDelete,
+  onUpdate,
   onReply,
 }: CommentItemProps) {
   const [isReplying, setIsReplying] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [replyText, setReplyText] = useState("");
+  const [editText, setEditText] = useState(reply.content);
+  const currentUserId = useAuthStore((state) => state.user?.id ?? null);
+  const isOwnReply = currentUserId === reply.authorId;
   const avatarUrl = resolveAssetUrl(reply.authorProfileImageUrl);
   const isMatch =
     searchQuery.length > 0 &&
@@ -101,43 +110,116 @@ function CommentItem({
           <ForumContentMenu
             kind="reply"
             contentId={reply.id}
-            contentLabel={`@${reply.authorUserName} şərhi`}
+            contentLabel={`${reply.authorUserName} şərhi`}
             authorId={reply.authorId}
             authorUserName={reply.authorUserName}
             initialIsActive={reply.isFollowedByCurrentUser}
+            canEdit={reply.canEdit}
+            canDelete={reply.canDelete}
+            onEdit={() => {
+              setEditText(reply.content);
+              setIsEditing(true);
+              setIsReplying(false);
+            }}
+            onDelete={() => onDelete(reply.id)}
             className="absolute right-3 top-3"
           />
         )}
         <div className="flex gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-teal-300/10 text-xs font-black text-teal-200">
-            {avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt=""
-                className="h-full w-full object-cover"
-              />
-            ) : (
-              reply.authorUserName.charAt(0).toUpperCase()
-            )}
-          </div>
+          {reply.isDeleted ? (
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-teal-300/10 text-xs font-black text-teal-200">
+              {reply.authorUserName.charAt(0).toUpperCase()}
+            </div>
+          ) : (
+            <Link
+              to={`/users/${encodeURIComponent(reply.authorUserName)}`}
+              aria-label={`${reply.authorUserName} profilinə keç`}
+              className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-teal-300/10 text-xs font-black text-teal-200 transition hover:ring-2 hover:ring-teal-300/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300/50"
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={`${reply.authorUserName} profil şəkli`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                reply.authorUserName.charAt(0).toUpperCase()
+              )}
+            </Link>
+          )}
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 pr-9 text-xs">
-              <span className="font-bold text-zinc-200">
-                {reply.isDeleted
-                  ? "Silinmiş istifadəçi"
-                  : reply.authorUserName}
-              </span>
+              {reply.isDeleted ? (
+                <span className="font-bold text-zinc-200">
+                  Silinmiş istifadəçi
+                </span>
+              ) : (
+                <Link
+                  to={`/users/${encodeURIComponent(reply.authorUserName)}`}
+                  className="font-bold text-zinc-200 transition hover:text-teal-200 hover:underline focus-visible:outline-none focus-visible:text-teal-200 focus-visible:underline"
+                >
+                  {reply.authorUserName}
+                </Link>
+              )}
               <span className="text-zinc-700">•</span>
               <time className="text-zinc-600">
                 {formatRelativeDate(reply.createdAt)}
               </time>
+              {!reply.isDeleted && reply.updatedAt && (
+                <span className="text-zinc-600">
+                  · Redaktə edilib
+                </span>
+              )}
             </div>
 
             {reply.isDeleted ? (
               <p className="mt-3 text-sm italic text-zinc-600">
                 Bu şərh silinib.
               </p>
+            ) : isEditing ? (
+              <div className="mt-3">
+                <textarea
+                  value={editText}
+                  onChange={(event) => setEditText(event.target.value)}
+                  rows={4}
+                  maxLength={5000}
+                  className="w-full resize-y rounded-xl border border-white/[0.08] bg-black/20 p-3 text-sm leading-6 text-white outline-none focus:border-teal-300/30"
+                  autoFocus
+                />
+                <div className="mt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={busyReplyId === reply.id}
+                    onClick={() => {
+                      setIsEditing(false);
+                      setEditText(reply.content);
+                    }}
+                    className="px-3 py-2 text-xs font-semibold text-zinc-600"
+                  >
+                    Ləğv et
+                  </button>
+                  <button
+                    type="button"
+                    disabled={
+                      !editText.trim() ||
+                      editText.trim() === reply.content ||
+                      busyReplyId === reply.id
+                    }
+                    onClick={async () => {
+                      try {
+                        await onUpdate(reply.id, editText.trim());
+                        setIsEditing(false);
+                      } catch {
+                        // Xəta səhifənin ümumi xəbərdarlıq sahəsində göstərilir.
+                      }
+                    }}
+                    className="rounded-xl bg-teal-300 px-3 py-2 text-xs font-black text-[#07100f] disabled:opacity-40"
+                  >
+                    Redaktəni saxla
+                  </button>
+                </div>
+              </div>
             ) : (
               <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-300">
                 {reply.content}
@@ -210,7 +292,7 @@ function CommentItem({
                 </button>
               )}
 
-              {reply.canDelete && (
+              {reply.canDelete && !isOwnReply && (
                 <button
                   type="button"
                   onClick={() => onDelete(reply.id)}
@@ -277,6 +359,7 @@ function CommentItem({
                 busyReplyId={busyReplyId}
                 onVote={onVote}
                 onDelete={onDelete}
+                onUpdate={onUpdate}
                 onReply={onReply}
               />
             </div>
@@ -289,6 +372,7 @@ function CommentItem({
 
 export function ForumDiscussionPage() {
   const { slug = "" } = useParams();
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -307,6 +391,10 @@ export function ForumDiscussionPage() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLikeBusy, setIsLikeBusy] = useState(false);
+  const [isEditingDiscussion, setIsEditingDiscussion] = useState(false);
+  const [editDiscussionTitle, setEditDiscussionTitle] = useState("");
+  const [editDiscussionContent, setEditDiscussionContent] = useState("");
+  const [isDiscussionBusy, setIsDiscussionBusy] = useState(false);
 
   const discussionQuery = useQuery({
     queryKey: ["forum", "discussion", slug],
@@ -391,25 +479,101 @@ export function ForumDiscussionPage() {
     }
   }
 
-  async function handleDelete(replyId: number) {
-    if (!window.confirm("Bu şərhi silmək istədiyinizə əminsiniz?"))
-      return;
+  async function handleUpdateReply(
+    replyId: number,
+    content: string,
+  ) {
     setBusyReplyId(replyId);
+    setError("");
     try {
-      await deleteDiscussionReply(replyId);
+      await updateDiscussionReply(replyId, content);
       await refreshReplies();
-    } catch (deleteError) {
+    } catch (updateError) {
       setError(
-        getApiErrorMessage(deleteError, "Şərh silinə bilmədi."),
+        getApiErrorMessage(updateError, "Şərh redaktə edilə bilmədi."),
       );
+      throw updateError;
     } finally {
       setBusyReplyId(null);
     }
   }
 
+  async function handleDelete(replyId: number): Promise<boolean> {
+    if (!window.confirm("Bu şərhi silmək istədiyinizə əminsiniz?"))
+      return false;
+
+    setBusyReplyId(replyId);
+    setError("");
+    try {
+      await deleteDiscussionReply(replyId);
+      await refreshReplies();
+      return true;
+    } catch (deleteError) {
+      setError(
+        getApiErrorMessage(deleteError, "Şərh silinə bilmədi."),
+      );
+      throw deleteError;
+    } finally {
+      setBusyReplyId(null);
+    }
+  }
+
+  async function handleDiscussionUpdate() {
+    if (
+      !discussion ||
+      !editDiscussionTitle.trim() ||
+      !editDiscussionContent.trim()
+    ) {
+      return;
+    }
+
+    setError("");
+    setIsDiscussionBusy(true);
+    try {
+      await updateDiscussion(
+        discussion.id,
+        editDiscussionTitle.trim(),
+        editDiscussionContent.trim(),
+        discussion.categoryId,
+      );
+      await discussionQuery.refetch();
+      setIsEditingDiscussion(false);
+    } catch (updateError) {
+      setError(
+        getApiErrorMessage(
+          updateError,
+          "Müzakirə redaktə edilə bilmədi.",
+        ),
+      );
+    } finally {
+      setIsDiscussionBusy(false);
+    }
+  }
+
+  async function handleDiscussionDelete(): Promise<boolean> {
+    if (!discussion) return false;
+    if (!window.confirm("Bu müzakirəni silmək istədiyinizə əminsiniz?"))
+      return false;
+
+    setError("");
+    setIsDiscussionBusy(true);
+    try {
+      await deleteDiscussion(discussion.id);
+      navigate("/forum");
+      return true;
+    } catch (deleteError) {
+      setError(
+        getApiErrorMessage(deleteError, "Müzakirə silinə bilmədi."),
+      );
+      throw deleteError;
+    } finally {
+      setIsDiscussionBusy(false);
+    }
+  }
+
   if (discussionQuery.isLoading) {
     return (
-      <div className="min-h-screen bg-[#07100f]">
+      <div className="forum-theme min-h-screen">
         <Navbar />
         <main className="mx-auto max-w-4xl px-5 py-16">
           <div className="h-80 animate-pulse rounded-3xl bg-white/[0.03]" />
@@ -420,7 +584,7 @@ export function ForumDiscussionPage() {
 
   if (!discussion || discussionQuery.isError) {
     return (
-      <div className="min-h-screen bg-[#07100f]">
+      <div className="forum-theme min-h-screen">
         <Navbar />
         <main className="mx-auto max-w-3xl px-5 py-20 text-center">
           <h1 className="text-xl font-bold text-white">
@@ -446,7 +610,7 @@ export function ForumDiscussionPage() {
     discussion.communityName ?? discussion.authorUserName;
 
   return (
-    <div className="min-h-screen bg-[#07100f] text-zinc-100">
+    <div className="forum-theme min-h-screen text-zinc-100">
       <Navbar />
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:py-9">
         <Link
@@ -484,12 +648,21 @@ export function ForumDiscussionPage() {
                 </p>
               )}
               <p className="mt-0.5 text-xs text-zinc-600">
-                {formatRelativeDate(discussion.createdAt)} ·{" "}
+                {formatRelativeDate(discussion.createdAt)}
+                {discussion.updatedAt && " · Redaktə edilib"} ·{" "}
                 {discussion.categoryName}
               </p>
               {discussion.communityId && (
                 <p className="mt-1 text-[11px] text-zinc-500">
-                  Paylaşan: @{discussion.authorUserName}
+                  Paylaşan:{" "}
+                  <Link
+                    to={`/users/${encodeURIComponent(
+                      discussion.authorUserName,
+                    )}`}
+                    className="font-semibold text-zinc-400 transition hover:text-teal-300"
+                  >
+                    {discussion.authorUserName}
+                  </Link>
                 </p>
               )}
             </div>
@@ -507,20 +680,80 @@ export function ForumDiscussionPage() {
                 authorId={discussion.authorId}
                 authorUserName={discussion.authorUserName}
                 initialIsActive={discussion.isSavedByCurrentUser}
+                canEdit={discussion.canEdit}
+                canDelete={discussion.canDelete}
+                onEdit={() => {
+                  setEditDiscussionTitle(discussion.title);
+                  setEditDiscussionContent(discussion.content);
+                  setIsEditingDiscussion(true);
+                }}
+                onDelete={handleDiscussionDelete}
               />
             </div>
           </div>
 
-          <h1 className="mt-6 text-2xl font-bold leading-tight text-white sm:text-3xl">
-            {discussion.title}
-          </h1>
+          {isEditingDiscussion ? (
+            <div className="mt-6 space-y-3">
+              <input
+                type="text"
+                value={editDiscussionTitle}
+                onChange={(event) =>
+                  setEditDiscussionTitle(event.target.value)
+                }
+                maxLength={200}
+                className="w-full rounded-xl border border-white/[0.08] bg-black/20 px-4 py-3 text-base font-bold text-white outline-none focus:border-teal-300/30"
+                aria-label="Müzakirə başlığı"
+              />
+              <textarea
+                value={editDiscussionContent}
+                onChange={(event) =>
+                  setEditDiscussionContent(event.target.value)
+                }
+                maxLength={10000}
+                rows={7}
+                className="w-full resize-y rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm leading-7 text-white outline-none focus:border-teal-300/30"
+                aria-label="Müzakirə mətni"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  disabled={isDiscussionBusy}
+                  onClick={() => setIsEditingDiscussion(false)}
+                  className="rounded-xl px-4 py-2.5 text-xs font-semibold text-zinc-500 transition hover:text-zinc-300"
+                >
+                  Ləğv et
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    isDiscussionBusy ||
+                    !editDiscussionTitle.trim() ||
+                    !editDiscussionContent.trim() ||
+                    (editDiscussionTitle.trim() === discussion.title &&
+                      editDiscussionContent.trim() === discussion.content)
+                  }
+                  onClick={handleDiscussionUpdate}
+                  className="flex items-center gap-2 rounded-xl bg-teal-300 px-4 py-2.5 text-xs font-black text-[#07100f] disabled:opacity-40"
+                >
+                  {isDiscussionBusy && (
+                    <LoaderCircle size={14} className="animate-spin" />
+                  )}
+                  Redaktəni saxla
+                </button>
+              </div>
+            </div>
+          ) : (
+            <h1 className="mt-6 text-2xl font-bold leading-tight text-white sm:text-3xl">
+              {discussion.title}
+            </h1>
+          )}
 
           <ForumMediaGallery
             media={discussion.media}
             title={discussion.title}
           />
 
-          {discussion.content && (
+          {!isEditingDiscussion && discussion.content && (
             <p className="mt-5 whitespace-pre-wrap text-sm leading-7 text-zinc-300">
               {discussion.content}
             </p>
@@ -668,6 +901,7 @@ export function ForumDiscussionPage() {
                   busyReplyId={busyReplyId}
                   onVote={handleVote}
                   onDelete={handleDelete}
+                  onUpdate={handleUpdateReply}
                   onReply={(parentReplyId, content) =>
                     submitReply(parentReplyId, content)
                   }

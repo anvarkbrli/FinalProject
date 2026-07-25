@@ -101,6 +101,15 @@ export async function approveCommunityMembership(
   );
 }
 
+export async function rejectCommunityMembership(
+  communityId: number,
+  membershipId: number,
+): Promise<void> {
+  await api.delete(
+    `/forum-communities/${communityId}/membership-requests/${membershipId}`,
+  );
+}
+
 export async function inviteToCommunity(
   communityId: number,
   userName: string,

@@ -145,6 +145,21 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [HttpDelete("{id:int}/membership-requests/{membershipId:int}")]
+    public async Task<IActionResult> RejectMembership(
+        int id,
+        int membershipId,
+        CancellationToken cancellationToken)
+    {
+        await _communityService.RejectMembershipAsync(
+            id,
+            membershipId,
+            GetCurrentUserId(),
+            cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
     [HttpPost("{id:int}/invitations")]
     public async Task<IActionResult> Invite(
         int id,

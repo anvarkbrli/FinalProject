@@ -13,6 +13,7 @@ import {
   ShieldCheck,
   UserPlus,
   UsersRound,
+  X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -31,6 +32,7 @@ import {
   inviteToCommunity,
   joinForumCommunity,
   leaveForumCommunity,
+  rejectCommunityMembership,
   setForumCommunityFollowed,
 } from "../services/forumCommunityService";
 import { getForumDiscussions } from "../services/forumService";
@@ -81,6 +83,12 @@ export function ForumCommunityPage() {
   });
 
   const community = communityQuery.data;
+  const canReviewMembershipRequests =
+    community?.canManage === true && community.visibility === "Restricted";
+  const canInvitePrivateMembers =
+    community?.canManage === true && community.visibility === "Private";
+  const hasManagementSidebar =
+    canReviewMembershipRequests || canInvitePrivateMembers;
 
   const discussionsQuery = useQuery({
     queryKey: ["forum", "feed", "community", slug],
@@ -98,7 +106,7 @@ export function ForumCommunityPage() {
     ],
     queryFn: ({ signal }) =>
       getCommunityMembershipRequests(community!.id, signal),
-    enabled: Boolean(community?.canManage),
+    enabled: canReviewMembershipRequests,
   });
 
   useEffect(() => {
@@ -142,7 +150,7 @@ export function ForumCommunityPage() {
 
   if (communityQuery.isLoading) {
     return (
-      <div className="min-h-screen bg-[#07100f] text-zinc-100">
+      <div className="forum-theme min-h-screen text-zinc-100">
         <Navbar />
         <main className="mx-auto flex min-h-[60vh] max-w-6xl items-center justify-center gap-3">
           <LoaderCircle size={20} className="animate-spin text-teal-300" />
@@ -154,7 +162,7 @@ export function ForumCommunityPage() {
 
   if (!community) {
     return (
-      <div className="min-h-screen bg-[#07100f] text-zinc-100">
+      <div className="forum-theme min-h-screen text-zinc-100">
         <Navbar />
         <main className="mx-auto max-w-3xl px-5 py-20 text-center">
           <LockKeyhole size={34} className="mx-auto text-zinc-700" />
@@ -178,9 +186,16 @@ export function ForumCommunityPage() {
   const coverUrl = resolveAssetUrl(community.coverImageUrl);
   const membership = community.currentUserMembershipStatus;
   const isOwner = community.ownerId === user?.id;
+  const isActiveMember = membership === "Active";
+  const canFollowCommunity =
+    isAuthenticated && !isOwner && !isActiveMember;
+  const canReportCommunity = isAuthenticated && !isOwner;
+  const showDirectReportAction = canReportCommunity && isActiveMember;
+  const hasCommunityMenuActions =
+    canFollowCommunity || (canReportCommunity && !isActiveMember);
 
   return (
-    <div className="min-h-screen bg-[#07100f] text-zinc-100">
+    <div className="forum-theme min-h-screen text-zinc-100">
       <Navbar />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6 lg:py-8">
         <Link
@@ -231,7 +246,17 @@ export function ForumCommunityPage() {
                   <span>{community.memberCount} üzv</span>
                   <span>{community.followerCount} izləyici</span>
                   <span>{community.discussionCount} müzakirə</span>
-                  <span>Sahib: @{community.ownerUserName}</span>
+                  <span>
+                    Sahib:{" "}
+                    <Link
+                      to={`/users/${encodeURIComponent(
+                        community.ownerUserName,
+                      )}`}
+                      className="font-semibold text-zinc-500 transition hover:text-teal-300"
+                    >
+                      {community.ownerUserName}
+                    </Link>
+                  </span>
                 </div>
               </div>
 
@@ -294,7 +319,18 @@ export function ForumCommunityPage() {
                   </>
                 )}
 
-                {isAuthenticated && (
+                {showDirectReportAction && (
+                  <button
+                    type="button"
+                    onClick={() => setIsReportOpen(true)}
+                    className="flex h-10 items-center gap-2 rounded-xl border border-rose-400/20 bg-rose-400/[0.07] px-4 text-xs font-bold text-rose-300 transition hover:bg-rose-400/[0.12] hover:text-rose-200"
+                  >
+                    <Flag size={15} />
+                    Şikayət et
+                  </button>
+                )}
+
+                {hasCommunityMenuActions && (
                   <div ref={menuRef} className="relative">
                     <button
                       type="button"
@@ -306,30 +342,32 @@ export function ForumCommunityPage() {
                     </button>
                     {isMenuOpen && (
                       <div className="absolute right-0 top-full z-40 mt-2 w-56 rounded-2xl border border-white/[0.09] bg-[#111c1b] p-1.5 shadow-2xl shadow-black/50">
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={() => {
-                            setIsMenuOpen(false);
-                            void runAction(() =>
-                              setForumCommunityFollowed(
-                                community.id,
-                                !community.isFollowedByCurrentUser,
-                              ),
-                            );
-                          }}
-                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 transition hover:bg-white/[0.055] disabled:opacity-50"
-                        >
-                          {community.isFollowedByCurrentUser ? (
-                            <BellOff size={16} className="text-teal-300" />
-                          ) : (
-                            <Bell size={16} />
-                          )}
-                          {community.isFollowedByCurrentUser
-                            ? "İzləməni dayandır"
-                            : "İcmanı izlə"}
-                        </button>
-                        {!isOwner && (
+                        {canFollowCommunity && (
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            onClick={() => {
+                              setIsMenuOpen(false);
+                              void runAction(() =>
+                                setForumCommunityFollowed(
+                                  community.id,
+                                  !community.isFollowedByCurrentUser,
+                                ),
+                              );
+                            }}
+                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 transition hover:bg-white/[0.055] disabled:opacity-50"
+                          >
+                            {community.isFollowedByCurrentUser ? (
+                              <BellOff size={16} className="text-teal-300" />
+                            ) : (
+                              <Bell size={16} />
+                            )}
+                            {community.isFollowedByCurrentUser
+                              ? "İzləməni dayandır"
+                              : "İcmanı izlə"}
+                          </button>
+                        )}
+                        {canReportCommunity && (
                           <button
                             type="button"
                             onClick={() => {
@@ -357,7 +395,13 @@ export function ForumCommunityPage() {
           </div>
         </section>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div
+          className={`mt-6 grid gap-6 ${
+            hasManagementSidebar
+              ? "lg:grid-cols-[minmax(0,1fr)_320px]"
+              : "grid-cols-1"
+          }`}
+        >
           <section>
             <h2 className="text-lg font-bold text-white">İcma müzakirələri</h2>
             <div className="mt-4 space-y-3">
@@ -372,24 +416,36 @@ export function ForumCommunityPage() {
                 </div>
               ) : (
                 discussionsQuery.data?.items.map((discussion) => (
-                  <Link
+                  <article
                     key={discussion.id}
-                    to={`/forum/discussions/${discussion.slug}`}
-                    className="group block rounded-[22px] border border-white/[0.075] bg-[#0d1716]/80 p-5 transition hover:border-teal-300/15"
+                    className="group relative rounded-[22px] border border-white/[0.075] bg-[#0d1716]/80 p-5 transition hover:border-teal-300/15"
                   >
-                    <p className="text-xs text-zinc-600">
-                      @{discussion.authorUserName} ·{" "}
-                      {formatRelativeDate(discussion.createdAt)}
+                    <Link
+                      to={`/forum/discussions/${discussion.slug}`}
+                      className="absolute inset-0 rounded-[22px]"
+                      aria-label={`${discussion.title} müzakirəsini aç`}
+                    />
+                    <p className="pointer-events-none relative z-10 flex flex-wrap items-center gap-1 text-xs text-zinc-600">
+                      <Link
+                        to={`/users/${encodeURIComponent(
+                          discussion.authorUserName,
+                        )}`}
+                        className="pointer-events-auto font-semibold text-zinc-500 transition hover:text-teal-300"
+                      >
+                        {discussion.authorUserName}
+                      </Link>
+                      <span aria-hidden="true">·</span>
+                      <span>{formatRelativeDate(discussion.createdAt)}</span>
                     </p>
-                    <h3 className="mt-2 font-bold text-zinc-100 transition group-hover:text-white">
+                    <h3 className="pointer-events-none relative mt-2 font-bold text-zinc-100 transition group-hover:text-white">
                       {discussion.title}
                     </h3>
                     {discussion.contentPreview && (
-                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-zinc-500">
+                      <p className="pointer-events-none relative mt-2 line-clamp-2 text-sm leading-6 text-zinc-500">
                         {discussion.contentPreview}
                       </p>
                     )}
-                    <div className="mt-4 flex items-center justify-between text-[11px] text-zinc-600">
+                    <div className="pointer-events-none relative mt-4 flex items-center justify-between text-[11px] text-zinc-600">
                       <span>
                         {discussion.likeCount} bəyənmə ·{" "}
                         {discussion.replyCount} cavab
@@ -399,55 +455,80 @@ export function ForumCommunityPage() {
                         className="transition group-hover:translate-x-0.5 group-hover:text-teal-300"
                       />
                     </div>
-                  </Link>
+                  </article>
                 ))
               )}
             </div>
           </section>
 
-          {community.canManage && (
+          {hasManagementSidebar && (
             <aside className="space-y-4">
-              <section className="rounded-[22px] border border-white/[0.075] bg-[#0d1716]/80 p-5">
-                <h2 className="text-sm font-bold text-white">
-                  Üzvlük sorğuları
-                </h2>
-                <div className="mt-4 space-y-2">
-                  {(membershipRequestsQuery.data ?? []).length === 0 ? (
-                    <p className="text-xs leading-5 text-zinc-600">
-                      Gözləyən üzvlük sorğusu yoxdur.
-                    </p>
-                  ) : (
-                    membershipRequestsQuery.data?.map((request) => (
-                      <div
-                        key={request.membershipId}
-                        className="flex items-center gap-3 rounded-xl bg-white/[0.03] p-3"
-                      >
-                        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-zinc-300">
-                          @{request.userName}
-                        </span>
-                        <button
-                          type="button"
-                          disabled={isBusy}
-                          onClick={() =>
-                            runAction(async () => {
-                              await approveCommunityMembership(
-                                community.id,
-                                request.membershipId,
-                              );
-                              await membershipRequestsQuery.refetch();
-                            })
-                          }
-                          className="text-xs font-bold text-teal-300 disabled:opacity-50"
+              {canReviewMembershipRequests && (
+                <section className="rounded-[22px] border border-white/[0.075] bg-[#0d1716]/80 p-5">
+                  <h2 className="text-sm font-bold text-white">
+                    Üzvlük sorğuları
+                  </h2>
+                  <div className="mt-4 space-y-2">
+                    {(membershipRequestsQuery.data ?? []).length === 0 ? (
+                      <p className="text-xs leading-5 text-zinc-600">
+                        Gözləyən üzvlük sorğusu yoxdur.
+                      </p>
+                    ) : (
+                      membershipRequestsQuery.data?.map((request) => (
+                        <div
+                          key={request.membershipId}
+                          className="rounded-xl bg-white/[0.03] p-3"
                         >
-                          Təsdiqlə
-                        </button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </section>
+                          <Link
+                            to={`/users/${encodeURIComponent(request.userName)}`}
+                            className="block truncate text-xs font-semibold text-zinc-300 transition hover:text-teal-300"
+                          >
+                            {request.userName}
+                          </Link>
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() =>
+                                runAction(async () => {
+                                  await approveCommunityMembership(
+                                    community.id,
+                                    request.membershipId,
+                                  );
+                                  await membershipRequestsQuery.refetch();
+                                })
+                              }
+                              className="flex h-9 items-center justify-center gap-1.5 rounded-lg bg-teal-300 px-2 text-[11px] font-black text-[#07100f] transition hover:bg-teal-200 disabled:opacity-50"
+                            >
+                              <Check size={14} />
+                              Qəbul et
+                            </button>
+                            <button
+                              type="button"
+                              disabled={isBusy}
+                              onClick={() =>
+                                runAction(async () => {
+                                  await rejectCommunityMembership(
+                                    community.id,
+                                    request.membershipId,
+                                  );
+                                  await membershipRequestsQuery.refetch();
+                                })
+                              }
+                              className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-rose-400/20 bg-rose-400/[0.07] px-2 text-[11px] font-bold text-rose-300 transition hover:bg-rose-400/[0.12] disabled:opacity-50"
+                            >
+                              <X size={14} />
+                              Rədd et
+                            </button>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </section>
+              )}
 
-              {community.visibility === "Private" && (
+              {canInvitePrivateMembers && (
                 <section className="rounded-[22px] border border-white/[0.075] bg-[#0d1716]/80 p-5">
                   <h2 className="text-sm font-bold text-white">
                     İstifadəçi dəvət et

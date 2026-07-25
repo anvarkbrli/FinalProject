@@ -211,7 +211,7 @@ export function EditProfilePage({
           </div>
         )}
 
-        <div className="mt-7 grid gap-6 lg:grid-cols-[0.78fr_1.4fr]">
+        <div className="mt-7 grid gap-6 lg:grid-cols-[0.78fr_1.4fr] lg:items-stretch">
           <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
             <h2 className="font-semibold text-white">Profil şəkli</h2>
             <div className="mt-5 flex flex-col items-center">
@@ -240,8 +240,7 @@ export function EditProfilePage({
             </div>
           </section>
 
-          <div className="space-y-6">
-            <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
+          <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
               <h2 className="font-semibold text-white">Əsas məlumatlar</h2>
               <div className="mt-5 space-y-5">
                 <label className="block">
@@ -265,9 +264,9 @@ export function EditProfilePage({
                   <span className="mt-1 block text-right text-xs text-zinc-600">{bio.length}/500</span>
                 </label>
               </div>
-            </section>
+          </section>
 
-            <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
+          <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6 lg:col-span-2">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <h2 className="font-semibold text-white">Sosial linklər</h2>
@@ -325,21 +324,20 @@ export function EditProfilePage({
                   );
                 })}
               </div>
-            </section>
+          </section>
 
-            <button
-              type="button"
-              onClick={() => {
-                setNotice(null);
-                saveMutation.mutate();
-              }}
-              disabled={saveMutation.isPending}
-              className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
-            >
-              {saveMutation.isPending ? <LoaderCircle size={18} className="animate-spin" /> : <Save size={18} />}
-              Dəyişiklikləri yadda saxla
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setNotice(null);
+              saveMutation.mutate();
+            }}
+            disabled={saveMutation.isPending}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50 lg:col-span-2"
+          >
+            {saveMutation.isPending ? <LoaderCircle size={18} className="animate-spin" /> : <Save size={18} />}
+            Dəyişiklikləri yadda saxla
+          </button>
         </div>
       </main>
       {!embedded && <Footer />}

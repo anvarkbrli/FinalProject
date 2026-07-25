@@ -17,6 +17,9 @@ export async function getForumDiscussions(
   categorySlug?: string,
   signal?: AbortSignal,
   communitySlug?: string,
+  search?: string,
+  pageNumber = 1,
+  pageSize = 20,
 ): Promise<PagedResultDTO<DiscussionListItemDTO>> {
   const response = await api.get<
     PagedResultDTO<DiscussionListItemDTO>
@@ -25,8 +28,9 @@ export async function getForumDiscussions(
       sortBy,
       categorySlug: categorySlug || undefined,
       communitySlug: communitySlug || undefined,
-      pageNumber: 1,
-      pageSize: 20,
+      search: search?.trim() || undefined,
+      pageNumber,
+      pageSize,
     },
     signal,
   });
@@ -69,6 +73,26 @@ export async function createDiscussion(
   return response.data;
 }
 
+
+export async function updateDiscussion(
+  discussionId: number,
+  title: string,
+  content: string,
+  categoryId: number,
+): Promise<DiscussionDetailDTO> {
+  const response = await api.put<DiscussionDetailDTO>(
+    `/discussions/${discussionId}`,
+    { title, content, categoryId },
+  );
+  return response.data;
+}
+
+export async function deleteDiscussion(
+  discussionId: number,
+): Promise<void> {
+  await api.delete(`/discussions/${discussionId}`);
+}
+
 export async function getDiscussionReplies(
   discussionId: number,
   signal?: AbortSignal,
@@ -94,6 +118,18 @@ export async function createDiscussionReply(
       content,
       parentReplyId: parentReplyId ?? null,
     },
+  );
+  return response.data;
+}
+
+
+export async function updateDiscussionReply(
+  replyId: number,
+  content: string,
+): Promise<DiscussionReplyDTO> {
+  const response = await api.put<DiscussionReplyDTO>(
+    `/discussion-replies/${replyId}`,
+    { content },
   );
   return response.data;
 }

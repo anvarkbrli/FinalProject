@@ -1,44 +1,44 @@
+import { useQuery } from "@tanstack/react-query";
 import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
-import {
+  ArrowLeft,
+  ArrowRight,
   ArrowUpRight,
   ChevronRight,
   Flame,
-  Heart,
+  LogIn,
   MessageCircle,
   Plus,
   Search,
   Sparkles,
+  UserPlus,
   UsersRound,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { CreateDiscussionModal } from "../components/forum/CreateDiscussionModal";
 import { CreateCommunityModal } from "../components/forum/CreateCommunityModal";
-import { ForumContentMenu } from "../components/forum/ForumContentMenu";
+import { CreateDiscussionModal } from "../components/forum/CreateDiscussionModal";
+import {
+  DiscussionFeedCard,
+  ForumFeedSkeleton,
+  ForumPostCard,
+} from "../components/forum/ForumFeedCards";
 import { ForumInterestOnboarding } from "../components/forum/ForumInterestOnboarding";
-import { ForumMediaGallery } from "../components/forum/ForumMediaGallery";
 import {
   ForumSidebar,
   type ForumSection,
 } from "../components/forum/ForumSidebar";
 import { Navbar } from "../components/layout/Navbar";
-import {
-  formatRelativeDate,
-  resolveAssetUrl,
-} from "../lib/helpers";
-import {
-  getForumDiscussions,
-  setDiscussionLike,
-  type ForumFeedSort,
-} from "../services/forumService";
+import { resolveAssetUrl } from "../lib/helpers";
 import {
   getForumCommunities,
   getMyForumCommunities,
 } from "../services/forumCommunityService";
+import {
+  getForumExploreFeed,
+  getForumHomeFeed,
+  getForumPopularFeed,
+} from "../services/forumFeedService";
+import { getForumDiscussions } from "../services/forumService";
 import { getForumCategories } from "../services/homeService";
 import { getMyUserGames } from "../services/userGamesService";
 import {
@@ -46,13 +46,13 @@ import {
   useAuthStore,
 } from "../stores/authStore";
 import type {
-  DiscussionListItemDTO,
-  PagedResultDTO,
-} from "../types/home";
-import type {
   ForumCommunityCategory,
   ForumCommunityDTO,
 } from "../types/community";
+import type {
+  ForumFeedItemDTO,
+  ForumPopularPeriod,
+} from "../types/forumFeed";
 
 const communityCategoryLabels: Record<
   ForumCommunityCategory,
@@ -68,23 +68,86 @@ const communityCategoryLabels: Record<
   Other: "Digər",
 };
 
+const popularPeriods: Array<{
+  value: ForumPopularPeriod;
+  label: string;
+}> = [
+  { value: "day", label: "24 saat" },
+  { value: "week", label: "7 gün" },
+  { value: "month", label: "30 gün" },
+  { value: "all", label: "Bütün zamanlar" },
+];
+
+interface StoredForumInterests {
+  styles?: string[];
+  games?: Array<{ key: string; title: string }>;
+  genres?: string[];
+  platform?: string;
+}
+
+function parseStoredForumInterests(
+  value: string | null,
+): StoredForumInterests | null {
+  if (!value) return null;
+
+  try {
+    return JSON.parse(value) as StoredForumInterests;
+  } catch {
+    return null;
+  }
+}
+
 function getCommunityPath(slug: string) {
   return `/forum/communities/${encodeURIComponent(slug.trim())}`;
 }
 
 function CommunityCard({
   community,
+  compact = false,
 }: {
   community: ForumCommunityDTO;
+  compact?: boolean;
 }) {
   const iconUrl = resolveAssetUrl(community.iconUrl);
   const coverImageUrl = resolveAssetUrl(community.coverImageUrl);
 
+  if (compact) {
+    return (
+      <Link
+        to={getCommunityPath(community.slug)}
+        className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-teal-300/20 hover:bg-teal-300/[0.04]"
+      >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-teal-300/10 text-sm font-black text-teal-100">
+          {iconUrl ? (
+            <img
+              src={iconUrl}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            community.name.charAt(0).toUpperCase()
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-bold text-zinc-200">
+            {community.name}
+          </span>
+          <span className="mt-1 block text-[11px] text-zinc-600">
+            {community.memberCount} üzv · {community.discussionCount} müzakirə
+          </span>
+        </span>
+        <ChevronRight
+          size={15}
+          className="text-zinc-700 transition group-hover:translate-x-0.5 group-hover:text-teal-300"
+        />
+      </Link>
+    );
+  }
+
   return (
     <Link
       to={getCommunityPath(community.slug)}
-      className="group flex h-full min-w-0 flex-col overflow-hidden rounded-[22px] border border-white/[0.075] bg-[#0d1716]/80 text-left transition hover:-translate-y-0.5 hover:border-teal-200/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300/40"
-      aria-label={`${community.name} icmasını aç`}
+      className="group flex h-full min-w-0 flex-col overflow-hidden rounded-[22px] border border-white/[0.075] bg-[#0d1716]/80 text-left transition hover:-translate-y-0.5 hover:border-teal-200/15"
     >
       <div
         className="h-24 shrink-0 bg-gradient-to-br from-teal-400/15 via-transparent to-violet-400/10 bg-cover bg-center"
@@ -94,7 +157,6 @@ function CommunityCard({
             : undefined
         }
       />
-
       <div className="flex flex-1 flex-col px-5 pb-5">
         <span className="-mt-7 flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-4 border-[#0d1716] bg-teal-300/15 text-sm font-black text-teal-100">
           {iconUrl ? (
@@ -107,20 +169,15 @@ function CommunityCard({
             community.name.charAt(0).toUpperCase()
           )}
         </span>
-
-        <div className="mt-3 min-w-0">
-          <p className="truncate font-bold text-white">
-            {community.name}
-          </p>
-          <p className="mt-1 text-[10px] font-semibold text-teal-300/70">
-            {communityCategoryLabels[community.category]}
-          </p>
-        </div>
-
+        <p className="mt-3 truncate font-bold text-white">
+          {community.name}
+        </p>
+        <p className="mt-1 text-[10px] font-semibold text-teal-300/70">
+          {communityCategoryLabels[community.category]}
+        </p>
         <p className="mt-2 line-clamp-2 min-h-10 text-xs leading-5 text-zinc-600">
           {community.description}
         </p>
-
         <div className="mt-auto flex items-center justify-between gap-3 pt-4 text-[11px]">
           <span className="truncate text-zinc-600">
             {community.memberCount} üzv · {community.discussionCount} müzakirə
@@ -135,210 +192,93 @@ function CommunityCard({
   );
 }
 
-function DiscussionFeedCard({
-  discussion,
+function FeedItem({
+  item,
   isAuthenticated,
 }: {
-  discussion: DiscussionListItemDTO;
+  item: ForumFeedItemDTO;
   isAuthenticated: boolean;
 }) {
-  const queryClient = useQueryClient();
-  const avatarUrl = resolveAssetUrl(
-    discussion.communityIconUrl ??
-      discussion.authorProfileImageUrl,
-  );
-  const displayName =
-    discussion.communityName ?? discussion.authorUserName;
-  const likeMutation = useMutation({
-    mutationFn: (isLiked: boolean) =>
-      setDiscussionLike(discussion.id, isLiked),
-    onMutate: async (isLiked) => {
-      await queryClient.cancelQueries({
-        queryKey: ["forum", "feed"],
-      });
-
-      const previousFeeds = queryClient.getQueriesData<
-        PagedResultDTO<DiscussionListItemDTO>
-      >({
-        queryKey: ["forum", "feed"],
-      });
-
-      queryClient.setQueriesData<
-        PagedResultDTO<DiscussionListItemDTO>
-      >(
-        { queryKey: ["forum", "feed"] },
-        (currentFeed) => {
-          if (!currentFeed) return currentFeed;
-
-          return {
-            ...currentFeed,
-            items: currentFeed.items.map((item) =>
-              item.id === discussion.id
-                ? {
-                    ...item,
-                    isLikedByCurrentUser: isLiked,
-                    likeCount: Math.max(
-                      0,
-                      item.likeCount + (isLiked ? 1 : -1),
-                    ),
-                  }
-                : item,
-            ),
-          };
-        },
-      );
-
-      return { previousFeeds };
-    },
-    onError: (_error, _isLiked, context) => {
-      context?.previousFeeds.forEach(([queryKey, data]) => {
-        queryClient.setQueryData(queryKey, data);
-      });
-    },
-    onSettled: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["forum", "feed"],
-      });
-    },
-  });
-
-  return (
-    <article className="group relative rounded-[22px] border border-white/[0.075] bg-[#0d1716]/80 p-4 transition hover:border-teal-200/15 hover:bg-[#101c1b] sm:p-5">
-      <ForumContentMenu
-        kind="discussion"
-        contentId={discussion.id}
-        contentLabel={discussion.title}
-        authorId={discussion.authorId}
-        authorUserName={discussion.authorUserName}
-        initialIsActive={discussion.isSavedByCurrentUser}
-        className="absolute right-3 top-3 sm:right-4 sm:top-4"
+  if (item.itemType === "Post" && item.post) {
+    return (
+      <ForumPostCard
+        post={item.post}
+        reason={item.reason}
+        isAuthenticated={isAuthenticated}
       />
-      <div className="flex gap-3.5">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-violet-500/25 to-teal-300/15 text-sm font-black text-teal-100">
-          {avatarUrl ? (
-            <img
-              src={avatarUrl}
-              alt=""
-              className="h-full w-full object-cover"
-            />
-          ) : (
-            displayName.charAt(0).toUpperCase()
-          )}
-        </div>
+    );
+  }
 
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-9 text-xs">
-            {discussion.communitySlug ? (
-              <Link
-                to={`/forum/communities/${discussion.communitySlug}`}
-                className="font-semibold text-teal-200 transition hover:text-teal-100"
-              >
-                {displayName}
-              </Link>
-            ) : (
-              <span className="font-semibold text-zinc-300">
-                {displayName}
-              </span>
-            )}
-            <span className="text-zinc-700">•</span>
-            <span className="text-zinc-600">
-              {formatRelativeDate(discussion.createdAt)}
-            </span>
-            {discussion.isPinned && (
-              <span className="rounded-full bg-teal-300/10 px-2 py-0.5 font-semibold text-teal-300">
-                Bərkidilib
-              </span>
-            )}
-          </div>
+  if (item.discussion) {
+    return (
+      <DiscussionFeedCard
+        discussion={item.discussion}
+        reason={item.reason}
+        isAuthenticated={isAuthenticated}
+      />
+    );
+  }
 
-          <Link
-            to={`/forum/discussions/${discussion.slug}`}
-            className="mt-2 block text-base font-bold leading-6 text-zinc-100 transition group-hover:text-white sm:text-lg"
-          >
-            {discussion.title}
-          </Link>
+  return null;
+}
 
-          {discussion.contentPreview && (
-            <p className="mt-2 line-clamp-3 text-sm leading-6 text-zinc-500">
-              {discussion.contentPreview}
-            </p>
-          )}
-
-          <ForumMediaGallery
-            media={discussion.media}
-            title={discussion.title}
-            compact
-          />
-
-          <div className="mt-2.5">
-            <span className="rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 py-1 text-[11px] font-semibold text-zinc-500">
-              {discussion.categoryName}
-            </span>
-          </div>
-
-          <div className="mt-4 flex items-center gap-1">
-            <button
-              type="button"
-              disabled={
-                !isAuthenticated || likeMutation.isPending
-              }
-              aria-pressed={discussion.isLikedByCurrentUser}
-              title={
-                isAuthenticated
-                  ? discussion.isLikedByCurrentUser
-                    ? "Bəyənməni geri götür"
-                    : "Müzakirəni bəyən"
-                  : "Bəyənmək üçün hesabınıza daxil olun"
-              }
-              onClick={(event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                likeMutation.mutate(
-                  !discussion.isLikedByCurrentUser,
-                );
-              }}
-              className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs transition ${
-                discussion.isLikedByCurrentUser
-                  ? "bg-rose-400/10 text-rose-300"
-                  : "text-zinc-600 hover:bg-white/[0.045] hover:text-zinc-300"
-              } disabled:cursor-not-allowed disabled:opacity-50`}
-            >
-              <Heart
-                size={14}
-                fill={
-                  discussion.isLikedByCurrentUser
-                    ? "currentColor"
-                    : "none"
-                }
-              />
-              {discussion.likeCount}
-            </button>
-            <Link
-              to={`/forum/discussions/${discussion.slug}`}
-              className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs text-zinc-600 transition hover:bg-white/[0.045] hover:text-zinc-300"
-            >
-              <MessageCircle size={14} />
-              {discussion.replyCount} cavab
-            </Link>
-            <span className="ml-auto text-[11px] text-zinc-700">
-              {discussion.viewCount} baxış
-            </span>
-          </div>
-        </div>
-      </div>
-    </article>
+function EmptyFeed({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
+      <MessageCircle
+        size={26}
+        className="mx-auto text-zinc-700"
+      />
+      <p className="mt-3 text-sm font-semibold text-zinc-400">
+        {title}
+      </p>
+      <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-zinc-600">
+        {description}
+      </p>
+    </div>
   );
 }
 
-function FeedSkeleton() {
+function Pagination({
+  page,
+  totalPages,
+  onPageChange,
+}: {
+  page: number;
+  totalPages: number;
+  onPageChange: (page: number) => void;
+}) {
+  if (totalPages <= 1) return null;
+
   return (
-    <div className="space-y-3">
-      {Array.from({ length: 5 }).map((_, index) => (
-        <div
-          key={index}
-          className="h-44 animate-pulse rounded-[22px] border border-white/[0.05] bg-white/[0.025]"
-        />
-      ))}
+    <div className="mt-5 flex items-center justify-between rounded-2xl border border-white/[0.07] bg-white/[0.025] p-2">
+      <button
+        type="button"
+        disabled={page <= 1}
+        onClick={() => onPageChange(page - 1)}
+        className="flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-bold text-zinc-400 transition hover:bg-white/[0.045] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+      >
+        <ArrowLeft size={14} />
+        Əvvəlki
+      </button>
+      <span className="text-xs font-semibold text-zinc-600">
+        {page} / {totalPages}
+      </span>
+      <button
+        type="button"
+        disabled={page >= totalPages}
+        onClick={() => onPageChange(page + 1)}
+        className="flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-bold text-zinc-400 transition hover:bg-white/[0.045] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+      >
+        Növbəti
+        <ArrowRight size={14} />
+      </button>
     </div>
   );
 }
@@ -347,17 +287,21 @@ export function ForumPage() {
   const navigate = useNavigate();
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
-  const expiresAtUtc = useAuthStore(
-    (state) => state.expiresAtUtc,
-  );
+  const expiresAtUtc = useAuthStore((state) => state.expiresAtUtc);
   const isAuthenticated =
-    user !== null &&
-    isAuthSessionValid(accessToken, expiresAtUtc);
+    user !== null && isAuthSessionValid(accessToken, expiresAtUtc);
+  const storedInterests = user
+    ? localStorage.getItem(`ludora-forum-interests:${user.id}`)
+    : null;
+  const interestProfile = parseStoredForumInterests(storedInterests);
 
   const [activeSection, setActiveSection] =
     useState<ForumSection>("home");
   const [selectedCategory, setSelectedCategory] = useState("");
   const [feedSearch, setFeedSearch] = useState("");
+  const [popularPeriod, setPopularPeriod] =
+    useState<ForumPopularPeriod>("week");
+  const [page, setPage] = useState(1);
   const [onboardingCompleted, setOnboardingCompleted] =
     useState(false);
   const [onboardingDismissed, setOnboardingDismissed] =
@@ -391,22 +335,89 @@ export function ForumPage() {
     enabled: isAuthenticated,
   });
 
-  const sortBy: ForumFeedSort =
-    activeSection === "popular" ? "popular" : "newest";
+  const homeFeedQuery = useQuery({
+    queryKey: ["forum", "home-feed", user?.id, page, feedSearch],
+    queryFn: ({ signal }) =>
+      getForumHomeFeed(
+        {
+          search: feedSearch,
+          pageNumber: page,
+          pageSize: 20,
+        },
+        signal,
+      ),
+    enabled: activeSection === "home" && isAuthenticated,
+  });
+
+  const popularFeedQuery = useQuery({
+    queryKey: [
+      "forum",
+      "popular-feed",
+      page,
+      feedSearch,
+      selectedCategory,
+      popularPeriod,
+    ],
+    queryFn: ({ signal }) =>
+      getForumPopularFeed(
+        {
+          search: feedSearch,
+          categorySlug: selectedCategory,
+          period: popularPeriod,
+          pageNumber: page,
+          pageSize: 20,
+        },
+        signal,
+      ),
+    enabled: activeSection === "popular",
+  });
+
+  const exploreFeedQuery = useQuery({
+    queryKey: [
+      "forum",
+      "explore-feed",
+      page,
+      feedSearch,
+      user?.id,
+      storedInterests,
+    ],
+    queryFn: ({ signal }) =>
+      getForumExploreFeed(
+        {
+          search: feedSearch,
+          interestGameTitles: interestProfile?.games?.map(
+            (game) => game.title,
+          ),
+          interestGenres: interestProfile?.genres,
+          interestPlayStyles: interestProfile?.styles,
+          interestPlatform: interestProfile?.platform,
+          pageNumber: page,
+          pageSize: 20,
+        },
+        signal,
+      ),
+    enabled: activeSection === "explore",
+  });
 
   const discussionsQuery = useQuery({
     queryKey: [
       "forum",
-      "feed",
-      sortBy,
+      "discussions",
+      page,
+      feedSearch,
       selectedCategory,
-      activeSection,
     ],
     queryFn: ({ signal }) =>
-      getForumDiscussions(sortBy, selectedCategory, signal),
-    enabled:
-      activeSection !== "communities" &&
-      activeSection !== "explore",
+      getForumDiscussions(
+        "newest",
+        selectedCategory,
+        signal,
+        undefined,
+        feedSearch,
+        page,
+        20,
+      ),
+    enabled: activeSection === "discussions",
   });
 
   function changeSection(section: ForumSection) {
@@ -415,13 +426,8 @@ export function ForumPage() {
     setActiveSection(section);
     setSelectedCategory("");
     setFeedSearch("");
+    setPage(1);
   }
-
-  const storedInterests = user
-    ? localStorage.getItem(
-        `ludora-forum-interests:${user.id}`,
-      )
-    : null;
 
   const shouldShowOnboarding =
     isAuthenticated &&
@@ -433,48 +439,52 @@ export function ForumPage() {
 
   const categories = categoriesQuery.data ?? [];
   const communities = communitiesQuery.data ?? [];
-  const filteredDiscussions = useMemo(() => {
-    const discussions = discussionsQuery.data?.items ?? [];
-    const normalizedSearch = feedSearch.trim().toLocaleLowerCase(
-      "az-AZ",
-    );
-    if (!normalizedSearch) return discussions;
-    return discussions.filter((discussion) =>
-      discussion.title
-        .toLocaleLowerCase("az-AZ")
-        .includes(normalizedSearch),
-    );
-  }, [discussionsQuery.data?.items, feedSearch]);
+  const activeFeedQuery =
+    activeSection === "home"
+      ? homeFeedQuery
+      : activeSection === "popular"
+        ? popularFeedQuery
+        : exploreFeedQuery;
+  const activeFeed = activeFeedQuery.data;
 
-  const sectionTitle = {
-    home: "Sənin üçün",
+  const sectionTitle: Record<ForumSection, string> = {
+    home: "İzlədiklərindəki yeniliklər",
     discussions: "Ən yeni müzakirələr",
-    popular: "İcmanın gündəmi",
+    popular: "İcmaların gündəmi",
     communities: "Oyun icmaları",
-    explore: "Yeni mövzular kəşf et",
-  }[activeSection];
+    explore: "Sənin üçün yeni kəşflər",
+  };
+
+  const sectionSubtitle: Record<ForumSection, string> = {
+    home: "İzlədiyin istifadəçi və icmalardan gələn post və müzakirələr",
+    discussions: "Bütün açıq mövzuları tarix, kateqoriya və axtarışla araşdır",
+    popular: "İcmalarda ən çox reaksiya və cavab alan müzakirələr",
+    communities: "Oyun mövzuları ətrafında qurulan məkanlar",
+    explore: "Hələ izləmədiyin, amma marağına uyğun ola biləcək məzmun",
+  };
+
+  const showSearch = activeSection !== "communities";
+  const showCategoryFilter =
+    activeSection === "discussions" || activeSection === "popular";
 
   return (
-    <div className="min-h-screen bg-[#07100f] text-zinc-100">
+    <div className="forum-theme min-h-screen text-zinc-100">
       <Navbar />
 
       <div className="relative flex min-h-[calc(100vh-72px)]">
         <div className="pointer-events-none fixed inset-0 top-[72px] overflow-hidden">
           <div className="absolute -right-40 top-0 h-[34rem] w-[34rem] rounded-full bg-teal-400/[0.055] blur-3xl" />
           <div className="absolute bottom-0 left-1/3 h-[28rem] w-[28rem] rounded-full bg-violet-500/[0.045] blur-3xl" />
-          <div
-            className="absolute inset-0 opacity-[0.035]"
-            style={{
-              backgroundImage:
-                "radial-gradient(circle, rgba(153,246,228,.9) 1px, transparent 1px)",
-              backgroundSize: "28px 28px",
-            }}
-          />
         </div>
 
         <ForumSidebar
           activeSection={activeSection}
           onSectionChange={changeSection}
+          onCreateCommunity={
+            isAuthenticated
+              ? () => setIsCreateCommunityOpen(true)
+              : undefined
+          }
         />
 
         <main className="relative min-w-0 flex-1">
@@ -484,16 +494,18 @@ export function ForumPage() {
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-teal-300/70">
-                      Canlı lent
+                      Forum
                     </p>
-                    <h2 className="mt-1.5 text-xl font-bold text-white">
-                      {sectionTitle}
-                    </h2>
+                    <h1 className="mt-1.5 text-xl font-bold text-white">
+                      {sectionTitle[activeSection]}
+                    </h1>
+                    <p className="mt-1 max-w-2xl text-xs leading-5 text-zinc-600">
+                      {sectionSubtitle[activeSection]}
+                    </p>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2">
-                    {activeSection !== "communities" &&
-                      activeSection !== "explore" && (
+                    {showSearch && (
                       <div className="relative">
                         <Search
                           size={15}
@@ -502,133 +514,158 @@ export function ForumPage() {
                         <input
                           type="search"
                           value={feedSearch}
-                          onChange={(event) =>
-                            setFeedSearch(event.target.value)
-                          }
-                          placeholder="Lentdə axtar..."
+                          onChange={(event) => {
+                            setFeedSearch(event.target.value);
+                            setPage(1);
+                          }}
+                          placeholder="Bu bölmədə axtar..."
                           className="h-10 w-full rounded-xl border border-white/[0.075] bg-white/[0.025] pl-9 pr-3 text-xs text-white outline-none transition placeholder:text-zinc-700 focus:border-teal-300/25 sm:w-56"
                         />
                       </div>
                     )}
+
                     {isAuthenticated &&
                       activeSection === "discussions" && (
-                      <button
-                        type="button"
-                        onClick={() => setIsCreateModalOpen(true)}
-                        className="flex h-10 items-center gap-2 rounded-xl bg-teal-300 px-3.5 text-xs font-black text-[#07100f] transition hover:bg-teal-200"
-                      >
-                        <Plus size={15} />
-                        Müzakirə yarat
-                      </button>
-                    )}
+                        <button
+                          type="button"
+                          onClick={() => setIsCreateModalOpen(true)}
+                          className="flex h-10 items-center gap-2 rounded-xl bg-teal-300 px-3.5 text-xs font-black text-[#07100f] transition hover:bg-teal-200"
+                        >
+                          <Plus size={15} />
+                          Müzakirə yarat
+                        </button>
+                      )}
+
                     {isAuthenticated &&
                       activeSection === "communities" && (
-                      <button
-                        type="button"
-                        onClick={() => setIsCreateCommunityOpen(true)}
-                        className="flex h-10 items-center gap-2 rounded-xl bg-teal-300 px-3.5 text-xs font-black text-[#07100f] transition hover:bg-teal-200"
-                      >
-                        <UsersRound size={15} />
-                        Öz icmanı yarat
-                      </button>
-                    )}
+                        <button
+                          type="button"
+                          onClick={() => setIsCreateCommunityOpen(true)}
+                          className="flex h-10 items-center gap-2 rounded-xl bg-teal-300 px-3.5 text-xs font-black text-[#07100f] transition hover:bg-teal-200"
+                        >
+                          <UsersRound size={15} />
+                          Öz icmanı yarat
+                        </button>
+                      )}
                   </div>
                 </div>
 
-                {(activeSection === "home" ||
-                  activeSection === "discussions" ||
-                  activeSection === "popular") && (
-                  <>
-                    <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                {showCategoryFilter && (
+                  <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedCategory("");
+                        setPage(1);
+                      }}
+                      className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                        selectedCategory === ""
+                          ? "border-teal-300/25 bg-teal-300/[0.09] text-teal-200"
+                          : "border-white/[0.07] bg-white/[0.025] text-zinc-500 hover:text-zinc-200"
+                      }`}
+                    >
+                      Hamısı
+                    </button>
+                    {categories.map((category) => (
                       <button
+                        key={category.id}
                         type="button"
-                        onClick={() => setSelectedCategory("")}
+                        onClick={() => {
+                          setSelectedCategory(category.slug);
+                          setPage(1);
+                        }}
                         className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-                          selectedCategory === ""
+                          selectedCategory === category.slug
                             ? "border-teal-300/25 bg-teal-300/[0.09] text-teal-200"
                             : "border-white/[0.07] bg-white/[0.025] text-zinc-500 hover:text-zinc-200"
                         }`}
                       >
-                        Hamısı
+                        {category.name}
                       </button>
-                      {categories.map((category) => (
-                        <button
-                          key={category.id}
-                          type="button"
-                          onClick={() =>
-                            setSelectedCategory(category.slug)
-                          }
-                          className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
-                            selectedCategory === category.slug
-                              ? "border-teal-300/25 bg-teal-300/[0.09] text-teal-200"
-                              : "border-white/[0.07] bg-white/[0.025] text-zinc-500 hover:text-zinc-200"
-                          }`}
-                        >
-                          {category.name}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="mt-4 space-y-3">
-                      {discussionsQuery.isLoading ? (
-                        <FeedSkeleton />
-                      ) : discussionsQuery.isError ? (
-                        <div className="rounded-[22px] border border-rose-400/15 bg-rose-400/[0.04] p-8 text-center">
-                          <p className="text-sm font-semibold text-rose-200">
-                            Müzakirələr yüklənmədi
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              discussionsQuery.refetch()
-                            }
-                            className="mt-3 text-xs font-bold text-teal-300"
-                          >
-                            Yenidən yoxla
-                          </button>
-                        </div>
-                      ) : filteredDiscussions.length === 0 ? (
-                        <div className="rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
-                          <MessageCircle
-                            size={26}
-                            className="mx-auto text-zinc-700"
-                          />
-                          <p className="mt-3 text-sm font-semibold text-zinc-400">
-                            Burada hələ müzakirə yoxdur
-                          </p>
-                          <p className="mt-1 text-xs text-zinc-600">
-                            İlk mövzunu sən başlat.
-                          </p>
-                        </div>
-                      ) : (
-                        filteredDiscussions.map((discussion) => (
-                          <DiscussionFeedCard
-                            key={discussion.id}
-                            discussion={discussion}
-                            isAuthenticated={isAuthenticated}
-                          />
-                        ))
-                      )}
-                    </div>
-                  </>
+                    ))}
+                  </div>
                 )}
 
-                {activeSection === "communities" && (
+                {activeSection === "popular" && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {popularPeriods.map((period) => (
+                      <button
+                        key={period.value}
+                        type="button"
+                        onClick={() => {
+                          setPopularPeriod(period.value);
+                          setPage(1);
+                        }}
+                        className={`rounded-xl px-3 py-1.5 text-[11px] font-bold transition ${
+                          popularPeriod === period.value
+                            ? "bg-amber-300/10 text-amber-200"
+                            : "text-zinc-600 hover:bg-white/[0.035] hover:text-zinc-300"
+                        }`}
+                      >
+                        {period.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {activeSection === "home" && !isAuthenticated ? (
+                  <div className="mt-5 rounded-[24px] border border-teal-300/10 bg-gradient-to-br from-teal-300/[0.07] to-violet-400/[0.05] p-7 text-center">
+                    <LogIn
+                      size={28}
+                      className="mx-auto text-teal-300"
+                    />
+                    <h2 className="mt-4 text-lg font-bold text-white">
+                      Ana lent izlədiklərinə əsaslanır
+                    </h2>
+                    <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-500">
+                      İzlədiyin istifadəçilərin yeni post və müzakirələrini, həmçinin izlədiyin və ya üzv olduğun icmalardakı yeni müzakirələri görmək üçün hesabına daxil ol.
+                    </p>
+                    <Link
+                      to="/login"
+                      className="forum-login-cta mt-5 inline-flex h-10 items-center rounded-xl px-4 text-xs font-black transition"
+                    >
+                      Daxil ol
+                    </Link>
+                  </div>
+                ) : activeSection === "discussions" ? (
+                  <div className="mt-4 space-y-3">
+                    {discussionsQuery.isLoading ? (
+                      <ForumFeedSkeleton />
+                    ) : discussionsQuery.isError ? (
+                      <EmptyFeed
+                        title="Müzakirələr yüklənmədi"
+                        description="Sorğunu yenidən yoxlamaq üçün səhifəni təzələ."
+                      />
+                    ) : (discussionsQuery.data?.items.length ?? 0) === 0 ? (
+                      <EmptyFeed
+                        title="Uyğun müzakirə tapılmadı"
+                        description="Axtarışı və ya kateqoriya filtrini dəyişərək yenidən yoxla."
+                      />
+                    ) : (
+                      discussionsQuery.data?.items.map((discussion) => (
+                        <DiscussionFeedCard
+                          key={discussion.id}
+                          discussion={discussion}
+                          isAuthenticated={isAuthenticated}
+                        />
+                      ))
+                    )}
+                    <Pagination
+                      page={page}
+                      totalPages={discussionsQuery.data?.totalPages ?? 0}
+                      onPageChange={setPage}
+                    />
+                  </div>
+                ) : activeSection === "communities" ? (
                   <div className="mt-5 grid gap-3 lg:grid-cols-2">
                     {communitiesQuery.isLoading ? (
-                      <FeedSkeleton />
+                      <ForumFeedSkeleton />
                     ) : communities.length === 0 ? (
-                      <div className="col-span-full rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] p-10 text-center">
-                        <UsersRound
-                          size={28}
-                          className="mx-auto text-zinc-700"
+                      <div className="col-span-full">
+                        <EmptyFeed
+                          title="Hələ heç bir icma yaradılmayıb"
+                          description="İlk icmanı yaradaraq oyunçuları bir mövzu ətrafında topla."
                         />
-                        <p className="mt-3 text-sm font-semibold text-zinc-400">
-                          Hələ heç bir icma yaradılmayıb
-                        </p>
-                        <p className="mt-1 text-xs text-zinc-600">
-                          İlk icmanı yaradaraq insanları bir mövzu ətrafında topla.
-                        </p>
                       </div>
                     ) : (
                       communities.map((community) => (
@@ -639,28 +676,134 @@ export function ForumPage() {
                       ))
                     )}
                   </div>
-                )}
+                ) : (
+                  <div className="mt-5">
+                    {activeSection === "explore" &&
+                      (activeFeed?.suggestedCommunities.length ||
+                        activeFeed?.suggestedUsers.length) ? (
+                        <div className="mb-5 space-y-4 rounded-[24px] border border-violet-300/10 bg-violet-500/[0.035] p-4 sm:p-5">
+                          {(activeFeed?.suggestedCommunities.length ?? 0) >
+                            0 && (
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <UsersRound
+                                  size={16}
+                                  className="text-teal-300"
+                                />
+                                <h2 className="text-sm font-bold text-white">
+                                  Kəşf edə biləcəyin icmalar
+                                </h2>
+                              </div>
+                              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                                {activeFeed?.suggestedCommunities
+                                  .slice(0, 4)
+                                  .map((community) => (
+                                    <CommunityCard
+                                      key={community.id}
+                                      community={community}
+                                      compact
+                                    />
+                                  ))}
+                              </div>
+                            </div>
+                          )}
 
-                {activeSection === "explore" && (
-                  <div className="mt-5 rounded-[24px] border border-white/[0.075] bg-[#0d1716]/80 p-6">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-400/10 text-violet-300">
-                      <Sparkles size={21} />
-                    </span>
-                    <h3 className="mt-5 text-lg font-bold text-white">
-                      Kəşf bölməsi hazırlanır
-                    </h3>
-                    <p className="mt-2 max-w-lg text-sm leading-6 text-zinc-500">
-                      Oyun, janr və platformalara görə yeni müzakirələri
-                      burada kəşf edə biləcəksən. İndilik icmalara göz at.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => changeSection("communities")}
-                      className="mt-5 flex items-center gap-2 text-sm font-bold text-teal-300"
-                    >
-                      İcmalara bax
-                      <ArrowUpRight size={16} />
-                    </button>
+                          {(activeFeed?.suggestedUsers.length ?? 0) > 0 && (
+                            <div className="border-t border-white/[0.06] pt-4">
+                              <div className="flex items-center gap-2">
+                                <UserPlus
+                                  size={16}
+                                  className="text-violet-300"
+                                />
+                                <h2 className="text-sm font-bold text-white">
+                                  İzləyə biləcəyin istifadəçilər
+                                </h2>
+                              </div>
+                              <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
+                                {activeFeed?.suggestedUsers.map(
+                                  (suggestion) => {
+                                    const avatarUrl = resolveAssetUrl(
+                                      suggestion.profileImageUrl,
+                                    );
+                                    return (
+                                      <Link
+                                        key={suggestion.userId}
+                                        to={`/users/${encodeURIComponent(
+                                          suggestion.userName,
+                                        )}`}
+                                        className="flex min-w-[190px] items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3 transition hover:border-violet-300/20"
+                                      >
+                                        <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-violet-400/10 text-sm font-black text-violet-200">
+                                          {avatarUrl ? (
+                                            <img
+                                              src={avatarUrl}
+                                              alt=""
+                                              className="h-full w-full object-cover"
+                                            />
+                                          ) : (
+                                            suggestion.userName
+                                              .charAt(0)
+                                              .toUpperCase()
+                                          )}
+                                        </span>
+                                        <span className="min-w-0">
+                                          <span className="block truncate text-xs font-bold text-zinc-200">
+                                            {suggestion.userName}
+                                          </span>
+                                          <span className="mt-1 block text-[10px] text-zinc-600">
+                                            {suggestion.reason}
+                                          </span>
+                                        </span>
+                                      </Link>
+                                    );
+                                  },
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : null}
+
+                    <div className="space-y-3">
+                      {activeFeedQuery.isLoading ? (
+                        <ForumFeedSkeleton />
+                      ) : activeFeedQuery.isError ? (
+                        <EmptyFeed
+                          title="Lent yüklənmədi"
+                          description="Server sorğusu tamamlanmadı. Səhifəni təzələyərək yenidən yoxla."
+                        />
+                      ) : (activeFeed?.items.length ?? 0) === 0 ? (
+                        <EmptyFeed
+                          title={
+                            activeSection === "home"
+                              ? "İzlədiklərində yeni paylaşım yoxdur"
+                              : activeSection === "popular"
+                                ? "Bu müddətdə populyar icma mövzusu yoxdur"
+                                : "Kəşf üçün uyğun məzmun tapılmadı"
+                          }
+                          description={
+                            activeSection === "home"
+                              ? "Yeni istifadəçi və icmaları izlədikcə bu lent dolacaq."
+                              : "Axtarışı və filtrləri dəyişərək yenidən yoxla."
+                          }
+                        />
+                      ) : (
+                        activeFeed?.items.map((item, index) => (
+                          <FeedItem
+                            key={`${item.itemType}-${
+                              item.post?.id ?? item.discussion?.id ?? index
+                            }`}
+                            item={item}
+                            isAuthenticated={isAuthenticated}
+                          />
+                        ))
+                      )}
+                    </div>
+                    <Pagination
+                      page={page}
+                      totalPages={activeFeed?.totalPages ?? 0}
+                      onPageChange={setPage}
+                    />
                   </div>
                 )}
               </section>
@@ -675,35 +818,11 @@ export function ForumPage() {
                   </div>
                   <div className="mt-4 space-y-2">
                     {communities.slice(0, 4).map((community) => (
-                      <Link
+                      <CommunityCard
                         key={community.id}
-                        to={getCommunityPath(community.slug)}
-                        className="group flex w-full items-center gap-3 rounded-2xl p-2 text-left transition hover:bg-white/[0.035]"
-                      >
-                        <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl bg-teal-300/10 text-xs font-black text-teal-100">
-                          {community.iconUrl ? (
-                            <img
-                              src={resolveAssetUrl(community.iconUrl) ?? ""}
-                              alt=""
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            community.name.charAt(0).toUpperCase()
-                          )}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-xs font-semibold text-zinc-300">
-                            {community.name}
-                          </span>
-                          <span className="mt-0.5 block text-[10px] text-zinc-600">
-                            {community.memberCount} üzv
-                          </span>
-                        </span>
-                        <ChevronRight
-                          size={14}
-                          className="text-zinc-700 group-hover:text-teal-300"
-                        />
-                      </Link>
+                        community={community}
+                        compact
+                      />
                     ))}
                   </div>
                   <button
@@ -716,19 +835,28 @@ export function ForumPage() {
                   </button>
                 </div>
 
-                {(!isAuthenticated || !storedInterests) && (
-                  <div className="rounded-[22px] border border-violet-300/10 bg-gradient-to-br from-violet-500/[0.09] via-[#101719] to-teal-300/[0.05] p-5">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-400/10 text-violet-300">
-                      <Sparkles size={17} />
-                    </span>
-                    <h2 className="mt-4 text-sm font-bold text-white">
-                      Daha şəxsi lent
-                    </h2>
-                    <p className="mt-2 text-xs leading-5 text-zinc-500">
-                      Maraqlarını seçdikcə Ludora sənin üçün daha uyğun
-                      mövzular göstərəcək.
+                <div className="rounded-[22px] border border-violet-300/10 bg-gradient-to-br from-violet-500/[0.09] via-[#101719] to-teal-300/[0.05] p-5">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-400/10 text-violet-300">
+                    <Sparkles size={17} />
+                  </span>
+                  <h2 className="mt-4 text-sm font-bold text-white">
+                    Lentlərin fərqi
+                  </h2>
+                  <div className="mt-3 space-y-2 text-[11px] leading-5 text-zinc-500">
+                    <p>
+                      <strong className="text-zinc-300">Ana lent:</strong>{" "}
+                      izlədiyin istifadəçilər və izlədiyin və ya üzv olduğun icmalardakı yeniliklər.
                     </p>
-                    {isAuthenticated && user && (
+                    <p>
+                      <strong className="text-zinc-300">Populyar:</strong>{" "}
+                      icmalarda trend olan mövzular.
+                    </p>
+                    <p>
+                      <strong className="text-zinc-300">Kəşf:</strong>{" "}
+                      izləmədiyin yeni məzmun və insanlar.
+                    </p>
+                  </div>
+                  {isAuthenticated && user && !storedInterests && (
                     <button
                       type="button"
                       onClick={() => {
@@ -739,9 +867,8 @@ export function ForumPage() {
                     >
                       Maraqlarımı seç
                     </button>
-                    )}
-                  </div>
-                )}
+                  )}
+                </div>
               </aside>
             </div>
           </div>
@@ -767,10 +894,7 @@ export function ForumPage() {
       )}
 
       <CreateDiscussionModal
-        open={
-          isCreateModalOpen &&
-          activeSection === "discussions"
-        }
+        open={isCreateModalOpen && activeSection === "discussions"}
         categories={categories}
         communities={myCommunitiesQuery.data ?? []}
         onClose={() => setIsCreateModalOpen(false)}

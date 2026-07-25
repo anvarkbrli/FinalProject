@@ -371,6 +371,26 @@ public sealed class ForumCommunityService : IForumCommunityService
         await _context.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task RejectMembershipAsync(
+        int id,
+        int membershipId,
+        Guid ownerId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureOwnerAsync(id, ownerId, cancellationToken);
+
+        var membership = await _context.ForumCommunityMembers
+            .FirstOrDefaultAsync(
+                x => x.Id == membershipId &&
+                     x.CommunityId == id &&
+                     x.Status == ForumCommunityMembershipStatus.Pending,
+                cancellationToken)
+            ?? throw new NotFoundException("Üzvlük sorğusu tapılmadı.");
+
+        _context.ForumCommunityMembers.Remove(membership);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task InviteAsync(
         int id,
         Guid ownerId,

@@ -1,5 +1,4 @@
 import {
-  CalendarDays,
   ChevronRight,
   Clock3,
   Gamepad2,
@@ -11,7 +10,7 @@ import {
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { getApiErrorMessage } from "../../lib/api";
-import { formatDate, resolveAssetUrl } from "../../lib/helpers";
+import { resolveAssetUrl } from "../../lib/helpers";
 import type { SteamOwnedGameDTO } from "../../types/steam";
 
 interface ProfileSteamLibraryProps {
@@ -36,8 +35,12 @@ function formatPlaytime(minutes: number): string {
   return `${hours} saat ${remainingMinutes} dəq`;
 }
 
-function formatLastPlayed(value: string | null | undefined): string {
-  if (!value) return "Son oynanma yoxdur";
+function formatLastPlayed(
+  value: string | null | undefined,
+  playtimeMinutes: number,
+): string {
+  if (playtimeMinutes <= 0) return "Hələki oynanmayıb";
+  if (!value) return "Son oynanma tarixi məlum deyil";
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
@@ -246,25 +249,17 @@ export function ProfileSteamLibrary({
                     />
                   </div>
 
-                  {game.matchedGameName && game.matchedGameName !== game.name && (
-                    <p className="mt-2 line-clamp-1 text-xs text-zinc-600">
-                      Statistika: {game.matchedGameName}
-                    </p>
-                  )}
-
-                  {(game.matchedReleaseDate ?? game.localReleaseDate) && (
-                    <span className="mt-3 inline-flex items-center gap-1.5 text-xs text-zinc-600">
-                      <CalendarDays size={13} />
-                      Çıxış: {formatDate(game.matchedReleaseDate ?? game.localReleaseDate!)}
-                    </span>
-                  )}
-
                   <div className="mt-4 flex items-center justify-between gap-3 text-xs">
                     <span className="inline-flex items-center gap-1.5 font-semibold text-violet-300">
                       <Clock3 size={14} />
                       {formatPlaytime(game.playtimeMinutes)}
                     </span>
-                    <span className="text-zinc-600">{formatLastPlayed(game.lastPlayedAtUtc)}</span>
+                    <span className="text-zinc-600">
+                      {formatLastPlayed(
+                        game.lastPlayedAtUtc,
+                        game.playtimeMinutes,
+                      )}
+                    </span>
                   </div>
                 </div>
               </>

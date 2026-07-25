@@ -22,6 +22,7 @@ public sealed class NotificationService : INotificationService
         NotificationType.FollowingGameStatusChanged,
         NotificationType.FollowingPublicListCreated,
         NotificationType.FollowingDiscussionCreated,
+        NotificationType.CommunityDiscussionCreated,
         NotificationType.PostLiked,
         NotificationType.PostCommented,
         NotificationType.ReviewLiked,

@@ -216,6 +216,7 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
         await EnsureUsersAreNotBlockedAsync(userId, discussion.UserId, cancellationToken);
 
         var content = dto.Content.NormalizeRequiredText("Cavab mətni", MaxContentLength);
+        Guid? parentReplyAuthorId = null;
         Guid[] followedReplyRecipientIds = [];
 
         if (dto.ParentReplyId.HasValue)
@@ -228,7 +229,8 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
                 .Select(x => new
                 {
                     x.DiscussionId,
-                    x.ParentReplyId
+                    x.ParentReplyId,
+                    x.UserId
                 })
                 .FirstOrDefaultAsync(cancellationToken)
                 ?? throw new NotFoundException("Cavab verilən şərh tapılmadı.");
@@ -236,6 +238,8 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
             if (parent.DiscussionId != discussionId)
                 throw new BadRequestException(
                     "Cavab yalnız eyni müzakirədəki şərhə yazıla bilər.");
+
+            parentReplyAuthorId = parent.UserId;
 
             var depth = 1;
             var nextParentId = parent.ParentReplyId;
@@ -255,7 +259,9 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
 
             followedReplyRecipientIds = await _context.DiscussionReplyFollows
                 .AsNoTracking()
-                .Where(x => x.ReplyId == dto.ParentReplyId.Value)
+                .Where(x =>
+                    x.ReplyId == dto.ParentReplyId.Value &&
+                    x.UserId != parent.UserId)
                 .Select(x => x.UserId)
                 .ToArrayAsync(cancellationToken);
         }
@@ -285,10 +291,33 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
             },
             cancellationToken);
 
+        if (parentReplyAuthorId.HasValue &&
+            parentReplyAuthorId.Value != userId &&
+            parentReplyAuthorId.Value != discussion.UserId)
+        {
+            await _notificationService.QueueAsync(
+                new NotificationCreateRequest
+                {
+                    RecipientUserId = parentReplyAuthorId.Value,
+                    ActorUserId = userId,
+                    Type = NotificationType.FollowedDiscussionReplyActivity,
+                    EntityType = NotificationEntityType.DiscussionReply,
+                    EntityId = dto.ParentReplyId!.Value.ToString(),
+                    Title = "Şərhinizə yeni cavab yazıldı",
+                    Message = "Forum şərhinizə yeni cavab əlavə etdi.",
+                    ActionUrl = $"/forum/discussions/{discussion.Slug}"
+                },
+                cancellationToken);
+        }
+
         foreach (var recipientUserId in followedReplyRecipientIds)
         {
-            if (recipientUserId == discussion.UserId)
+            if (recipientUserId == discussion.UserId ||
+                recipientUserId == parentReplyAuthorId ||
+                recipientUserId == userId)
+            {
                 continue;
+            }
 
             await _notificationService.QueueAsync(
                 new NotificationCreateRequest
@@ -594,6 +623,9 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
             userId,
             replyInfo.DiscussionAuthorId,
             cancellationToken);
+        if (replyInfo.ReplyAuthorId == userId)
+            throw new ConflictException("Öz şərhinizi izləmək olmaz.");
+
         await EnsureUsersAreNotBlockedAsync(
             userId,
             replyInfo.ReplyAuthorId,
@@ -712,6 +744,7 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
                     .FirstOrDefault() ?? 0
                 : (short)0,
             IsFollowedByCurrentUser = currentUserId.HasValue &&
+                                      x.UserId != currentUserId.Value &&
                                       x.Followers.Any(
                                           follow => follow.UserId == currentUserId.Value),
             ChildCount = x.ChildReplies.Count,

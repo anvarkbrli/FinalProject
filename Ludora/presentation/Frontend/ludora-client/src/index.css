@@ -65,6 +65,14 @@
   --color-fuchsia-500: #cf56dc;
   --color-fuchsia-600: #a92ab8;
 
+  --color-teal-100: #115e59;
+  --color-teal-200: #0f766e;
+  --color-teal-300: #0d9488;
+  --color-teal-400: #14b8a6;
+  --color-teal-500: #2dd4bf;
+  --color-teal-600: #0f766e;
+  --color-teal-950: #134e4a;
+
   --color-emerald-200: #05603a;
   --color-emerald-300: #067647;
   --color-emerald-400: #079455;
@@ -163,6 +171,14 @@
   --color-fuchsia-400: #e879f9;
   --color-fuchsia-500: #d946ef;
   --color-fuchsia-600: #c026d3;
+
+  --color-teal-100: #ccfbf1;
+  --color-teal-200: #99f6e4;
+  --color-teal-300: #5eead4;
+  --color-teal-400: #2dd4bf;
+  --color-teal-500: #14b8a6;
+  --color-teal-600: #0d9488;
+  --color-teal-950: #042f2e;
 
   --color-emerald-200: #a7f3d0;
   --color-emerald-300: #6ee7b7;
@@ -444,7 +460,7 @@ img {
 }
 
 /* Navbar, cards and forum surfaces. */
-header[class*="sticky"] {
+header.site-navbar {
   box-shadow: 0 1px 0 var(--wp-border), 0 12px 38px rgba(20, 24, 38, 0.08);
   backdrop-filter: blur(20px) saturate(145%);
   -webkit-backdrop-filter: blur(20px) saturate(145%);

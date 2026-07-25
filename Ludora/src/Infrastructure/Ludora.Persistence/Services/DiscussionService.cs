@@ -276,20 +276,22 @@ public sealed class DiscussionService : IDiscussionService
                     cancellationToken);
             }
 
-            await _notificationService.QueueForFollowersAsync(
-                new FollowerNotificationRequest
-                {
-                    ActorUserId = userId,
-                    Type = NotificationType.FollowingDiscussionCreated,
-                    EntityType = NotificationEntityType.Discussion,
-                    EntityId = discussion.Id.ToString(),
-                    Title = "Yeni müzakirə",
-                    Message = $"{discussion.Title} mövzusunda yeni müzakirə açdı.",
-                    ActionUrl = $"/forum/discussions/{discussion.Slug}"
-                },
-                cancellationToken);
-
-            if (discussion.CommunityId.HasValue)
+            if (!discussion.CommunityId.HasValue)
+            {
+                await _notificationService.QueueForFollowersAsync(
+                    new FollowerNotificationRequest
+                    {
+                        ActorUserId = userId,
+                        Type = NotificationType.FollowingDiscussionCreated,
+                        EntityType = NotificationEntityType.Discussion,
+                        EntityId = discussion.Id.ToString(),
+                        Title = "Yeni müzakirə",
+                        Message = $"{discussion.Title} mövzusunda yeni müzakirə açdı.",
+                        ActionUrl = $"/forum/discussions/{discussion.Slug}"
+                    },
+                    cancellationToken);
+            }
+            else
             {
                 var community = await _context.ForumCommunities
                     .AsNoTracking()
@@ -297,7 +299,12 @@ public sealed class DiscussionService : IDiscussionService
                     .Select(x => new
                     {
                         x.Name,
-                        x.Slug,
+                        ActiveMemberIds = x.Members
+                            .Where(member =>
+                                member.Status == ForumCommunityMembershipStatus.Active &&
+                                member.UserId != userId)
+                            .Select(member => member.UserId)
+                            .ToList(),
                         FollowerIds = x.Followers
                             .Where(follow => follow.UserId != userId)
                             .Select(follow => follow.UserId)
@@ -305,7 +312,38 @@ public sealed class DiscussionService : IDiscussionService
                     })
                     .FirstAsync(cancellationToken);
 
-                foreach (var followerId in community.FollowerIds)
+                var communityRecipientIds = community.ActiveMemberIds
+                    .Concat(community.FollowerIds)
+                    .ToHashSet();
+
+                foreach (var recipientId in communityRecipientIds)
+                {
+                    await _notificationService.QueueAsync(
+                        new NotificationCreateRequest
+                        {
+                            RecipientUserId = recipientId,
+                            ActorUserId = userId,
+                            Type = NotificationType.CommunityDiscussionCreated,
+                            EntityType = NotificationEntityType.Discussion,
+                            EntityId = discussion.Id.ToString(),
+                            Title = $"{community.Name} icmasında yeni müzakirə",
+                            Message = discussion.Title,
+                            ActionUrl = $"/forum/discussions/{discussion.Slug}"
+                        },
+                        cancellationToken);
+                }
+
+                var actorFollowerIds = await _context.UserFollows
+                    .AsNoTracking()
+                    .Where(follow =>
+                        follow.FollowingId == userId &&
+                        follow.Status == FollowStatus.Accepted &&
+                        follow.FollowerId != userId)
+                    .Select(follow => follow.FollowerId)
+                    .ToListAsync(cancellationToken);
+
+                foreach (var followerId in actorFollowerIds
+                             .Where(id => !communityRecipientIds.Contains(id)))
                 {
                     await _notificationService.QueueAsync(
                         new NotificationCreateRequest
@@ -315,8 +353,8 @@ public sealed class DiscussionService : IDiscussionService
                             Type = NotificationType.FollowingDiscussionCreated,
                             EntityType = NotificationEntityType.Discussion,
                             EntityId = discussion.Id.ToString(),
-                            Title = $"{community.Name} icmasında yeni müzakirə",
-                            Message = discussion.Title,
+                            Title = "Yeni müzakirə",
+                            Message = $"{discussion.Title} mövzusunda yeni müzakirə açdı.",
                             ActionUrl = $"/forum/discussions/{discussion.Slug}"
                         },
                         cancellationToken);
@@ -488,6 +526,9 @@ public sealed class DiscussionService : IDiscussionService
             .Select(x => (Guid?)x.UserId)
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("Müzakirə tapılmadı.");
+
+        if (authorId == userId)
+            throw new ConflictException("Öz müzakirənizi yadda saxlamaq olmaz.");
 
         await EnsureUsersAreNotBlockedAsync(userId, authorId, cancellationToken);
 
@@ -711,6 +752,7 @@ public sealed class DiscussionService : IDiscussionService
             IsLikedByCurrentUser = currentUserId.HasValue &&
                                    x.Likes.Any(like => like.UserId == currentUserId.Value),
             IsSavedByCurrentUser = currentUserId.HasValue &&
+                                   x.UserId != currentUserId.Value &&
                                    x.Saves.Any(saved => saved.UserId == currentUserId.Value),
             IsPinned = x.IsPinned,
             IsLocked = x.IsLocked,
@@ -763,6 +805,7 @@ public sealed class DiscussionService : IDiscussionService
             IsLikedByCurrentUser = currentUserId.HasValue &&
                                    x.Likes.Any(like => like.UserId == currentUserId.Value),
             IsSavedByCurrentUser = currentUserId.HasValue &&
+                                   x.UserId != currentUserId.Value &&
                                    x.Saves.Any(saved => saved.UserId == currentUserId.Value),
             IsPinned = x.IsPinned,
             IsLocked = x.IsLocked,
