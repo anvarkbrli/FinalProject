@@ -287,6 +287,23 @@ internal static class IgdbQueryBuilder
             where.Add($"first_release_date < {end}");
         }
 
+        if (filter.ReleasedOnly)
+        {
+            var tomorrow = DateOnly
+                .FromDateTime(DateTime.UtcNow)
+                .AddDays(1);
+            var tomorrowUnix = new DateTimeOffset(
+                tomorrow.Year,
+                tomorrow.Month,
+                tomorrow.Day,
+                0,
+                0,
+                0,
+                TimeSpan.Zero).ToUnixTimeSeconds();
+
+            where.Add($"first_release_date < {tomorrowUnix}");
+        }
+
         builder.Append(" where ")
             .Append(string.Join(" & ", where))
             .Append(';');

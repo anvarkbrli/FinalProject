@@ -13,6 +13,7 @@ public class LocalFileStorageService : IFileStorageService
     private const int MaxProfileImageSize = 5;
     private const int MaxPostImageSize = 10;
     private const int MaxReportEvidenceImageSize = 5;
+    private const int MaxReportEvidenceVideoSize = 50;
     private const long MaxChatImageBytes = 10L * 1024 * 1024;
     private const long MaxChatVideoBytes = 50L * 1024 * 1024;
     private const long MaxDiscussionImageBytes = 10L * 1024 * 1024;
@@ -85,33 +86,130 @@ public class LocalFileStorageService : IFileStorageService
         UserReportEvidenceUploadDTO dto,
         CancellationToken cancellationToken = default)
     {
-        dto.ValidateUpload(MaxReportEvidenceImageSize, FileSize.MB);
+        ArgumentNullException.ThrowIfNull(dto);
 
-        var fileBytes = await dto.Stream.ToByteArrayAsync(
-            dto.Length,
-            ToBytes(MaxReportEvidenceImageSize),
-            cancellationToken);
-        fileBytes.ValidateActualSize(
-            MaxReportEvidenceImageSize,
-            FileSize.MB);
+        if (dto.Stream == Stream.Null || dto.Length <= 0)
+            throw new BadRequestException("Şikayət sübutu boşdur.");
 
-        var extension = fileBytes.GetImageExtension();
+        var declaredType = dto.ContentType.Trim().ToLowerInvariant();
+        var isVideo = declaredType.StartsWith(
+            "video/",
+            StringComparison.Ordinal);
+        var isImage = declaredType.StartsWith(
+            "image/",
+            StringComparison.Ordinal);
+
+        if (!isImage && !isVideo)
+        {
+            throw new BadRequestException(
+                "Sübut kimi yalnız şəkil və video faylları qəbul edilir.");
+        }
+
+        var maxLength = ToBytes(
+            isVideo
+                ? MaxReportEvidenceVideoSize
+                : MaxReportEvidenceImageSize);
+
+        if (dto.Length > maxLength)
+        {
+            throw new BadRequestException(
+                isVideo
+                    ? $"Sübut videosu maksimum {MaxReportEvidenceVideoSize} MB ola bilər."
+                    : $"Sübut şəkli maksimum {MaxReportEvidenceImageSize} MB ola bilər.");
+        }
+
         var folderName = "report-evidence";
         var folderPath = Path.Combine(
             _settings.PrivateStoragePath,
             folderName);
-
         Directory.CreateDirectory(folderPath);
 
-        var fileName = $"{Guid.NewGuid():N}{extension}";
-        var fullPath = Path.Combine(folderPath, fileName);
+        var temporaryPath = Path.Combine(
+            folderPath,
+            $"{Guid.NewGuid():N}.uploading");
+        long written = 0;
+        var header = new byte[16];
+        var headerLength = 0;
 
-        await File.WriteAllBytesAsync(
-            fullPath,
-            fileBytes,
-            cancellationToken);
+        try
+        {
+            await using (var output = new FileStream(
+                temporaryPath,
+                FileMode.CreateNew,
+                FileAccess.Write,
+                FileShare.None,
+                64 * 1024,
+                FileOptions.Asynchronous | FileOptions.SequentialScan))
+            {
+                var buffer = new byte[64 * 1024];
+                int read;
 
-        return $"{folderName}/{fileName}";
+                while ((read = await dto.Stream.ReadAsync(
+                           buffer,
+                           cancellationToken)) > 0)
+                {
+                    written += read;
+                    if (written > maxLength)
+                    {
+                        throw new BadRequestException(
+                            "Sübut faylı icazə verilən ölçünü keçir.");
+                    }
+
+                    if (headerLength < header.Length)
+                    {
+                        var copyLength = Math.Min(
+                            header.Length - headerLength,
+                            read);
+                        Buffer.BlockCopy(
+                            buffer,
+                            0,
+                            header,
+                            headerLength,
+                            copyLength);
+                        headerLength += copyLength;
+                    }
+
+                    await output.WriteAsync(
+                        buffer.AsMemory(0, read),
+                        cancellationToken);
+                }
+            }
+
+            if (written == 0 || written != dto.Length)
+            {
+                throw new BadRequestException(
+                    "Sübut faylının ölçüsü doğrulana bilmədi.");
+            }
+
+            var detected = DetectChatMedia(
+                header.AsSpan(0, headerLength));
+            if (detected.ContentType is null)
+            {
+                throw new BadRequestException(
+                    "Yalnız JPEG, PNG, WEBP, MP4 və WEBM formatları dəstəklənir.");
+            }
+
+            if (!string.Equals(
+                    detected.ContentType,
+                    declaredType,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BadRequestException(
+                    "Sübut faylının real formatı Content-Type ilə uyğun deyil.");
+            }
+
+            var fileName = $"{Guid.NewGuid():N}{detected.Extension}";
+            var finalPath = Path.Combine(folderPath, fileName);
+            File.Move(temporaryPath, finalPath);
+
+            return $"{folderName}/{fileName}";
+        }
+        catch
+        {
+            if (File.Exists(temporaryPath))
+                File.Delete(temporaryPath);
+            throw;
+        }
     }
 
     public async Task<StoredFileDTO> ReadReportEvidenceImageAsync(
@@ -130,6 +228,8 @@ public class LocalFileStorageService : IFileStorageService
             ".jpg" or ".jpeg" => "image/jpeg",
             ".png" => "image/png",
             ".webp" => "image/webp",
+            ".mp4" => "video/mp4",
+            ".webm" => "video/webm",
             _ => throw new BadRequestException(
                 "Şikayət sübutunun fayl formatı düzgün deyil.")
         };

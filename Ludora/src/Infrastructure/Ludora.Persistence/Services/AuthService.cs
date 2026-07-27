@@ -156,6 +156,12 @@ public class AuthService : IAuthService
                 "Hesabın email ünvanı təsdiqlənməyib. Emailinizdəki təsdiq linkinə keçin.");
         }
 
+        if (user.AccountDeletionRequestedAtUtc.HasValue)
+        {
+            throw new UnauthorizedException(
+                "Hesabın silinməsi başladılıb. İcma sahiblik təklifləri tamamlandıqdan sonra hesab həmişəlik silinəcək.");
+        }
+
         EnsureUserIsNotBanned(user);
 
         return await CreateAuthResponseAsync(user, cancellationToken);
@@ -229,7 +235,7 @@ public class AuthService : IAuthService
     private string BuildConfirmationLink(Guid userId, string token)
     {
         var endpoint =
-            $"{_emailSettings.PublicApiBaseUrl.TrimEnd('/')}/api/auth/confirm-email";
+            $"{_emailSettings.PublicFrontendBaseUrl.TrimEnd('/')}/confirm-email";
 
         return QueryHelpers.AddQueryString(
             endpoint,
@@ -272,11 +278,25 @@ public class AuthService : IAuthService
         if (user.IsPermanentlyBanned)
         {
             throw new UnauthorizedException(
-                "Hesabınız admin tərəfindən müddətsiz bloklanıb.");
+                "Hesabınız admin tərəfindən müddətsiz banlanıb.");
         }
 
+        var bannedUntilBaku = ConvertUtcToBakuTime(
+            user.BannedUntilUtc!.Value);
+
         throw new UnauthorizedException(
-            $"Hesabınız {user.BannedUntilUtc:yyyy-MM-dd HH:mm} UTC tarixinədək bloklanıb.");
+            $"Hesabınız {bannedUntilBaku:dd.MM.yyyy} saat {bannedUntilBaku:HH:mm}-dək banlanıb.");
+    }
+
+    private static DateTime ConvertUtcToBakuTime(DateTime utcDateTime)
+    {
+        var utc = DateTime.SpecifyKind(utcDateTime, DateTimeKind.Utc);
+        var timeZoneId = OperatingSystem.IsWindows()
+            ? "Azerbaijan Standard Time"
+            : "Asia/Baku";
+        var bakuTimeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+
+        return TimeZoneInfo.ConvertTimeFromUtc(utc, bakuTimeZone);
     }
 
     private async Task<AuthResponseDTO> CreateAuthResponseAsync(
@@ -287,6 +307,7 @@ public class AuthService : IAuthService
         var token = _jwtTokenService.CreateToken(user, roles);
 
         var userDto = user.ToCurrentUserDTO();
+        userDto.Roles = roles.ToArray();
         var publicSummary = await _context.Users
             .AsNoTracking()
             .Where(x => x.Id == user.Id)

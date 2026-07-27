@@ -1,3 +1,4 @@
+using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -23,7 +24,7 @@ public sealed class ForumCategoriesController : ControllerBase
         return Ok(await _categoryService.GetAllAsync(cancellationToken));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpGet("deleted")]
     public async Task<ActionResult<IReadOnlyList<ForumCategoryDTO>>> GetDeleted(
         CancellationToken cancellationToken)
@@ -39,7 +40,7 @@ public sealed class ForumCategoriesController : ControllerBase
         return Ok(await _categoryService.GetBySlugAsync(slug, cancellationToken));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpPost]
     public async Task<ActionResult<ForumCategoryDTO>> Create(
         [FromBody] ForumCategoryCreateDTO dto,
@@ -53,7 +54,7 @@ public sealed class ForumCategoriesController : ControllerBase
             result);
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpPut("{id:int}")]
     public async Task<ActionResult<ForumCategoryDTO>> Update(
         int id,
@@ -63,7 +64,7 @@ public sealed class ForumCategoriesController : ControllerBase
         return Ok(await _categoryService.UpdateAsync(id, dto, cancellationToken));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.Admin)]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(
         int id,
@@ -73,7 +74,7 @@ public sealed class ForumCategoriesController : ControllerBase
         return NoContent();
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpPost("{id:int}/restore")]
     public async Task<ActionResult<ForumCategoryDTO>> Restore(
         int id,

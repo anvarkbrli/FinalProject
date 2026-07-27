@@ -9,6 +9,8 @@ import { chatQueryKeys } from "../services/chatService";
 import { useAuthStore } from "../stores/authStore";
 import type {
   ChatMessageDTO,
+  ChatMessageDeletedDTO,
+  ChatMessagePinChangedDTO,
   ChatReadReceiptDTO,
   ChatRequestDecisionDTO,
 } from "../types/chat";
@@ -54,6 +56,18 @@ export function useChatRealtime(enabled: boolean) {
     connection.on("MessageCreated", (message: ChatMessageDTO) => {
       refreshConversation(message.conversationId);
     });
+    connection.on("MessageDeleted", (event: ChatMessageDeletedDTO) => {
+      refreshConversation(event.conversationId);
+      void queryClient.invalidateQueries({
+        queryKey: chatQueryKeys.pinnedMessages(event.conversationId),
+      });
+    });
+    connection.on("MessagePinChanged", (event: ChatMessagePinChangedDTO) => {
+      refreshConversation(event.conversationId);
+      void queryClient.invalidateQueries({
+        queryKey: chatQueryKeys.pinnedMessages(event.conversationId),
+      });
+    });
     connection.on("MessagesRead", (receipt: ChatReadReceiptDTO) => {
       refreshConversation(receipt.conversationId);
     });
@@ -82,6 +96,8 @@ export function useChatRealtime(enabled: boolean) {
       disposed = true;
       if (retryTimer) window.clearTimeout(retryTimer);
       connection.off("MessageCreated");
+      connection.off("MessageDeleted");
+      connection.off("MessagePinChanged");
       connection.off("MessagesRead");
       connection.off("MessageDeliveryChanged");
       connection.off("MessageRequestUpdated");

@@ -1,3 +1,4 @@
+using Ludora.Domain.Enums;
 using Ludora.Application.DTOs.Chat;
 
 namespace Ludora.Application.Interfaces;
@@ -34,6 +35,20 @@ public interface IChatService
         CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ChatReadReceiptDTO>> MarkDeliveredAsync(
         Guid userId,
+        CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<ChatMessageDTO>> GetPinnedMessagesAsync(
+        Guid userId,
+        long conversationId,
+        CancellationToken cancellationToken = default);
+    Task<ChatMessageDeletedDTO> DeleteMessageAsync(
+        Guid userId,
+        long messageId,
+        ChatMessageDeleteScope scope,
+        CancellationToken cancellationToken = default);
+    Task<ChatMessagePinChangedDTO> SetMessagePinAsync(
+        Guid userId,
+        long messageId,
+        bool isPinned,
         CancellationToken cancellationToken = default);
     Task<StoredChatMediaDTO> OpenMediaAsync(
         Guid userId,

@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Ludora.API.Controllers.Admin;
 
-[Authorize(Roles = RoleNames.Admin)]
+[Authorize(Roles = RoleNames.AdminOrModerator)]
 [Route("api/admin/users")]
 [ApiController]
 public sealed class AdminUsersController : ControllerBase

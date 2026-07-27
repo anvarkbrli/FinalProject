@@ -11,6 +11,7 @@ public class AppUser : IdentityUser<Guid>
     public string? SocialLinksJson { get; set; }
     public bool IsPrivate { get; set; }
     public DateTime CreatedAt { get; set; }
+    public DateTime? AccountDeletionRequestedAtUtc { get; set; }
 
     public string? SteamId { get; set; }
     public string? SteamDisplayName { get; set; }
@@ -18,6 +19,12 @@ public class AppUser : IdentityUser<Guid>
     public string? SteamProfileUrl { get; set; }
     public DateTime? SteamLinkedAtUtc { get; set; }
     public DateTime? SteamLastSyncedAtUtc { get; set; }
+
+    public string? FpsGpuName { get; set; }
+    public string? FpsCpuName { get; set; }
+    public int? FpsRamGb { get; set; }
+    public int? FpsVramGb { get; set; }
+    public DateTime? FpsHardwareUpdatedAtUtc { get; set; }
 
     public bool IsPermanentlyBanned { get; set; }
     public DateTime? BannedUntilUtc { get; set; }
@@ -63,5 +70,6 @@ public class AppUser : IdentityUser<Guid>
     public ICollection<ChatConversation> ChatConversationsAsUserTwo { get; set; } = [];
     public ICollection<ChatConversation> InitiatedChatConversations { get; set; } = [];
     public ICollection<ChatMessage> SentChatMessages { get; set; } = [];
+    public ICollection<ChatMessageUserState> ChatMessageStates { get; set; } = [];
     public ICollection<UserBadge> Badges { get; set; } = [];
 }

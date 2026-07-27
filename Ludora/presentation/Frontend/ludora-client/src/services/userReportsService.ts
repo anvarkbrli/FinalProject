@@ -28,10 +28,10 @@ export async function createUserReport(
     );
   }
 
-  request.evidenceImages.forEach((evidenceImage) => {
+  request.evidenceFiles.forEach((evidenceFile) => {
     formData.append(
-      "evidenceImages",
-      evidenceImage,
+      "evidenceFiles",
+      evidenceFile,
     );
   });
 
@@ -42,6 +42,7 @@ export async function createUserReport(
       headers: {
         "Content-Type": "multipart/form-data",
       },
+      timeout: 120_000,
     },
   );
 

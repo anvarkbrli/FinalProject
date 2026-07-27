@@ -3,6 +3,9 @@ import type {
   ChatConversationDTO,
   ChatMessageDTO,
   ChatMessagePageDTO,
+  ChatMessageDeletedDTO,
+  ChatMessageDeleteScope,
+  ChatMessagePinChangedDTO,
   ChatRequestDecisionDTO,
   ChatSendMessageRequest,
 } from "../types/chat";
@@ -13,6 +16,8 @@ export const chatQueryKeys = {
   requests: ["chat", "requests"] as const,
   messages: (conversationId: number) =>
     ["chat", "messages", conversationId] as const,
+  pinnedMessages: (conversationId: number) =>
+    ["chat", "pinned-messages", conversationId] as const,
 };
 
 export async function getChatConversations(): Promise<ChatConversationDTO[]> {
@@ -105,5 +110,35 @@ export async function getChatMediaBlob(mediaUrl: string): Promise<Blob> {
     responseType: "blob",
     timeout: 120_000,
   });
+  return response.data;
+}
+
+export async function getPinnedChatMessages(
+  conversationId: number,
+): Promise<ChatMessageDTO[]> {
+  const response = await api.get<ChatMessageDTO[]>(
+    `/chat/conversations/${conversationId}/pinned-messages`,
+  );
+  return response.data;
+}
+
+export async function deleteChatMessage(
+  messageId: number,
+  scope: ChatMessageDeleteScope,
+): Promise<ChatMessageDeletedDTO> {
+  const response = await api.delete<ChatMessageDeletedDTO>(
+    `/chat/messages/${messageId}`,
+    { params: { scope } },
+  );
+  return response.data;
+}
+
+export async function setChatMessagePinned(
+  messageId: number,
+  isPinned: boolean,
+): Promise<ChatMessagePinChangedDTO> {
+  const response = isPinned
+    ? await api.post<ChatMessagePinChangedDTO>(`/chat/messages/${messageId}/pin`)
+    : await api.delete<ChatMessagePinChangedDTO>(`/chat/messages/${messageId}/pin`);
   return response.data;
 }

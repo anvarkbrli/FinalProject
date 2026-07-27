@@ -1,3 +1,4 @@
+using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
@@ -34,7 +35,7 @@ public sealed class GamesController : ControllerBase
         return Ok(await _gameService.GetByIdAsync(source, id, cancellationToken));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpPost]
     public async Task<IActionResult> Create(
         [FromBody] GameCreateDTO dto,
@@ -48,7 +49,7 @@ public sealed class GamesController : ControllerBase
             new { source = CatalogSource.Local, id });
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpPatch("{source}/{id:long:min(1)}")]
     public async Task<IActionResult> Update(
         CatalogSource source,
@@ -60,7 +61,7 @@ public sealed class GamesController : ControllerBase
         return NoContent();
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.Admin)]
     [HttpDelete("{source}/{id:long:min(1)}")]
     public async Task<IActionResult> Delete(
         CatalogSource source,
@@ -71,7 +72,7 @@ public sealed class GamesController : ControllerBase
         return NoContent();
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpPost("{source}/{id:long:min(1)}/relations")]
     public async Task<IActionResult> AddRelation(
         CatalogSource source,
@@ -88,7 +89,7 @@ public sealed class GamesController : ControllerBase
         return Ok(new { id = relationId });
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.Admin)]
     [HttpDelete("{source}/{id:long:min(1)}/relations/{relatedSource}/{relatedId:long:min(1)}")]
     public async Task<IActionResult> RemoveRelation(
         CatalogSource source,
@@ -109,7 +110,7 @@ public sealed class GamesController : ControllerBase
         return NoContent();
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpPatch("{source}/{id:long:min(1)}/restore")]
     public async Task<IActionResult> Restore(
         CatalogSource source,

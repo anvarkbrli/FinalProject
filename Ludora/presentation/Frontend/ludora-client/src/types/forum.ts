@@ -19,6 +19,7 @@ export interface DiscussionDetailDTO {
   authorId: string;
   authorUserName: string;
   authorProfileImageUrl: string | null;
+  authorCommunityRole: "Owner" | "Moderator" | "Member" | null;
   likeCount: number;
   replyCount: number;
   viewCount: number;
@@ -40,6 +41,7 @@ export interface DiscussionReplyDTO {
   authorId: string;
   authorUserName: string;
   authorProfileImageUrl: string | null;
+  authorCommunityRole: "Owner" | "Moderator" | "Member" | null;
   content: string;
   netScore: number;
   currentUserVote: -1 | 0 | 1;
@@ -61,5 +63,14 @@ export interface CreateDiscussionInput {
   content: string;
   categoryId: number;
   communityId: number | null;
+  mediaFiles: File[];
+}
+
+export interface UpdateDiscussionInput {
+  discussionId: number;
+  title: string;
+  content: string;
+  categoryId: number;
+  keptMediaIds: number[];
   mediaFiles: File[];
 }

@@ -1,5 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
+import { AdminLayout } from "./components/admin/AdminLayout";
+import { AdminRoute } from "./components/admin/AdminRoute";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
 const HomePage = lazy(() =>
@@ -25,6 +27,11 @@ const EditProfilePage = lazy(() =>
 const RegisterPage = lazy(() =>
   import("./pages/RegisterPage").then((module) => ({
     default: module.RegisterPage,
+  })),
+);
+const ConfirmEmailPage = lazy(() =>
+  import("./pages/ConfirmEmailPage").then((module) => ({
+    default: module.ConfirmEmailPage,
   })),
 );
 const ResendEmailConfirmationPage = lazy(() =>
@@ -77,6 +84,36 @@ const ForumCommunityPage = lazy(() =>
     default: module.ForumCommunityPage,
   })),
 );
+const AdminDashboardPage = lazy(() =>
+  import("./pages/admin/AdminDashboardPage").then((module) => ({
+    default: module.AdminDashboardPage,
+  })),
+);
+const AdminUsersPage = lazy(() =>
+  import("./pages/admin/AdminUsersPage").then((module) => ({
+    default: module.AdminUsersPage,
+  })),
+);
+const AdminUserDetailPage = lazy(() =>
+  import("./pages/admin/AdminUserDetailPage").then((module) => ({
+    default: module.AdminUserDetailPage,
+  })),
+);
+const AdminReportsPage = lazy(() =>
+  import("./pages/admin/AdminReportsPage").then((module) => ({
+    default: module.AdminReportsPage,
+  })),
+);
+const AdminReportedUserPage = lazy(() =>
+  import("./pages/admin/AdminReportedUserPage").then((module) => ({
+    default: module.AdminReportedUserPage,
+  })),
+);
+const AdminPostsPage = lazy(() =>
+  import("./pages/admin/AdminPostsPage").then((module) => ({
+    default: module.AdminPostsPage,
+  })),
+);
 
 function RouteFallback() {
   return (
@@ -101,6 +138,10 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route
+          path="/confirm-email"
+          element={<ConfirmEmailPage />}
+        />
         <Route
           path="/resend-email-confirmation"
           element={<ResendEmailConfirmationPage />}
@@ -149,6 +190,27 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <AdminLayout />
+            </AdminRoute>
+          }
+        >
+          <Route index element={<AdminDashboardPage />} />
+          <Route path="users" element={<AdminUsersPage />} />
+          <Route
+            path="users/:userId"
+            element={<AdminUserDetailPage />}
+          />
+          <Route path="reports" element={<AdminReportsPage />} />
+          <Route
+            path="reports/users/:userId"
+            element={<AdminReportedUserPage />}
+          />
+          <Route path="posts" element={<AdminPostsPage />} />
+        </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

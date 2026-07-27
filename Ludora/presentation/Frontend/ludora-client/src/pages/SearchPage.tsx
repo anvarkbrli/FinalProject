@@ -176,7 +176,7 @@ export function SearchPage() {
                 data.discussions.map((item) => (
                   <ResultLink
                     key={item.id}
-                    to="/forum"
+                    to={`/forum/discussions/${item.slug}`}
                     icon={<MessageSquareText size={20} />}
                     title={item.title}
                     description={`${item.categoryName} · ${item.authorUserName} · ${formatDateTime(item.createdAt)}`}
@@ -187,7 +187,7 @@ export function SearchPage() {
                 data.reviews.map((item) => (
                   <ResultLink
                     key={item.id}
-                    to={`/games/${item.source}/${item.gameId}#reviews`}
+                    to={`/games/${item.source}/${item.gameId}`}
                     imageUrl={item.gameCoverImageUrl}
                     icon={<Star size={20} />}
                     title={item.gameName}

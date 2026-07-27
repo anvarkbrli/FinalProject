@@ -82,18 +82,43 @@ export function getAuthRoles(
   return Array.from(roles);
 }
 
-export function canViewCatalogSources(
+export function hasAuthRole(
   accessToken: string | null,
+  roleName: string,
+  explicitRoles: readonly string[] = [],
 ): boolean {
-  const roles = getAuthRoles(accessToken);
+  const roles = new Set([
+    ...getAuthRoles(accessToken),
+    ...explicitRoles,
+  ]);
 
-  return roles.some(
+  return Array.from(roles).some(
     (role) =>
-      role.localeCompare("Admin", undefined, {
-        sensitivity: "base",
-      }) === 0 ||
-      role.localeCompare("Moderator", undefined, {
+      role.localeCompare(roleName, undefined, {
         sensitivity: "base",
       }) === 0,
   );
+}
+
+export function canAccessAdminPanel(
+  accessToken: string | null,
+  explicitRoles: readonly string[] = [],
+): boolean {
+  return (
+    hasAuthRole(accessToken, "Admin", explicitRoles) ||
+    hasAuthRole(accessToken, "Moderator", explicitRoles)
+  );
+}
+
+export function canDeleteAdminContent(
+  accessToken: string | null,
+  explicitRoles: readonly string[] = [],
+): boolean {
+  return hasAuthRole(accessToken, "Admin", explicitRoles);
+}
+
+export function canViewCatalogSources(
+  accessToken: string | null,
+): boolean {
+  return canAccessAdminPanel(accessToken);
 }

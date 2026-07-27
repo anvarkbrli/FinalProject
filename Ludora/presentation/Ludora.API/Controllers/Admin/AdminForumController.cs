@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Ludora.API.Controllers.Admin;
 
-[Authorize(Roles = RoleNames.Admin)]
+[Authorize(Roles = RoleNames.AdminOrModerator)]
 [Route("api/admin/forum")]
 [ApiController]
 public sealed class AdminForumController : ControllerBase
@@ -32,6 +32,7 @@ public sealed class AdminForumController : ControllerBase
     }
 
     [HttpDelete("discussions/{id:int}")]
+    [Authorize(Roles = RoleNames.Admin)]
     public async Task<IActionResult> DeleteDiscussion(
         int id,
         CancellationToken cancellationToken)
@@ -106,6 +107,7 @@ public sealed class AdminForumController : ControllerBase
     }
 
     [HttpDelete("replies/{replyId:int}")]
+    [Authorize(Roles = RoleNames.Admin)]
     public async Task<IActionResult> DeleteReply(
         int replyId,
         CancellationToken cancellationToken)

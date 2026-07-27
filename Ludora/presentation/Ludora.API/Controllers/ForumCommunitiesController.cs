@@ -95,10 +95,14 @@ public sealed class ForumCommunitiesController : ControllerBase
 
     [Authorize]
     [HttpDelete("{id:int}/membership")]
-    public async Task<IActionResult> Leave(int id, CancellationToken cancellationToken)
+    public async Task<ActionResult<ForumCommunityLeaveResultDTO>> Leave(
+        int id,
+        CancellationToken cancellationToken)
     {
-        await _communityService.LeaveAsync(id, GetCurrentUserId(), cancellationToken);
-        return NoContent();
+        return Ok(await _communityService.LeaveAsync(
+            id,
+            GetCurrentUserId(),
+            cancellationToken));
     }
 
     [Authorize]
@@ -160,6 +164,78 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [HttpGet("{id:int}/members")]
+    public async Task<ActionResult<IReadOnlyList<ForumCommunityMemberDTO>>> GetMembers(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _communityService.GetMembersAsync(
+            id,
+            GetCurrentUserId(),
+            cancellationToken));
+    }
+
+    [Authorize]
+    [HttpGet("{id:int}/invite-candidates")]
+    public async Task<ActionResult<IReadOnlyList<ForumCommunityInviteCandidateDTO>>> SearchInviteCandidates(
+        int id,
+        [FromQuery] string query,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _communityService.SearchInviteCandidatesAsync(
+            id,
+            GetCurrentUserId(),
+            query,
+            cancellationToken));
+    }
+
+    [Authorize]
+    [HttpDelete("{id:int}/members/{membershipId:int}")]
+    public async Task<IActionResult> RemoveMember(
+        int id,
+        int membershipId,
+        CancellationToken cancellationToken)
+    {
+        await _communityService.RemoveMemberAsync(
+            id,
+            membershipId,
+            GetCurrentUserId(),
+            cancellationToken);
+        return NoContent();
+    }
+
+
+    [Authorize]
+    [HttpPut("{id:int}/members/{membershipId:int}/role")]
+    public async Task<IActionResult> UpdateMemberRole(
+        int id,
+        int membershipId,
+        [FromBody] ForumCommunityMemberRoleUpdateDTO dto,
+        CancellationToken cancellationToken)
+    {
+        await _communityService.UpdateMemberRoleAsync(
+            id,
+            membershipId,
+            GetCurrentUserId(),
+            dto.Role,
+            cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
+    [HttpDelete("{id:int}")]
+    public async Task<IActionResult> Delete(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        await _communityService.DeleteAsync(
+            id,
+            GetCurrentUserId(),
+            cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
     [HttpPost("{id:int}/invitations")]
     public async Task<IActionResult> Invite(
         int id,
@@ -181,6 +257,33 @@ public sealed class ForumCommunitiesController : ControllerBase
         CancellationToken cancellationToken)
     {
         await _communityService.AcceptInviteAsync(
+            id,
+            GetCurrentUserId(),
+            cancellationToken);
+        return NoContent();
+    }
+
+
+    [Authorize]
+    [HttpPut("{id:int}/ownership-offer/accept")]
+    public async Task<IActionResult> AcceptOwnershipOffer(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        await _communityService.AcceptOwnershipOfferAsync(
+            id,
+            GetCurrentUserId(),
+            cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
+    [HttpDelete("{id:int}/ownership-offer")]
+    public async Task<IActionResult> DeclineOwnershipOffer(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        await _communityService.DeclineOwnershipOfferAsync(
             id,
             GetCurrentUserId(),
             cancellationToken);

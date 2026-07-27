@@ -248,7 +248,6 @@ export function ForumInterestOnboarding({
       getGames(
         {
           searchName: debouncedSearch,
-          sortBy: "rating_desc",
           includeRelatedContent: false,
           pageNumber: 1,
           pageSize: 12,

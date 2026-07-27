@@ -52,6 +52,7 @@ export interface GameCatalogFilterDTO {
   platformId?: number;
 
   releaseYear?: number;
+  releasedOnly?: boolean;
   sortBy?: GameSort;
   includeRelatedContent?: boolean;
 

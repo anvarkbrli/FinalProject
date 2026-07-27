@@ -27,6 +27,28 @@ public sealed record ChatMessageDTO
     public DateTime? DeliveredAtUtc { get; init; }
     public DateTime? ReadAtUtc { get; init; }
     public ChatMessageDeliveryStatus DeliveryStatus { get; init; }
+    public bool IsDeletedForEveryone { get; init; }
+    public DateTime? DeletedForEveryoneAtUtc { get; init; }
+    public bool IsPinnedByCurrentUser { get; init; }
+    public DateTime? PinnedAtUtc { get; init; }
+}
+
+public sealed record ChatMessageDeletedDTO
+{
+    public long MessageId { get; init; }
+    public long ConversationId { get; init; }
+    public Guid DeletedByUserId { get; init; }
+    public ChatMessageDeleteScope Scope { get; init; }
+    public DateTime DeletedAtUtc { get; init; }
+}
+
+public sealed record ChatMessagePinChangedDTO
+{
+    public long MessageId { get; init; }
+    public long ConversationId { get; init; }
+    public Guid UserId { get; init; }
+    public bool IsPinned { get; init; }
+    public DateTime? PinnedAtUtc { get; init; }
 }
 
 public sealed record ChatConversationDTO

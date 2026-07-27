@@ -11,6 +11,7 @@ using Ludora.Application.Interfaces;
 using Ludora.Application.Settings;
 using Ludora.Domain.Entities.User;
 using Ludora.Infrastructure.Email;
+using Ludora.Infrastructure.Groq;
 using Ludora.Infrastructure.IGDB;
 using Ludora.Infrastructure.Steam;
 using Ludora.Persistence.ServiceRegistration;
@@ -49,6 +50,7 @@ public class Program
                 options.PayloadSerializerOptions.Converters.Add(
                     new JsonStringEnumConverter()));
         builder.Services.AddHostedService<NotificationOutboxWorker>();
+        builder.Services.AddSingleton<IUserPresenceTracker, UserPresenceTracker>();
         builder.Services.AddSingleton<IBadgeEvaluationQueue, BadgeEvaluationQueue>();
         builder.Services.AddSingleton<ISteamSyncQueue, SteamSyncQueue>();
         builder.Services.AddHostedService<BadgeEvaluationWorker>();
@@ -164,8 +166,14 @@ public class Program
                         return;
                     }
 
+                    if (user.AccountDeletionRequestedAtUtc.HasValue)
+                    {
+                        context.Fail("Hesabın silinməsi başladılıb.");
+                        return;
+                    }
+
                     if (isBanned)
-                        context.Fail("Hesab admin tərəfindən bloklanıb.");
+                        context.Fail("Hesab admin tərəfindən banlanıb.");
                 }
             };
         });
@@ -174,6 +182,42 @@ public class Program
         builder.Services.AddRateLimiter(options =>
         {
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+            options.GlobalLimiter =
+                PartitionedRateLimiter.Create<HttpContext, string>(context =>
+                {
+                    if (!context.Request.Path.StartsWithSegments(
+                            "/api/fps-estimator"))
+                    {
+                        return RateLimitPartition.GetNoLimiter(
+                            "non-fps-endpoint");
+                    }
+
+                    var ipAddress =
+                        context.Connection.RemoteIpAddress?.ToString() ??
+                        "unknown";
+
+                    return RateLimitPartition.GetFixedWindowLimiter(
+                        $"fps-ip:{ipAddress}",
+                        _ => new FixedWindowRateLimiterOptions
+                        {
+                            PermitLimit = 20,
+                            Window = TimeSpan.FromMinutes(1),
+                            QueueLimit = 0,
+                            AutoReplenishment = true
+                        });
+                });
+            options.OnRejected = async (context, cancellationToken) =>
+            {
+                context.HttpContext.Response.ContentType =
+                    "application/json; charset=utf-8";
+                await context.HttpContext.Response.WriteAsJsonAsync(
+                    new
+                    {
+                        message =
+                            "Çox sayda sorğu göndərmisiniz. Bir qədər sonra yenidən cəhd edin."
+                    },
+                    cancellationToken);
+            };
             options.AddPolicy("Auth", context => RateLimitPartition.GetFixedWindowLimiter(
                 context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
                 _ => new FixedWindowRateLimiterOptions
@@ -183,15 +227,40 @@ public class Program
                     QueueLimit = 0,
                     AutoReplenishment = true
                 }));
-            options.AddPolicy("UserReports", context => RateLimitPartition.GetFixedWindowLimiter(
-                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = 5,
-                    Window = TimeSpan.FromHours(1),
-                    QueueLimit = 0,
-                    AutoReplenishment = true
-                }));
+            options.AddPolicy("UserReports", context =>
+            {
+                var partitionKey =
+                    context.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
+                    context.Connection.RemoteIpAddress?.ToString() ??
+                    "unknown";
+
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    $"user-report:{partitionKey}",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 20,
+                        Window = TimeSpan.FromHours(1),
+                        QueueLimit = 0,
+                        AutoReplenishment = true
+                    });
+            });
+            options.AddPolicy("FpsEstimator", context =>
+            {
+                var userId =
+                    context.User.FindFirstValue(
+                        ClaimTypes.NameIdentifier) ??
+                    "anonymous";
+
+                return RateLimitPartition.GetFixedWindowLimiter(
+                    $"fps-user:{userId}",
+                    _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 5,
+                        Window = TimeSpan.FromMinutes(1),
+                        QueueLimit = 0,
+                        AutoReplenishment = true
+                    });
+            });
             options.AddPolicy("SteamSync", context => RateLimitPartition.GetFixedWindowLimiter(
                 context.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
                 context.Connection.RemoteIpAddress?.ToString() ??
@@ -220,6 +289,7 @@ public class Program
         builder.Services.AddPersistenceServices(builder.Configuration);
         builder.Services.AddEmailInfrastructure(builder.Configuration);
         builder.Services.AddIgdbIntegration(builder.Configuration);
+        builder.Services.AddGroqIntegration(builder.Configuration);
         builder.Services.AddSteamIntegration(builder.Configuration);
 
         var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
@@ -266,6 +336,7 @@ public class Program
         string[] roleNames =
         [
             RoleNames.Admin,
+            RoleNames.Moderator,
             RoleNames.User
         ];
 

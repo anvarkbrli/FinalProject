@@ -56,6 +56,7 @@ export interface DiscussionListItemDTO {
   authorId: string;
   authorUserName: string;
   authorProfileImageUrl: string | null;
+  authorCommunityRole: "Owner" | "Moderator" | "Member" | null;
 
   likeCount: number;
   replyCount: number;

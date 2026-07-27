@@ -19,6 +19,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { Link } from "react-router-dom";
 import { RatingStarIcon } from "../common/RatingStarIcon";
 import { getApiErrorMessage } from "../../lib/api";
 import { resolveAssetUrl } from "../../lib/helpers";
@@ -298,8 +299,9 @@ function CommunityUsersModal({
                   );
 
                 return (
-                  <div
+                  <Link
                     key={user.id}
+                    to={`/users/${encodeURIComponent(user.userName)}`}
                     className="flex items-center gap-4 rounded-2xl border border-white/[0.08] bg-white/[0.025] px-4 py-4 transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
                   >
                     {profileImageUrl ? (
@@ -320,16 +322,13 @@ function CommunityUsersModal({
                       <p className="truncate text-sm font-bold text-white">
                         {user.userName}
                       </p>
-                      <p className="mt-1 text-xs text-zinc-500">
-                        Ludora istifadəçisi
-                      </p>
                     </div>
 
                     <UserRound
                       size={17}
                       className="shrink-0 text-zinc-600"
                     />
-                  </div>
+                  </Link>
                 );
               })}
             </div>

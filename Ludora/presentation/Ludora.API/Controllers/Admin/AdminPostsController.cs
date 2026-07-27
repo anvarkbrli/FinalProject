@@ -7,7 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Ludora.API.Controllers.Admin;
 
-[Authorize(Roles = RoleNames.Admin)]
+[Authorize(Roles = RoleNames.AdminOrModerator)]
 [Route("api/admin/posts")]
 [ApiController]
 public sealed class AdminPostsController : ControllerBase
@@ -36,6 +36,7 @@ public sealed class AdminPostsController : ControllerBase
     }
 
     [HttpDelete("{postId:long}")]
+    [Authorize(Roles = RoleNames.Admin)]
     public async Task<IActionResult> Delete(
         long postId,
         [FromBody] ModeratePostDTO dto,

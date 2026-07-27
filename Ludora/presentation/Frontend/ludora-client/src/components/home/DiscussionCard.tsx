@@ -5,6 +5,7 @@ import {
   MessageCircle,
   Pin,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import {
   formatRelativeDate,
   resolveAssetUrl,
@@ -29,7 +30,11 @@ export function DiscussionCard({
       .toUpperCase() || "?";
 
   return (
-    <article className="group rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 transition duration-300 hover:border-violet-400/20 hover:bg-white/[0.045]">
+    <Link
+      to={`/forum/discussions/${discussion.slug}`}
+      aria-label={`${discussion.title} müzakirəsinə keç`}
+      className="group block rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4 transition duration-300 hover:border-violet-400/20 hover:bg-white/[0.045] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
+    >
       <div className="flex items-start justify-between gap-3">
         <span className="rounded-full bg-violet-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-violet-300">
           {discussion.categoryName}
@@ -73,7 +78,7 @@ export function DiscussionCard({
 
         <div className="min-w-0 text-xs">
           <p className="truncate font-medium text-zinc-400">
-            @{discussion.authorUserName}
+            {discussion.authorUserName}
           </p>
 
           <p className="mt-0.5 text-zinc-600">
@@ -119,6 +124,6 @@ export function DiscussionCard({
           {discussion.viewCount}
         </span>
       </div>
-    </article>
+    </Link>
   );
 }

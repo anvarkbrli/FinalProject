@@ -11,6 +11,7 @@ import {
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ChangeEvent,
   type FormEvent,
@@ -82,7 +83,13 @@ const allowedImageTypes = [
   "image/png",
   "image/webp",
 ];
+const allowedVideoTypes = [
+  "video/mp4",
+  "video/webm",
+];
 const maxImageSize = 5 * 1024 * 1024;
+const maxVideoSize = 50 * 1024 * 1024;
+const maxTotalEvidenceSize = 100 * 1024 * 1024;
 
 export function UserReportModal({
   isOpen,
@@ -98,27 +105,43 @@ export function UserReportModal({
   const [category, setCategory] =
     useState<UserReportCategory>("Spam");
   const [description, setDescription] = useState("");
-  const [evidenceImages, setEvidenceImages] =
+  const [evidenceFiles, setEvidenceFiles] =
     useState<File[]>([]);
   const [validationMessage, setValidationMessage] =
     useState<string | null>(null);
+  const revokeTimers = useRef(new Map<string, number>());
 
-  const imagePreviews = useMemo(
+  const evidencePreviews = useMemo(
     () =>
-      evidenceImages.map((file) => ({
+      evidenceFiles.map((file) => ({
         file,
         url: URL.createObjectURL(file),
+        isVideo: file.type.startsWith("video/"),
       })),
-    [evidenceImages],
+    [evidenceFiles],
   );
 
   useEffect(() => {
+    const urls = evidencePreviews.map((preview) => preview.url);
+    const timers = revokeTimers.current;
+    urls.forEach((url) => {
+      const existingTimer = timers.get(url);
+      if (existingTimer !== undefined) {
+        window.clearTimeout(existingTimer);
+        timers.delete(url);
+      }
+    });
+
     return () => {
-      imagePreviews.forEach((preview) =>
-        URL.revokeObjectURL(preview.url),
-      );
+      urls.forEach((url) => {
+        const timer = window.setTimeout(() => {
+          URL.revokeObjectURL(url);
+          timers.delete(url);
+        }, 1_000);
+        timers.set(url, timer);
+      });
     };
-  }, [imagePreviews]);
+  }, [evidencePreviews]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -145,7 +168,7 @@ export function UserReportModal({
     onSuccess: () => {
       setCategory("Spam");
       setDescription("");
-      setEvidenceImages([]);
+      setEvidenceFiles([]);
       setValidationMessage(null);
       onSubmitted();
     },
@@ -160,7 +183,7 @@ export function UserReportModal({
     reportedContentType !== "UserProfile" &&
     reportedContentId !== null;
 
-  function handleImageChange(
+  function handleEvidenceChange(
     event: ChangeEvent<HTMLInputElement>,
   ) {
     const files = Array.from(event.target.files ?? []);
@@ -170,29 +193,43 @@ export function UserReportModal({
       return;
     }
 
-    if (evidenceImages.length + files.length > 5) {
+    if (evidenceFiles.length + files.length > 5) {
       setValidationMessage(
-        "Maksimum 5 sübut şəkli əlavə edə bilərsən.",
+        "Maksimum 5 sübut faylı əlavə edə bilərsən.",
       );
       return;
     }
 
-    if (files.some((file) => !allowedImageTypes.includes(file.type))) {
+    if (files.some((file) =>
+      !allowedImageTypes.includes(file.type) &&
+      !allowedVideoTypes.includes(file.type))) {
       setValidationMessage(
-        "Yalnız JPEG, PNG və WEBP şəkilləri qəbul edilir.",
+        "Yalnız JPEG, PNG, WEBP, MP4 və WEBM faylları qəbul edilir.",
       );
       return;
     }
 
-    if (files.some((file) => file.size > maxImageSize)) {
+    if (files.some((file) =>
+      file.type.startsWith("video/")
+        ? file.size > maxVideoSize
+        : file.size > maxImageSize)) {
       setValidationMessage(
-        "Sübut şəkli maksimum 5 MB ola bilər.",
+        "Hər şəkil maksimum 5 MB, hər video maksimum 50 MB ola bilər.",
+      );
+      return;
+    }
+
+    const totalSize = [...evidenceFiles, ...files]
+      .reduce((sum, file) => sum + file.size, 0);
+    if (totalSize > maxTotalEvidenceSize) {
+      setValidationMessage(
+        "Sübut fayllarının ümumi ölçüsü maksimum 100 MB ola bilər.",
       );
       return;
     }
 
     setValidationMessage(null);
-    setEvidenceImages((current) => [...current, ...files]);
+    setEvidenceFiles((current) => [...current, ...files]);
   }
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -202,10 +239,10 @@ export function UserReportModal({
     if (
       !hasConcreteContent &&
       !normalizedDescription &&
-      evidenceImages.length === 0
+      evidenceFiles.length === 0
     ) {
       setValidationMessage(
-        "Profil şikayəti üçün ən azı açıqlama və ya şəkil əlavə et.",
+        "Profil şikayəti üçün ən azı açıqlama, şəkil və ya video əlavə et.",
       );
       return;
     }
@@ -224,7 +261,7 @@ export function UserReportModal({
       reportedUserId,
       category,
       description: normalizedDescription,
-      evidenceImages,
+      evidenceFiles,
       reportedContentType,
       reportedContentId,
     });
@@ -362,35 +399,53 @@ export function UserReportModal({
 
           <div>
             <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-zinc-500">
-              Şəkil sübutu
+              Şəkil və ya video sübutu
             </p>
 
-            {imagePreviews.length > 0 ? (
-              <div className="overflow-hidden rounded-2xl border border-white/[0.09] bg-black/20">
-                <img
-                  src={imagePreviews[0].url}
-                  alt="Şikayət sübutunun önizləməsi"
-                  className="h-64 max-h-64 w-full object-cover"
-                />
-                <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] px-4 py-3">
-                  <span className="flex min-w-0 items-center gap-2 text-xs text-zinc-500">
-                    <FileImage size={15} />
-                    <span className="truncate">
-                      {imagePreviews[0].file.name}
-                      {imagePreviews.length > 1
-                        ? ` və daha ${imagePreviews.length - 1} şəkil`
-                        : ""}
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setEvidenceImages([])}
-                    disabled={reportMutation.isPending}
-                    className="text-xs font-semibold text-red-300 transition hover:text-red-200 disabled:opacity-50"
+            {evidencePreviews.length > 0 ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {evidencePreviews.map((preview, index) => (
+                  <div
+                    key={`${preview.file.name}-${preview.file.lastModified}-${index}`}
+                    className="overflow-hidden rounded-2xl border border-white/[0.09] bg-black/20"
                   >
-                    Sil
-                  </button>
-                </div>
+                    {preview.isVideo ? (
+                      <video
+                        src={preview.url}
+                        controls
+                        preload="metadata"
+                        className="h-44 w-full bg-black object-contain"
+                      />
+                    ) : (
+                      <img
+                        src={preview.url}
+                        alt="Şikayət sübutunun önizləməsi"
+                        className="h-44 w-full object-cover"
+                      />
+                    )}
+                    <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] px-3 py-2.5">
+                      <span className="flex min-w-0 items-center gap-2 text-xs text-zinc-500">
+                        <FileImage size={14} />
+                        <span className="truncate">
+                          {preview.file.name}
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEvidenceFiles((current) =>
+                            current.filter(
+                              (_, fileIndex) => fileIndex !== index,
+                            ));
+                        }}
+                        disabled={reportMutation.isPending}
+                        className="shrink-0 text-xs font-semibold text-red-300 transition hover:text-red-200 disabled:opacity-50"
+                      >
+                        Sil
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : (
               <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.12] bg-white/[0.025] px-5 py-8 text-center transition hover:border-violet-400/30 hover:bg-violet-500/[0.05]">
@@ -399,30 +454,32 @@ export function UserReportModal({
                   className="text-violet-300"
                 />
                 <span className="mt-3 text-sm font-semibold text-zinc-300">
-                  Sübut şəklini seç
+                  Sübut faylını seç
                 </span>
                 <span className="mt-1 text-xs text-zinc-600">
-                  JPEG, PNG və ya WEBP · maksimum 5 MB
+                  Şəkil: JPEG, PNG, WEBP · 5 MB
+                  <br />
+                  Video: MP4, WEBM · 50 MB
                 </span>
                 <input
                   type="file"
                   multiple
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleImageChange}
+                  accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+                  onChange={handleEvidenceChange}
                   disabled={reportMutation.isPending}
                   className="sr-only"
                 />
               </label>
             )}
-            {imagePreviews.length > 0 && imagePreviews.length < 5 && (
+            {evidencePreviews.length > 0 && evidencePreviews.length < 5 && (
               <label className="mt-3 flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-white/[0.1] px-4 py-3 text-xs font-semibold text-zinc-400 transition hover:border-violet-400/25 hover:text-violet-200">
                 <ImagePlus size={15} />
-                Başqa şəkil əlavə et ({imagePreviews.length}/5)
+                Başqa sübut əlavə et ({evidencePreviews.length}/5)
                 <input
                   type="file"
                   multiple
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={handleImageChange}
+                  accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+                  onChange={handleEvidenceChange}
                   disabled={reportMutation.isPending}
                   className="sr-only"
                 />

@@ -9,15 +9,20 @@ namespace Ludora.API.Hubs;
 public sealed class ChatHub : Hub
 {
     private readonly IChatService _chatService;
+    private readonly IUserPresenceTracker _presenceTracker;
 
-    public ChatHub(IChatService chatService)
+    public ChatHub(
+        IChatService chatService,
+        IUserPresenceTracker presenceTracker)
     {
         _chatService = chatService;
+        _presenceTracker = presenceTracker;
     }
 
     public override async Task OnConnectedAsync()
     {
         var userId = GetUserId();
+        _presenceTracker.Connect(userId, PresenceConnectionId());
         await Groups.AddToGroupAsync(
             Context.ConnectionId,
             UserGroup(userId));
@@ -62,6 +67,15 @@ public sealed class ChatHub : Hub
         await base.OnConnectedAsync();
     }
 
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        var value = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (Guid.TryParse(value, out var userId))
+            _presenceTracker.Disconnect(userId, PresenceConnectionId());
+
+        await base.OnDisconnectedAsync(exception);
+    }
+
     public async Task JoinConversation(long conversationId)
     {
         await _chatService.GetMessagesAsync(
@@ -101,6 +115,9 @@ public sealed class ChatHub : Hub
     public static string UserGroup(Guid userId) => $"chat:user:{userId:N}";
     public static string ConversationGroup(long conversationId) =>
         $"chat:conversation:{conversationId}";
+
+    private string PresenceConnectionId() =>
+        $"chat:{Context.ConnectionId}";
 
     private Guid GetUserId()
     {

@@ -43,8 +43,12 @@ public sealed class AdminDashboardService : IAdminDashboardService
                 .CountAsync(x => x.IsDeleted, cancellationToken),
             TotalGames = await _context.Games.CountAsync(cancellationToken),
             TotalWarnings = await _context.UserWarnings.CountAsync(cancellationToken),
-            UnreadWarnings = await _context.UserWarnings
-                .CountAsync(x => !x.IsRead, cancellationToken),
+            UnreadWarnings = await _context.Notifications
+                .CountAsync(
+                    x =>
+                        x.Type == Ludora.Domain.Enums.NotificationType.WarningIssued &&
+                        !x.IsRead,
+                    cancellationToken),
             TotalAnnouncements = await _context.Announcements
                 .CountAsync(cancellationToken),
             PublishedAnnouncements = await _context.Announcements

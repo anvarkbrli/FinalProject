@@ -18,6 +18,11 @@ export type ForumCommunityMembershipStatus =
   | "Active"
   | "Invited";
 
+export type ForumCommunityMemberRole =
+  | "Owner"
+  | "Moderator"
+  | "Member";
+
 export interface ForumCommunityDTO {
   id: number;
   name: string;
@@ -33,8 +38,13 @@ export interface ForumCommunityDTO {
   followerCount: number;
   discussionCount: number;
   currentUserMembershipStatus: ForumCommunityMembershipStatus | null;
+  currentUserRole: ForumCommunityMemberRole | null;
   isFollowedByCurrentUser: boolean;
   canManage: boolean;
+  canModerate: boolean;
+  hasOwnershipOfferForCurrentUser: boolean;
+  hasPendingOwnershipTransfer: boolean;
+  pendingOwnerCandidateUserName: string | null;
   createdAt: string;
 }
 
@@ -43,9 +53,22 @@ export interface ForumCommunityMemberDTO {
   userId: string;
   userName: string;
   profileImageUrl: string | null;
-  role: "Owner" | "Member";
+  role: ForumCommunityMemberRole;
   status: ForumCommunityMembershipStatus;
   createdAt: string;
+}
+
+export interface ForumCommunityInviteCandidateDTO {
+  userId: string;
+  userName: string;
+  profileImageUrl: string | null;
+  membershipStatus: ForumCommunityMembershipStatus | null;
+}
+
+export interface ForumCommunityLeaveResultDTO {
+  leftCommunity: boolean;
+  ownershipOfferCreated: boolean;
+  candidateUserName: string | null;
 }
 
 export interface CreateForumCommunityInput {

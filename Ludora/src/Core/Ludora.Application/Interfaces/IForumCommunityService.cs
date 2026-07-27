@@ -1,4 +1,5 @@
 using Ludora.Application.DTOs;
+using Ludora.Domain.Enums;
 
 namespace Ludora.Application.Interfaces;
 
@@ -27,7 +28,7 @@ public interface IForumCommunityService
         Guid userId,
         CancellationToken cancellationToken = default);
 
-    Task LeaveAsync(
+    Task<ForumCommunityLeaveResultDTO> LeaveAsync(
         int id,
         Guid userId,
         CancellationToken cancellationToken = default);
@@ -59,6 +60,35 @@ public interface IForumCommunityService
         Guid ownerId,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<ForumCommunityMemberDTO>> GetMembersAsync(
+        int id,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<ForumCommunityInviteCandidateDTO>> SearchInviteCandidatesAsync(
+        int id,
+        Guid ownerId,
+        string query,
+        CancellationToken cancellationToken = default);
+
+    Task RemoveMemberAsync(
+        int id,
+        int membershipId,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
+    Task UpdateMemberRoleAsync(
+        int id,
+        int membershipId,
+        Guid ownerId,
+        ForumCommunityMemberRole role,
+        CancellationToken cancellationToken = default);
+
+    Task DeleteAsync(
+        int id,
+        Guid ownerId,
+        CancellationToken cancellationToken = default);
+
     Task InviteAsync(
         int id,
         Guid ownerId,
@@ -66,6 +96,16 @@ public interface IForumCommunityService
         CancellationToken cancellationToken = default);
 
     Task AcceptInviteAsync(
+        int id,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task AcceptOwnershipOfferAsync(
+        int id,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task DeclineOwnershipOfferAsync(
         int id,
         Guid userId,
         CancellationToken cancellationToken = default);

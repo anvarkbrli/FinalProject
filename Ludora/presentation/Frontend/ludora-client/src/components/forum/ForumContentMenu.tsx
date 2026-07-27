@@ -248,6 +248,23 @@ export function ForumContentMenu({
                         : "Şərhi izlə"}
                   </button>
 
+                  {canDelete && onDelete && (
+                    <button
+                      type="button"
+                      role="menuitem"
+                      disabled={isBusy}
+                      onClick={handleDelete}
+                      className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-rose-300 transition hover:bg-rose-400/[0.08] disabled:opacity-50"
+                    >
+                      {isBusy ? (
+                        <LoaderCircle size={16} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={16} />
+                      )}
+                      Sil
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     role="menuitem"

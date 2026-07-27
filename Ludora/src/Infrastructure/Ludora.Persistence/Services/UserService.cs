@@ -1,6 +1,7 @@
 using System.Text;
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Badge;
+using Ludora.Application.DTOs.FpsEstimator;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Helpers;
@@ -45,12 +46,14 @@ public class UserService : IUserService
     {
         var user = await _userManager.FindByIdOrThrowAsync(userId);
         var summary = await GetProfileSummaryAsync(userId);
+        var roles = await _userManager.GetRolesAsync(user);
 
         return new CurrentUserDTO
         {
             Id = user.Id,
             UserName = user.UserName ?? string.Empty,
             Email = user.Email ?? string.Empty,
+            Roles = roles.ToArray(),
             EmailConfirmed = user.EmailConfirmed,
             Bio = user.Bio,
             ProfileImageUrl = user.ProfileImageUrl,
@@ -189,6 +192,87 @@ public class UserService : IUserService
         return new UserSettingsDTO
         {
             IsPrivate = user.IsPrivate
+        };
+    }
+
+    public async Task<FpsHardwareProfileDTO> GetFpsHardwareProfileAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var profile = await _context.Users
+            .AsNoTracking()
+            .Where(user => user.Id == userId)
+            .Select(user => new FpsHardwareProfileDTO
+            {
+                IsConfigured =
+                    user.FpsGpuName != null &&
+                    user.FpsCpuName != null &&
+                    user.FpsRamGb.HasValue,
+                Gpu = user.FpsGpuName,
+                Cpu = user.FpsCpuName,
+                RamGb = user.FpsRamGb,
+                VramGb = user.FpsVramGb,
+                UpdatedAtUtc = user.FpsHardwareUpdatedAtUtc
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return profile ??
+               throw new NotFoundException("İstifadəçi tapılmadı.");
+    }
+
+    public async Task<FpsHardwareProfileDTO> UpdateFpsHardwareProfileAsync(
+        Guid userId,
+        UpdateFpsHardwareProfileDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        var gpu = NormalizeHardwareName(dto.Gpu, "GPU");
+        var cpu = NormalizeHardwareName(dto.Cpu, "CPU");
+
+        if (dto.RamGb is < 1 or > 512)
+            throw new BadRequestException("RAM 1-512 GB aralığında olmalıdır.");
+
+        if (dto.VramGb is < 1 or > 128)
+            throw new BadRequestException("VRAM 1-128 GB aralığında olmalıdır.");
+
+        var user = await _context.Users
+            .FirstOrDefaultAsync(
+                candidate => candidate.Id == userId,
+                cancellationToken)
+            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
+
+        var hasChanged =
+            !string.Equals(
+                user.FpsGpuName,
+                gpu,
+                StringComparison.Ordinal) ||
+            !string.Equals(
+                user.FpsCpuName,
+                cpu,
+                StringComparison.Ordinal) ||
+            user.FpsRamGb != dto.RamGb ||
+            user.FpsVramGb != dto.VramGb;
+
+        if (hasChanged)
+        {
+            user.FpsGpuName = gpu;
+            user.FpsCpuName = cpu;
+            user.FpsRamGb = dto.RamGb;
+            user.FpsVramGb = dto.VramGb;
+            user.FpsHardwareUpdatedAtUtc = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        return new FpsHardwareProfileDTO
+        {
+            IsConfigured = true,
+            Gpu = user.FpsGpuName,
+            Cpu = user.FpsCpuName,
+            RamGb = user.FpsRamGb,
+            VramGb = user.FpsVramGb,
+            UpdatedAtUtc = user.FpsHardwareUpdatedAtUtc
         };
     }
 
@@ -372,6 +456,30 @@ public class UserService : IUserService
                     : weightedRatingTotal / ratingCount,
                 RatingDistribution = ratingGroups
             });
+    }
+
+    private static string NormalizeHardwareName(
+        string? value,
+        string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new BadRequestException($"{fieldName} boş ola bilməz.");
+
+        var normalized = string.Join(
+            " ",
+            value
+                .Trim()
+                .Split(
+                    (char[]?)null,
+                    StringSplitOptions.RemoveEmptyEntries));
+
+        if (normalized.Length > 150)
+        {
+            throw new BadRequestException(
+                $"{fieldName} adı maksimum 150 simvol ola bilər.");
+        }
+
+        return normalized;
     }
 
     private Task<List<UserBadgeDTO>> GetUserBadgesAsync(Guid userId)

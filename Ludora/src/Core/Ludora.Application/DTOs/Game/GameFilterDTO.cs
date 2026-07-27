@@ -13,11 +13,11 @@ namespace Ludora.Application.DTOs
         public CatalogSource? PlatformSource { get; init; }
         public long? PlatformId { get; init; }
         public int? ReleaseYear { get; init; }
+        public bool ReleasedOnly { get; init; }
         public string? SortBy { get; init; }
         public int PageNumber { get; init; } = 1;
         public int PageSize { get; init; } = 16;
         public bool IncludeRelatedContent { get; init; }
     }
 }
-
 

@@ -3,7 +3,9 @@ import {
   ArrowBigDown,
   ArrowBigUp,
   ArrowLeft,
+  FileVideo2,
   Heart,
+  ImagePlus,
   LoaderCircle,
   Lock,
   MessageCircle,
@@ -13,7 +15,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ForumMediaGallery } from "../components/forum/ForumMediaGallery";
 import { ForumContentMenu } from "../components/forum/ForumContentMenu";
@@ -162,6 +164,17 @@ function CommentItem({
                   {reply.authorUserName}
                 </Link>
               )}
+              {!reply.isDeleted && reply.authorCommunityRole === "Owner" && (
+                <span className="rounded-full border border-amber-400/20 bg-amber-400/[0.08] px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
+                  Sahib
+                </span>
+              )}
+              {!reply.isDeleted &&
+                reply.authorCommunityRole === "Moderator" && (
+                  <span className="rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-1.5 py-0.5 text-[9px] font-bold text-violet-300">
+                    Moderator
+                  </span>
+                )}
               <span className="text-zinc-700">•</span>
               <time className="text-zinc-600">
                 {formatRelativeDate(reply.createdAt)}
@@ -394,7 +407,26 @@ export function ForumDiscussionPage() {
   const [isEditingDiscussion, setIsEditingDiscussion] = useState(false);
   const [editDiscussionTitle, setEditDiscussionTitle] = useState("");
   const [editDiscussionContent, setEditDiscussionContent] = useState("");
+  const [editKeptMediaIds, setEditKeptMediaIds] = useState<number[]>([]);
+  const [editDiscussionFiles, setEditDiscussionFiles] = useState<File[]>([]);
   const [isDiscussionBusy, setIsDiscussionBusy] = useState(false);
+
+  const editDiscussionPreviews = useMemo(
+    () =>
+      editDiscussionFiles.map((file) => ({
+        file,
+        url: URL.createObjectURL(file),
+      })),
+    [editDiscussionFiles],
+  );
+
+  useEffect(
+    () => () =>
+      editDiscussionPreviews.forEach((item) =>
+        URL.revokeObjectURL(item.url),
+      ),
+    [editDiscussionPreviews],
+  );
 
   const discussionQuery = useQuery({
     queryKey: ["forum", "discussion", slug],
@@ -518,26 +550,118 @@ export function ForumDiscussionPage() {
     }
   }
 
+  function beginDiscussionEdit() {
+    if (!discussion) return;
+
+    setEditDiscussionTitle(discussion.title);
+    setEditDiscussionContent(discussion.content);
+    setEditKeptMediaIds(
+      discussion.media
+        .slice()
+        .sort((left, right) => left.sortOrder - right.sortOrder)
+        .map((media) => media.id),
+    );
+    setEditDiscussionFiles([]);
+    setError("");
+    setIsEditingDiscussion(true);
+  }
+
+  function cancelDiscussionEdit() {
+    if (isDiscussionBusy) return;
+
+    setIsEditingDiscussion(false);
+    setEditDiscussionTitle("");
+    setEditDiscussionContent("");
+    setEditKeptMediaIds([]);
+    setEditDiscussionFiles([]);
+    setError("");
+  }
+
+  function addEditDiscussionFiles(selected: FileList | null) {
+    if (!selected) return;
+
+    const acceptedTypes = new Set([
+      "image/jpeg",
+      "image/png",
+      "image/webp",
+      "video/mp4",
+      "video/webm",
+    ]);
+    const currentCount =
+      editKeptMediaIds.length + editDiscussionFiles.length;
+    const availableSlots = Math.max(0, 8 - currentCount);
+
+    if (availableSlots === 0) {
+      setError("Bir müzakirədə maksimum 8 media ola bilər.");
+      return;
+    }
+
+    const acceptedFiles: File[] = [];
+
+    for (const file of Array.from(selected)) {
+      if (!acceptedTypes.has(file.type)) {
+        setError(
+          "Yalnız JPG, PNG, WEBP şəkilləri və MP4, WEBM videoları əlavə edilə bilər.",
+        );
+        continue;
+      }
+
+      const isVideo = file.type.startsWith("video/");
+      const maxSize = isVideo
+        ? 100 * 1024 * 1024
+        : 10 * 1024 * 1024;
+
+      if (file.size > maxSize) {
+        setError(
+          isVideo
+            ? "Hər video maksimum 100 MB ola bilər."
+            : "Hər şəkil maksimum 10 MB ola bilər.",
+        );
+        continue;
+      }
+
+      acceptedFiles.push(file);
+      if (acceptedFiles.length >= availableSlots) break;
+    }
+
+    if (acceptedFiles.length > 0) {
+      setEditDiscussionFiles((current) => [
+        ...current,
+        ...acceptedFiles,
+      ]);
+      setError("");
+    }
+  }
+
   async function handleDiscussionUpdate() {
-    if (
-      !discussion ||
-      !editDiscussionTitle.trim() ||
-      !editDiscussionContent.trim()
-    ) {
+    if (!discussion || !editDiscussionTitle.trim()) return;
+
+    const normalizedContent = editDiscussionContent.trim();
+    const resultingMediaCount =
+      editKeptMediaIds.length + editDiscussionFiles.length;
+
+    if (!normalizedContent && resultingMediaCount === 0) {
+      setError("Müzakirə mətni və ya ən azı bir media saxlanmalıdır.");
       return;
     }
 
     setError("");
     setIsDiscussionBusy(true);
     try {
-      await updateDiscussion(
-        discussion.id,
-        editDiscussionTitle.trim(),
-        editDiscussionContent.trim(),
-        discussion.categoryId,
-      );
+      await updateDiscussion({
+        discussionId: discussion.id,
+        title: editDiscussionTitle.trim(),
+        content: normalizedContent,
+        categoryId: discussion.categoryId,
+        keptMediaIds: editKeptMediaIds,
+        mediaFiles: editDiscussionFiles,
+      });
       await discussionQuery.refetch();
       setIsEditingDiscussion(false);
+      setEditDiscussionTitle("");
+      setEditDiscussionContent("");
+      setEditKeptMediaIds([]);
+      setEditDiscussionFiles([]);
     } catch (updateError) {
       setError(
         getApiErrorMessage(
@@ -608,6 +732,27 @@ export function ForumDiscussionPage() {
   );
   const displayName =
     discussion.communityName ?? discussion.authorUserName;
+  const originalMediaIds = discussion.media
+    .slice()
+    .sort((left, right) => left.sortOrder - right.sortOrder)
+    .map((media) => media.id);
+  const keptExistingMedia = editKeptMediaIds
+    .map((mediaId) =>
+      discussion.media.find((media) => media.id === mediaId),
+    )
+    .filter((media) => media !== undefined);
+  const editMediaCount =
+    keptExistingMedia.length + editDiscussionFiles.length;
+  const isEditMediaUnchanged =
+    editDiscussionFiles.length === 0 &&
+    originalMediaIds.length === editKeptMediaIds.length &&
+    originalMediaIds.every(
+      (mediaId, index) => mediaId === editKeptMediaIds[index],
+    );
+  const isDiscussionEditUnchanged =
+    editDiscussionTitle.trim() === discussion.title &&
+    editDiscussionContent.trim() === discussion.content &&
+    isEditMediaUnchanged;
 
   return (
     <div className="forum-theme min-h-screen text-zinc-100">
@@ -663,6 +808,16 @@ export function ForumDiscussionPage() {
                   >
                     {discussion.authorUserName}
                   </Link>
+                  {discussion.authorCommunityRole === "Owner" && (
+                    <span className="ml-1 rounded-full border border-amber-400/20 bg-amber-400/[0.08] px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
+                      Sahib
+                    </span>
+                  )}
+                  {discussion.authorCommunityRole === "Moderator" && (
+                    <span className="ml-1 rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-1.5 py-0.5 text-[9px] font-bold text-violet-300">
+                      Moderator
+                    </span>
+                  )}
                 </p>
               )}
             </div>
@@ -682,18 +837,14 @@ export function ForumDiscussionPage() {
                 initialIsActive={discussion.isSavedByCurrentUser}
                 canEdit={discussion.canEdit}
                 canDelete={discussion.canDelete}
-                onEdit={() => {
-                  setEditDiscussionTitle(discussion.title);
-                  setEditDiscussionContent(discussion.content);
-                  setIsEditingDiscussion(true);
-                }}
+                onEdit={beginDiscussionEdit}
                 onDelete={handleDiscussionDelete}
               />
             </div>
           </div>
 
           {isEditingDiscussion ? (
-            <div className="mt-6 space-y-3">
+            <div className="mt-6 space-y-4">
               <input
                 type="text"
                 value={editDiscussionTitle}
@@ -711,14 +862,133 @@ export function ForumDiscussionPage() {
                 }
                 maxLength={10000}
                 rows={7}
+                placeholder="Müzakirə mətni"
                 className="w-full resize-y rounded-xl border border-white/[0.08] bg-black/20 p-4 text-sm leading-7 text-white outline-none focus:border-teal-300/30"
                 aria-label="Müzakirə mətni"
               />
-              <div className="flex justify-end gap-2">
+
+              <div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-bold text-zinc-300">
+                    Şəkil və videolar
+                  </p>
+                  <span className="text-[11px] text-zinc-600">
+                    {editMediaCount}/8
+                  </span>
+                </div>
+
+                <label className="mt-2 flex cursor-pointer items-center justify-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-5 text-sm text-zinc-500 transition hover:border-teal-300/25 hover:text-teal-200">
+                  <ImagePlus size={18} />
+                  Şəkil və ya video əlavə et
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
+                    multiple
+                    className="sr-only"
+                    disabled={editMediaCount >= 8 || isDiscussionBusy}
+                    onChange={(event) => {
+                      addEditDiscussionFiles(event.target.files);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+
+                {editMediaCount > 0 && (
+                  <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {keptExistingMedia.map((media) => {
+                      const mediaUrl =
+                        resolveAssetUrl(media.url) ?? media.url;
+
+                      return (
+                        <div
+                          key={`existing-${media.id}`}
+                          className="relative h-32 overflow-hidden rounded-2xl border border-white/[0.08] bg-black/25"
+                        >
+                          {media.isVideo ? (
+                            <video
+                              src={mediaUrl}
+                              controls
+                              preload="metadata"
+                              className="h-full w-full object-contain"
+                            />
+                          ) : (
+                            <img
+                              src={mediaUrl}
+                              alt={media.originalFileName}
+                              className="h-full w-full object-cover"
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditKeptMediaIds((current) =>
+                                current.filter(
+                                  (mediaId) => mediaId !== media.id,
+                                ),
+                              )
+                            }
+                            disabled={isDiscussionBusy}
+                            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/75 text-white backdrop-blur transition hover:bg-rose-500/85 disabled:opacity-50"
+                            aria-label={`${media.originalFileName} faylını sil`}
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      );
+                    })}
+
+                    {editDiscussionPreviews.map(
+                      ({ file, url }, index) => (
+                        <div
+                          key={`${file.name}-${file.lastModified}-${index}`}
+                          className="relative h-32 overflow-hidden rounded-2xl border border-teal-300/15 bg-black/25"
+                        >
+                          {file.type.startsWith("video/") ? (
+                            <div className="flex h-full flex-col items-center justify-center gap-2 px-3 text-center text-zinc-500">
+                              <FileVideo2 size={28} />
+                              <span className="max-w-full truncate text-[10px]">
+                                {file.name}
+                              </span>
+                            </div>
+                          ) : (
+                            <img
+                              src={url}
+                              alt={file.name}
+                              className="h-full w-full object-cover"
+                            />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setEditDiscussionFiles((current) =>
+                                current.filter(
+                                  (_, currentIndex) =>
+                                    currentIndex !== index,
+                                ),
+                              )
+                            }
+                            disabled={isDiscussionBusy}
+                            className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-black/75 text-white backdrop-blur transition hover:bg-rose-500/85 disabled:opacity-50"
+                            aria-label={`${file.name} faylını sil`}
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                )}
+
+                <p className="mt-2 text-[11px] leading-5 text-zinc-600">
+                  Şəkillər maksimum 10 MB, videolar maksimum 100 MB ola bilər.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-white/[0.06] pt-4">
                 <button
                   type="button"
                   disabled={isDiscussionBusy}
-                  onClick={() => setIsEditingDiscussion(false)}
+                  onClick={cancelDiscussionEdit}
                   className="rounded-xl px-4 py-2.5 text-xs font-semibold text-zinc-500 transition hover:text-zinc-300"
                 >
                   Ləğv et
@@ -728,9 +998,9 @@ export function ForumDiscussionPage() {
                   disabled={
                     isDiscussionBusy ||
                     !editDiscussionTitle.trim() ||
-                    !editDiscussionContent.trim() ||
-                    (editDiscussionTitle.trim() === discussion.title &&
-                      editDiscussionContent.trim() === discussion.content)
+                    (!editDiscussionContent.trim() &&
+                      editMediaCount === 0) ||
+                    isDiscussionEditUnchanged
                   }
                   onClick={handleDiscussionUpdate}
                   className="flex items-center gap-2 rounded-xl bg-teal-300 px-4 py-2.5 text-xs font-black text-[#07100f] disabled:opacity-40"
@@ -743,20 +1013,20 @@ export function ForumDiscussionPage() {
               </div>
             </div>
           ) : (
-            <h1 className="mt-6 text-2xl font-bold leading-tight text-white sm:text-3xl">
-              {discussion.title}
-            </h1>
-          )}
-
-          <ForumMediaGallery
-            media={discussion.media}
-            title={discussion.title}
-          />
-
-          {!isEditingDiscussion && discussion.content && (
-            <p className="mt-5 whitespace-pre-wrap text-sm leading-7 text-zinc-300">
-              {discussion.content}
-            </p>
+            <>
+              <h1 className="mt-6 text-2xl font-bold leading-tight text-white sm:text-3xl">
+                {discussion.title}
+              </h1>
+              <ForumMediaGallery
+                media={discussion.media}
+                title={discussion.title}
+              />
+              {discussion.content && (
+                <p className="mt-5 whitespace-pre-wrap text-sm leading-7 text-zinc-300">
+                  {discussion.content}
+                </p>
+              )}
+            </>
           )}
 
           <div className="mt-6 flex items-center gap-2 border-t border-white/[0.06] pt-4">

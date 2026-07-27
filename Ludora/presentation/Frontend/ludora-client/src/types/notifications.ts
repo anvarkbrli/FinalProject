@@ -6,6 +6,7 @@ export type NotificationType =
   | "FollowingGameStatusChanged"
   | "FollowingPublicListCreated"
   | "FollowingDiscussionCreated"
+  | "CommunityDiscussionCreated"
   | "PostLiked"
   | "PostCommented"
   | "ReviewLiked"
@@ -18,7 +19,9 @@ export type NotificationType =
   | "FollowedDiscussionReplyActivity"
   | "FollowRequestReceived"
   | "UserFollowed"
-  | "FollowRequestAccepted";
+  | "FollowRequestAccepted"
+  | "CommunityOwnershipOffered"
+  | "CommunityModeratorAssigned";
 
 export type NotificationPriority = "Low" | "Normal" | "High" | "Critical";
 export type NotificationAudience = "Everyone" | "ConnectionsOnly" | "Never";

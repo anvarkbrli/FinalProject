@@ -46,6 +46,7 @@ public static class ServiceRegistration
             options.TokenLifespan = TimeSpan.FromHours(24));
 
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IAccountDeletionService, AccountDeletionService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();
         services.AddScoped<IAdminUserService, AdminUserService>();
         services.AddScoped<IAdminPostService, AdminPostService>();

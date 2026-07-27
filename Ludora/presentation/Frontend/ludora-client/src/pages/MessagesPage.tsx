@@ -11,10 +11,15 @@ import {
   Gamepad2,
   ImagePlus,
   LoaderCircle,
+  Maximize2,
   MessageCircle,
+  MoreVertical,
+  Pin,
+  PinOff,
   Search,
   Send,
   ShieldQuestion,
+  Trash2,
   Video,
   X,
 } from "lucide-react";
@@ -26,30 +31,61 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react";
+import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
-import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
 import { useChatRealtime } from "../hooks/useChatRealtime";
 import { getApiErrorMessage } from "../lib/api";
+import { useConfirmation } from "../lib/confirmation";
 import { resolveAssetUrl } from "../lib/helpers";
 import {
   acceptMessageRequest,
   chatQueryKeys,
+  deleteChatMessage,
   getChatConversations,
   getChatMediaBlob,
   getChatMessages,
   getMessageRequests,
+  getPinnedChatMessages,
   markConversationRead,
   rejectMessageRequest,
   sendChatMessage,
+  setChatMessagePinned,
 } from "../services/chatService";
 import { globalSearch } from "../services/searchService";
 import { useAuthStore } from "../stores/authStore";
 import type {
   ChatConversationDTO,
+  ChatMessageDeleteScope,
   ChatMessageDTO,
   ChatMessageDeliveryStatus,
 } from "../types/chat";
+
+const AZERBAIJANI_MONTH_NAMES = [
+  "yanvar",
+  "fevral",
+  "mart",
+  "aprel",
+  "may",
+  "iyun",
+  "iyul",
+  "avqust",
+  "sentyabr",
+  "oktyabr",
+  "noyabr",
+  "dekabr",
+] as const;
+
+function formatAzerbaijaniDate(
+  date: Date,
+  includeYear = false,
+): string {
+  const day = date.getDate();
+  const month = AZERBAIJANI_MONTH_NAMES[date.getMonth()];
+  return includeYear
+    ? `${day} ${month} ${date.getFullYear()}`
+    : `${day} ${month}`;
+}
 
 function formatConversationTime(value: string): string {
   const date = new Date(value);
@@ -60,10 +96,10 @@ function formatConversationTime(value: string): string {
       minute: "2-digit",
     }).format(date);
   }
-  return new Intl.DateTimeFormat("az-AZ", {
-    day: "2-digit",
-    month: "short",
-  }).format(date);
+  return formatAzerbaijaniDate(
+    date,
+    date.getFullYear() !== today.getFullYear(),
+  );
 }
 
 function formatMessageTime(value: string): string {
@@ -82,11 +118,10 @@ function formatDateSeparator(value: string): string {
 
   if (date.toDateString() === today.toDateString()) return "Bu gün";
   if (date.toDateString() === yesterday.toDateString()) return "Dünən";
-  return new Intl.DateTimeFormat("az-AZ", {
-    day: "numeric",
-    month: "long",
-    year: date.getFullYear() === today.getFullYear() ? undefined : "numeric",
-  }).format(date);
+  return formatAzerbaijaniDate(
+    date,
+    date.getFullYear() !== today.getFullYear(),
+  );
 }
 
 function deliveryIcon(status: ChatMessageDeliveryStatus) {
@@ -97,6 +132,17 @@ function deliveryIcon(status: ChatMessageDeliveryStatus) {
       className={status === "Read" ? "text-sky-400" : "text-zinc-400"}
     />
   );
+}
+
+function getMessagePreview(message: ChatMessageDTO | null): string {
+  if (!message) return "Yeni söhbət";
+  if (message.isDeletedForEveryone) return "Bu mesaj silindi";
+  if (message.kind === "GameRecommendation") {
+    return `🎮 ${message.gameName ?? "Oyun tövsiyəsi"}`;
+  }
+  if (message.kind === "Image") return "📷 Şəkil";
+  if (message.kind === "Video") return "🎥 Video";
+  return message.text ?? "Mesaj";
 }
 
 function UserAvatar({
@@ -123,6 +169,7 @@ function UserAvatar({
 }
 
 function AuthenticatedMedia({ message }: { message: ChatMessageDTO }) {
+  const [isOpen, setIsOpen] = useState(false);
   const mediaQuery = useQuery({
     queryKey: ["chat", "media", message.id],
     queryFn: () => getChatMediaBlob(message.mediaUrl!),
@@ -140,6 +187,20 @@ function AuthenticatedMedia({ message }: { message: ChatMessageDTO }) {
     },
     [objectUrl],
   );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsOpen(false);
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
 
   if (mediaQuery.isLoading) {
     return (
@@ -164,19 +225,78 @@ function AuthenticatedMedia({ message }: { message: ChatMessageDTO }) {
   }
   if (!objectUrl) return null;
 
-  return message.kind === "Video" ? (
-    <video
-      src={objectUrl}
-      controls
-      preload="metadata"
-      className="max-h-80 w-full max-w-md rounded-xl bg-black object-contain"
-    />
-  ) : (
-    <img
-      src={objectUrl}
-      alt="Mesaj şəkli"
-      className="max-h-80 w-full max-w-md rounded-xl object-cover"
-    />
+  const isVideo = message.kind === "Video";
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setIsOpen(true)}
+        className="group/media relative block max-w-md overflow-hidden rounded-xl bg-black text-left"
+        aria-label={isVideo ? "Videonu böyüt" : "Şəkli böyüt"}
+      >
+        {isVideo ? (
+          <video
+            src={objectUrl}
+            muted
+            preload="metadata"
+            className="pointer-events-none max-h-80 w-full object-contain"
+          />
+        ) : (
+          <img
+            src={objectUrl}
+            alt="Mesaj şəkli"
+            className="max-h-80 w-full object-cover"
+          />
+        )}
+        <span className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg bg-black/65 text-white opacity-80 transition group-hover/media:opacity-100">
+          <Maximize2 size={16} />
+        </span>
+        {isVideo && (
+          <span className="absolute inset-0 flex items-center justify-center bg-black/10 text-sm font-semibold text-white">
+            Videonu aç
+          </span>
+        )}
+      </button>
+
+      {isOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 p-4 backdrop-blur-xl"
+            role="dialog"
+            aria-modal="true"
+            onClick={() => setIsOpen(false)}
+          >
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="absolute right-5 top-5 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/55 text-white transition hover:bg-black/80"
+              aria-label="Media önizləməsini bağla"
+            >
+              <X size={22} />
+            </button>
+            <div
+              className="flex max-h-[90vh] max-w-[94vw] items-center justify-center"
+              onClick={(event) => event.stopPropagation()}
+            >
+              {isVideo ? (
+                <video
+                  src={objectUrl}
+                  controls
+                  autoPlay
+                  className="max-h-[88vh] max-w-[92vw] rounded-2xl bg-black object-contain shadow-2xl"
+                />
+              ) : (
+                <img
+                  src={objectUrl}
+                  alt="Böyüdülmüş mesaj şəkli"
+                  className="max-h-[88vh] max-w-[92vw] rounded-2xl object-contain shadow-2xl"
+                />
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 
@@ -189,14 +309,7 @@ function ConversationItem({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const preview =
-    conversation.lastMessage?.kind === "GameRecommendation"
-      ? `🎮 ${conversation.lastMessage.gameName ?? "Oyun tövsiyəsi"}`
-      : conversation.lastMessage?.kind === "Image"
-        ? "📷 Şəkil"
-        : conversation.lastMessage?.kind === "Video"
-          ? "🎥 Video"
-          : conversation.lastMessage?.text ?? "Yeni söhbət";
+  const preview = getMessagePreview(conversation.lastMessage);
 
   return (
     <button
@@ -235,6 +348,7 @@ function ConversationItem({
 }
 
 export function MessagesPage() {
+  const requestConfirmation = useConfirmation();
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -247,6 +361,20 @@ export function MessagesPage() {
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [gamePickerOpen, setGamePickerOpen] = useState(false);
   const [gameSearch, setGameSearch] = useState("");
+  const [openMessageMenuId, setOpenMessageMenuId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{
+    message: ChatMessageDTO;
+    scope: ChatMessageDeleteScope;
+  } | null>(null);
+  const [pinnedPanelOpen, setPinnedPanelOpen] = useState(false);
+
+  const selectConversation = (conversationId: number | null) => {
+    setOpenMessageMenuId(null);
+    setPinnedPanelOpen(false);
+    setDeleteTarget(null);
+    setSelectedConversationId(conversationId);
+  };
+
   const messageListRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -276,6 +404,7 @@ export function MessagesPage() {
     selectedConversationChoice === undefined
       ? defaultConversationId
       : selectedConversationChoice;
+
 
   const selectedConversation = useMemo(
     () =>
@@ -313,6 +442,16 @@ export function MessagesPage() {
     [messagesQuery.data?.pages],
   );
 
+  const pinnedMessagesQuery = useQuery({
+    queryKey: selectedConversationId
+      ? chatQueryKeys.pinnedMessages(selectedConversationId)
+      : ["chat", "pinned-messages", "none"],
+    queryFn: () => getPinnedChatMessages(selectedConversationId!),
+    enabled: selectedConversationId !== null,
+  });
+  const pinnedMessages = pinnedMessagesQuery.data ?? [];
+  const latestPinnedMessage = pinnedMessages[0] ?? null;
+
   useEffect(() => {
     if (!selectedConversationId) return;
     void markConversationRead(selectedConversationId).then(() => {
@@ -346,7 +485,7 @@ export function MessagesPage() {
       setMessageText("");
       setMediaFile(null);
       setValidationMessage(null);
-      setSelectedConversationId(message.conversationId);
+      selectConversation(message.conversationId);
       setSearchParams({});
       await refreshChat();
       await queryClient.invalidateQueries({
@@ -361,8 +500,46 @@ export function MessagesPage() {
   const rejectMutation = useMutation({
     mutationFn: rejectMessageRequest,
     onSuccess: async () => {
-      setSelectedConversationId(null);
+      selectConversation(null);
       await refreshChat();
+    },
+  });
+
+  const deleteMessageMutation = useMutation({
+    mutationFn: ({
+      messageId,
+      scope,
+    }: {
+      messageId: number;
+      scope: ChatMessageDeleteScope;
+    }) => deleteChatMessage(messageId, scope),
+    onSuccess: async (event) => {
+      setDeleteTarget(null);
+      setOpenMessageMenuId(null);
+      await Promise.all([
+        refreshChat(),
+        queryClient.invalidateQueries({
+          queryKey: chatQueryKeys.messages(event.conversationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: chatQueryKeys.pinnedMessages(event.conversationId),
+        }),
+      ]);
+    },
+  });
+  const pinMessageMutation = useMutation({
+    mutationFn: ({ messageId, isPinned }: { messageId: number; isPinned: boolean }) =>
+      setChatMessagePinned(messageId, isPinned),
+    onSuccess: async (event) => {
+      setOpenMessageMenuId(null);
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: chatQueryKeys.messages(event.conversationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: chatQueryKeys.pinnedMessages(event.conversationId),
+        }),
+      ]);
     },
   });
 
@@ -400,13 +577,13 @@ export function MessagesPage() {
     : null;
 
   return (
-    <div className="min-h-screen wellplayd-page-bg text-zinc-100">
+    <div className="flex h-[100dvh] flex-col overflow-hidden wellplayd-page-bg text-zinc-100">
       <Navbar />
-      <main className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
-        <div className="grid min-h-[calc(100vh-150px)] overflow-hidden rounded-3xl border border-white/[0.08] bg-[#0d0d12] shadow-2xl shadow-black/30 md:grid-cols-[340px_minmax(0,1fr)]">
+      <main className="mx-auto flex min-h-0 w-full max-w-7xl flex-1 px-4 py-4 sm:py-5 lg:px-8">
+        <div className="grid h-full min-h-0 w-full overflow-hidden rounded-3xl border border-white/[0.08] bg-[#0d0d12] shadow-2xl shadow-black/30 md:grid-cols-[340px_minmax(0,1fr)]">
           <aside
-            className={`border-r border-white/[0.07] p-3 ${
-              selectedConversationId || initialRecipientId ? "hidden md:block" : "block"
+            className={`min-h-0 flex-col overflow-hidden border-r border-white/[0.07] p-3 ${
+              selectedConversationId || initialRecipientId ? "hidden md:flex" : "flex"
             }`}
           >
             <div className="flex items-center justify-between px-3 py-3">
@@ -429,19 +606,19 @@ export function MessagesPage() {
                     key={request.id}
                     conversation={request}
                     selected={selectedConversationId === request.id}
-                    onSelect={() => setSelectedConversationId(request.id)}
+                    onSelect={() => selectConversation(request.id)}
                   />
                 ))}
               </section>
             )}
 
-            <div className="max-h-[calc(100vh-260px)] space-y-1 overflow-y-auto">
+            <div className="min-h-0 flex-1 space-y-1 overflow-y-auto">
               {conversations.map((conversation) => (
                 <ConversationItem
                   key={conversation.id}
                   conversation={conversation}
                   selected={selectedConversationId === conversation.id}
-                  onSelect={() => setSelectedConversationId(conversation.id)}
+                  onSelect={() => selectConversation(conversation.id)}
                 />
               ))}
               {!conversationsQuery.isLoading && conversations.length === 0 && (
@@ -453,17 +630,17 @@ export function MessagesPage() {
           </aside>
 
           <section
-            className={`min-w-0 flex-col ${
+            className={`min-h-0 min-w-0 flex-col overflow-hidden ${
               selectedConversationId || initialRecipientId ? "flex" : "hidden md:flex"
             }`}
           >
             {recipientId ? (
               <>
-                <header className="flex h-18 items-center gap-3 border-b border-white/[0.07] px-4 py-3 sm:px-5">
+                <header className="flex shrink-0 items-center gap-3 border-b border-white/[0.07] px-4 py-3 sm:px-5">
                   <button
                     type="button"
                     onClick={() => {
-                      setSelectedConversationId(null);
+                      selectConversation(null);
                       setSearchParams({});
                     }}
                     className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-400 hover:bg-white/[0.06] md:hidden"
@@ -490,6 +667,28 @@ export function MessagesPage() {
                     </p>
                   </div>
                 </header>
+
+                {latestPinnedMessage && (
+                  <button
+                    type="button"
+                    onClick={() => setPinnedPanelOpen(true)}
+                    className="flex shrink-0 items-center gap-3 border-b border-white/[0.07] bg-violet-500/[0.06] px-4 py-2.5 text-left transition hover:bg-violet-500/[0.1] sm:px-5"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300">
+                      <Pin size={15} />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <strong className="block text-xs text-violet-200">
+                        {pinnedMessages.length === 1
+                          ? "Pinlənmiş mesaj"
+                          : `${pinnedMessages.length} pinlənmiş mesaj`}
+                      </strong>
+                      <span className="mt-0.5 block truncate text-xs text-zinc-500">
+                        {getMessagePreview(latestPinnedMessage)}
+                      </span>
+                    </span>
+                  </button>
+                )}
 
                 <div
                   ref={messageListRef}
@@ -518,9 +717,83 @@ export function MessagesPage() {
                       message.gameSource && message.gameId
                         ? `/games/${message.gameSource}/${message.gameId}`
                         : message.gameDetailUrl ?? "/games";
+                    const menuOpen = openMessageMenuId === message.id;
+
+                    const messageMenu = (
+                      <div className="relative mt-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenMessageMenuId((current) =>
+                              current === message.id ? null : message.id,
+                            )
+                          }
+                          className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-600 opacity-70 transition hover:bg-white/[0.06] hover:text-zinc-200 hover:opacity-100"
+                          aria-label="Mesaj əməliyyatları"
+                        >
+                          <MoreVertical size={16} />
+                        </button>
+                        {menuOpen && (
+                          <div
+                            className={`absolute top-9 z-40 w-48 overflow-hidden rounded-2xl border border-white/[0.09] bg-[#18181f] p-1.5 shadow-2xl shadow-black/50 ${
+                              mine ? "right-0" : "left-0"
+                            }`}
+                          >
+                            {!message.isDeletedForEveryone && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  pinMessageMutation.mutate({
+                                    messageId: message.id,
+                                    isPinned: !message.isPinnedByCurrentUser,
+                                  })
+                                }
+                                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-zinc-300 transition hover:bg-white/[0.06]"
+                              >
+                                {message.isPinnedByCurrentUser ? (
+                                  <PinOff size={16} />
+                                ) : (
+                                  <Pin size={16} />
+                                )}
+                                {message.isPinnedByCurrentUser
+                                  ? "Pindən çıxar"
+                                  : "Mesajı pinlə"}
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeleteTarget({ message, scope: "ForMe" });
+                                setOpenMessageMenuId(null);
+                              }}
+                              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-zinc-300 transition hover:bg-white/[0.06]"
+                            >
+                              <Trash2 size={16} />
+                              Məndən sil
+                            </button>
+                            {mine && !message.isDeletedForEveryone && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDeleteTarget({
+                                    message,
+                                    scope: "ForEveryone",
+                                  });
+                                  setOpenMessageMenuId(null);
+                                }}
+                                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-red-300 transition hover:bg-red-500/[0.09]"
+                              >
+                                <Trash2 size={16} />
+                                Hər kəsdən sil
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
 
                     return (
-                      <div key={message.id}>
+                      <div key={message.id} id={`chat-message-${message.id}`}>
                         {showDate && (
                           <div className="my-5 flex items-center gap-3">
                             <span className="h-px flex-1 bg-white/[0.06]" />
@@ -530,46 +803,74 @@ export function MessagesPage() {
                             <span className="h-px flex-1 bg-white/[0.06]" />
                           </div>
                         )}
-                        <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                        <div
+                          className={`flex items-start gap-1 ${
+                            mine ? "justify-end" : "justify-start"
+                          }`}
+                        >
+                          {mine && messageMenu}
                           <article
                             className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 shadow-sm sm:max-w-[70%] ${
-                              mine
-                                ? "rounded-br-md bg-violet-600 text-white"
-                                : "rounded-bl-md border border-white/[0.07] bg-[#17171d] text-zinc-200"
+                              message.isDeletedForEveryone
+                                ? "border border-white/[0.08] bg-white/[0.035] text-zinc-500"
+                                : mine
+                                  ? "rounded-br-md bg-violet-600 text-white"
+                                  : "rounded-bl-md border border-white/[0.07] bg-[#17171d] text-zinc-200"
                             }`}
                           >
-                            {message.mediaUrl && <AuthenticatedMedia message={message} />}
-                            {message.kind === "GameRecommendation" && (
-                              <Link
-                                to={gameDetailUrl}
-                                className="block min-w-56 overflow-hidden rounded-xl bg-black/20"
-                              >
-                                {message.gameCoverUrl ? (
-                                  <img
-                                    src={resolveAssetUrl(message.gameCoverUrl) ?? message.gameCoverUrl}
-                                    alt={message.gameName ?? "Oyun"}
-                                    className="aspect-[16/9] w-full object-cover"
-                                  />
-                                ) : (
-                                  <div className="flex aspect-[16/9] items-center justify-center">
-                                    <Gamepad2 size={28} />
-                                  </div>
-                                )}
-                                <strong className="block px-3 py-2.5 text-sm">
-                                  {message.gameName}
-                                </strong>
-                              </Link>
-                            )}
-                            {message.text && (
-                              <p className="whitespace-pre-wrap break-words text-sm leading-6">
-                                {message.text}
+                            {message.isDeletedForEveryone ? (
+                              <p className="text-sm italic text-zinc-500">
+                                Bu mesaj silindi
                               </p>
+                            ) : (
+                              <>
+                                {message.mediaUrl && (
+                                  <AuthenticatedMedia message={message} />
+                                )}
+                                {message.kind === "GameRecommendation" && (
+                                  <Link
+                                    to={gameDetailUrl}
+                                    className="block min-w-56 overflow-hidden rounded-xl bg-black/20"
+                                  >
+                                    {message.gameCoverUrl ? (
+                                      <img
+                                        src={
+                                          resolveAssetUrl(message.gameCoverUrl) ??
+                                          message.gameCoverUrl
+                                        }
+                                        alt={message.gameName ?? "Oyun"}
+                                        className="aspect-[16/9] w-full object-cover"
+                                      />
+                                    ) : (
+                                      <div className="flex aspect-[16/9] items-center justify-center">
+                                        <Gamepad2 size={28} />
+                                      </div>
+                                    )}
+                                    <strong className="block px-3 py-2.5 text-sm">
+                                      {message.gameName}
+                                    </strong>
+                                  </Link>
+                                )}
+                                {message.text && (
+                                  <p className="whitespace-pre-wrap break-words text-sm leading-6">
+                                    {message.text}
+                                  </p>
+                                )}
+                              </>
                             )}
-                            <div className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${mine ? "text-violet-100/70" : "text-zinc-600"}`}>
+                            <div
+                              className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
+                                mine ? "text-violet-100/70" : "text-zinc-600"
+                              }`}
+                            >
+                              {message.isPinnedByCurrentUser && (
+                                <Pin size={11} aria-label="Pinlənib" />
+                              )}
                               {formatMessageTime(message.sentAtUtc)}
                               {mine && deliveryIcon(message.deliveryStatus)}
                             </div>
                           </article>
+                          {!mine && messageMenu}
                         </div>
                       </div>
                     );
@@ -577,14 +878,32 @@ export function MessagesPage() {
                 </div>
 
                 {selectedConversation?.isIncomingRequest ? (
-                  <div className="border-t border-white/[0.07] bg-[#111116] p-4">
+                  <div className="shrink-0 border-t border-white/[0.07] bg-[#111116] p-4">
                     <p className="mb-3 text-center text-xs text-zinc-500">
                       Cavab yazmaq üçün mesaj istəyini qəbul et.
                     </p>
                     <div className="flex justify-center gap-3">
                       <button
                         type="button"
-                        onClick={() => rejectMutation.mutate(selectedConversation.id)}
+                        onClick={async () => {
+                          const confirmed =
+                            await requestConfirmation({
+                              title: `${selectedConversation.otherUser.userName} istifadəçisinin mesaj istəyi rədd edilsin?`,
+                              description:
+                                "Bu söhbət istəyi bağlanacaq və gözləyən istəklər siyahından çıxacaq.",
+                              detail:
+                                "İstifadəçi sonradan yeni mesaj istəyi göndərə bilər.",
+                              confirmLabel: "İstəyi rədd et",
+                              kind: "remove-user",
+                              tone: "warning",
+                            });
+
+                          if (confirmed) {
+                            rejectMutation.mutate(
+                              selectedConversation.id,
+                            );
+                          }
+                        }}
                         className="h-10 rounded-xl border border-red-400/15 bg-red-500/[0.07] px-5 text-sm font-semibold text-red-300"
                       >
                         Rədd et
@@ -600,7 +919,7 @@ export function MessagesPage() {
                   </div>
                 ) : isOutgoingRequestAwaitingDecision ? (
                   <div
-                    className="border-t border-amber-400/10 bg-[#111116] px-5 py-5 text-center"
+                    className="shrink-0 border-t border-amber-400/10 bg-[#111116] px-5 py-5 text-center"
                     role="status"
                   >
                     <ShieldQuestion
@@ -616,7 +935,7 @@ export function MessagesPage() {
                     </p>
                   </div>
                 ) : (
-                  <form onSubmit={handleSubmit} className="border-t border-white/[0.07] bg-[#111116] p-3 sm:p-4">
+                  <form onSubmit={handleSubmit} className="shrink-0 border-t border-white/[0.07] bg-[#111116] p-3 sm:p-4">
                     {(validationMessage || mutationError) && (
                       <p className="mb-2 rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-200">
                         {validationMessage ?? mutationError}
@@ -701,7 +1020,6 @@ export function MessagesPage() {
           </section>
         </div>
       </main>
-      <Footer />
 
       {gamePickerOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
@@ -764,6 +1082,151 @@ export function MessagesPage() {
           </div>
         </div>
       )}
+
+      {deleteTarget &&
+        createPortal(
+          <div className="fixed inset-0 z-[310] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
+            <div className="w-full max-w-md rounded-3xl border border-white/[0.09] bg-[#15151c] p-5 shadow-2xl shadow-black/60">
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500/10 text-red-300">
+                  <Trash2 size={20} />
+                </span>
+                <div>
+                  <h2 className="text-lg font-bold text-white">
+                    {deleteTarget.scope === "ForEveryone"
+                      ? "Mesajı hər kəsdən sil?"
+                      : "Mesajı səndən sil?"}
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-zinc-500">
+                    {deleteTarget.scope === "ForEveryone"
+                      ? "Mesajın mətni və media faylı söhbətin hər iki tərəfindən silinəcək. Bu əməliyyatı geri qaytarmaq mümkün deyil."
+                      : "Mesaj yalnız sənin söhbət tarixçəndən yox olacaq. Qarşı tərəf onu görməyə davam edəcək."}
+                  </p>
+                </div>
+              </div>
+              {deleteMessageMutation.isError && (
+                <p className="mt-4 rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                  {getApiErrorMessage(
+                    deleteMessageMutation.error,
+                    "Mesaj silinmədi.",
+                  )}
+                </p>
+              )}
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={deleteMessageMutation.isPending}
+                  className="h-10 rounded-xl border border-white/[0.09] px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.05]"
+                >
+                  Ləğv et
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    deleteMessageMutation.mutate({
+                      messageId: deleteTarget.message.id,
+                      scope: deleteTarget.scope,
+                    })
+                  }
+                  disabled={deleteMessageMutation.isPending}
+                  className="flex h-10 items-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
+                >
+                  {deleteMessageMutation.isPending && (
+                    <LoaderCircle size={15} className="animate-spin" />
+                  )}
+                  Sil
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {pinnedPanelOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[305] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
+            onClick={() => setPinnedPanelOpen(false)}
+          >
+            <div
+              className="w-full max-w-xl rounded-3xl border border-white/[0.09] bg-[#15151c] p-5 shadow-2xl shadow-black/60"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-300">
+                    <Pin size={18} />
+                  </span>
+                  <div>
+                    <h2 className="text-lg font-bold text-white">
+                      Pinlənmiş mesajlar
+                    </h2>
+                    <p className="text-xs text-zinc-500">
+                      {pinnedMessages.length} mesaj
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPinnedPanelOpen(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-500 transition hover:bg-white/[0.06] hover:text-white"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="mt-4 max-h-[60vh] space-y-2 overflow-y-auto">
+                {pinnedMessages.map((message) => (
+                  <div
+                    key={message.id}
+                    className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPinnedPanelOpen(false);
+                        window.setTimeout(() => {
+                          document
+                            .getElementById(`chat-message-${message.id}`)
+                            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }, 50);
+                      }}
+                      className="min-w-0 flex-1 text-left"
+                    >
+                      <strong className="block truncate text-sm text-zinc-200">
+                        {message.senderUserId === currentUser?.id
+                          ? "Sən"
+                          : recipientName}
+                      </strong>
+                      <span className="mt-1 block truncate text-xs text-zinc-500">
+                        {getMessagePreview(message)}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        pinMessageMutation.mutate({
+                          messageId: message.id,
+                          isPinned: false,
+                        })
+                      }
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-200"
+                      aria-label="Pindən çıxar"
+                    >
+                      <PinOff size={16} />
+                    </button>
+                  </div>
+                ))}
+                {pinnedMessages.length === 0 && (
+                  <p className="py-10 text-center text-sm text-zinc-600">
+                    Pinlənmiş mesaj yoxdur.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

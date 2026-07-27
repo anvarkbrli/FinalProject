@@ -645,3 +645,155 @@ select optgroup {
     animation-iteration-count: 1 !important;
   }
 }
+
+/* Notification dropdown must remain fully readable over every page background. */
+.notification-panel {
+  background-color: var(--wp-surface-strong) !important;
+  border-color: var(--wp-border-strong) !important;
+  box-shadow: var(--wp-shadow-floating) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.notification-panel__header,
+.notification-panel__footer {
+  background-color: var(--wp-surface-strong);
+  border-color: var(--wp-border) !important;
+}
+
+.notification-list {
+  background-color: color-mix(
+    in srgb,
+    var(--wp-page-deep) 84%,
+    var(--wp-surface-strong) 16%
+  );
+}
+
+.notification-item {
+  border-color: var(--wp-border) !important;
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--wp-border) 70%, transparent);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.notification-item--read {
+  background-color: color-mix(
+    in srgb,
+    var(--wp-surface-strong) 92%,
+    var(--wp-page-deep) 8%
+  ) !important;
+}
+
+.notification-item--read:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--wp-surface-strong) 86%,
+    var(--wp-accent) 14%
+  ) !important;
+}
+
+.notification-item--standard.notification-item--unread {
+  background-color: color-mix(
+    in srgb,
+    var(--wp-surface-strong) 86%,
+    var(--wp-accent) 14%
+  ) !important;
+  border-color: color-mix(in srgb, var(--wp-accent) 36%, var(--wp-border)) !important;
+}
+
+.notification-item--standard.notification-item--unread:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--wp-surface-strong) 80%,
+    var(--wp-accent) 20%
+  ) !important;
+}
+
+.notification-item--high.notification-item--unread {
+  background-color: color-mix(
+    in srgb,
+    var(--wp-surface-strong) 84%,
+    var(--color-fuchsia-500) 16%
+  ) !important;
+  border-color: color-mix(in srgb, var(--color-fuchsia-500) 38%, var(--wp-border)) !important;
+}
+
+.notification-item--warning {
+  background-color: color-mix(
+    in srgb,
+    var(--wp-surface-strong) 82%,
+    var(--color-red-500) 18%
+  ) !important;
+  border-color: color-mix(in srgb, var(--color-red-500) 42%, var(--wp-border)) !important;
+}
+
+.notification-item--warning:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--wp-surface-strong) 76%,
+    var(--color-red-500) 24%
+  ) !important;
+}
+
+.notification-item--announcement {
+  background-color: color-mix(
+    in srgb,
+    var(--wp-surface-strong) 83%,
+    var(--color-amber-400) 17%
+  ) !important;
+  border-color: color-mix(in srgb, var(--color-amber-400) 40%, var(--wp-border)) !important;
+}
+
+.notification-item--announcement:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--wp-surface-strong) 77%,
+    var(--color-amber-400) 23%
+  ) !important;
+}
+
+.notification-list__load-more,
+.notification-panel__footer > a {
+  background-color: color-mix(
+    in srgb,
+    var(--wp-surface-strong) 86%,
+    var(--wp-page-deep) 14%
+  ) !important;
+  border-color: var(--wp-border) !important;
+}
+
+.notification-list__load-more:hover,
+.notification-panel__footer > a:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--wp-surface-strong) 82%,
+    var(--wp-accent) 18%
+  ) !important;
+}
+
+/* Home / Trend və Tezliklə çıxacaq carousels */
+.home-discovery-carousel {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior-inline: contain;
+}
+
+.home-discovery-carousel::-webkit-scrollbar {
+  display: none;
+}
+
+.home-discovery-slide {
+  flex-basis: calc((100% - 1rem) / 2);
+}
+
+@media (min-width: 640px) {
+  .home-discovery-slide {
+    flex-basis: calc((100% - 2rem) / 3);
+  }
+}
+
+@media (min-width: 1024px) {
+  .home-discovery-slide {
+    flex-basis: calc((100% - 5rem) / 6);
+  }
+}

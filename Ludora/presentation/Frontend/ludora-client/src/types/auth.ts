@@ -12,6 +12,12 @@ export interface RegisterRequestDTO {
   confirmPassword: string;
 }
 
+
+export interface ConfirmEmailRequestDTO {
+  userId: string;
+  token: string;
+}
+
 export interface ResendEmailConfirmationRequestDTO {
   email: string;
 }
@@ -20,6 +26,7 @@ export interface CurrentUserDTO {
   id: string;
   userName: string;
   email: string;
+  roles?: string[];
   emailConfirmed: boolean;
   bio: string | null;
   profileImageUrl: string | null;

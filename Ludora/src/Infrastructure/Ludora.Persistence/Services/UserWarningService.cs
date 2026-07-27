@@ -2,6 +2,7 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities.User;
+using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -71,13 +72,30 @@ public sealed class UserWarningService : IUserWarningService
                 cancellationToken)
             ?? throw new NotFoundException("Xəbərdarlıq tapılmadı.");
 
+        var now = DateTime.UtcNow;
+        var warningChanged = false;
+
         if (!warning.IsRead)
         {
             warning.IsRead = true;
-            warning.ReadAtUtc = DateTime.UtcNow;
-
-            await _context.SaveChangesAsync(cancellationToken);
+            warning.ReadAtUtc = now;
+            warningChanged = true;
         }
+
+        await _context.Notifications
+            .Where(x =>
+                x.RecipientUserId == userId &&
+                x.EntityType == NotificationEntityType.Warning &&
+                x.EntityId == warningId.ToString() &&
+                !x.IsRead)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(x => x.IsRead, true)
+                    .SetProperty(x => x.ReadAtUtc, now),
+                cancellationToken);
+
+        if (warningChanged)
+            await _context.SaveChangesAsync(cancellationToken);
 
         return await Project(
                 _context.UserWarnings
@@ -96,6 +114,17 @@ public sealed class UserWarningService : IUserWarningService
 
         await _context.UserWarnings
             .Where(x => x.UserId == userId && !x.IsRead)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(x => x.IsRead, true)
+                    .SetProperty(x => x.ReadAtUtc, now),
+                cancellationToken);
+
+        await _context.Notifications
+            .Where(x =>
+                x.RecipientUserId == userId &&
+                x.EntityType == NotificationEntityType.Warning &&
+                !x.IsRead)
             .ExecuteUpdateAsync(
                 setters => setters
                     .SetProperty(x => x.IsRead, true)

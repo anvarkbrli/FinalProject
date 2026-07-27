@@ -13,9 +13,10 @@ namespace Ludora.Infrastructure.IGDB;
 
 public sealed class HomeDiscoveryService : IHomeDiscoveryService
 {
-    private const string FreshCacheKey = "home-discovery:v4:fresh";
-    private const string StaleCacheKey = "home-discovery:v4:stale";
-    private const int SectionSize = 6;
+    private const string FreshCacheKey = "home-discovery:v6:fresh";
+    private const string StaleCacheKey = "home-discovery:v6:stale";
+    private const int SectionSize = 18;
+    private const int ComingSoonSectionSize = 18;
     private const int PopularityCandidateCount = 80;
     private const int UpcomingCandidateCount = 200;
     private const int UpcomingWindowMonths = 18;
@@ -293,7 +294,7 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
             .OrderByDescending(x => x.Score)
             .ThenBy(x => x.Game.ReleaseDate)
             .ThenBy(x => x.Game.Title)
-            .Take(SectionSize)
+            .Take(ComingSoonSectionSize)
             .ToList();
 
         return rankedGames

@@ -9,6 +9,7 @@ public record AdminUserDetailDTO
     public string? ProfileImageUrl { get; init; }
     public string Role { get; init; } = string.Empty;
     public bool IsPrivate { get; init; }
+    public bool IsOnline { get; init; }
     public bool IsBanned { get; init; }
     public bool IsPermanentlyBanned { get; init; }
     public DateTime? BannedUntilUtc { get; init; }

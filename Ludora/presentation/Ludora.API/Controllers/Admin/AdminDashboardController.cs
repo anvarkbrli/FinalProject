@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Ludora.API.Controllers.Admin;
 
-[Authorize(Roles = RoleNames.Admin)]
+[Authorize(Roles = RoleNames.AdminOrModerator)]
 [Route("api/admin/dashboard")]
 [ApiController]
 public sealed class AdminDashboardController : ControllerBase

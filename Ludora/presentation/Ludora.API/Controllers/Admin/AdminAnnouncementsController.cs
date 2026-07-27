@@ -8,7 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace Ludora.API.Controllers.Admin;
 
-[Authorize(Roles = RoleNames.Admin)]
+[Authorize(Roles = RoleNames.AdminOrModerator)]
 [Route("api/admin/announcements")]
 [ApiController]
 public sealed class AdminAnnouncementsController : ControllerBase
@@ -69,6 +69,7 @@ public sealed class AdminAnnouncementsController : ControllerBase
     }
 
     [HttpDelete("{announcementId:int}")]
+    [Authorize(Roles = RoleNames.Admin)]
     public async Task<IActionResult> Delete(
         int announcementId,
         CancellationToken cancellationToken)

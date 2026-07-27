@@ -16,12 +16,13 @@ public sealed class ChatMessageConfiguration : IEntityTypeConfiguration<ChatMess
         builder.Property(x => x.GameName).HasMaxLength(300);
         builder.Property(x => x.GameCoverUrl).HasMaxLength(2048);
         builder.Property(x => x.SentAtUtc).IsRequired();
+        builder.Property(x => x.DeletedForEveryoneAtUtc);
 
         builder.ToTable("ChatMessages", table =>
         {
             table.HasCheckConstraint(
                 "CK_ChatMessages_Content",
-                "[Text] IS NOT NULL OR [MediaStorageKey] IS NOT NULL OR [GameId] IS NOT NULL");
+                "[DeletedForEveryoneAtUtc] IS NOT NULL OR [Text] IS NOT NULL OR [MediaStorageKey] IS NOT NULL OR [GameId] IS NOT NULL");
             table.HasCheckConstraint(
                 "CK_ChatMessages_Kind",
                 "[Kind] BETWEEN 0 AND 3");

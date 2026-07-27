@@ -11,6 +11,7 @@ import {
   MessageCircle,
   Plus,
   Settings,
+  ShieldCheck,
   Star,
   UserPlus,
   UserRound,
@@ -29,6 +30,7 @@ import { LogGameModal } from "../reviews/LogGameModal";
 import { GlobalSearchBox } from "../search/GlobalSearchBox";
 import { NotificationBell } from "../notifications/NotificationBell";
 import { resolveAssetUrl } from "../../lib/helpers";
+import { canAccessAdminPanel } from "../../lib/authRoles";
 import { useNotificationRealtime } from "../../hooks/useNotificationRealtime";
 import {
   isAuthSessionValid,
@@ -91,6 +93,13 @@ export function Navbar() {
       accessToken,
       expiresAtUtc,
     ) && user !== null;
+
+  const canAccessAdmin =
+    hasValidSession &&
+    canAccessAdminPanel(
+      accessToken,
+      user?.roles ?? [],
+    );
 
   useNotificationRealtime(hasValidSession);
 
@@ -334,6 +343,18 @@ export function Navbar() {
                   </div>
 
                   <div className="py-2">
+                    {canAccessAdmin && (
+                      <Link
+                        to="/admin"
+                        onClick={closeMenus}
+                        role="menuitem"
+                        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-violet-200 transition hover:bg-violet-500/[0.08]"
+                      >
+                        <ShieldCheck size={17} />
+                        Admin panel
+                      </Link>
+                    )}
+
                     <Link
                       to={`/users/${user.userName}`}
                       onClick={closeMenus}
@@ -605,6 +626,17 @@ export function Navbar() {
                   <MessageCircle size={17} />
                   Mesajlar
                 </Link>
+
+                {canAccessAdmin && (
+                  <Link
+                    to="/admin"
+                    onClick={closeMenus}
+                    className="mt-2 flex items-center gap-3 rounded-xl border border-violet-400/15 bg-violet-500/[0.07] px-4 py-3 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/[0.12]"
+                  >
+                    <ShieldCheck size={17} />
+                    Admin panel
+                  </Link>
+                )}
 
                 <Link
                   to="/settings?section=profile"

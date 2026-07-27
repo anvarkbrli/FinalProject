@@ -8,18 +8,27 @@ import {
   Flag,
   LoaderCircle,
   LockKeyhole,
+  LogOut,
   MoreHorizontal,
-  Send,
+  Shield,
   ShieldCheck,
+  Trash2,
+  UserMinus,
   UserPlus,
   UsersRound,
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import {
+  CommunityOwnerManagementModal,
+  type CommunityOwnerModalMode,
+} from "../components/forum/CommunityOwnerManagementModal";
+import { CommunityOwnershipOfferModal } from "../components/forum/CommunityOwnershipOfferModal";
 import { Navbar } from "../components/layout/Navbar";
 import { UserReportModal } from "../components/profile/UserReportModal";
 import { getApiErrorMessage } from "../lib/api";
+import { useConfirmation } from "../lib/confirmation";
 import {
   formatRelativeDate,
   resolveAssetUrl,
@@ -29,7 +38,6 @@ import {
   approveCommunityMembership,
   getCommunityMembershipRequests,
   getForumCommunityBySlug,
-  inviteToCommunity,
   joinForumCommunity,
   leaveForumCommunity,
   rejectCommunityMembership,
@@ -64,6 +72,8 @@ const visibilityLabels: Record<ForumCommunityVisibility, string> = {
 
 export function ForumCommunityPage() {
   const { slug = "" } = useParams();
+  const navigate = useNavigate();
+  const requestConfirmation = useConfirmation();
   const menuRef = useRef<HTMLDivElement>(null);
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -74,7 +84,8 @@ export function ForumCommunityPage() {
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState("");
-  const [inviteUserName, setInviteUserName] = useState("");
+  const [ownerModalMode, setOwnerModalMode] =
+    useState<CommunityOwnerModalMode>(null);
 
   const communityQuery = useQuery({
     queryKey: ["forum", "community", slug],
@@ -85,10 +96,7 @@ export function ForumCommunityPage() {
   const community = communityQuery.data;
   const canReviewMembershipRequests =
     community?.canManage === true && community.visibility === "Restricted";
-  const canInvitePrivateMembers =
-    community?.canManage === true && community.visibility === "Private";
-  const hasManagementSidebar =
-    canReviewMembershipRequests || canInvitePrivateMembers;
+  const hasManagementSidebar = canReviewMembershipRequests;
 
   const discussionsQuery = useQuery({
     queryKey: ["forum", "feed", "community", slug],
@@ -186,13 +194,14 @@ export function ForumCommunityPage() {
   const coverUrl = resolveAssetUrl(community.coverImageUrl);
   const membership = community.currentUserMembershipStatus;
   const isOwner = community.ownerId === user?.id;
+  const isModerator = community.currentUserRole === "Moderator";
   const isActiveMember = membership === "Active";
   const canFollowCommunity =
     isAuthenticated && !isOwner && !isActiveMember;
   const canReportCommunity = isAuthenticated && !isOwner;
   const showDirectReportAction = canReportCommunity && isActiveMember;
   const hasCommunityMenuActions =
-    canFollowCommunity || (canReportCommunity && !isActiveMember);
+    isOwner || canFollowCommunity || (canReportCommunity && !isActiveMember);
 
   return (
     <div className="forum-theme min-h-screen text-zinc-100">
@@ -261,17 +270,62 @@ export function ForumCommunityPage() {
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
+                {isAuthenticated && isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => setOwnerModalMode("leave")}
+                    className="flex h-10 items-center gap-2 rounded-xl border border-white/10 px-4 text-xs font-bold text-zinc-400 transition hover:text-white"
+                  >
+                    <LogOut size={15} />
+                    İcmadan ayrıl
+                  </button>
+                )}
+
+
+                {isOwner && community.hasPendingOwnershipTransfer && (
+                  <span className="flex h-10 items-center rounded-xl border border-amber-400/20 bg-amber-400/[0.07] px-3 text-[11px] font-bold text-amber-200">
+                    Təklif: {community.pendingOwnerCandidateUserName ?? "gözləyir"}
+                  </span>
+                )}
+
+                {isAuthenticated && isModerator && (
+                  <button
+                    type="button"
+                    onClick={() => setOwnerModalMode("members")}
+                    className="flex h-10 items-center gap-2 rounded-xl border border-violet-400/20 bg-violet-400/[0.07] px-4 text-xs font-bold text-violet-300 transition hover:bg-violet-400/[0.12] hover:text-violet-200"
+                  >
+                    <Shield size={15} />
+                    Üzvləri idarə et
+                  </button>
+                )}
+
                 {isAuthenticated && !isOwner && (
                   <>
                     {membership === "Active" ? (
                       <button
                         type="button"
                         disabled={isBusy}
-                        onClick={() =>
-                          runAction(() =>
-                            leaveForumCommunity(community.id),
-                          )
-                        }
+                        onClick={async () => {
+                          const confirmed =
+                            await requestConfirmation({
+                              title: `${community.name} icmasından ayrılmaq istəyirsən?`,
+                              description:
+                                "Üzvlüyün dayandırılacaq və icmanın üzvlər siyahısından çıxacaqsan.",
+                              detail:
+                                "İcma açıq və ya məhdud olduqda sonradan yenidən qoşula və ya üzvlük sorğusu göndərə bilərsən.",
+                              confirmLabel: "İcmadan ayrıl",
+                              kind: "leave",
+                              tone: "warning",
+                            });
+
+                          if (confirmed) {
+                            await runAction(async () => {
+                              await leaveForumCommunity(
+                                community.id,
+                              );
+                            });
+                          }
+                        }}
                         className="h-10 rounded-xl border border-white/10 px-4 text-xs font-bold text-zinc-400 transition hover:text-white disabled:opacity-50"
                       >
                         İcmadan ayrıl
@@ -311,9 +365,7 @@ export function ForumCommunityPage() {
                         className="flex h-10 items-center gap-2 rounded-xl bg-teal-300 px-4 text-xs font-black text-[#07100f] disabled:opacity-50"
                       >
                         <UserPlus size={15} />
-                        {community.visibility === "Restricted"
-                          ? "Qoşulma sorğusu göndər"
-                          : "İcmaya qoşul"}
+                        İcmaya qoşul
                       </button>
                     ) : null}
                   </>
@@ -342,43 +394,86 @@ export function ForumCommunityPage() {
                     </button>
                     {isMenuOpen && (
                       <div className="absolute right-0 top-full z-40 mt-2 w-56 rounded-2xl border border-white/[0.09] bg-[#111c1b] p-1.5 shadow-2xl shadow-black/50">
-                        {canFollowCommunity && (
-                          <button
-                            type="button"
-                            disabled={isBusy}
-                            onClick={() => {
-                              setIsMenuOpen(false);
-                              void runAction(() =>
-                                setForumCommunityFollowed(
-                                  community.id,
-                                  !community.isFollowedByCurrentUser,
-                                ),
-                              );
-                            }}
-                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 transition hover:bg-white/[0.055] disabled:opacity-50"
-                          >
-                            {community.isFollowedByCurrentUser ? (
-                              <BellOff size={16} className="text-teal-300" />
-                            ) : (
-                              <Bell size={16} />
+                        {isOwner ? (
+                          <>
+                            {community.visibility === "Private" && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsMenuOpen(false);
+                                  setOwnerModalMode("invite");
+                                }}
+                                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 transition hover:bg-white/[0.055]"
+                              >
+                                <UserPlus size={16} className="text-teal-300" />
+                                İstifadəçi dəvət et
+                              </button>
                             )}
-                            {community.isFollowedByCurrentUser
-                              ? "İzləməni dayandır"
-                              : "İcmanı izlə"}
-                          </button>
-                        )}
-                        {canReportCommunity && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsMenuOpen(false);
-                              setIsReportOpen(true);
-                            }}
-                            className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-rose-300 transition hover:bg-rose-400/[0.08]"
-                          >
-                            <Flag size={16} />
-                            Şikayət et
-                          </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsMenuOpen(false);
+                                setOwnerModalMode("members");
+                              }}
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 transition hover:bg-white/[0.055]"
+                            >
+                              <UserMinus size={16} />
+                              Üzvləri idarə et
+                            </button>
+                            <div className="my-1 border-t border-white/[0.07]" />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsMenuOpen(false);
+                                setOwnerModalMode("delete");
+                              }}
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-rose-300 transition hover:bg-rose-400/[0.08]"
+                            >
+                              <Trash2 size={16} />
+                              İcmanı sil
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            {canFollowCommunity && (
+                              <button
+                                type="button"
+                                disabled={isBusy}
+                                onClick={() => {
+                                  setIsMenuOpen(false);
+                                  void runAction(() =>
+                                    setForumCommunityFollowed(
+                                      community.id,
+                                      !community.isFollowedByCurrentUser,
+                                    ),
+                                  );
+                                }}
+                                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-zinc-300 transition hover:bg-white/[0.055] disabled:opacity-50"
+                              >
+                                {community.isFollowedByCurrentUser ? (
+                                  <BellOff size={16} className="text-teal-300" />
+                                ) : (
+                                  <Bell size={16} />
+                                )}
+                                {community.isFollowedByCurrentUser
+                                  ? "İzləməni dayandır"
+                                  : "İcmanı izlə"}
+                              </button>
+                            )}
+                            {canReportCommunity && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setIsMenuOpen(false);
+                                  setIsReportOpen(true);
+                                }}
+                                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-semibold text-rose-300 transition hover:bg-rose-400/[0.08]"
+                              >
+                                <Flag size={16} />
+                                Şikayət et
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
@@ -434,6 +529,16 @@ export function ForumCommunityPage() {
                       >
                         {discussion.authorUserName}
                       </Link>
+                      {discussion.authorCommunityRole === "Owner" && (
+                        <span className="rounded-full border border-amber-400/20 bg-amber-400/[0.08] px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
+                          Sahib
+                        </span>
+                      )}
+                      {discussion.authorCommunityRole === "Moderator" && (
+                        <span className="rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-1.5 py-0.5 text-[9px] font-bold text-violet-300">
+                          Moderator
+                        </span>
+                      )}
                       <span aria-hidden="true">·</span>
                       <span>{formatRelativeDate(discussion.createdAt)}</span>
                     </p>
@@ -506,15 +611,29 @@ export function ForumCommunityPage() {
                             <button
                               type="button"
                               disabled={isBusy}
-                              onClick={() =>
-                                runAction(async () => {
-                                  await rejectCommunityMembership(
-                                    community.id,
-                                    request.membershipId,
-                                  );
-                                  await membershipRequestsQuery.refetch();
-                                })
-                              }
+                              onClick={async () => {
+                                const confirmed =
+                                  await requestConfirmation({
+                                    title: `${request.userName} istifadəçisinin sorğusu rədd edilsin?`,
+                                    description:
+                                      "İstifadəçinin bu icmaya qoşulmaq üçün göndərdiyi üzvlük sorğusu bağlanacaq.",
+                                    detail:
+                                      "İstifadəçi icma qaydaları icazə verdikdə daha sonra yeni sorğu göndərə bilər.",
+                                    confirmLabel: "Sorğunu rədd et",
+                                    kind: "remove-user",
+                                    tone: "warning",
+                                  });
+
+                                if (confirmed) {
+                                  await runAction(async () => {
+                                    await rejectCommunityMembership(
+                                      community.id,
+                                      request.membershipId,
+                                    );
+                                    await membershipRequestsQuery.refetch();
+                                  });
+                                }
+                              }}
                               className="flex h-9 items-center justify-center gap-1.5 rounded-lg border border-rose-400/20 bg-rose-400/[0.07] px-2 text-[11px] font-bold text-rose-300 transition hover:bg-rose-400/[0.12] disabled:opacity-50"
                             >
                               <X size={14} />
@@ -528,47 +647,35 @@ export function ForumCommunityPage() {
                 </section>
               )}
 
-              {canInvitePrivateMembers && (
-                <section className="rounded-[22px] border border-white/[0.075] bg-[#0d1716]/80 p-5">
-                  <h2 className="text-sm font-bold text-white">
-                    İstifadəçi dəvət et
-                  </h2>
-                  <p className="mt-2 text-xs leading-5 text-zinc-600">
-                    Gizli icmaya yalnız dəvət etdiyiniz istifadəçilər daxil ola bilər.
-                  </p>
-                  <div className="mt-4 flex gap-2">
-                    <input
-                      value={inviteUserName}
-                      onChange={(event) =>
-                        setInviteUserName(event.target.value)
-                      }
-                      placeholder="İstifadəçi adı"
-                      className="h-10 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-xs text-white outline-none focus:border-teal-300/30"
-                    />
-                    <button
-                      type="button"
-                      disabled={isBusy || !inviteUserName.trim()}
-                      onClick={() =>
-                        runAction(async () => {
-                          await inviteToCommunity(
-                            community.id,
-                            inviteUserName.trim(),
-                          );
-                          setInviteUserName("");
-                        })
-                      }
-                      className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-300 text-[#07100f] disabled:opacity-50"
-                      aria-label="Dəvət göndər"
-                    >
-                      <Send size={16} />
-                    </button>
-                  </div>
-                </section>
-              )}
             </aside>
           )}
         </div>
       </main>
+
+      {community.canModerate && ownerModalMode && (
+        <CommunityOwnerManagementModal
+          mode={ownerModalMode}
+          communityId={community.id}
+          communityName={community.name}
+          viewerRole={isOwner ? "Owner" : "Moderator"}
+          onClose={() => setOwnerModalMode(null)}
+          onCommunityChanged={refreshCommunity}
+          onExited={() => navigate("/forum", { replace: true })}
+        />
+      )}
+
+      {community.hasOwnershipOfferForCurrentUser && (
+        <CommunityOwnershipOfferModal
+          communityId={community.id}
+          communityName={community.name}
+          onAccepted={async () => {
+            await refreshCommunity();
+          }}
+          onDeclined={async () => {
+            await refreshCommunity();
+          }}
+        />
+      )}
 
       {!isOwner && (
         <UserReportModal

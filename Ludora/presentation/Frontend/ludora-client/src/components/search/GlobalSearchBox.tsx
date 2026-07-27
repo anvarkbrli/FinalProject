@@ -83,7 +83,7 @@ export function GlobalSearchBox({ mobile = false }: { mobile?: boolean }) {
         score: item.score,
         imageUrl: null,
         icon: MessageSquareText,
-        target: `/forum`,
+        target: `/forum/discussions/${item.slug}`,
       })),
       ...data.reviews.map((item) => ({
         key: `review-${item.id}`,
@@ -92,7 +92,7 @@ export function GlobalSearchBox({ mobile = false }: { mobile?: boolean }) {
         score: item.score,
         imageUrl: resolveAssetUrl(item.gameCoverImageUrl),
         icon: Star,
-        target: `/games/${item.source}/${item.gameId}#reviews`,
+        target: `/games/${item.source}/${item.gameId}`,
       })),
       ...data.lists.map((item) => ({
         key: `list-${item.id}`,

@@ -25,12 +25,14 @@ import {
   Tv,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import {
   Link,
+  useLocation,
   useParams,
 } from "react-router-dom";
 import { RatingStarIcon } from "../components/common/RatingStarIcon";
+import { FpsEstimatorAction } from "../components/fps/FpsEstimatorAction";
 import { GameCommunityStats } from "../components/game/GameCommunityStats";
 import { FriendWishlistNotice } from "../components/game/FriendWishlistNotice";
 import { GameReviewsSection } from "../components/reviews/GameReviewsSection";
@@ -1243,6 +1245,11 @@ function GameDetailContent({
               game={game}
             />
 
+            <FpsEstimatorAction
+              gameId={game.id}
+              gameName={game.title}
+            />
+
             <FriendWishlistNotice
               source={game.source}
               gameId={game.id}
@@ -1492,6 +1499,8 @@ function GameDetailContent({
 }
 
 export function GameDetailPage() {
+  const location = useLocation();
+
   const {
     source: sourceValue,
     id: idValue,
@@ -1506,6 +1515,25 @@ export function GameDetailPage() {
     source !== null &&
     Number.isSafeInteger(id) &&
     id > 0;
+
+  useLayoutEffect(() => {
+    if (window.location.hash) {
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${window.location.pathname}${window.location.search}`,
+      );
+    }
+
+    window.scrollTo({
+      top: 0,
+      left: 0,
+      behavior: "auto",
+    });
+
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [location.key, sourceValue, idValue]);
 
   const gameQuery = useQuery({
     queryKey: [

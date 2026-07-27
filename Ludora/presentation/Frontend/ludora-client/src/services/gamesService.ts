@@ -40,6 +40,9 @@ export async function getGames(
           releaseYear:
             filter.releaseYear,
 
+          releasedOnly:
+            filter.releasedOnly || undefined,
+
           sortBy:
             filter.sortBy || undefined,
 

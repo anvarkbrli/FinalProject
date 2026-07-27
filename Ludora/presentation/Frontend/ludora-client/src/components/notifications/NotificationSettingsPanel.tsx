@@ -11,6 +11,7 @@ import {
   resetNotificationPreferences,
   updateNotificationPreference,
 } from "../../services/notificationsService";
+import { useConfirmation } from "../../lib/confirmation";
 import type {
   NotificationAudience,
   NotificationType,
@@ -147,6 +148,7 @@ const preferenceGroups: PreferenceGroup[] = [
 
 export function NotificationSettingsPanel() {
   const queryClient = useQueryClient();
+  const requestConfirmation = useConfirmation();
 
   const settingsQuery = useQuery({
     queryKey: ["notification-settings"],
@@ -203,7 +205,22 @@ export function NotificationSettingsPanel() {
         <button
           type="button"
           disabled={resetMutation.isPending || settingsQuery.isLoading}
-          onClick={() => resetMutation.mutate()}
+          onClick={async () => {
+            const confirmed = await requestConfirmation({
+              title: "Bildiriş seçimləri sıfırlansın?",
+              description:
+                "Bütün bildiriş kateqoriyaları sistemin ilkin seçimlərinə qaytarılacaq.",
+              detail:
+                "Hazırkı fərdi bildiriş seçimlərin itəcək, amma onları sonra yenidən dəyişə bilərsən.",
+              confirmLabel: "Sıfırla",
+              kind: "reset",
+              tone: "warning",
+            });
+
+            if (confirmed) {
+              resetMutation.mutate();
+            }
+          }}
           className="flex h-9 shrink-0 items-center justify-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-3 text-xs font-semibold text-zinc-400 transition hover:bg-white/[0.07] hover:text-white disabled:opacity-50"
         >
           {resetMutation.isPending ? (

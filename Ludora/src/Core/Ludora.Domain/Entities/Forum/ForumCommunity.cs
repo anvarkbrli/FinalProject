@@ -17,6 +17,11 @@ public class ForumCommunity : BaseEntity
     public Guid OwnerId { get; set; }
     public AppUser Owner { get; set; } = null!;
 
+    public Guid? PendingOwnerCandidateId { get; set; }
+    public DateTime? OwnershipTransferStartedAt { get; set; }
+    public string? OwnershipTransferDeclinedUserIdsJson { get; set; }
+    public bool DeleteIfOwnershipTransferFails { get; set; }
+
     public ICollection<ForumCommunityMember> Members { get; set; } = [];
     public ICollection<ForumCommunityFollow> Followers { get; set; } = [];
     public ICollection<Discussion> Discussions { get; set; } = [];

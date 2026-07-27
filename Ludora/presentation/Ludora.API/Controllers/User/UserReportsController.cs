@@ -28,21 +28,34 @@ public sealed class UserReportsController : ControllerBase
     [EnableRateLimiting("UserReports")]
     [HttpPost("users/{reportedUserId:guid}")]
     [Consumes("multipart/form-data")]
+    [RequestSizeLimit(110 * 1024 * 1024)]
+    [RequestFormLimits(MultipartBodyLengthLimit = 110 * 1024 * 1024)]
     public async Task<ActionResult<UserReportDTO>> Create(
         Guid reportedUserId,
         [FromForm] Ludora.Domain.Enums.UserReportCategory category,
         [FromForm] string? description,
         [FromForm] Ludora.Domain.Enums.UserReportContentType reportedContentType,
         [FromForm] long? reportedContentId,
+        [FromForm] List<IFormFile>? evidenceFiles,
         [FromForm] List<IFormFile>? evidenceImages,
         IFormFile? evidenceImage,
         CancellationToken cancellationToken)
     {
-        var allFiles = (evidenceImages ?? [])
+        var allFiles = (evidenceFiles ?? [])
+            .Concat(evidenceImages ?? [])
             .Concat(evidenceImage is { Length: > 0 } ? [evidenceImage] : [])
             .Where(x => x.Length > 0)
             .Take(6)
             .ToList();
+
+        if (allFiles.Sum(x => x.Length) > 100L * 1024 * 1024)
+        {
+            return BadRequest(new
+            {
+                message = "Sübut fayllarının ümumi ölçüsü maksimum 100 MB ola bilər."
+            });
+        }
+
         var streams = allFiles.Select(x => x.OpenReadStream()).ToList();
 
         try
@@ -75,18 +88,18 @@ public sealed class UserReportsController : ControllerBase
     }
 
     private static UserReportEvidenceUploadDTO? CreateEvidenceUpload(
-        IFormFile? image,
-        Stream? imageStream)
+        IFormFile? file,
+        Stream? fileStream)
     {
-        if (image is null || imageStream is null || image.Length <= 0)
+        if (file is null || fileStream is null || file.Length <= 0)
             return null;
 
         return new UserReportEvidenceUploadDTO
         {
-            Stream = imageStream,
-            FileName = image.FileName,
-            ContentType = image.ContentType,
-            Length = image.Length
+            Stream = fileStream,
+            FileName = file.FileName,
+            ContentType = file.ContentType,
+            Length = file.Length
         };
     }
 

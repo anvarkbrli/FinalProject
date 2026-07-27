@@ -65,6 +65,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<SteamFriendSnapshot> SteamFriendSnapshots { get; set; }
     public DbSet<ChatConversation> ChatConversations { get; set; }
     public DbSet<ChatMessage> ChatMessages { get; set; }
+    public DbSet<ChatMessageUserState> ChatMessageUserStates { get; set; }
     public DbSet<BadgeDefinition> BadgeDefinitions { get; set; }
     public DbSet<UserBadge> UserBadges { get; set; }
 

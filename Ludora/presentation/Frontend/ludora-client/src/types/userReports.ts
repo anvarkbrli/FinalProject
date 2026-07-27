@@ -45,7 +45,7 @@ export interface CreateUserReportRequest {
   reportedUserId: string;
   category: UserReportCategory;
   description: string;
-  evidenceImages: File[];
+  evidenceFiles: File[];
   reportedContentType: UserReportContentType;
   reportedContentId: number | null;
 }

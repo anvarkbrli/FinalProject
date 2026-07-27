@@ -59,12 +59,14 @@ import { ProfileGamesGallery } from "../components/profile/ProfileGamesGallery";
 import { ProfileOverview } from "../components/profile/ProfileOverview";
 import { ProfileSteamLibrary } from "../components/profile/ProfileSteamLibrary";
 import { UserReportModal } from "../components/profile/UserReportModal";
+import { ContentReportButton } from "../components/reporting/ContentReportButton";
 import { SocialPlatformIcon } from "../components/profile/SocialPlatformIcon";
 import { ReviewCommentsPanel } from "../components/reviews/ReviewCommentsPanel";
 import { ReviewLikesModal } from "../components/reviews/ReviewLikesModal";
 import { ProfileGameCollection } from "../components/profile/ProfileGameCollection";
 import { SteamPlaytimeReconciliationModal } from "../components/steam/SteamPlaytimeReconciliationModal";
 import { getApiErrorMessage } from "../lib/api";
+import { useConfirmation } from "../lib/confirmation";
 import { socialPlatformLabels } from "../lib/socialPlatforms";
 import {
   formatDate,
@@ -433,6 +435,7 @@ export function ProfilePage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
+  const requestConfirmation = useConfirmation();
 
   const storedUser = useAuthStore(
     (state) => state.user,
@@ -1521,7 +1524,7 @@ export function ProfilePage() {
 
   const loadedProfile = profile;
 
-  function handleFollowAction() {
+  async function handleFollowAction() {
     setNotice(null);
 
     if (!isAuthenticated) {
@@ -1537,7 +1540,23 @@ export function ProfilePage() {
       followStatus?.isFollowing ||
       followStatus?.isPending
     ) {
-      unfollowMutation.mutate(loadedProfile.id);
+      const confirmed = await requestConfirmation({
+        title: `${loadedProfile.userName} izlənməsin?`,
+        description:
+          "Bu istifadəçinin yeni paylaşımları və fəaliyyətləri artıq lentində görünməyəcək.",
+        detail: followStatus.isPending
+          ? "Gözləyən izləmə sorğun da ləğv ediləcək."
+          : "İstəsən, bu profili daha sonra yenidən izləyə bilərsən.",
+        confirmLabel: followStatus.isPending
+          ? "Sorğunu ləğv et"
+          : "İzləməni dayandır",
+        kind: "remove-user",
+        tone: "warning",
+      });
+
+      if (confirmed) {
+        unfollowMutation.mutate(loadedProfile.id);
+      }
       return;
     }
 
@@ -2229,8 +2248,21 @@ export function ProfilePage() {
                           </div>
                         </div>
 
-                        {post.isMine && (
-                          <div className="flex shrink-0 gap-1">
+                        <div className="flex shrink-0 gap-1">
+                          <ContentReportButton
+                            reportedUserId={post.userId}
+                            reportedUserName={post.userName}
+                            contentType="Post"
+                            contentId={post.id}
+                            contentLabel={
+                              post.content?.slice(0, 80) ||
+                              "Şəkilli post"
+                            }
+                            isOwnContent={post.isMine}
+                            className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-red-500/[0.08] hover:text-red-300"
+                          />
+                          {post.isMine && (
+                            <>
                             <button
                               type="button"
                               onClick={() => {
@@ -2254,8 +2286,9 @@ export function ProfilePage() {
                             >
                               <Trash2 size={16} />
                             </button>
-                          </div>
-                        )}
+                            </>
+                          )}
+                        </div>
                       </div>
 
                       {editingPostId === post.id ? (
@@ -2295,7 +2328,7 @@ export function ProfilePage() {
                                 className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-black/70 text-zinc-200 backdrop-blur transition hover:bg-red-500/80 hover:text-white"
                                 aria-label="Post şəklini sil"
                               >
-                                <Trash2 size={16} />
+                                <X size={17} />
                               </button>
                             </div>
                           )}
@@ -3260,10 +3293,24 @@ export function ProfilePage() {
                         connectionModal === "followers" ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              removeFollowerMutation.mutate(
-                                connectionUser.id,
-                              );
+                            onClick={async () => {
+                              const confirmed =
+                                await requestConfirmation({
+                                  title: `${connectionUser.userName} izləyicilərdən çıxarılsın?`,
+                                  description:
+                                    "Bu istifadəçi artıq səni izləməyəcək və izləyicilər siyahında görünməyəcək.",
+                                  detail:
+                                    "İstifadəçi sonradan səni yenidən izləyə və ya izləmə sorğusu göndərə bilər.",
+                                  confirmLabel: "İzləyicidən çıxar",
+                                  kind: "remove-user",
+                                  tone: "warning",
+                                });
+
+                              if (confirmed) {
+                                removeFollowerMutation.mutate(
+                                  connectionUser.id,
+                                );
+                              }
                             }}
                             disabled={
                               removeFollowerMutation.isPending
@@ -3277,10 +3324,25 @@ export function ProfilePage() {
                           connectionModal === "following" ? (
                           <button
                             type="button"
-                            onClick={() => {
-                              unfollowMutation.mutate(
-                                connectionUser.id,
-                              );
+                            onClick={async () => {
+                              const confirmed =
+                                await requestConfirmation({
+                                  title: `${connectionUser.userName} izlənməsin?`,
+                                  description:
+                                    "Bu istifadəçinin yeni paylaşımları və fəaliyyətləri artıq lentində görünməyəcək.",
+                                  detail:
+                                    "İstəsən, bu profili daha sonra yenidən izləyə bilərsən.",
+                                  confirmLabel:
+                                    "İzləməni dayandır",
+                                  kind: "remove-user",
+                                  tone: "warning",
+                                });
+
+                              if (confirmed) {
+                                unfollowMutation.mutate(
+                                  connectionUser.id,
+                                );
+                              }
                             }}
                             disabled={
                               unfollowMutation.isPending

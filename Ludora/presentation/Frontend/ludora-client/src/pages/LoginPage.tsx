@@ -141,6 +141,14 @@ export function LoginPage() {
       )
     : null;
 
+  const accountDeletionMessage =
+    typeof location.state === "object" &&
+    location.state !== null &&
+    "accountDeletionMessage" in location.state &&
+    typeof location.state.accountDeletionMessage === "string"
+      ? location.state.accountDeletionMessage
+      : null;
+
   return (
     <main className="relative min-h-screen overflow-hidden wellplayd-page-bg text-zinc-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,0.20),transparent_30%),radial-gradient(circle_at_90%_80%,rgba(217,70,239,0.10),transparent_28%)]" />
@@ -257,6 +265,12 @@ export function LoginPage() {
                 hesabına daxil ol.
               </p>
             </div>
+
+            {accountDeletionMessage && (
+              <div className="mt-6 rounded-2xl border border-emerald-400/15 bg-emerald-500/[0.06] px-4 py-3 text-sm leading-6 text-emerald-200">
+                {accountDeletionMessage}
+              </div>
+            )}
 
             <form
               onSubmit={form.handleSubmit(handleLogin)}

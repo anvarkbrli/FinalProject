@@ -1,6 +1,7 @@
 import { api } from "../lib/api";
 import type {
   AuthResponseDTO,
+  ConfirmEmailRequestDTO,
   EmailOperationResultDTO,
   LoginRequestDTO,
   RegisterRequestDTO,
@@ -36,6 +37,19 @@ export async function resendEmailConfirmation(
   const response =
     await api.post<EmailOperationResultDTO>(
       "/auth/resend-email-confirmation",
+      request,
+    );
+
+  return response.data;
+}
+
+
+export async function confirmEmail(
+  request: ConfirmEmailRequestDTO,
+): Promise<EmailOperationResultDTO> {
+  const response =
+    await api.post<EmailOperationResultDTO>(
+      "/auth/confirm-email",
       request,
     );
 

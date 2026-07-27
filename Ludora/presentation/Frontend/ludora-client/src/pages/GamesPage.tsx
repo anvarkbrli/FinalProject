@@ -538,6 +538,7 @@ export function GamesPage() {
         platformSource: parsedPlatform?.source,
         platformId: parsedPlatform?.id,
         releaseYear: validReleaseYear,
+        releasedOnly: true,
         sortBy,
         includeRelatedContent: false,
         pageNumber,

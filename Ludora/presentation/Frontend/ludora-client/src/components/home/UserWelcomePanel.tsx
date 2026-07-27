@@ -159,9 +159,9 @@ export function UserWelcomePanel() {
   ];
 
   return (
-    <section className="border-b border-white/5 bg-[#09090d]">
+    <section className="border-b border-white/5 bg-transparent">
       <div className="mx-auto max-w-7xl px-5 py-6 lg:px-8 lg:py-8">
-        <div className="relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-[#101015] shadow-2xl shadow-black/20">
+        <div className="relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-white/[0.025] shadow-2xl shadow-black/20 backdrop-blur-xl">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(124,58,237,0.16),transparent_32%),radial-gradient(circle_at_88%_100%,rgba(217,70,239,0.08),transparent_30%)]" />
 
           <div className="relative flex flex-col gap-5 border-b border-white/[0.06] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">

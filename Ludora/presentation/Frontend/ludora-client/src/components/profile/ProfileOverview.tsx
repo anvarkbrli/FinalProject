@@ -1,5 +1,5 @@
 import {
-  ArrowUpRight,
+  ChevronRight,
   Clock3,
   Gamepad2,
   Monitor,
@@ -127,7 +127,7 @@ function GamePreviewPanel({
             aria-label={`${title} siyahısının hamısına bax`}
             title="Hamısına bax"
           >
-            <ArrowUpRight size={18} />
+            <ChevronRight size={18} />
           </Link>
         ) : (
           <button
@@ -137,7 +137,7 @@ function GamePreviewPanel({
             aria-label={`${title} siyahısının hamısına bax`}
             title="Hamısına bax"
           >
-            <ArrowUpRight size={18} />
+            <ChevronRight size={18} />
           </button>
         )}
       </div>
@@ -589,7 +589,7 @@ export function ProfileOverview({
                   {formatTopStatPlaytime(topGenre.playtimeMinutes)} · {topGenre.percentage}%
                 </span>
               </span>
-              <ArrowUpRight
+              <ChevronRight
                 size={16}
                 className="shrink-0 text-zinc-700 transition group-hover:text-violet-300"
               />
@@ -633,7 +633,7 @@ export function ProfileOverview({
                   {formatTopStatPlaytime(topPlatform.playtimeMinutes)} · {topPlatform.percentage}%
                 </span>
               </span>
-              <ArrowUpRight
+              <ChevronRight
                 size={16}
                 className="shrink-0 text-zinc-700 transition group-hover:text-violet-300"
               />
@@ -761,7 +761,7 @@ export function ProfileOverview({
                           </span>
                         </span>
 
-                        <ArrowUpRight
+                        <ChevronRight
                           size={17}
                           className="shrink-0 text-zinc-600 transition group-hover:text-violet-300"
                         />

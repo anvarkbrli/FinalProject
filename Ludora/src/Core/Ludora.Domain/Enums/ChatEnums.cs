@@ -21,3 +21,9 @@ public enum ChatMessageDeliveryStatus
     Delivered = 1,
     Read = 2
 }
+
+public enum ChatMessageDeleteScope
+{
+    ForMe = 0,
+    ForEveryone = 1
+}

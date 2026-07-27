@@ -1298,6 +1298,23 @@ namespace Ludora.Persistence.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<string>("FpsCpuName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("FpsGpuName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<DateTime?>("FpsHardwareUpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("FpsRamGb")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("FpsVramGb")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsPermanentlyBanned")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bit")

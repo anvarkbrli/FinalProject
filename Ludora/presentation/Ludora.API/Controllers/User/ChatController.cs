@@ -171,6 +171,78 @@ public sealed class ChatController : ControllerBase
         return Ok(receipt);
     }
 
+    [HttpGet("conversations/{conversationId:long}/pinned-messages")]
+    public async Task<ActionResult<IReadOnlyList<ChatMessageDTO>>> GetPinnedMessages(
+        long conversationId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _chatService.GetPinnedMessagesAsync(
+            GetCurrentUserId(),
+            conversationId,
+            cancellationToken));
+    }
+
+    [HttpDelete("messages/{messageId:long}")]
+    public async Task<ActionResult<ChatMessageDeletedDTO>> DeleteMessage(
+        long messageId,
+        [FromQuery] ChatMessageDeleteScope scope = ChatMessageDeleteScope.ForMe,
+        CancellationToken cancellationToken = default)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _chatService.DeleteMessageAsync(
+            userId,
+            messageId,
+            scope,
+            cancellationToken);
+
+        if (scope == ChatMessageDeleteScope.ForEveryone)
+        {
+            var conversation = (await _chatService.GetConversationsAsync(
+                    userId,
+                    cancellationToken))
+                .FirstOrDefault(x => x.Id == result.ConversationId);
+            var groups = new List<string>
+            {
+                ChatHub.ConversationGroup(result.ConversationId),
+                ChatHub.UserGroup(userId)
+            };
+            if (conversation is not null)
+                groups.Add(ChatHub.UserGroup(conversation.OtherUser.Id));
+
+            await _hub.Clients.Groups(groups.Distinct().ToList())
+                .SendAsync("MessageDeleted", result, cancellationToken);
+        }
+        else
+        {
+            await _hub.Clients.Group(ChatHub.UserGroup(userId))
+                .SendAsync("MessageDeleted", result, cancellationToken);
+        }
+
+        return Ok(result);
+    }
+
+    [HttpPost("messages/{messageId:long}/pin")]
+    public async Task<ActionResult<ChatMessagePinChangedDTO>> PinMessage(
+        long messageId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await ChangeMessagePinAsync(
+            messageId,
+            isPinned: true,
+            cancellationToken: cancellationToken));
+    }
+
+    [HttpDelete("messages/{messageId:long}/pin")]
+    public async Task<ActionResult<ChatMessagePinChangedDTO>> UnpinMessage(
+        long messageId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await ChangeMessagePinAsync(
+            messageId,
+            isPinned: false,
+            cancellationToken: cancellationToken));
+    }
+
     [HttpGet("messages/{messageId:long}/media")]
     public async Task<IActionResult> GetMedia(
         long messageId,
@@ -184,6 +256,23 @@ public sealed class ChatController : ControllerBase
             media.Content,
             media.ContentType,
             enableRangeProcessing: true);
+    }
+
+    private async Task<ChatMessagePinChangedDTO> ChangeMessagePinAsync(
+        long messageId,
+        bool isPinned,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _chatService.SetMessagePinAsync(
+            userId,
+            messageId,
+            isPinned,
+            cancellationToken);
+
+        await _hub.Clients.Group(ChatHub.UserGroup(userId))
+            .SendAsync("MessagePinChanged", result, cancellationToken);
+        return result;
     }
 
     private Task BroadcastDecisionAsync(

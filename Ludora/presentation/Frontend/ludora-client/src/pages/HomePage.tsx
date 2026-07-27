@@ -26,13 +26,6 @@ import {
 } from "../services/homeService";
 import type { GameListItemDTO } from "../types/home";
 
-const trackingStatuses = [
-  "Oynayıram",
-  "Oynayacağam",
-  "Bitirdim",
-  "Yarımçıq qoydum",
-];
-
 interface HeroGameCoverProps {
   game: GameListItemDTO | undefined;
   index: number;
@@ -114,7 +107,30 @@ export function HomePage() {
   const latestAnnouncement =
     announcementQuery.data?.items[0] ?? null;
 
-  const featuredDiscussion = discussions[0];
+  const homeDiscussions = [...discussions]
+    .sort((firstDiscussion, secondDiscussion) => {
+      const createdAtDifference =
+        new Date(secondDiscussion.createdAt).getTime() -
+        new Date(firstDiscussion.createdAt).getTime();
+
+      if (createdAtDifference !== 0) {
+        return createdAtDifference;
+      }
+
+      const likeDifference =
+        secondDiscussion.likeCount - firstDiscussion.likeCount;
+
+      if (likeDifference !== 0) {
+        return likeDifference;
+      }
+
+      return (
+        secondDiscussion.replyCount - firstDiscussion.replyCount
+      );
+    })
+    .slice(0, 4);
+
+  const featuredDiscussion = homeDiscussions[0];
 
   return (
     <div className="min-h-screen overflow-x-hidden wellplayd-page-bg text-zinc-100">
@@ -193,16 +209,6 @@ export function HomePage() {
                 </a>
               </div>
 
-              <div className="mt-9 flex max-w-2xl flex-wrap gap-2">
-                {trackingStatuses.map((status) => (
-                  <span
-                    key={status}
-                    className="rounded-full border border-white/[0.07] bg-white/[0.035] px-3 py-1.5 text-xs font-medium text-zinc-400"
-                  >
-                    {status}
-                  </span>
-                ))}
-              </div>
             </div>
 
             <div className="relative">
@@ -367,12 +373,12 @@ export function HomePage() {
                   <div className="rounded-2xl border border-red-400/15 bg-red-500/5 p-6 text-sm text-red-200">
                     Müzakirələr yüklənmədi.
                   </div>
-                ) : discussions.length === 0 ? (
+                ) : homeDiscussions.length === 0 ? (
                   <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.02] p-7 text-center text-sm text-zinc-500">
                     Hələ forum müzakirəsi yoxdur.
                   </div>
                 ) : (
-                  discussions.map((discussion) => (
+                  homeDiscussions.map((discussion) => (
                     <DiscussionCard
                       key={discussion.id}
                       discussion={discussion}

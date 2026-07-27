@@ -19,7 +19,9 @@ public sealed class ChatMessage
     public DateTime SentAtUtc { get; set; }
     public DateTime? DeliveredAtUtc { get; set; }
     public DateTime? ReadAtUtc { get; set; }
+    public DateTime? DeletedForEveryoneAtUtc { get; set; }
 
     public ChatConversation Conversation { get; set; } = null!;
     public AppUser SenderUser { get; set; } = null!;
+    public ICollection<ChatMessageUserState> UserStates { get; set; } = [];
 }

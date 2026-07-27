@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import { ConfirmationDialogProvider } from "./components/common/ConfirmationDialogProvider";
 import "./index.css";
 import "./components/forum/forum.css";
 
@@ -29,7 +30,9 @@ createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <App />
+        <ConfirmationDialogProvider>
+          <App />
+        </ConfirmationDialogProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

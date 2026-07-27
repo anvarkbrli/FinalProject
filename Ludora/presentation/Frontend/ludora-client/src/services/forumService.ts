@@ -8,6 +8,7 @@ import type {
   DiscussionDetailDTO,
   DiscussionRepliesPageDTO,
   DiscussionReplyDTO,
+  UpdateDiscussionInput,
 } from "../types/forum";
 
 export type ForumFeedSort = "newest" | "popular";
@@ -75,14 +76,25 @@ export async function createDiscussion(
 
 
 export async function updateDiscussion(
-  discussionId: number,
-  title: string,
-  content: string,
-  categoryId: number,
+  input: UpdateDiscussionInput,
 ): Promise<DiscussionDetailDTO> {
+  const formData = new FormData();
+  formData.append("title", input.title);
+  formData.append("content", input.content);
+  formData.append("categoryId", String(input.categoryId));
+  input.keptMediaIds.forEach((mediaId) => {
+    formData.append("keptMediaIds", String(mediaId));
+  });
+  input.mediaFiles.forEach((file) => {
+    formData.append("mediaFiles", file);
+  });
+
   const response = await api.put<DiscussionDetailDTO>(
-    `/discussions/${discussionId}`,
-    { title, content, categoryId },
+    `/discussions/${input.discussionId}/media`,
+    formData,
+    {
+      headers: { "Content-Type": "multipart/form-data" },
+    },
   );
   return response.data;
 }

@@ -21,6 +21,7 @@ export interface InteractionCommentDTO {
   createdAt: string;
   updatedAt: string | null;
   isMine: boolean;
+  canDelete?: boolean;
 }
 
 export type InteractionCommentsResultDTO =

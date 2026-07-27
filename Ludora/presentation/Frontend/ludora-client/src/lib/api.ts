@@ -59,15 +59,30 @@ export function getApiErrorMessage(
   fallbackMessage = "Sorğu yerinə yetirilərkən xəta baş verdi.",
 ): string {
   if (axios.isAxiosError<ApiErrorResponse>(error)) {
-    const responseData = error.response?.data;
+    const responseData = error.response?.data as
+      | ApiErrorResponse
+      | string
+      | undefined;
 
-    if (responseData?.message) {
-      return responseData.message;
+    if (
+      typeof responseData === "string" &&
+      responseData.trim()
+    ) {
+      return responseData.trim();
     }
 
-    if (responseData?.errors) {
+    const apiError =
+      typeof responseData === "object"
+        ? responseData
+        : undefined;
+
+    if (apiError?.message) {
+      return apiError.message;
+    }
+
+    if (apiError?.errors) {
       const firstValidationMessage =
-        Object.values(responseData.errors)
+        Object.values(apiError.errors)
           .flat()
           .find(Boolean);
 
@@ -76,8 +91,16 @@ export function getApiErrorMessage(
       }
     }
 
-    if (responseData?.title) {
-      return responseData.title;
+    if (apiError?.title) {
+      return apiError.title;
+    }
+
+    if (error.response?.status === 429) {
+      return "Çox sayda sorğu göndərmisiniz. Bir qədər sonra yenidən cəhd edin.";
+    }
+
+    if (!error.response) {
+      return "Serverlə əlaqə yaratmaq mümkün olmadı. API-nin işlədiyini yoxlayın.";
     }
 
     return fallbackMessage;

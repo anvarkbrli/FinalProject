@@ -101,6 +101,7 @@ public sealed class DiscussionsController : ControllerBase
 
     [Authorize]
     [HttpPut("{id:int}")]
+    [Consumes("application/json")]
     public async Task<ActionResult<DiscussionDetailDTO>> Update(
         int id,
         [FromBody] DiscussionUpdateDTO dto,
@@ -111,6 +112,46 @@ public sealed class DiscussionsController : ControllerBase
             GetCurrentUserId(),
             CanModerate(),
             dto,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpPut("{id:int}/media")]
+    [Consumes("multipart/form-data")]
+    [RequestSizeLimit(220_000_000)]
+    public async Task<ActionResult<DiscussionDetailDTO>> UpdateWithMedia(
+        int id,
+        [FromForm] string title,
+        [FromForm] string? content,
+        [FromForm] int categoryId,
+        [FromForm] List<int>? keptMediaIds,
+        [FromForm] List<IFormFile>? mediaFiles,
+        CancellationToken cancellationToken)
+    {
+        var uploads = (mediaFiles ?? [])
+            .Select(file => new DiscussionMediaUploadDTO
+            {
+                Stream = file.OpenReadStream(),
+                Length = file.Length,
+                ContentType = file.ContentType,
+                FileName = file.FileName
+            })
+            .ToList();
+
+        var result = await _discussionService.UpdateAsync(
+            id,
+            GetCurrentUserId(),
+            CanModerate(),
+            new DiscussionUpdateDTO
+            {
+                Title = title,
+                Content = content ?? string.Empty,
+                CategoryId = categoryId,
+                KeptMediaIds = keptMediaIds ?? [],
+                Media = uploads
+            },
             cancellationToken);
 
         return Ok(result);

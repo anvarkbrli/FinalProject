@@ -29,8 +29,16 @@ public class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         builder.Property(x => x.SteamProfileUrl)
             .HasMaxLength(1000);
 
+        builder.Property(x => x.FpsGpuName)
+            .HasMaxLength(150);
+
+        builder.Property(x => x.FpsCpuName)
+            .HasMaxLength(150);
+
         builder.Property(x => x.CreatedAt)
             .IsRequired();
+
+        builder.HasIndex(x => x.AccountDeletionRequestedAtUtc);
 
         builder.Property(x => x.IsPrivate)
             .HasDefaultValue(false);

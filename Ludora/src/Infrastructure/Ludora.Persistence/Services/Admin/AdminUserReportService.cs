@@ -330,7 +330,7 @@ public sealed class AdminUserReportService : IAdminUserReportService
         CancellationToken cancellationToken = default)
     {
         if (index < 0 || index >= 5)
-            throw new BadRequestException("Sübut şəkli indeksi düzgün deyil.");
+            throw new BadRequestException("Sübut faylı indeksi düzgün deyil.");
 
         var multiStorageKey = await _context.UserReportEvidenceImages
             .AsNoTracking()
@@ -348,7 +348,7 @@ public sealed class AdminUserReportService : IAdminUserReportService
         }
 
         if (index > 0)
-            throw new NotFoundException("Bu şikayət üçün həmin sübut şəkli yoxdur.");
+            throw new NotFoundException("Bu şikayət üçün həmin sübut faylı yoxdur.");
 
         if (reportId <= 0)
             throw new BadRequestException("Şikayət ID-si düzgün deyil.");
@@ -358,7 +358,7 @@ public sealed class AdminUserReportService : IAdminUserReportService
             .Where(x => x.Id == reportId)
             .Select(x => x.EvidenceImageStorageKey)
             .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException("Bu şikayət üçün şəkil sübutu yoxdur.");
+            ?? throw new NotFoundException("Bu şikayət üçün media sübutu yoxdur.");
 
         return await _fileStorageService
             .ReadReportEvidenceImageAsync(

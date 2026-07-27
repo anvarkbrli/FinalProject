@@ -225,6 +225,11 @@ export function RegisterPage() {
             {registerMutation.data.message}
           </p>
 
+          <p className="mt-3 text-xs leading-6 text-zinc-500">
+            Məktub bir neçə dəqiqəyə gəlməzsə Spam/Junk qovluğunu yoxla.
+            Sonra aşağıdakı düymə ilə təsdiq emailini yenidən göndərə bilərsən.
+          </p>
+
           <div className="mt-6 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">
             <p className="text-xs text-zinc-600">
               Təsdiq emaili göndərilən ünvan

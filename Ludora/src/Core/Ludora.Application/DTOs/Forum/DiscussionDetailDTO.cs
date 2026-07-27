@@ -1,3 +1,5 @@
+using Ludora.Domain.Enums;
+
 namespace Ludora.Application.DTOs;
 
 public record DiscussionDetailDTO
@@ -20,6 +22,7 @@ public record DiscussionDetailDTO
     public Guid AuthorId { get; init; }
     public string AuthorUserName { get; init; } = string.Empty;
     public string? AuthorProfileImageUrl { get; init; }
+    public ForumCommunityMemberRole? AuthorCommunityRole { get; init; }
 
     public int LikeCount { get; init; }
     public int ReplyCount { get; init; }

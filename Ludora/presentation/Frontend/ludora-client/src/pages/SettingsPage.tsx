@@ -5,7 +5,6 @@ import {
   BellRing,
   Check,
   ChevronRight,
-  ExternalLink,
   Gamepad2,
   KeyRound,
   LoaderCircle,
@@ -15,21 +14,25 @@ import {
   RefreshCw,
   ShieldCheck,
   Sun,
+  Trash2,
+  TriangleAlert,
   Unplug,
   UserRoundPen,
   UserX,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
 import { NotificationSettingsPanel } from "../components/notifications/NotificationSettingsPanel";
 import { EditProfilePage } from "./EditProfilePage";
 import { getApiErrorMessage } from "../lib/api";
+import { useConfirmation } from "../lib/confirmation";
 import { applyTheme, getActiveTheme, type WellPlaydTheme } from "../lib/theme";
 import {
   changePassword,
+  deleteAccount,
   getBlockedUsers,
   getCurrentUser,
   getUserSettings,
@@ -124,7 +127,9 @@ function getInitialSteamNotice(): NoticeState | null {
 }
 
 export function SettingsPage() {
+  const requestConfirmation = useConfirmation();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const activeSection = parseSettingsSection(
     searchParams.get("section"),
@@ -132,6 +137,7 @@ export function SettingsPage() {
   );
   const storedUser = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
+  const clearSession = useAuthStore((state) => state.clearSession);
   const [newEmail, setNewEmail] = useState("");
   const [emailPassword, setEmailPassword] = useState("");
   const [passwordCurrent, setPasswordCurrent] = useState("");
@@ -139,6 +145,9 @@ export function SettingsPage() {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [notice, setNotice] = useState<NoticeState | null>(getInitialSteamNotice);
   const [theme, setTheme] = useState<WellPlaydTheme>(() => getActiveTheme());
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   const selectTheme = (nextTheme: WellPlaydTheme) => {
     applyTheme(nextTheme);
@@ -244,6 +253,27 @@ export function SettingsPage() {
     onError: (error) => setNotice({
       type: "error",
       message: getApiErrorMessage(error, "Şifrə dəyişdirilmədi."),
+    }),
+  });
+
+  const deleteAccountMutation = useMutation({
+    mutationFn: deleteAccount,
+    onSuccess: (result) => {
+      setIsDeleteModalOpen(false);
+      setDeletePassword("");
+      setDeleteConfirmation("");
+      clearSession();
+      queryClient.clear();
+      navigate("/login", {
+        replace: true,
+        state: {
+          accountDeletionMessage: result.message,
+        },
+      });
+    },
+    onError: (error) => setNotice({
+      type: "error",
+      message: getApiErrorMessage(error, "Hesab silinməsi başladılmadı."),
     }),
   });
 
@@ -671,7 +701,7 @@ export function SettingsPage() {
                         rel="noreferrer"
                         className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/[0.08] px-3 text-xs font-semibold text-zinc-300 transition hover:bg-white/[0.05] hover:text-white"
                       >
-                        <ExternalLink size={15} /> Profil
+                        <ChevronRight size={15} /> Profil
                       </a>
                     )}
                     <button
@@ -689,7 +719,23 @@ export function SettingsPage() {
                     </button>
                     <button
                       type="button"
-                      onClick={() => steamDisconnectMutation.mutate()}
+                      onClick={async () => {
+                        const confirmed =
+                          await requestConfirmation({
+                            title: "Steam hesabını ayırmaq istəyirsən?",
+                            description:
+                              "Steam bağlantın Ludora hesabından silinəcək və avtomatik kitabxana sinxronizasiyası dayanacaq.",
+                            detail:
+                              "Sonradan Steam hesabını yenidən qoşa bilərsən. Mövcud oyun qeydlərin silinməyəcək.",
+                            confirmLabel: "Steam-i ayır",
+                            kind: "disconnect",
+                            tone: "warning",
+                          });
+
+                        if (confirmed) {
+                          steamDisconnectMutation.mutate();
+                        }
+                      }}
                       disabled={steamDisconnectMutation.isPending}
                       className="inline-flex h-10 items-center gap-2 rounded-xl border border-red-400/10 bg-red-500/[0.04] px-3 text-xs font-semibold text-red-300 transition hover:bg-red-500/[0.08] disabled:opacity-50"
                     >
@@ -901,9 +947,150 @@ export function SettingsPage() {
             </button>
           </section>
           )}
+
+          {activeSection === "account" && (
+          <section className="rounded-3xl border border-red-400/15 bg-red-500/[0.035] p-5 sm:p-6">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex items-start gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-300">
+                  <TriangleAlert size={20} />
+                </span>
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-red-300/80">
+                    Təhlükəli zona
+                  </p>
+                  <h2 className="mt-1 font-semibold text-white">Hesabı həmişəlik sil</h2>
+                  <p className="mt-2 max-w-2xl text-xs leading-5 text-zinc-500">
+                    Postlar, rəylər, siyahılar, oyun statusları, forum müzakirələri, şərhlər,
+                    bəyənmələr, mesajlar və Steam məlumatları hard-delete ediləcək. Bu əməliyyat geri qaytarılmır.
+                  </p>
+                  <p className="mt-2 max-w-2xl text-xs leading-5 text-zinc-600">
+                    Sahib olduğun icmada üzvlər varsa, sahiblik əvvəl moderatorlara, sonra ən köhnə üzvlərə təklif ediləcək.
+                    Hamı rədd etsə icma da silinəcək.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setNotice(null);
+                  setIsDeleteModalOpen(true);
+                }}
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 text-sm font-semibold text-red-200 transition hover:bg-red-500/15"
+              >
+                <Trash2 size={17} /> Hesabı sil
+              </button>
+            </div>
+          </section>
+          )}
           </div>
         </div>
       </main>
+      {isDeleteModalOpen && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-account-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !deleteAccountMutation.isPending) {
+              setIsDeleteModalOpen(false);
+            }
+          }}
+        >
+          <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-red-400/15 bg-[#15161d] shadow-2xl shadow-black/60">
+            <div className="flex items-start justify-between gap-4 border-b border-white/[0.07] p-5 sm:p-6">
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-300">
+                  <TriangleAlert size={21} />
+                </span>
+                <div>
+                  <h2 id="delete-account-title" className="text-lg font-bold text-white">
+                    Hesabı həmişəlik sil
+                  </h2>
+                  <p className="mt-1 text-xs leading-5 text-zinc-500">
+                    Bu əməliyyat geri qaytarılmır və məlumatlar soft-delete edilməyəcək.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Pəncərəni bağla"
+                disabled={deleteAccountMutation.isPending}
+                onClick={() => setIsDeleteModalOpen(false)}
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] text-zinc-500 transition hover:bg-white/[0.05] hover:text-white disabled:opacity-50"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-5 sm:p-6">
+              <div className="rounded-2xl border border-red-400/10 bg-red-500/[0.04] p-4 text-xs leading-5 text-red-100/75">
+                Hesab silinməsi başladıqdan sonra sistemdən çıxarılacaqsan. Sahiblik təklifi gözləyən icmalar varsa,
+                minimal hesab qeydi yalnız proses tamamlanana qədər saxlanacaq, sonra o da hard-delete ediləcək.
+              </div>
+
+              <label className="block">
+                <span className="text-xs font-semibold text-zinc-300">Cari şifrə</span>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={deletePassword}
+                  onChange={(event) => setDeletePassword(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-sm text-zinc-100 outline-none focus:border-red-400/50 focus:ring-4 focus:ring-red-500/10"
+                />
+              </label>
+
+              <label className="block">
+                <span className="text-xs font-semibold text-zinc-300">
+                  Təsdiq üçün <strong className="text-red-300">{user.userName}</strong> yaz
+                </span>
+                <input
+                  type="text"
+                  value={deleteConfirmation}
+                  onChange={(event) => setDeleteConfirmation(event.target.value)}
+                  className="mt-2 h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-sm text-zinc-100 outline-none focus:border-red-400/50 focus:ring-4 focus:ring-red-500/10"
+                />
+              </label>
+
+              <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  disabled={deleteAccountMutation.isPending}
+                  onClick={() => setIsDeleteModalOpen(false)}
+                  className="h-11 rounded-xl border border-white/[0.08] px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.05] disabled:opacity-50"
+                >
+                  Ləğv et
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    deleteAccountMutation.isPending ||
+                    !deletePassword ||
+                    deleteConfirmation.trim().toLocaleLowerCase() !== user.userName.toLocaleLowerCase()
+                  }
+                  onClick={() => {
+                    setNotice(null);
+                    deleteAccountMutation.mutate({
+                      currentPassword: deletePassword,
+                      confirmationText: deleteConfirmation.trim(),
+                    });
+                  }}
+                  className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  {deleteAccountMutation.isPending ? (
+                    <LoaderCircle size={17} className="animate-spin" />
+                  ) : (
+                    <Trash2 size={17} />
+                  )}
+                  Həmişəlik sil
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <Footer />
     </div>
   );

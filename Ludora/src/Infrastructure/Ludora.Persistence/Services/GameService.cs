@@ -113,7 +113,9 @@ public sealed class GameService : IGameService
                 cancellationToken);
         }
 
-        if (IsCommunitySort(filter.SortBy))
+        if (
+            IsCommunitySort(filter.SortBy) &&
+            string.IsNullOrWhiteSpace(filter.SearchName))
         {
             return await GetCommunitySortedGamesAsync(
                 filter,
@@ -125,7 +127,10 @@ public sealed class GameService : IGameService
             var localQuery = BuildLocalQuery(filter);
             var localTotalCount = await localQuery.CountAsync(cancellationToken);
 
-            var localGames = await ApplyLocalSort(localQuery, filter.SortBy)
+            var localGames = await ApplyLocalSort(
+                    localQuery,
+                    filter.SortBy,
+                    filter.SearchName)
                 .AsSplitQuery()
                 .Include(x => x.GameGenres)
                 .Include(x => x.GamePlatforms)
@@ -181,7 +186,10 @@ public sealed class GameService : IGameService
                 igdbGames,
                 cancellationToken);
 
-            var items = SortGames(mappedIgdbGames, filter.SortBy)
+            var items = SortGames(
+                    mappedIgdbGames,
+                    filter.SortBy,
+                    filter.SearchName)
                 .Select(ToListItem)
                 .ToList();
 
@@ -210,7 +218,8 @@ public sealed class GameService : IGameService
 
         var localCombinedGames = await ApplyLocalSort(
                 combinedLocalQuery,
-                filter.SortBy)
+                filter.SortBy,
+                filter.SearchName)
             .AsSplitQuery()
             .Include(x => x.GameGenres)
             .Include(x => x.GamePlatforms)
@@ -276,7 +285,10 @@ public sealed class GameService : IGameService
             }
         }
 
-        var itemsForPage = SortGames(details, filter.SortBy)
+        var itemsForPage = SortGames(
+                details,
+                filter.SortBy,
+                filter.SearchName)
             .Skip(skip)
             .Take(pageSize)
             .Select(ToListItem)
@@ -298,7 +310,8 @@ public sealed class GameService : IGameService
             !string.IsNullOrWhiteSpace(filter.SearchName) ||
             filter.GenreId.HasValue ||
             filter.PlatformId.HasValue ||
-            filter.ReleaseYear.HasValue;
+            filter.ReleaseYear.HasValue ||
+            filter.ReleasedOnly;
     }
 
     private async Task<PagedResultDTO<GameListItemDTO>>
@@ -554,6 +567,7 @@ public sealed class GameService : IGameService
              filter.GenreId.HasValue ||
              filter.PlatformId.HasValue ||
              filter.ReleaseYear.HasValue ||
+             filter.ReleasedOnly ||
              !string.IsNullOrWhiteSpace(filter.SearchName) ||
              !filter.IncludeRelatedContent);
 
@@ -708,6 +722,15 @@ public sealed class GameService : IGameService
         if (
             filter.ReleaseYear.HasValue &&
             game.ReleaseDate?.Year != filter.ReleaseYear.Value)
+        {
+            return false;
+        }
+
+        if (
+            filter.ReleasedOnly &&
+            (!game.ReleaseDate.HasValue ||
+             game.ReleaseDate.Value >
+             DateOnly.FromDateTime(DateTime.UtcNow)))
         {
             return false;
         }
@@ -1747,14 +1770,39 @@ public sealed class GameService : IGameService
                 x.ReleaseDate.Value.Year == filter.ReleaseYear.Value);
         }
 
+        if (filter.ReleasedOnly)
+        {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            query = query.Where(x =>
+                x.ReleaseDate.HasValue &&
+                x.ReleaseDate.Value <= today);
+        }
+
         return query;
     }
 
     private static IQueryable<Game> ApplyLocalSort(
         IQueryable<Game> query,
-        string? sortBy)
+        string? sortBy,
+        string? searchName = null)
     {
-        return sortBy?.Trim().ToLowerInvariant() switch
+        var normalizedSort = sortBy?.Trim().ToLowerInvariant();
+
+        if (
+            string.IsNullOrWhiteSpace(normalizedSort) &&
+            !string.IsNullOrWhiteSpace(searchName))
+        {
+            var search = searchName.Trim();
+
+            return query
+                .OrderByDescending(game => game.Name == search)
+                .ThenByDescending(game => game.Name.StartsWith(search))
+                .ThenBy(game => game.Name.Length)
+                .ThenBy(game => game.Name)
+                .ThenBy(game => game.Id);
+        }
+
+        return normalizedSort switch
         {
             "name_asc" => query
                 .OrderByDescending(game =>
@@ -1797,9 +1845,26 @@ public sealed class GameService : IGameService
 
     private static IEnumerable<GameDetailDTO> SortGames(
         IEnumerable<GameDetailDTO> games,
-        string? sortBy)
+        string? sortBy,
+        string? searchName = null)
     {
-        return sortBy?.Trim().ToLowerInvariant() switch
+        var normalizedSort = sortBy?.Trim().ToLowerInvariant();
+
+        if (
+            string.IsNullOrWhiteSpace(normalizedSort) &&
+            !string.IsNullOrWhiteSpace(searchName))
+        {
+            return games
+                .OrderByDescending(game =>
+                    CalculateSearchRelevance(game.Title, searchName))
+                .ThenByDescending(game => game.AverageRating ?? double.MinValue)
+                .ThenByDescending(game => game.ReleaseDate ?? DateOnly.MinValue)
+                .ThenBy(game => game.Title, GameTitleComparer)
+                .ThenBy(game => game.Source)
+                .ThenBy(game => game.Id);
+        }
+
+        return normalizedSort switch
         {
             "name_asc" => games
                 .OrderByDescending(game => StartsWithLetter(game.Title))
@@ -1841,6 +1906,68 @@ public sealed class GameService : IGameService
                 .ThenBy(x => x.Source)
                 .ThenBy(x => x.Id)
         };
+    }
+
+    private static int CalculateSearchRelevance(
+        string title,
+        string searchText)
+    {
+        var normalizedTitle = NormalizeSearchText(title);
+        var normalizedSearch = NormalizeSearchText(searchText);
+
+        if (normalizedSearch.Length == 0)
+        {
+            return 0;
+        }
+
+        if (string.Equals(
+                normalizedTitle,
+                normalizedSearch,
+                StringComparison.Ordinal))
+        {
+            return 5_000;
+        }
+
+        if (normalizedTitle.StartsWith(
+                normalizedSearch,
+                StringComparison.Ordinal))
+        {
+            return 4_000;
+        }
+
+        var normalizedWords = title
+            .Split(
+                [' ', '-', '_', ':', '.', ',', '/', '\\', '(', ')', '[', ']'],
+                StringSplitOptions.RemoveEmptyEntries)
+            .Select(NormalizeSearchText)
+            .Where(word => word.Length > 0)
+            .ToArray();
+
+        if (normalizedWords.Any(word =>
+                word.StartsWith(
+                    normalizedSearch,
+                    StringComparison.Ordinal)))
+        {
+            return 3_500;
+        }
+
+        if (normalizedTitle.Contains(
+                normalizedSearch,
+                StringComparison.Ordinal))
+        {
+            return 3_000;
+        }
+
+        var acronym = string.Concat(
+            normalizedWords
+                .Where(word => word.Length > 0)
+                .Select(word => word[0]));
+
+        return acronym.StartsWith(
+            normalizedSearch,
+            StringComparison.Ordinal)
+            ? 2_000
+            : 0;
     }
 
     private static bool StartsWithLetter(string? value)

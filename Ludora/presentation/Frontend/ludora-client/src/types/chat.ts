@@ -3,6 +3,7 @@ import type { CatalogSource } from "./home";
 export type ChatRequestStatus = "Pending" | "Accepted" | "Rejected";
 export type ChatMessageKind = "Text" | "Image" | "Video" | "GameRecommendation";
 export type ChatMessageDeliveryStatus = "Sent" | "Delivered" | "Read";
+export type ChatMessageDeleteScope = "ForMe" | "ForEveryone";
 
 export interface ChatUserDTO {
   id: string;
@@ -27,6 +28,10 @@ export interface ChatMessageDTO {
   deliveredAtUtc: string | null;
   readAtUtc: string | null;
   deliveryStatus: ChatMessageDeliveryStatus;
+  isDeletedForEveryone: boolean;
+  deletedForEveryoneAtUtc: string | null;
+  isPinnedByCurrentUser: boolean;
+  pinnedAtUtc: string | null;
 }
 
 export interface ChatConversationDTO {
@@ -69,4 +74,20 @@ export interface ChatReadReceiptDTO {
   readByUserId: string;
   readAtUtc: string;
   messageIds: number[];
+}
+
+export interface ChatMessageDeletedDTO {
+  messageId: number;
+  conversationId: number;
+  deletedByUserId: string;
+  scope: ChatMessageDeleteScope;
+  deletedAtUtc: string;
+}
+
+export interface ChatMessagePinChangedDTO {
+  messageId: number;
+  conversationId: number;
+  userId: string;
+  isPinned: boolean;
+  pinnedAtUtc: string | null;
 }

@@ -300,36 +300,44 @@ export function InteractionCommentsPanel({
                       </p>
                     </div>
 
-                    {comment.isMine && (
+                    {(comment.isMine ||
+                      comment.canDelete) && (
                       <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingCommentId(comment.id);
-                            setEditingContent(comment.content);
-                          }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-white/[0.06] hover:text-zinc-300"
-                          aria-label="Şərhi redaktə et"
-                        >
-                          <Pencil size={14} />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={deleteMutation.isPending}
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                "Bu şərhi silmək istəyirsən?",
-                              )
-                            ) {
-                              deleteMutation.mutate(comment.id);
-                            }
-                          }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-red-500/[0.08] hover:text-red-300 disabled:opacity-40"
-                          aria-label="Şərhi sil"
-                        >
-                          <Trash2 size={14} />
-                        </button>
+                        {comment.isMine && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCommentId(comment.id);
+                              setEditingContent(comment.content);
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-white/[0.06] hover:text-zinc-300"
+                            aria-label="Şərhi redaktə et"
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        )}
+                        {(comment.canDelete ??
+                          comment.isMine) && (
+                          <button
+                            type="button"
+                            disabled={deleteMutation.isPending}
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  "Bu şərhi silmək istəyirsən?",
+                                )
+                              ) {
+                                deleteMutation.mutate(
+                                  comment.id,
+                                );
+                              }
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-red-500/[0.08] hover:text-red-300 disabled:opacity-40"
+                            aria-label="Şərhi sil"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

@@ -15,17 +15,20 @@ public class UsersController : ControllerBase
     private readonly IFollowService _followService;
     private readonly IBlockService _blockService;
     private readonly IUserActivityService _userActivityService;
+    private readonly IAccountDeletionService _accountDeletionService;
 
     public UsersController(
         IUserService userService,
         IFollowService followService,
         IBlockService blockService,
-        IUserActivityService userActivityService)
+        IUserActivityService userActivityService,
+        IAccountDeletionService accountDeletionService)
     {
         _userService = userService;
         _followService = followService;
         _blockService = blockService;
         _userActivityService = userActivityService;
+        _accountDeletionService = accountDeletionService;
     }
 
     [Authorize]
@@ -189,6 +192,23 @@ public class UsersController : ControllerBase
             dto);
 
         return Ok(result);
+    }
+
+    [Authorize]
+    [EnableRateLimiting("Auth")]
+    [HttpDelete("me")]
+    public async Task<IActionResult> DeleteAccount(
+        [FromBody] DeleteAccountRequestDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await _accountDeletionService.RequestDeletionAsync(
+            GetCurrentUserId(),
+            dto,
+            cancellationToken);
+
+        return result.PendingOwnershipTransfers
+            ? StatusCode(StatusCodes.Status202Accepted, result)
+            : Ok(result);
     }
 
     [Authorize]

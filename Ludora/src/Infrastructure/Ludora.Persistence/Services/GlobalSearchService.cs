@@ -147,7 +147,6 @@ public sealed class GlobalSearchService : IGlobalSearchService
             new GameFilterDTO
             {
                 SearchName = query,
-                SortBy = "rating_desc",
                 IncludeRelatedContent = false,
                 PageNumber = 1,
                 PageSize = candidateLimit
@@ -183,14 +182,9 @@ public sealed class GlobalSearchService : IGlobalSearchService
             .Take(resultLimit)
             .ToList();
 
-        var uniqueTotalCount = result.Items
-            .Select(x => NormalizeSearchValue(x.Title))
-            .Distinct()
-            .Count();
-
         return new SearchSection<SearchGameResultDTO>(
             items,
-            uniqueTotalCount);
+            result.TotalCount);
     }
 
     private async Task<SearchSection<SearchUserResultDTO>> SearchUsersAsync(
@@ -327,8 +321,7 @@ public sealed class GlobalSearchService : IGlobalSearchService
             .AsNoTracking()
             .Where(x =>
                 x.Content != string.Empty &&
-                (x.Content.Contains(query) ||
-                 (x.User.UserName != null && x.User.UserName.Contains(query))));
+                x.Content.Contains(query));
 
         if (blockedUserIds is not null)
             reviewsQuery = reviewsQuery.Where(x => !blockedUserIds.Contains(x.UserId));
@@ -399,13 +392,11 @@ public sealed class GlobalSearchService : IGlobalSearchService
                     IsMine = isMine,
                     CreatedAt = x.CreatedAt,
                     Score = CalculateTitleScore(
-                        x.UserName,
+                        x.Content,
                         query,
-                        exactScore: 560,
-                        prefixScore: 430,
-                        containsScore: 300) +
-                        CalculateSecondaryScore(x.Content, query, 260) +
-                        CalculateSecondaryScore(game.Title, query, 170)
+                        exactScore: 820,
+                        prefixScore: 640,
+                        containsScore: 410)
                 };
             })
             .OrderByDescending(x => x.Score)
@@ -428,10 +419,7 @@ public sealed class GlobalSearchService : IGlobalSearchService
         var listsQuery = _context.GameLists
             .AsNoTracking()
             .Where(x => x.Visibility != ListVisibility.Private)
-            .Where(x =>
-                x.Name.Contains(query) ||
-                (x.Description != null && x.Description.Contains(query)) ||
-                (x.User.UserName != null && x.User.UserName.Contains(query)));
+            .Where(x => x.Name.Contains(query));
 
         if (blockedUserIds is not null)
             listsQuery = listsQuery.Where(x => !blockedUserIds.Contains(x.UserId));
@@ -480,9 +468,7 @@ public sealed class GlobalSearchService : IGlobalSearchService
                     query,
                     exactScore: 820,
                     prefixScore: 640,
-                    containsScore: 410) +
-                    CalculateSecondaryScore(x.Description, query, 150) +
-                    CalculateSecondaryScore(x.OwnerUserName, query, 180)
+                    containsScore: 410)
             })
             .OrderByDescending(x => x.Score)
             .ThenByDescending(x => x.CreatedAt)

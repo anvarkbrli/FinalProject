@@ -99,14 +99,14 @@ public sealed class UserReportService : IUserReportService
             cancellationToken);
 
         if (dto.EvidenceImages.Count > MaxEvidenceImages)
-            throw new BadRequestException($"Maksimum {MaxEvidenceImages} sübut şəkli əlavə edilə bilər.");
+            throw new BadRequestException($"Maksimum {MaxEvidenceImages} sübut faylı əlavə edilə bilər.");
 
         if (description is null &&
             dto.EvidenceImages.Count == 0 &&
             contentReference.ContentId is null)
         {
             throw new BadRequestException(
-                "Sübut kimi ən azı açıqlama, şəkil və ya konkret məzmun əlavə edilməlidir.");
+                "Sübut kimi ən azı açıqlama, media faylı və ya konkret məzmun əlavə edilməlidir.");
         }
 
         var hasActiveReport = await _context.UserReports
@@ -297,7 +297,7 @@ public sealed class UserReportService : IUserReportService
                 cancellationToken),
 
             UserReportContentType.DirectMessage => throw new BadRequestException(
-                "Mesaj sistemi layihədə olmadığı üçün mesaj reportu hələ aktiv deyil."),
+                "Mesaj şikayəti hələ aktiv deyil."),
 
             _ => throw new BadRequestException(
                 "Şikayət edilən məzmun növü dəstəklənmir.")

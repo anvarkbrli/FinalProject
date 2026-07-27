@@ -2,7 +2,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
-  ArrowUpRight,
   ChevronRight,
   Flame,
   LogIn,
@@ -195,15 +194,19 @@ function CommunityCard({
 function FeedItem({
   item,
   isAuthenticated,
+  showReason,
 }: {
   item: ForumFeedItemDTO;
   isAuthenticated: boolean;
+  showReason: boolean;
 }) {
+  const reason = showReason ? item.reason : undefined;
+
   if (item.itemType === "Post" && item.post) {
     return (
       <ForumPostCard
         post={item.post}
-        reason={item.reason}
+        reason={reason}
         isAuthenticated={isAuthenticated}
       />
     );
@@ -213,7 +216,7 @@ function FeedItem({
     return (
       <DiscussionFeedCard
         discussion={item.discussion}
-        reason={item.reason}
+        reason={reason}
         isAuthenticated={isAuthenticated}
       />
     );
@@ -795,6 +798,7 @@ export function ForumPage() {
                             }`}
                             item={item}
                             isAuthenticated={isAuthenticated}
+                            showReason={activeSection === "explore"}
                           />
                         ))
                       )}
@@ -831,7 +835,7 @@ export function ForumPage() {
                     className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-white/[0.07] py-2.5 text-xs font-bold text-zinc-400 transition hover:bg-white/[0.035] hover:text-white"
                   >
                     Bütün icmalar
-                    <ArrowUpRight size={14} />
+                    <ChevronRight size={14} />
                   </button>
                 </div>
 

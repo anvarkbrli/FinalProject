@@ -7,17 +7,22 @@ import {
 } from "@tanstack/react-query";
 import {
   Bell,
+  CalendarDays,
   CheckCheck,
   CircleAlert,
+  Crown,
   Heart,
   ListPlus,
   LoaderCircle,
   MessageCircle,
+  Shield,
   ShieldAlert,
   Star,
   UserPlus,
+  X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { formatDateTime, formatRelativeDate, resolveAssetUrl } from "../../lib/helpers";
 import {
@@ -59,6 +64,7 @@ function renderNotificationIcon(type: NotificationType) {
     case "DiscussionReplied":
     case "FollowedDiscussionReplyActivity":
     case "FollowingDiscussionCreated":
+    case "CommunityDiscussionCreated":
       return <MessageCircle size={18} />;
     case "FollowingReviewCreated":
       return <Star size={18} />;
@@ -68,6 +74,10 @@ function renderNotificationIcon(type: NotificationType) {
     case "UserFollowed":
     case "FollowRequestAccepted":
       return <UserPlus size={18} />;
+    case "CommunityOwnershipOffered":
+      return <Crown size={18} />;
+    case "CommunityModeratorAssigned":
+      return <Shield size={18} />;
     default:
       return <CircleAlert size={18} />;
   }
@@ -77,7 +87,7 @@ function getNotificationTone(notification: NotificationDTO): NotificationTone {
   if (notification.type === "WarningIssued") {
     return {
       containerClassName:
-        "border-red-300/25 bg-red-500/[0.10] hover:bg-red-500/[0.15]",
+        "notification-item--warning border-red-300/25 bg-red-500/[0.10] hover:bg-red-500/[0.15]",
       iconClassName: "bg-red-400/15 text-red-200",
       dotClassName: "bg-red-300",
       badgeLabel: "Vacib xəbərdarlıq",
@@ -91,7 +101,7 @@ function getNotificationTone(notification: NotificationDTO): NotificationTone {
   ) {
     return {
       containerClassName:
-        "border-amber-300/20 bg-amber-400/[0.08] hover:bg-amber-400/[0.13]",
+        "notification-item--announcement border-amber-300/20 bg-amber-400/[0.08] hover:bg-amber-400/[0.13]",
       iconClassName: "bg-amber-400/15 text-amber-200",
       dotClassName: "bg-amber-300",
       badgeLabel: "Admin elanı",
@@ -102,8 +112,8 @@ function getNotificationTone(notification: NotificationDTO): NotificationTone {
   if (notification.priority === "High") {
     return {
       containerClassName: notification.isRead
-        ? "border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"
-        : "border-fuchsia-300/15 bg-fuchsia-500/[0.07] hover:bg-fuchsia-500/[0.11]",
+        ? "notification-item--high border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]"
+        : "notification-item--high border-fuchsia-300/15 bg-fuchsia-500/[0.07] hover:bg-fuchsia-500/[0.11]",
       iconClassName: "bg-fuchsia-500/12 text-fuchsia-300",
       dotClassName: "bg-fuchsia-400",
       badgeLabel: "Diqqət",
@@ -113,8 +123,8 @@ function getNotificationTone(notification: NotificationDTO): NotificationTone {
 
   return {
     containerClassName: notification.isRead
-      ? "border-white/[0.05] bg-white/[0.018] hover:bg-white/[0.045]"
-      : "border-violet-300/15 bg-violet-500/[0.075] hover:bg-violet-500/[0.12]",
+      ? "notification-item--standard border-white/[0.05] bg-white/[0.018] hover:bg-white/[0.045]"
+      : "notification-item--standard border-violet-300/15 bg-violet-500/[0.075] hover:bg-violet-500/[0.12]",
     iconClassName: "bg-violet-500/12 text-violet-300",
     dotClassName: "bg-violet-400",
     badgeLabel: null,
@@ -167,10 +177,12 @@ function NotificationItem({
   notification,
   now,
   onRead,
+  onWarningOpen,
 }: {
   notification: NotificationDTO;
   now: Date;
   onRead: (notificationId: number) => void;
+  onWarningOpen: (notification: NotificationDTO) => void;
 }) {
   const actorImageUrl = resolveAssetUrl(notification.actorProfileImageUrl);
   const tone = getNotificationTone(notification);
@@ -248,6 +260,18 @@ function NotificationItem({
     </>
   );
 
+  if (notification.type === "WarningIssued") {
+    return (
+      <button
+        type="button"
+        className={`${rootClassName} notification-item-button`}
+        onClick={() => onWarningOpen(notification)}
+      >
+        {content}
+      </button>
+    );
+  }
+
   if (!notification.actionUrl) {
     return (
       <button
@@ -276,6 +300,8 @@ export function NotificationBell() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
+  const [selectedWarning, setSelectedWarning] =
+    useState<NotificationDTO | null>(null);
 
   const notificationsQuery = useInfiniteQuery({
     queryKey: notificationQueryKeys.list,
@@ -297,16 +323,15 @@ export function NotificationBell() {
 
   const readMutation = useMutation({
     mutationFn: markNotificationAsRead,
-    onSuccess: (updated) => {
+    onSuccess: async (updated) => {
       queryClient.setQueryData<InfiniteData<NotificationPageDTO>>(
         notificationQueryKeys.list,
         (current) => updateNotificationInPages(current, updated),
       );
 
-      queryClient.setQueryData<{ count: number }>(
-        notificationQueryKeys.unreadCount,
-        (current) => ({ count: Math.max(0, (current?.count ?? 1) - 1) }),
-      );
+      await queryClient.invalidateQueries({
+        queryKey: notificationQueryKeys.unreadCount,
+      });
     },
   });
 
@@ -346,6 +371,7 @@ export function NotificationBell() {
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setIsOpen(false);
+        setSelectedWarning(null);
       }
     }
 
@@ -357,6 +383,19 @@ export function NotificationBell() {
       document.removeEventListener("keydown", handleEscape);
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedWarning) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [selectedWarning]);
 
   useEffect(() => {
     if (!isOpen) {
@@ -373,7 +412,8 @@ export function NotificationBell() {
     notificationsQuery.data?.pages.flatMap((page) => page.items) ?? [];
 
   return (
-    <div ref={containerRef} className="notification-bell relative order-1">
+    <>
+      <div ref={containerRef} className="notification-bell relative order-1">
       <button
         type="button"
         aria-label={
@@ -469,6 +509,11 @@ export function NotificationBell() {
                       }
                       setIsOpen(false);
                     }}
+                    onWarningOpen={(warningNotification) => {
+                      readMutation.mutate(warningNotification.id);
+                      setSelectedWarning(warningNotification);
+                      setIsOpen(false);
+                    }}
                   />
                 ))}
 
@@ -500,6 +545,75 @@ export function NotificationBell() {
           </footer>
         </section>
       )}
-    </div>
+      </div>
+
+      {selectedWarning &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[2000] grid place-items-center bg-black/75 p-4 backdrop-blur-md"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="warning-notification-title"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setSelectedWarning(null);
+              }
+            }}
+          >
+            <section className="w-full max-w-lg overflow-hidden rounded-3xl border border-red-300/15 bg-[#111116] shadow-2xl shadow-black/70">
+              <header className="flex items-start justify-between gap-4 border-b border-white/[0.07] bg-red-500/[0.06] px-6 py-5">
+                <div className="flex items-start gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500/15 text-red-200">
+                    <ShieldAlert size={21} />
+                  </span>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-red-300/70">
+                      Rəsmi xəbərdarlıq
+                    </p>
+                    <h2
+                      id="warning-notification-title"
+                      className="mt-1 text-lg font-bold text-white"
+                    >
+                      {selectedWarning.title}
+                    </h2>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSelectedWarning(null)}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-500 transition hover:bg-white/[0.07] hover:text-white"
+                  aria-label="Xəbərdarlıq pəncərəsini bağla"
+                >
+                  <X size={18} />
+                </button>
+              </header>
+
+              <div className="px-6 py-6">
+                <p className="whitespace-pre-wrap text-sm leading-7 text-zinc-300">
+                  {selectedWarning.message}
+                </p>
+                <div className="mt-5 flex items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] px-4 py-3 text-xs text-zinc-500">
+                  <CalendarDays size={15} className="text-zinc-600" />
+                  {formatDateTime(selectedWarning.createdAtUtc)}
+                </div>
+                <p className="mt-4 text-xs leading-5 text-zinc-600">
+                  Xəbərdarlıq açıldığı üçün oxunmuş kimi qeydə alındı.
+                </p>
+              </div>
+
+              <footer className="flex justify-end border-t border-white/[0.07] px-6 py-4">
+                <button
+                  type="button"
+                  onClick={() => setSelectedWarning(null)}
+                  className="h-10 rounded-xl bg-red-500 px-5 text-sm font-bold text-white transition hover:bg-red-400"
+                >
+                  Bağla
+                </button>
+              </footer>
+            </section>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }

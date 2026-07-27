@@ -151,7 +151,6 @@ export function GameListDetailPage() {
     queryFn: () =>
       getGames({
         searchName: normalizedSearch,
-        sortBy: "rating_desc",
         includeRelatedContent: false,
         pageNumber: 1,
         pageSize: 8,

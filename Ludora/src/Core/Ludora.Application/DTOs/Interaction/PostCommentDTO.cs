@@ -11,4 +11,5 @@ public sealed record PostCommentDTO
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
     public bool IsMine { get; init; }
+    public bool CanDelete { get; init; }
 }

@@ -206,7 +206,9 @@ public sealed class PostInteractionService : IPostInteractionService
                 Content = x.Content,
                 CreatedAt = x.CreatedAt,
                 UpdatedAt = x.UpdatedAt,
-                IsMine = currentUserId.HasValue && x.UserId == currentUserId.Value
+                IsMine = currentUserId.HasValue && x.UserId == currentUserId.Value,
+                CanDelete = currentUserId.HasValue &&
+                    (x.UserId == currentUserId.Value || x.Post.UserId == currentUserId.Value)
             })
             .ToListAsync(cancellationToken);
 
@@ -251,10 +253,11 @@ public sealed class PostInteractionService : IPostInteractionService
             .FirstOrDefaultAsync(x => x.Id == commentId, cancellationToken)
             ?? throw new NotFoundException("Şərh tapılmadı.");
 
-        if (comment.UserId != userId)
+        var post = await GetAccessiblePostAsync(comment.PostId, userId, cancellationToken);
+
+        if (comment.UserId != userId && post.UserId != userId)
             throw new ForbiddenException("Bu şərhi silmək icazəniz yoxdur.");
 
-        var post = await GetAccessiblePostAsync(comment.PostId, userId, cancellationToken);
         comment.IsDeleted = true;
         comment.DeletedAtUtc = DateTime.UtcNow;
         comment.UpdatedAt = DateTime.UtcNow;
@@ -283,7 +286,8 @@ public sealed class PostInteractionService : IPostInteractionService
                 Content = x.Content,
                 CreatedAt = x.CreatedAt,
                 UpdatedAt = x.UpdatedAt,
-                IsMine = x.UserId == currentUserId
+                IsMine = x.UserId == currentUserId,
+                CanDelete = x.UserId == currentUserId || x.Post.UserId == currentUserId
             })
             .FirstAsync(cancellationToken);
     }

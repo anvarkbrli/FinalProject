@@ -12,5 +12,19 @@ public sealed class EmailSettings
     public string FromEmail { get; set; } = string.Empty;
     public string FromName { get; set; } = "Ludora";
     public bool EnableSsl { get; set; } = true;
+
+    // API endpoint-ləri ilə email dəyişiklik təsdiqi kimi server linkləri üçün qalır.
     public string PublicApiBaseUrl { get; set; } = string.Empty;
+
+    // Qeydiyyat emaili istifadəçini JSON qaytaran API endpoint-inə yox,
+    // istifadəçi-dostu frontend təsdiq səhifəsinə aparır.
+    public string PublicFrontendBaseUrl { get; set; } = string.Empty;
+
+    // SMTP server müvəqqəti xəta verdikdə eyni request daxilində ediləcək cəhd sayı.
+    public int MaxRetryAttempts { get; set; } = 3;
+    public int RetryDelaySeconds { get; set; } = 2;
+
+    // SmtpClient.Timeout yalnız sinxron Send üçün keçərlidir. Async göndərişdə
+    // ayrıca CancellationToken timeout-u istifadə olunur.
+    public int SendTimeoutSeconds { get; set; } = 30;
 }

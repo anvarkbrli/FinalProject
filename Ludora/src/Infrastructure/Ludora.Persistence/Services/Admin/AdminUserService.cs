@@ -24,17 +24,20 @@ public sealed class AdminUserService : IAdminUserService
     private readonly UserManager<AppUser> _userManager;
     private readonly RoleManager<IdentityRole<Guid>> _roleManager;
     private readonly INotificationService _notificationService;
+    private readonly IUserPresenceTracker _presenceTracker;
 
     public AdminUserService(
         AppDbContext context,
         UserManager<AppUser> userManager,
         RoleManager<IdentityRole<Guid>> roleManager,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IUserPresenceTracker presenceTracker)
     {
         _context = context;
         _userManager = userManager;
         _roleManager = roleManager;
         _notificationService = notificationService;
+        _presenceTracker = presenceTracker;
     }
 
     public async Task<PagedResultDTO<AdminUserListItemDTO>> GetAllAsync(
@@ -117,6 +120,13 @@ public sealed class AdminUserService : IAdminUserService
             })
             .ToListAsync(cancellationToken);
 
+        items = items
+            .Select(item => item with
+            {
+                IsOnline = _presenceTracker.IsOnline(item.Id)
+            })
+            .ToList();
+
         return new PagedResultDTO<AdminUserListItemDTO>
         {
             Items = items,
@@ -163,6 +173,7 @@ public sealed class AdminUserService : IAdminUserService
             ProfileImageUrl = user.ProfileImageUrl,
             Role = role,
             IsPrivate = user.IsPrivate,
+            IsOnline = _presenceTracker.IsOnline(user.Id),
             IsBanned = user.IsPermanentlyBanned ||
                        (user.BannedUntilUtc.HasValue && user.BannedUntilUtc > now),
             IsPermanentlyBanned = user.IsPermanentlyBanned,
@@ -412,7 +423,7 @@ public sealed class AdminUserService : IAdminUserService
                 EntityId = warning.Id.ToString(),
                 Title = "Admin xəbərdarlığı",
                 Message = warning.Message,
-                ActionUrl = "/settings",
+                ActionUrl = null,
                 BypassPreferences = true
             },
             cancellationToken);
@@ -733,11 +744,24 @@ public sealed class AdminUserService : IAdminUserService
         var trimmedRole = role.Trim();
 
         if (!RoleNames.All.Contains(trimmedRole))
-            throw new BadRequestException("Yalnız Admin və User rolları istifadə oluna bilər.");
+            throw new BadRequestException(
+                "Yalnız Admin, Moderator və User rolları istifadə oluna bilər.");
 
-        return trimmedRole.Equals(RoleNames.Admin, StringComparison.OrdinalIgnoreCase)
-            ? RoleNames.Admin
-            : RoleNames.User;
+        if (trimmedRole.Equals(
+                RoleNames.Admin,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return RoleNames.Admin;
+        }
+
+        if (trimmedRole.Equals(
+                RoleNames.Moderator,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return RoleNames.Moderator;
+        }
+
+        return RoleNames.User;
     }
 
     private static void EnsureDifferentUsers(

@@ -1,11 +1,18 @@
 import {
-  ArrowUpRight,
   CalendarClock,
   CalendarDays,
+  ChevronLeft,
+  ChevronRight,
   Flame,
   Gamepad2,
 } from "lucide-react";
-import { useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { Link } from "react-router-dom";
 import { resolveAssetUrl } from "../../lib/helpers";
 import type {
@@ -174,7 +181,7 @@ function DiscoveryGameCard({
 
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#09090c]/85 via-transparent to-transparent" />
 
-        <ArrowUpRight
+        <ChevronRight
           size={17}
           className="absolute bottom-3 right-3 text-white/0 transition duration-300 group-hover:text-white"
         />
@@ -232,6 +239,241 @@ function DiscoveryRailSkeleton() {
   );
 }
 
+interface DiscoveryCarouselProps {
+  games: DiscoveryGame[];
+  variant: DiscoveryGameCardProps["variant"];
+}
+
+function DiscoveryCarousel({
+  games,
+  variant,
+}: DiscoveryCarouselProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const normalizeTimerRef = useRef<number | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+
+  const repeatedGames = useMemo(
+    () =>
+      games.length > 1
+        ? [...games, ...games, ...games]
+        : games,
+    [games],
+  );
+
+  const getCarouselMetrics = useCallback(() => {
+    const container = containerRef.current;
+
+    if (!container || games.length < 2) {
+      return null;
+    }
+
+    const items =
+      container.querySelectorAll<HTMLElement>(
+        "[data-discovery-carousel-item]",
+      );
+
+    if (items.length <= games.length) {
+      return null;
+    }
+
+    const step =
+      items[1].offsetLeft - items[0].offsetLeft;
+    const cycleWidth =
+      items[games.length].offsetLeft -
+      items[0].offsetLeft;
+
+    if (step <= 0 || cycleWidth <= 0) {
+      return null;
+    }
+
+    return { container, step, cycleWidth };
+  }, [games.length]);
+
+  const normalizePosition = useCallback(() => {
+    const metrics = getCarouselMetrics();
+
+    if (!metrics) {
+      return;
+    }
+
+    const { container, cycleWidth } = metrics;
+
+    if (container.scrollLeft < cycleWidth) {
+      container.scrollLeft += cycleWidth;
+    } else if (
+      container.scrollLeft >=
+      cycleWidth * 2
+    ) {
+      container.scrollLeft -= cycleWidth;
+    }
+  }, [getCarouselMetrics]);
+
+  const scheduleNormalize = useCallback(() => {
+    if (normalizeTimerRef.current !== null) {
+      window.clearTimeout(normalizeTimerRef.current);
+    }
+
+    normalizeTimerRef.current = window.setTimeout(
+      normalizePosition,
+      520,
+    );
+  }, [normalizePosition]);
+
+  const moveCarousel = useCallback(
+    (direction: -1 | 1) => {
+      const metrics = getCarouselMetrics();
+
+      if (!metrics) {
+        return;
+      }
+
+      metrics.container.scrollBy({
+        left: metrics.step * direction,
+        behavior: "smooth",
+      });
+
+      scheduleNormalize();
+    },
+    [getCarouselMetrics, scheduleNormalize],
+  );
+
+  useEffect(() => {
+    const container = containerRef.current;
+
+    if (!container || games.length < 2) {
+      return;
+    }
+
+    const placeAtMiddleCycle = () => {
+      const metrics = getCarouselMetrics();
+
+      if (metrics) {
+        metrics.container.scrollLeft =
+          metrics.cycleWidth;
+      }
+    };
+
+    const frameId = window.requestAnimationFrame(
+      placeAtMiddleCycle,
+    );
+    const resizeObserver = new ResizeObserver(
+      placeAtMiddleCycle,
+    );
+
+    resizeObserver.observe(container);
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+    };
+  }, [games.length, getCarouselMetrics]);
+
+  useEffect(() => {
+    if (games.length < 2 || isPaused) {
+      return;
+    }
+
+    const reduceMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+
+    if (reduceMotion) {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      moveCarousel(1);
+    }, 4200);
+
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [games.length, isPaused, moveCarousel]);
+
+  useEffect(
+    () => () => {
+      if (normalizeTimerRef.current !== null) {
+        window.clearTimeout(
+          normalizeTimerRef.current,
+        );
+      }
+    },
+    [],
+  );
+
+  return (
+    <div
+      className="group/carousel relative"
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      onFocusCapture={() => setIsPaused(true)}
+      onBlurCapture={(event) => {
+        if (
+          !event.currentTarget.contains(
+            event.relatedTarget as Node | null,
+          )
+        ) {
+          setIsPaused(false);
+        }
+      }}
+    >
+      <div
+        ref={containerRef}
+        className="home-discovery-carousel flex snap-x snap-mandatory gap-4 overflow-x-auto py-1"
+        onScroll={scheduleNormalize}
+      >
+        {repeatedGames.map((game, index) => (
+          <div
+            key={`${variant}-slide-${index}-${game.source}-${game.id}`}
+            data-discovery-carousel-item
+            className="home-discovery-slide min-w-0 flex-none snap-start"
+          >
+            <DiscoveryGameCard
+              game={game}
+              index={index % games.length}
+              variant={variant}
+            />
+          </div>
+        ))}
+      </div>
+
+      {games.length > 1 ? (
+        <>
+          <button
+            type="button"
+            aria-label="Əvvəlki oyunları göstər"
+            onClick={() => moveCarousel(-1)}
+            className="absolute left-2 top-1/2 z-20 grid size-10 -translate-y-1/2 place-items-center rounded-full border opacity-95 shadow-xl transition hover:scale-105 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            style={{
+              backgroundColor:
+                "var(--wp-surface-strong)",
+              borderColor: "var(--wp-border-strong)",
+              color: "var(--wp-text-strong)",
+            }}
+          >
+            <ChevronLeft size={20} />
+          </button>
+
+          <button
+            type="button"
+            aria-label="Növbəti oyunları göstər"
+            onClick={() => moveCarousel(1)}
+            className="absolute right-2 top-1/2 z-20 grid size-10 -translate-y-1/2 place-items-center rounded-full border opacity-95 shadow-xl transition hover:scale-105 hover:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            style={{
+              backgroundColor:
+                "var(--wp-surface-strong)",
+              borderColor: "var(--wp-border-strong)",
+              color: "var(--wp-text-strong)",
+            }}
+          >
+            <ChevronRight size={20} />
+          </button>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
 interface DiscoveryRailProps {
   title: string;
   eyebrow: string;
@@ -280,16 +522,10 @@ function DiscoveryRail({
           Bu bölmə üçün oyun tapılmadı.
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {games.map((game, index) => (
-            <DiscoveryGameCard
-              key={`${variant}-${game.source}-${game.id}`}
-              game={game}
-              index={index}
-              variant={variant}
-            />
-          ))}
-        </div>
+        <DiscoveryCarousel
+          games={games}
+          variant={variant}
+        />
       )}
     </section>
   );
@@ -309,7 +545,7 @@ export function HomeDiscoverySection({
   isError,
 }: HomeDiscoverySectionProps) {
   return (
-    <section className="home-discovery-section border-b border-white/5 bg-white/[0.01]">
+    <section className="home-discovery-section border-b border-white/5 bg-transparent">
       <div className="mx-auto max-w-7xl space-y-14 px-5 py-16 lg:px-8 lg:py-20">
         {isError &&
         trendingGames.length === 0 &&

@@ -1,3 +1,4 @@
+using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
@@ -26,7 +27,7 @@ public sealed class CompaniesController : ControllerBase
         return Ok(await _companyService.GetAllAsync(searchName, source, cancellationToken));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpGet("deleted")]
     public async Task<ActionResult<IReadOnlyList<CompanyDetailDTO>>> GetDeleted(
         CancellationToken cancellationToken)
@@ -43,7 +44,7 @@ public sealed class CompaniesController : ControllerBase
         return Ok(await _companyService.GetByIdAsync(source, id, cancellationToken));
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpPost]
     public async Task<IActionResult> Create(
         [FromBody] CompanyCreateDTO dto,
@@ -57,7 +58,7 @@ public sealed class CompaniesController : ControllerBase
             new { source = CatalogSource.Local, id });
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpPatch("{source}/{id:long:min(1)}")]
     public async Task<IActionResult> Update(
         CatalogSource source,
@@ -69,7 +70,7 @@ public sealed class CompaniesController : ControllerBase
         return NoContent();
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.Admin)]
     [HttpDelete("{source}/{id:long:min(1)}")]
     public async Task<IActionResult> Delete(
         CatalogSource source,
@@ -80,7 +81,7 @@ public sealed class CompaniesController : ControllerBase
         return NoContent();
     }
 
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpPatch("{source}/{id:long:min(1)}/restore")]
     public async Task<IActionResult> Restore(
         CatalogSource source,

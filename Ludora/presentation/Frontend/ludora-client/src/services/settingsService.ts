@@ -5,6 +5,8 @@ import type {
   BlockedUserDTO,
   ChangeEmailRequestDTO,
   ChangePasswordRequestDTO,
+  DeleteAccountRequestDTO,
+  DeleteAccountResultDTO,
   EmailOperationResultDTO,
   FollowRequestDTO,
   UpdateProfileRequestDTO,
@@ -154,4 +156,15 @@ export async function rejectFollowRequest(
   await api.delete(
     `/users/me/follow-requests/${requesterId}/reject-follow`,
   );
+}
+
+export async function deleteAccount(
+  request: DeleteAccountRequestDTO,
+): Promise<DeleteAccountResultDTO> {
+  const response = await api.delete<DeleteAccountResultDTO>(
+    "/users/me",
+    { data: request },
+  );
+
+  return response.data;
 }

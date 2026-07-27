@@ -735,6 +735,14 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
             AuthorId = x.UserId,
             AuthorUserName = x.User.UserName ?? string.Empty,
             AuthorProfileImageUrl = x.User.ProfileImageUrl,
+            AuthorCommunityRole = x.Discussion.CommunityId.HasValue
+                ? x.Discussion.Community!.Members
+                    .Where(member =>
+                        member.UserId == x.UserId &&
+                        member.Status == ForumCommunityMembershipStatus.Active)
+                    .Select(member => (ForumCommunityMemberRole?)member.Role)
+                    .FirstOrDefault()
+                : null,
             Content = x.IsDeleted ? string.Empty : x.Content,
             NetScore = x.Votes.Sum(vote => (int?)vote.Value) ?? 0,
             CurrentUserVote = currentUserId.HasValue

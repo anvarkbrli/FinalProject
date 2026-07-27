@@ -39,3 +39,15 @@ export interface FollowRequestDTO {
   profileImageUrl: string | null;
   requestedAt: string;
 }
+
+export interface DeleteAccountRequestDTO {
+  currentPassword: string;
+  confirmationText: string;
+}
+
+export interface DeleteAccountResultDTO {
+  deletedImmediately: boolean;
+  pendingOwnershipTransfers: boolean;
+  pendingCommunityCount: number;
+  message: string;
+}

@@ -2,7 +2,10 @@ import { api } from "../lib/api";
 import type {
   CreateForumCommunityInput,
   ForumCommunityDTO,
+  ForumCommunityInviteCandidateDTO,
+  ForumCommunityLeaveResultDTO,
   ForumCommunityMemberDTO,
+  ForumCommunityMemberRole,
 } from "../types/community";
 
 export async function getForumCommunities(
@@ -66,8 +69,13 @@ export async function joinForumCommunity(id: number): Promise<void> {
   await api.put(`/forum-communities/${id}/join`);
 }
 
-export async function leaveForumCommunity(id: number): Promise<void> {
-  await api.delete(`/forum-communities/${id}/membership`);
+export async function leaveForumCommunity(
+  id: number,
+): Promise<ForumCommunityLeaveResultDTO> {
+  const response = await api.delete<ForumCommunityLeaveResultDTO>(
+    `/forum-communities/${id}/membership`,
+  );
+  return response.data;
 }
 
 export async function setForumCommunityFollowed(
@@ -108,6 +116,72 @@ export async function rejectCommunityMembership(
   await api.delete(
     `/forum-communities/${communityId}/membership-requests/${membershipId}`,
   );
+}
+
+export async function getCommunityMembers(
+  communityId: number,
+  signal?: AbortSignal,
+): Promise<ForumCommunityMemberDTO[]> {
+  const response = await api.get<ForumCommunityMemberDTO[]>(
+    `/forum-communities/${communityId}/members`,
+    { signal },
+  );
+  return response.data;
+}
+
+export async function searchCommunityInviteCandidates(
+  communityId: number,
+  query: string,
+  signal?: AbortSignal,
+): Promise<ForumCommunityInviteCandidateDTO[]> {
+  const response = await api.get<ForumCommunityInviteCandidateDTO[]>(
+    `/forum-communities/${communityId}/invite-candidates`,
+    { params: { query }, signal },
+  );
+  return response.data;
+}
+
+export async function removeCommunityMember(
+  communityId: number,
+  membershipId: number,
+): Promise<void> {
+  await api.delete(
+    `/forum-communities/${communityId}/members/${membershipId}`,
+  );
+}
+
+
+export async function updateCommunityMemberRole(
+  communityId: number,
+  membershipId: number,
+  role: ForumCommunityMemberRole,
+): Promise<void> {
+  await api.put(
+    `/forum-communities/${communityId}/members/${membershipId}/role`,
+    { role },
+  );
+}
+
+export async function acceptCommunityOwnershipOffer(
+  communityId: number,
+): Promise<void> {
+  await api.put(
+    `/forum-communities/${communityId}/ownership-offer/accept`,
+  );
+}
+
+export async function declineCommunityOwnershipOffer(
+  communityId: number,
+): Promise<void> {
+  await api.delete(
+    `/forum-communities/${communityId}/ownership-offer`,
+  );
+}
+
+export async function deleteForumCommunity(
+  communityId: number,
+): Promise<void> {
+  await api.delete(`/forum-communities/${communityId}`);
 }
 
 export async function inviteToCommunity(

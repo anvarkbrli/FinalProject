@@ -82,6 +82,10 @@ public sealed class NotificationService : INotificationService
             .Take(filter.PageSize)
             .ToListAsync(cancellationToken);
 
+        items = await ResolveLegacyDiscussionActionUrlsAsync(
+            items,
+            cancellationToken);
+
         return new PagedResultDTO<NotificationDTO>
         {
             Items = items,
@@ -123,12 +127,34 @@ public sealed class NotificationService : INotificationService
                 cancellationToken)
             ?? throw new NotFoundException("Bildiriş tapılmadı.");
 
+        var now = DateTime.UtcNow;
+        var hasChanges = false;
+
         if (!notification.IsRead)
         {
             notification.IsRead = true;
-            notification.ReadAtUtc = DateTime.UtcNow;
-            await _context.SaveChangesAsync(cancellationToken);
+            notification.ReadAtUtc = now;
+            hasChanges = true;
         }
+
+        if (notification.EntityType == NotificationEntityType.Warning &&
+            int.TryParse(notification.EntityId, out var warningId))
+        {
+            var warning = await _context.UserWarnings
+                .FirstOrDefaultAsync(
+                    x => x.Id == warningId && x.UserId == userId,
+                    cancellationToken);
+
+            if (warning is { IsRead: false })
+            {
+                warning.IsRead = true;
+                warning.ReadAtUtc = now;
+                hasChanges = true;
+            }
+        }
+
+        if (hasChanges)
+            await _context.SaveChangesAsync(cancellationToken);
 
         return await Project(
                 _context.Notifications
@@ -148,6 +174,14 @@ public sealed class NotificationService : INotificationService
 
         await _context.Notifications
             .Where(x => x.RecipientUserId == userId && !x.IsRead)
+            .ExecuteUpdateAsync(
+                setters => setters
+                    .SetProperty(x => x.IsRead, true)
+                    .SetProperty(x => x.ReadAtUtc, now),
+                cancellationToken);
+
+        await _context.UserWarnings
+            .Where(x => x.UserId == userId && !x.IsRead)
             .ExecuteUpdateAsync(
                 setters => setters
                     .SetProperty(x => x.IsRead, true)
@@ -569,6 +603,62 @@ FROM @InsertedNotifications;", cancellationToken);
 
         _context.Notifications.Add(notification);
         _context.NotificationOutboxMessages.Add(outboxMessage);
+    }
+
+    private async Task<List<NotificationDTO>> ResolveLegacyDiscussionActionUrlsAsync(
+        List<NotificationDTO> notifications,
+        CancellationToken cancellationToken)
+    {
+        var discussionIds = notifications
+            .Where(notification =>
+                notification.Type == NotificationType.DiscussionLiked &&
+                notification.EntityType == NotificationEntityType.Discussion &&
+                (string.IsNullOrWhiteSpace(notification.ActionUrl) ||
+                 notification.ActionUrl == "/#forum"))
+            .Select(notification =>
+                int.TryParse(notification.EntityId, out var discussionId)
+                    ? (int?)discussionId
+                    : null)
+            .Where(discussionId => discussionId.HasValue)
+            .Select(discussionId => discussionId!.Value)
+            .Distinct()
+            .ToList();
+
+        if (discussionIds.Count == 0)
+            return notifications;
+
+        var discussionSlugs = await _context.Discussions
+            .AsNoTracking()
+            .Where(discussion => discussionIds.Contains(discussion.Id))
+            .Select(discussion => new
+            {
+                discussion.Id,
+                discussion.Slug
+            })
+            .ToDictionaryAsync(
+                discussion => discussion.Id,
+                discussion => discussion.Slug,
+                cancellationToken);
+
+        return notifications
+            .Select(notification =>
+            {
+                if (notification.Type != NotificationType.DiscussionLiked ||
+                    notification.EntityType != NotificationEntityType.Discussion ||
+                    (!string.IsNullOrWhiteSpace(notification.ActionUrl) &&
+                     notification.ActionUrl != "/#forum") ||
+                    !int.TryParse(notification.EntityId, out var discussionId) ||
+                    !discussionSlugs.TryGetValue(discussionId, out var slug))
+                {
+                    return notification;
+                }
+
+                return notification with
+                {
+                    ActionUrl = $"/forum/discussions/{slug}"
+                };
+            })
+            .ToList();
     }
 
     private async Task EnsureUserExistsAsync(
