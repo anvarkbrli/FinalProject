@@ -116,6 +116,23 @@ export async function getGameGenres(
   return response.data;
 }
 
+export async function getIgdbGameGenres(
+  signal?: AbortSignal,
+): Promise<CatalogFilterItemDTO[]> {
+  const response =
+    await api.get<CatalogFilterItemDTO[]>(
+      "/genres",
+      {
+        params: {
+          source: "Igdb",
+        },
+        signal,
+      },
+    );
+
+  return response.data;
+}
+
 export async function getGamePlatforms(
   signal?: AbortSignal,
 ): Promise<

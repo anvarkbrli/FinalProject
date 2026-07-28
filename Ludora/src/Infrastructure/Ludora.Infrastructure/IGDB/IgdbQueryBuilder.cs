@@ -7,10 +7,17 @@ namespace Ludora.Infrastructure.IGDB;
 
 internal static class IgdbQueryBuilder
 {
+    private const string GameCardFields =
+        "fields id,name,summary,first_release_date,total_rating," +
+        "game_type,parent_game,version_parent,version_title," +
+        "cover.image_id,genres.id,genres.name,platforms.id,platforms.name," +
+        "involved_companies.company.id,involved_companies.company.name," +
+        "involved_companies.developer,involved_companies.publisher;";
+
     private const string GameFields =
         "fields id,name,summary,first_release_date,total_rating," +
         "game_type,parent_game,version_parent,version_title,dlcs,expansions,standalone_expansions," +
-        "bundles,remakes,remasters," +
+        "bundles,remakes,remasters,collections.name,collections.games,franchises.name,franchises.games," +
         "cover.image_id,genres.id,genres.name,platforms.id,platforms.name," +
         "involved_companies.company.id,involved_companies.company.name," +
         "involved_companies.developer,involved_companies.publisher;";
@@ -88,6 +95,12 @@ internal static class IgdbQueryBuilder
     public static string BuildGamesByIds(IReadOnlyCollection<long> ids)
     {
         return BuildByIds(GameFields, ids);
+    }
+
+    public static string BuildGamesByIdsForCards(
+        IReadOnlyCollection<long> ids)
+    {
+        return BuildByIds(GameCardFields, ids);
     }
 
 

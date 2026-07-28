@@ -292,6 +292,10 @@ public class UserService : IUserService
         }
 
         var user = await _userManager.FindByIdOrThrowAsync(userId);
+
+        if (!await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
+            throw new BadRequestException("Cari şifrə yanlışdır.");
+
         var result = await _userManager.ChangePasswordAsync(
             user,
             dto.CurrentPassword,
@@ -318,7 +322,7 @@ public class UserService : IUserService
             dto.CurrentPassword);
 
         if (!passwordIsCorrect)
-            throw new UnauthorizedException("Cari şifrə yanlışdır.");
+            throw new BadRequestException("Cari şifrə yanlışdır.");
 
         var normalizedNewEmail = _userManager.NormalizeEmail(newEmail);
 

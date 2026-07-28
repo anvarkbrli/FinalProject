@@ -75,15 +75,18 @@ export async function getForumCategories(): Promise<
     .slice(0, 6);
 }
 
-export async function getLatestAnnouncement(): Promise<
+export async function getHomeAnnouncements(
+  signal?: AbortSignal,
+): Promise<
   PagedResultDTO<AnnouncementDTO>
 > {
   const response = await api.get<
     PagedResultDTO<AnnouncementDTO>
   >("/announcements", {
+    signal,
     params: {
       pageNumber: 1,
-      pageSize: 1,
+      pageSize: 5,
     },
   });
 

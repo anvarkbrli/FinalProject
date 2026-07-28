@@ -43,7 +43,7 @@ public sealed class AccountDeletionService : IAccountDeletionService
             ?? throw new NotFoundException("İstifadəçi tapılmadı.");
 
         if (!await _userManager.CheckPasswordAsync(user, dto.CurrentPassword))
-            throw new UnauthorizedException("Cari şifrə yanlışdır.");
+            throw new BadRequestException("Cari şifrə yanlışdır.");
 
         var expectedConfirmation = user.UserName ?? string.Empty;
         if (!string.Equals(

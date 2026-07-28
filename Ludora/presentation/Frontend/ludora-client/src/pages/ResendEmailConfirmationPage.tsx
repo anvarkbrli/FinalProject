@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import {
+  AlertCircle,
   ArrowLeft,
   Check,
   Gamepad2,
@@ -43,6 +44,7 @@ export function ResendEmailConfirmationPage() {
   const resendMutation = useMutation({
     mutationFn: resendEmailConfirmation,
   });
+  const emailField = form.register("email");
 
   function handleSubmit(values: ResendFormValues) {
     resendMutation.mutate({
@@ -116,7 +118,17 @@ export function ResendEmailConfirmationPage() {
                 type="email"
                 autoComplete="email"
                 placeholder="omar@email.com"
-                {...form.register("email")}
+                {...emailField}
+                onChange={(event) => {
+                  emailField.onChange(event);
+
+                  if (
+                    resendMutation.isError ||
+                    resendMutation.isSuccess
+                  ) {
+                    resendMutation.reset();
+                  }
+                }}
                 className="h-12 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-11 pr-4 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/50 focus:bg-white/[0.055] focus:ring-4 focus:ring-violet-500/10"
               />
             </div>
@@ -129,7 +141,10 @@ export function ResendEmailConfirmationPage() {
           </div>
 
           {resendMutation.isSuccess && (
-            <div className="flex items-start gap-3 rounded-xl border border-emerald-400/15 bg-emerald-500/[0.07] px-4 py-3 text-sm leading-6 text-emerald-200">
+            <div
+              role="status"
+              className="flex items-start gap-3 rounded-xl border border-emerald-400/15 bg-emerald-500/[0.07] px-4 py-3 text-sm leading-6 text-emerald-200"
+            >
               <Check
                 size={18}
                 className="mt-0.5 shrink-0"
@@ -142,8 +157,15 @@ export function ResendEmailConfirmationPage() {
           )}
 
           {errorMessage && (
-            <div className="rounded-xl border border-red-400/15 bg-red-500/[0.07] px-4 py-3 text-sm leading-6 text-red-200">
-              {errorMessage}
+            <div
+              role="alert"
+              className="flex items-start gap-3 rounded-xl border border-red-400/15 bg-red-500/[0.07] px-4 py-3 text-sm leading-6 text-red-200"
+            >
+              <AlertCircle
+                size={18}
+                className="mt-0.5 shrink-0"
+              />
+              <span>{errorMessage}</span>
             </div>
           )}
 

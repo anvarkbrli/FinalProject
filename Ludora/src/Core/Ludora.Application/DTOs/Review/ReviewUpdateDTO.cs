@@ -12,4 +12,9 @@ public record ReviewUpdateDTO
     public CatalogSource? PlatformSource { get; init; }
     public long? PlatformId { get; init; }
     public int? PlaytimeMinutes { get; init; }
+    public bool ShowHardwareProfile { get; init; }
+    public string? HardwareGpu { get; init; }
+    public string? HardwareCpu { get; init; }
+    public int? HardwareRamGb { get; init; }
+    public int? HardwareVramGb { get; init; }
 }

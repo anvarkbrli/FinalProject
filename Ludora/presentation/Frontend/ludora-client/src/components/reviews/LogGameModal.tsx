@@ -23,6 +23,7 @@ import {
   getGameById,
   getGames,
 } from "../../services/gamesService";
+import { getFpsHardwareProfile } from "../../services/fpsEstimatorService";
 import {
   createReview,
   getMyGameReview,
@@ -98,6 +99,22 @@ function parsePlatformKey(value: string): {
     source,
     id,
   };
+}
+
+function isPcPlatform(
+  source: CatalogSource,
+  id: number,
+  name: string,
+): boolean {
+  const normalizedName = name.trim().toLowerCase();
+
+  return (
+    (source === "Igdb" && id === 6) ||
+    normalizedName === "pc" ||
+    normalizedName.startsWith("pc (") ||
+    normalizedName === "windows" ||
+    normalizedName.includes("microsoft windows")
+  );
 }
 
 function RatingInput({
@@ -252,14 +269,24 @@ export function LogGameModal({
   const [containsSpoilers, setContainsSpoilers] =
     useState(false);
   const [content, setContent] = useState("");
+  const [showHardwareProfile, setShowHardwareProfile] =
+    useState(false);
+  const [hardwareGpu, setHardwareGpu] = useState("");
+  const [hardwareCpu, setHardwareCpu] = useState("");
+  const [hardwareRamGb, setHardwareRamGb] =
+    useState("16");
+  const [hardwareVramGb, setHardwareVramGb] =
+    useState("");
   const [formError, setFormError] =
     useState<string | null>(null);
+  const hardwareHydratedKeyRef = useRef("");
 
   const handleClose = useCallback(() => {
     setSearchTerm("");
     setSelectedReference(null);
     setFormError(null);
     hydratedKeyRef.current = "";
+    hardwareHydratedKeyRef.current = "";
     onClose();
   }, [onClose]);
 
@@ -307,6 +334,23 @@ export function LogGameModal({
 
   const selectedGame =
     game ?? detailQuery.data ?? null;
+  const selectedPlatform =
+    selectedGame?.platforms.find(
+      (platform) =>
+        formatPlatformKey(
+          platform.source,
+          platform.id,
+        ) === platformKey,
+    ) ?? null;
+  const isPcSelected =
+    selectedPlatform !== null &&
+    isPcPlatform(
+      selectedPlatform.source,
+      selectedPlatform.id,
+      selectedPlatform.name,
+    );
+  const canShareHardware =
+    isPcSelected && content.trim().length > 0;
 
   const userGameQuery = useQuery({
     queryKey: [
@@ -340,6 +384,14 @@ export function LogGameModal({
       open &&
       selectedSource !== undefined &&
       selectedId !== undefined,
+  });
+
+  const hardwareProfileQuery = useQuery({
+    queryKey: ["fps-hardware-profile"],
+    queryFn: ({ signal }) =>
+      getFpsHardwareProfile(signal),
+    enabled: open && canShareHardware,
+    staleTime: 5 * 60 * 1000,
   });
 
   useEffect(() => {
@@ -415,6 +467,21 @@ export function LogGameModal({
           )
         : "",
     );
+    setShowHardwareProfile(
+      review?.showHardwareProfile ?? false,
+    );
+    setHardwareGpu(review?.hardwareGpu ?? "");
+    setHardwareCpu(review?.hardwareCpu ?? "");
+    setHardwareRamGb(
+      review?.hardwareRamGb?.toString() ?? "16",
+    );
+    setHardwareVramGb(
+      review?.hardwareVramGb?.toString() ?? "",
+    );
+    hardwareHydratedKeyRef.current =
+      review?.showHardwareProfile
+        ? hydrateKey
+        : "";
     setFormError(null);
     hydratedKeyRef.current = hydrateKey;
   }, [
@@ -424,6 +491,44 @@ export function LogGameModal({
     userGameQuery.isLoading,
     myReviewQuery.data,
     myReviewQuery.isLoading,
+  ]);
+
+  useEffect(() => {
+    const profile = hardwareProfileQuery.data;
+
+    if (
+      !open ||
+      !selectedGame ||
+      !canShareHardware ||
+      myReviewQuery.data?.showHardwareProfile ||
+      !profile?.isConfigured
+    ) {
+      return;
+    }
+
+    const hydrateKey = `${selectedGame.source}:${selectedGame.id}:${profile.updatedAtUtc ?? "configured"}`;
+
+    if (
+      hardwareHydratedKeyRef.current === hydrateKey
+    ) {
+      return;
+    }
+
+    setHardwareGpu(profile.gpu ?? "");
+    setHardwareCpu(profile.cpu ?? "");
+    setHardwareRamGb(
+      profile.ramGb?.toString() ?? "16",
+    );
+    setHardwareVramGb(
+      profile.vramGb?.toString() ?? "",
+    );
+    hardwareHydratedKeyRef.current = hydrateKey;
+  }, [
+    open,
+    selectedGame,
+    canShareHardware,
+    myReviewQuery.data?.showHardwareProfile,
+    hardwareProfileQuery.data,
   ]);
 
   const saveMutation = useMutation({
@@ -462,6 +567,18 @@ export function LogGameModal({
         parsedHours * 60 + parsedMinutes;
       const existingReview =
         myReviewQuery.data;
+      const shouldShareHardware =
+        canShareHardware && showHardwareProfile;
+      const trimmedHardwareGpu =
+        hardwareGpu.trim();
+      const trimmedHardwareCpu =
+        hardwareCpu.trim();
+      const parsedHardwareRam =
+        Number(hardwareRamGb);
+      const parsedHardwareVram =
+        hardwareVramGb.trim().length > 0
+          ? Number(hardwareVramGb)
+          : null;
 
       if (
         !trimmedContent &&
@@ -473,6 +590,41 @@ export function LogGameModal({
         throw new Error(
           "Status, puan, platforma, oyun müddəti və ya rəy məlumatlarından ən azı birini əlavə edin.",
         );
+      }
+
+      if (shouldShareHardware) {
+        if (!trimmedHardwareGpu) {
+          throw new Error(
+            "Sistem komponentlərini göstərmək üçün GPU daxil edin.",
+          );
+        }
+
+        if (!trimmedHardwareCpu) {
+          throw new Error(
+            "Sistem komponentlərini göstərmək üçün CPU daxil edin.",
+          );
+        }
+
+        if (
+          !Number.isInteger(parsedHardwareRam) ||
+          parsedHardwareRam < 1 ||
+          parsedHardwareRam > 512
+        ) {
+          throw new Error(
+            "RAM 1-512 GB aralığında olmalıdır.",
+          );
+        }
+
+        if (
+          parsedHardwareVram !== null &&
+          (!Number.isInteger(parsedHardwareVram) ||
+            parsedHardwareVram < 1 ||
+            parsedHardwareVram > 128)
+        ) {
+          throw new Error(
+            "VRAM 1-128 GB aralığında olmalıdır.",
+          );
+        }
       }
 
       const request = {
@@ -492,6 +644,20 @@ export function LogGameModal({
           totalMinutes > 0
             ? totalMinutes
             : null,
+        showHardwareProfile:
+          shouldShareHardware,
+        hardwareGpu: shouldShareHardware
+          ? trimmedHardwareGpu
+          : null,
+        hardwareCpu: shouldShareHardware
+          ? trimmedHardwareCpu
+          : null,
+        hardwareRamGb: shouldShareHardware
+          ? parsedHardwareRam
+          : null,
+        hardwareVramGb: shouldShareHardware
+          ? parsedHardwareVram
+          : null,
       };
 
       if (existingReview) {
@@ -911,6 +1077,154 @@ export function LogGameModal({
                   {content.length} / 10000
                 </p>
               </div>
+
+              {canShareHardware && (
+                <fieldset className="rounded-2xl border border-violet-300/10 bg-violet-500/[0.035] p-4">
+                  <legend className="px-1 text-sm font-semibold text-zinc-200">
+                    Sistem komponentləri
+                  </legend>
+
+                  <p className="mt-1 text-xs leading-5 text-zinc-600">
+                    Bu rəydə oynadığınız kompüterin komponentlərini göstərmək istəyirsiniz?
+                  </p>
+
+                  <div className="mt-3 grid grid-cols-2 gap-2">
+                    <label
+                      className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm font-semibold transition ${
+                        showHardwareProfile
+                          ? "border-violet-400/35 bg-violet-500/[0.09] text-violet-100"
+                          : "border-white/[0.07] bg-white/[0.02] text-zinc-500"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="show-review-hardware"
+                        checked={showHardwareProfile}
+                        disabled={isPending}
+                        onChange={() => {
+                          setShowHardwareProfile(true);
+                        }}
+                        className="h-4 w-4 accent-violet-500"
+                      />
+                      Bəli
+                    </label>
+
+                    <label
+                      className={`flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm font-semibold transition ${
+                        !showHardwareProfile
+                          ? "border-white/[0.14] bg-white/[0.05] text-zinc-200"
+                          : "border-white/[0.07] bg-white/[0.02] text-zinc-500"
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="show-review-hardware"
+                        checked={!showHardwareProfile}
+                        disabled={isPending}
+                        onChange={() => {
+                          setShowHardwareProfile(false);
+                        }}
+                        className="h-4 w-4 accent-violet-500"
+                      />
+                      Xeyr
+                    </label>
+                  </div>
+
+                  {showHardwareProfile && (
+                    <div className="mt-4">
+                      {hardwareProfileQuery.isLoading && (
+                        <p className="mb-3 flex items-center gap-2 text-xs text-zinc-500">
+                          <LoaderCircle
+                            size={14}
+                            className="animate-spin"
+                          />
+                          Yadda saxlanmış komponentlər yüklənir...
+                        </p>
+                      )}
+
+                      {hardwareProfileQuery.isError && (
+                        <p className="mb-3 text-xs text-amber-200/80">
+                          Yadda saxlanmış komponentləri yükləmək mümkün olmadı. Məlumatları əl ilə daxil edə bilərsiniz.
+                        </p>
+                      )}
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <label className="text-xs font-semibold text-zinc-500">
+                          GPU
+                          <input
+                            type="text"
+                            value={hardwareGpu}
+                            maxLength={150}
+                            disabled={isPending}
+                            onChange={(event) => {
+                              setHardwareGpu(
+                                event.target.value,
+                              );
+                            }}
+                            placeholder="Məsələn: RTX 3060"
+                            className="mt-2 h-11 w-full rounded-xl border border-white/[0.09] bg-[#16171d] px-3 text-sm text-zinc-200 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/45 disabled:cursor-not-allowed disabled:opacity-60"
+                          />
+                        </label>
+
+                        <label className="text-xs font-semibold text-zinc-500">
+                          CPU
+                          <input
+                            type="text"
+                            value={hardwareCpu}
+                            maxLength={150}
+                            disabled={isPending}
+                            onChange={(event) => {
+                              setHardwareCpu(
+                                event.target.value,
+                              );
+                            }}
+                            placeholder="Məsələn: Ryzen 5 5600"
+                            className="mt-2 h-11 w-full rounded-xl border border-white/[0.09] bg-[#16171d] px-3 text-sm text-zinc-200 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/45 disabled:cursor-not-allowed disabled:opacity-60"
+                          />
+                        </label>
+
+                        <label className="text-xs font-semibold text-zinc-500">
+                          RAM (GB)
+                          <input
+                            type="number"
+                            min="1"
+                            max="512"
+                            value={hardwareRamGb}
+                            disabled={isPending}
+                            onChange={(event) => {
+                              setHardwareRamGb(
+                                event.target.value,
+                              );
+                            }}
+                            className="mt-2 h-11 w-full rounded-xl border border-white/[0.09] bg-[#16171d] px-3 text-sm text-zinc-200 outline-none transition focus:border-violet-400/45 disabled:cursor-not-allowed disabled:opacity-60"
+                          />
+                        </label>
+
+                        <label className="text-xs font-semibold text-zinc-500">
+                          VRAM (GB, istəyə bağlı)
+                          <input
+                            type="number"
+                            min="1"
+                            max="128"
+                            value={hardwareVramGb}
+                            disabled={isPending}
+                            onChange={(event) => {
+                              setHardwareVramGb(
+                                event.target.value,
+                              );
+                            }}
+                            className="mt-2 h-11 w-full rounded-xl border border-white/[0.09] bg-[#16171d] px-3 text-sm text-zinc-200 outline-none transition focus:border-violet-400/45 disabled:cursor-not-allowed disabled:opacity-60"
+                          />
+                        </label>
+                      </div>
+
+                      <p className="mt-3 text-xs leading-5 text-zinc-600">
+                        Burada etdiyiniz dəyişikliklər növbəti FPS hesablamaları və PC rəyləri üçün də yadda saxlanacaq.
+                      </p>
+                    </div>
+                  )}
+                </fieldset>
+              )}
 
               <fieldset className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
                 <legend className="px-1 text-sm font-semibold text-zinc-200">

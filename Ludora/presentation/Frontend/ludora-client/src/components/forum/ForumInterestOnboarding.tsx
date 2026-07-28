@@ -2,19 +2,32 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
+  BookOpenText,
   Check,
+  ChevronDown,
+  ChevronUp,
+  Coffee,
   Gamepad2,
+  Handshake,
+  LoaderCircle,
   Search,
   Sparkles,
+  Trophy,
+  UserRound,
+  UsersRound,
   X,
 } from "lucide-react";
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { resolveAssetUrl } from "../../lib/helpers";
-import { getGames } from "../../services/gamesService";
+import {
+  getGames,
+  getIgdbGameGenres,
+} from "../../services/gamesService";
 import type { GameCatalogItemDTO } from "../../types/games";
 
 interface ForumInterestOnboardingProps {
@@ -29,6 +42,7 @@ interface SuggestedGame {
   title: string;
   subtitle: string;
   colors: string;
+  coverImageUrl?: string;
   result?: GameCatalogItemDTO;
 }
 
@@ -37,37 +51,37 @@ const playStyles = [
     id: "singleplayer",
     title: "Tək oyunçu",
     description: "Öz tempimdə, təkbaşına",
-    emoji: "◐",
+    icon: UserRound,
   },
   {
     id: "multiplayer",
     title: "Çox oyunçu",
     description: "Dostlarla və ya komanda ilə",
-    emoji: "◎",
+    icon: UsersRound,
   },
   {
     id: "competitive",
     title: "Rəqabətli",
     description: "Reytinq, turnir və inkişaf",
-    emoji: "△",
+    icon: Trophy,
   },
   {
     id: "casual",
     title: "Rahat",
     description: "Stresssiz və gündəlik oyun",
-    emoji: "☼",
+    icon: Coffee,
   },
   {
     id: "story",
     title: "Hekayə yönümlü",
     description: "Yadda qalan dünya və personajlar",
-    emoji: "◇",
+    icon: BookOpenText,
   },
   {
     id: "coop",
     title: "Birgə oyun",
     description: "Birlikdə məqsədə çatmaq",
-    emoji: "∞",
+    icon: Handshake,
   },
 ];
 
@@ -77,65 +91,95 @@ const popularGames: SuggestedGame[] = [
     title: "Red Dead Redemption 2",
     subtitle: "Açıq dünya · Macəra",
     colors: "from-red-950 via-red-700 to-amber-600",
+    coverImageUrl:
+      "https://images.igdb.com/igdb/image/upload/t_cover_big/co1q1f.jpg",
   },
   {
     key: "gta5",
     title: "Grand Theft Auto V",
     subtitle: "Açıq dünya · Aksiyon",
     colors: "from-emerald-950 via-emerald-700 to-lime-500",
+    coverImageUrl:
+      "https://images.igdb.com/igdb/image/upload/t_cover_big/co2lbd.jpg",
   },
   {
     key: "fortnite",
     title: "Fortnite",
     subtitle: "Battle Royale · Onlayn",
     colors: "from-violet-950 via-indigo-600 to-sky-500",
+    coverImageUrl:
+      "https://images.igdb.com/igdb/image/upload/t_cover_big/cocj20.jpg",
   },
   {
     key: "minecraft",
     title: "Minecraft",
     subtitle: "Sandbox · Yaradıcılıq",
     colors: "from-stone-900 via-green-700 to-lime-500",
+    coverImageUrl:
+      "https://images.igdb.com/igdb/image/upload/t_cover_big/co8fu7.jpg",
   },
   {
     key: "elden-ring",
     title: "Elden Ring",
     subtitle: "RPG · Açıq dünya",
     colors: "from-zinc-950 via-amber-900 to-yellow-600",
+    coverImageUrl:
+      "https://images.igdb.com/igdb/image/upload/t_cover_big/co4jni.jpg",
   },
   {
     key: "valorant",
     title: "VALORANT",
     subtitle: "Taktiki FPS · Rəqabətli",
     colors: "from-slate-950 via-rose-700 to-red-500",
+    coverImageUrl:
+      "https://images.igdb.com/igdb/image/upload/t_cover_big/cocbci.jpg",
   },
   {
     key: "witcher-3",
     title: "The Witcher 3",
     subtitle: "RPG · Hekayə",
     colors: "from-neutral-950 via-slate-700 to-red-800",
+    coverImageUrl:
+      "https://images.igdb.com/igdb/image/upload/t_cover_big/coaarl.jpg",
   },
   {
     key: "fc",
     title: "EA SPORTS FC",
     subtitle: "İdman · Çox oyunçu",
     colors: "from-blue-950 via-blue-600 to-cyan-400",
+    coverImageUrl:
+      "https://images.igdb.com/igdb/image/upload/t_cover_big/coa5wx.jpg",
   },
 ];
 
-const genres = [
-  "Aksiyon",
-  "Macəra",
-  "RPG",
-  "Strategiya",
-  "Simulyasiya",
-  "İdman",
-  "Yarış",
-  "Qorxu",
-  "Tapmaca",
-  "Sandbox",
-  "Shooter",
-  "Indie",
-];
+const initialVisibleGenreCount = 16;
+
+const genreLabels: Record<string, string> = {
+  Action: "Aksiyon",
+  Adventure: "Macəra",
+  Arcade: "Arkada",
+  "Card & Board Game": "Kart və stolüstü",
+  Fighting: "Döyüş",
+  "Hack and slash/Beat 'em up": "Hack and slash",
+  Indie: "Indie",
+  MOBA: "MOBA",
+  Music: "Musiqi",
+  Pinball: "Pinbol",
+  Platform: "Platformer",
+  "Point-and-click": "Point-and-click",
+  Puzzle: "Tapmaca",
+  "Quiz/Trivia": "Viktorina",
+  Racing: "Yarış",
+  "Real Time Strategy (RTS)": "Real vaxt strategiyası",
+  "Role-playing (RPG)": "RPG",
+  Shooter: "Atıcı",
+  Simulator: "Simulyasiya",
+  Sport: "İdman",
+  Strategy: "Strategiya",
+  Tactical: "Taktiki",
+  "Turn-based strategy (TBS)": "Növbəli strategiya",
+  "Visual Novel": "Vizual roman",
+};
 
 const platforms = [
   {
@@ -220,6 +264,8 @@ export function ForumInterestOnboarding({
   const [platform, setPlatform] = useState("");
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [genresExpanded, setGenresExpanded] = useState(false);
+  const firstAdditionalGenreRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -242,6 +288,19 @@ export function ForumInterestOnboarding({
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!genresExpanded) return;
+
+    const frameId = window.requestAnimationFrame(() => {
+      firstAdditionalGenreRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [genresExpanded]);
+
   const searchQuery = useQuery({
     queryKey: ["forum-onboarding-game-search", debouncedSearch],
     queryFn: ({ signal }) =>
@@ -257,6 +316,13 @@ export function ForumInterestOnboarding({
     enabled: open && step === 1 && debouncedSearch.length >= 2,
   });
 
+  const genresQuery = useQuery({
+    queryKey: ["forum-onboarding-genres", "Igdb"],
+    queryFn: ({ signal }) => getIgdbGameGenres(signal),
+    enabled: open && step === 2,
+    staleTime: 30 * 60 * 1000,
+  });
+
   const searchedGames = useMemo<SuggestedGame[]>(
     () =>
       (searchQuery.data?.items ?? []).map((game) => ({
@@ -269,6 +335,25 @@ export function ForumInterestOnboarding({
         result: game,
       })),
     [searchQuery.data],
+  );
+
+  const genreOptions = useMemo(
+    () =>
+      (genresQuery.data ?? [])
+        .filter(
+          (genre, index, items) =>
+            items.findIndex(
+              (item) =>
+                item.name.toLocaleLowerCase() ===
+                genre.name.toLocaleLowerCase(),
+            ) === index,
+        )
+        .map((genre) => ({
+          key: `${genre.source}-${genre.id}`,
+          value: genre.name,
+          label: genreLabels[genre.name] ?? genre.name,
+        })),
+    [genresQuery.data],
   );
 
   if (!open) {
@@ -321,8 +406,14 @@ export function ForumInterestOnboarding({
     setStep((current) => current + 1);
   }
 
-  const gamesToShow =
-    debouncedSearch.length >= 2 ? searchedGames : popularGames;
+  const isSearchingGames = debouncedSearch.length >= 2;
+  const gamesToShow = isSearchingGames
+    ? searchedGames
+    : popularGames;
+  const gamesAreLoading = isSearchingGames && searchQuery.isLoading;
+  const visibleGenres = genresExpanded
+    ? genreOptions
+    : genreOptions.slice(0, initialVisibleGenreCount);
 
   return (
     <div
@@ -449,6 +540,7 @@ export function ForumInterestOnboarding({
                   <div className="mt-7 grid gap-3 sm:grid-cols-2">
                     {playStyles.map((item) => {
                       const isSelected = styles.includes(item.id);
+                      const Icon = item.icon;
                       return (
                         <button
                           key={item.id}
@@ -465,13 +557,13 @@ export function ForumInterestOnboarding({
                           }`}
                         >
                           <span
-                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xl ${
+                            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${
                               isSelected
                                 ? "bg-teal-300 text-[#07100f]"
                                 : "bg-white/[0.05] text-zinc-400"
                             }`}
                           >
-                            {item.emoji}
+                            <Icon size={21} strokeWidth={1.9} />
                           </span>
                           <span>
                             <span className="block text-sm font-bold text-zinc-100">
@@ -528,7 +620,7 @@ export function ForumInterestOnboarding({
                       </span>
                     </div>
 
-                    {searchQuery.isLoading ? (
+                    {gamesAreLoading ? (
                       <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
                         {Array.from({ length: 4 }).map((_, index) => (
                           <div
@@ -557,6 +649,9 @@ export function ForumInterestOnboarding({
                           const isSelected = selectedGames.some(
                             (item) => item.key === game.key,
                           );
+                          const coverImageUrl =
+                            game.result?.coverImageUrl ??
+                            game.coverImageUrl;
                           return (
                             <button
                               key={game.key}
@@ -568,19 +663,21 @@ export function ForumInterestOnboarding({
                                   : "border-white/[0.08] hover:-translate-y-0.5 hover:border-white/20"
                               }`}
                             >
-                              {game.result?.coverImageUrl ? (
+                              <span
+                                className={`absolute inset-0 bg-gradient-to-br ${game.colors}`}
+                              />
+                              {coverImageUrl && (
                                 <img
                                   src={
                                     resolveAssetUrl(
-                                      game.result.coverImageUrl,
+                                      coverImageUrl,
                                     ) ?? undefined
                                   }
-                                  alt=""
+                                  alt={`${game.title} örtük şəkli`}
+                                  onError={(event) => {
+                                    event.currentTarget.style.display = "none";
+                                  }}
                                   className="absolute inset-0 h-full w-full object-cover"
-                                />
-                              ) : (
-                                <span
-                                  className={`absolute inset-0 bg-gradient-to-br ${game.colors}`}
                                 />
                               )}
                               <span className="absolute inset-0 bg-gradient-to-t from-black via-black/35 to-transparent" />
@@ -625,32 +722,93 @@ export function ForumInterestOnboarding({
                 )}
 
                 {step === 2 && (
-                  <div className="mt-7 flex flex-wrap gap-3">
-                    {genres.map((genre) => {
-                      const isSelected =
-                        selectedGenres.includes(genre);
-                      return (
+                  <div className="mt-7">
+                    {genresQuery.isLoading ? (
+                      <div className="flex min-h-40 items-center justify-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] text-sm text-zinc-500">
+                        <LoaderCircle size={18} className="animate-spin" />
+                        IGDB janrları yüklənir...
+                      </div>
+                    ) : genresQuery.isError ? (
+                      <div className="rounded-2xl border border-rose-400/15 bg-rose-400/[0.05] p-6 text-center">
+                        <p className="text-sm font-semibold text-rose-200">
+                          IGDB janrlarını yükləmək mümkün olmadı.
+                        </p>
                         <button
-                          key={genre}
                           type="button"
-                          onClick={() =>
-                            setSelectedGenres((current) =>
-                              toggleValue(current, genre),
-                            )
-                          }
-                          className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
-                            isSelected
-                              ? "border-teal-300/45 bg-teal-300/[0.11] text-teal-100"
-                              : "border-white/[0.08] bg-white/[0.025] text-zinc-400 hover:border-white/[0.16] hover:text-white"
-                          }`}
+                          onClick={() => void genresQuery.refetch()}
+                          className="mt-3 rounded-xl border border-rose-300/15 px-3 py-2 text-xs font-bold text-rose-200 transition hover:bg-rose-300/[0.07]"
                         >
-                          {isSelected && (
-                            <Check size={14} strokeWidth={3} />
-                          )}
-                          {genre}
+                          Yenidən yoxla
                         </button>
-                      );
-                    })}
+                      </div>
+                    ) : genreOptions.length === 0 ? (
+                      <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-zinc-500">
+                        IGDB-dən janr tapılmadı.
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex flex-wrap gap-3">
+                          {visibleGenres.map((genre, index) => {
+                            const isSelected =
+                              selectedGenres.includes(genre.value);
+                            return (
+                              <button
+                                key={genre.key}
+                                ref={
+                                  genresExpanded &&
+                                  index === initialVisibleGenreCount
+                                    ? firstAdditionalGenreRef
+                                    : undefined
+                                }
+                                type="button"
+                                onClick={() =>
+                                  setSelectedGenres((current) =>
+                                    toggleValue(current, genre.value),
+                                  )
+                                }
+                                className={`flex items-center gap-2 rounded-2xl border px-4 py-3 text-sm font-semibold transition ${
+                                  isSelected
+                                    ? "border-teal-300/45 bg-teal-300/[0.11] text-teal-100"
+                                    : "border-white/[0.08] bg-white/[0.025] text-zinc-400 hover:border-white/[0.16] hover:text-white"
+                                }`}
+                              >
+                                {isSelected && (
+                                  <Check size={14} strokeWidth={3} />
+                                )}
+                                {genre.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {genreOptions.length > initialVisibleGenreCount && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (genresExpanded) {
+                                setGenresExpanded(false);
+                                return;
+                              }
+
+                              setGenresExpanded(true);
+                            }}
+                            className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl border border-teal-300/20 bg-teal-300/[0.06] px-4 text-xs font-bold text-teal-200 transition hover:bg-teal-300/[0.11]"
+                          >
+                            {genresExpanded ? (
+                              <>
+                                Daha az göstər
+                                <ChevronUp size={15} />
+                              </>
+                            ) : (
+                              <>
+                                Daha çox ({genreOptions.length - initialVisibleGenreCount})
+                                <ChevronDown size={15} />
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
                 )}
 

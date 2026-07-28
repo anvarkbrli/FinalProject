@@ -5,13 +5,11 @@ import {
   CircleAlert,
   Eye,
   Filter,
-  Search,
   ShieldAlert,
   UsersRound,
 } from "lucide-react";
-import type { FormEvent } from "react";
-import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { AdminLiveSearch } from "../../components/admin/AdminLiveSearch";
 import { getApiErrorMessage } from "../../lib/api";
 import {
   formatDate,
@@ -24,9 +22,6 @@ const pageSize = 20;
 
 export function AdminUsersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [searchText, setSearchText] = useState(
-    searchParams.get("search") ?? "",
-  );
 
   const pageNumber = Math.max(
     1,
@@ -65,11 +60,6 @@ export function AdminUsersPage() {
     setSearchParams(next);
   }
 
-  function handleSearch(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    updateParam("search", searchText.trim());
-  }
-
   function setPage(nextPage: number) {
     const next = new URLSearchParams(searchParams);
     if (nextPage <= 1) next.delete("page");
@@ -104,25 +94,10 @@ export function AdminUsersPage() {
 
       <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
         <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_auto_auto_auto]">
-          <form onSubmit={handleSearch} className="relative">
-            <Search
-              size={17}
-              className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-600"
-            />
-            <input
-              type="search"
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
-              placeholder="İstifadəçi adı və ya email..."
-              className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#0a0a0e] pl-10 pr-24 text-sm text-white outline-none transition placeholder:text-zinc-700 focus:border-violet-500/50"
-            />
-            <button
-              type="submit"
-              className="absolute right-1.5 top-1.5 h-8 rounded-lg bg-violet-600 px-3 text-xs font-bold text-white transition hover:bg-violet-500"
-            >
-              Axtar
-            </button>
-          </form>
+          <AdminLiveSearch
+            placeholder="İstifadəçi adı və ya email..."
+            ariaLabel="İstifadəçilər arasında axtarış"
+          />
 
           <FilterSelect
             label="Rol"

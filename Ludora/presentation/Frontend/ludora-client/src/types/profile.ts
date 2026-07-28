@@ -193,6 +193,11 @@ export interface ReviewDTO {
   platformId: number | null;
   platformName: string | null;
   playtimeMinutes: number | null;
+  showHardwareProfile: boolean;
+  hardwareGpu: string | null;
+  hardwareCpu: string | null;
+  hardwareRamGb: number | null;
+  hardwareVramGb: number | null;
   createdAt: string;
   updatedAt: string | null;
   isMine: boolean;

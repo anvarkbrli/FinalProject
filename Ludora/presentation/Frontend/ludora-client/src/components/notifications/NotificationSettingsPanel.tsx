@@ -240,6 +240,15 @@ export function NotificationSettingsPanel() {
         </p>
       </div>
 
+      {resetMutation.isError && (
+        <div role="alert" className="mt-4 rounded-xl border border-red-400/15 bg-red-500/[0.06] px-4 py-3 text-xs text-red-200">
+          {getApiErrorMessage(
+            resetMutation.error,
+            "Bildiriş seçimləri standarta qaytarılmadı.",
+          )}
+        </div>
+      )}
+
       {settingsQuery.isLoading ? (
         <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-zinc-500">
           <LoaderCircle size={17} className="animate-spin" />
@@ -286,31 +295,51 @@ export function NotificationSettingsPanel() {
                         </p>
                       </div>
 
-                      <div className="relative shrink-0">
-                        <select
-                          aria-label={`${definition.title} bildiriş auditoriyası`}
-                          value={preference?.audience ?? "Everyone"}
-                          disabled={isPending}
-                          onChange={(event) =>
-                            updateMutation.mutate({
-                              type: definition.type,
-                              audience: event.target.value as NotificationAudience,
-                            })
-                          }
-                          className="h-10 min-w-44 appearance-none rounded-xl border border-white/[0.08] bg-[#15151b] px-3 pr-9 text-xs font-semibold text-zinc-300 outline-none transition focus:border-violet-400/50 disabled:opacity-50"
-                        >
-                          {audienceOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                        {isPending && (
-                          <LoaderCircle
-                            size={14}
-                            className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-violet-300"
-                          />
-                        )}
+                      <div className="shrink-0">
+                        <div className="relative">
+                          <select
+                            aria-label={`${definition.title} bildiriş auditoriyası`}
+                            aria-invalid={
+                              updateMutation.isError &&
+                              updateMutation.variables?.type === definition.type
+                            }
+                            value={preference?.audience ?? "Everyone"}
+                            disabled={isPending}
+                            onChange={(event) =>
+                              updateMutation.mutate({
+                                type: definition.type,
+                                audience: event.target.value as NotificationAudience,
+                              })
+                            }
+                            className={`h-10 min-w-44 appearance-none rounded-xl border bg-[#15151b] px-3 pr-9 text-xs font-semibold text-zinc-300 outline-none transition disabled:opacity-50 ${
+                              updateMutation.isError &&
+                              updateMutation.variables?.type === definition.type
+                                ? "border-red-400/40 focus:border-red-400"
+                                : "border-white/[0.08] focus:border-violet-400/50"
+                            }`}
+                          >
+                            {audienceOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                          {isPending && (
+                            <LoaderCircle
+                              size={14}
+                              className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 animate-spin text-violet-300"
+                            />
+                          )}
+                        </div>
+                        {updateMutation.isError &&
+                          updateMutation.variables?.type === definition.type && (
+                            <p role="alert" className="mt-2 max-w-44 text-xs leading-5 text-red-300">
+                              {getApiErrorMessage(
+                                updateMutation.error,
+                                "Bildiriş seçimi yenilənmədi.",
+                              )}
+                            </p>
+                          )}
                       </div>
                     </div>
                   );
@@ -318,15 +347,6 @@ export function NotificationSettingsPanel() {
               </div>
             </div>
           ))}
-        </div>
-      )}
-
-      {updateMutation.isError && (
-        <div className="mt-5 rounded-xl border border-red-400/15 bg-red-500/[0.06] px-4 py-3 text-xs text-red-200">
-          {getApiErrorMessage(
-            updateMutation.error,
-            "Bildiriş seçimi yenilənmədi.",
-          )}
         </div>
       )}
     </section>

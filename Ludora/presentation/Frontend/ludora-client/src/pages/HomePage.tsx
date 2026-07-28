@@ -1,7 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
-  BellRing,
   BookOpen,
   Gamepad2,
   ListChecks,
@@ -12,6 +11,7 @@ import { DiscussionCard } from "../components/home/DiscussionCard";
 import { DiscussionCardSkeleton } from "../components/home/DiscussionCardSkeleton";
 import { GameCard } from "../components/home/GameCard";
 import { GameCardSkeleton } from "../components/home/GameCardSkeleton";
+import { HomeAnnouncements } from "../components/home/HomeAnnouncements";
 import { HomeDiscoverySection } from "../components/home/HomeDiscoverySection";
 import { UserWelcomePanel } from "../components/home/UserWelcomePanel";
 import { Footer } from "../components/layout/Footer";
@@ -21,7 +21,6 @@ import {
   getFeaturedGames,
   getForumCategories,
   getHomeDiscovery,
-  getLatestAnnouncement,
   getTrendingDiscussions,
 } from "../services/homeService";
 import type { GameListItemDTO } from "../types/home";
@@ -95,17 +94,9 @@ export function HomePage() {
     queryFn: getForumCategories,
   });
 
-  const announcementQuery = useQuery({
-    queryKey: ["homepage", "latest-announcement"],
-    queryFn: getLatestAnnouncement,
-  });
-
   const games = gamesQuery.data ?? [];
   const discussions = discussionsQuery.data?.items ?? [];
   const categories = categoriesQuery.data ?? [];
-
-  const latestAnnouncement =
-    announcementQuery.data?.items[0] ?? null;
 
   const homeDiscussions = [...discussions]
     .sort((firstDiscussion, secondDiscussion) => {
@@ -137,28 +128,7 @@ export function HomePage() {
       <Navbar />
 
       <main>
-        {latestAnnouncement && (
-          <section className="border-b border-violet-400/10 bg-violet-500/[0.06]">
-            <div className="mx-auto flex max-w-7xl items-center gap-3 px-5 py-3 lg:px-8">
-              <BellRing
-                size={17}
-                className="shrink-0 text-violet-300"
-              />
-
-              <p className="min-w-0 truncate text-sm text-zinc-300">
-                <span className="font-semibold text-violet-200">
-                  {latestAnnouncement.title}
-                </span>
-
-                <span className="mx-2 text-zinc-600">
-                  —
-                </span>
-
-                <span>{latestAnnouncement.content}</span>
-              </p>
-            </div>
-          </section>
-        )}
+        <HomeAnnouncements />
 
         <UserWelcomePanel />
 

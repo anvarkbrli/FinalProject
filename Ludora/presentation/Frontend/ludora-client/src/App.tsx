@@ -114,6 +114,11 @@ const AdminPostsPage = lazy(() =>
     default: module.AdminPostsPage,
   })),
 );
+const AdminAnnouncementsPage = lazy(() =>
+  import("./pages/admin/AdminAnnouncementsPage").then((module) => ({
+    default: module.AdminAnnouncementsPage,
+  })),
+);
 
 function RouteFallback() {
   return (
@@ -210,6 +215,10 @@ function App() {
             element={<AdminReportedUserPage />}
           />
           <Route path="posts" element={<AdminPostsPage />} />
+          <Route
+            path="announcements"
+            element={<AdminAnnouncementsPage />}
+          />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

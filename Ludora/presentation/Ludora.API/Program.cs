@@ -11,7 +11,7 @@ using Ludora.Application.Interfaces;
 using Ludora.Application.Settings;
 using Ludora.Domain.Entities.User;
 using Ludora.Infrastructure.Email;
-using Ludora.Infrastructure.Groq;
+using Ludora.Infrastructure.FpsResearch;
 using Ludora.Infrastructure.IGDB;
 using Ludora.Infrastructure.Steam;
 using Ludora.Persistence.ServiceRegistration;
@@ -289,7 +289,7 @@ public class Program
         builder.Services.AddPersistenceServices(builder.Configuration);
         builder.Services.AddEmailInfrastructure(builder.Configuration);
         builder.Services.AddIgdbIntegration(builder.Configuration);
-        builder.Services.AddGroqIntegration(builder.Configuration);
+        builder.Services.AddFpsResearchIntegration(builder.Configuration);
         builder.Services.AddSteamIntegration(builder.Configuration);
 
         var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];

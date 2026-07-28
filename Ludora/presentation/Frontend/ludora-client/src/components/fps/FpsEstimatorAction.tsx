@@ -12,11 +12,13 @@ import { FpsEstimatorModal } from "./FpsEstimatorModal";
 interface FpsEstimatorActionProps {
   gameId: number;
   gameName: string;
+  gameReleaseYear?: number;
 }
 
 export function FpsEstimatorAction({
   gameId,
   gameName,
+  gameReleaseYear,
 }: FpsEstimatorActionProps) {
   const [isOpen, setIsOpen] = useState(false);
   const buttonRef =
@@ -70,11 +72,12 @@ export function FpsEstimatorAction({
       </div>
 
       <FpsEstimatorModal
-        key={`${gameId}:${gameName}`}
+        key={`${gameId}:${gameName}:${gameReleaseYear ?? "unknown"}`}
         isOpen={isOpen}
         isAuthenticated={isAuthenticated}
         gameId={gameId}
         gameName={gameName}
+        gameReleaseYear={gameReleaseYear}
         onClose={handleClose}
       />
     </>

@@ -11,6 +11,9 @@ public sealed class FpsEstimateRequestDTO
     [StringLength(150, ErrorMessage = "Oyun adı maksimum 150 simvol ola bilər.")]
     public string GameName { get; set; } = string.Empty;
 
+    [Range(1950, 2100, ErrorMessage = "Oyunun buraxılış ili düzgün deyil.")]
+    public int? GameReleaseYear { get; set; }
+
     [Required(ErrorMessage = "GPU boş ola bilməz.")]
     [StringLength(150, ErrorMessage = "GPU adı maksimum 150 simvol ola bilər.")]
     public string Gpu { get; set; } = string.Empty;

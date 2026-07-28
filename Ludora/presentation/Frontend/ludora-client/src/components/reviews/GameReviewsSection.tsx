@@ -36,6 +36,7 @@ import type {
   ReviewSort,
 } from "../../types/reviews";
 import { ReviewCommentsPanel } from "./ReviewCommentsPanel";
+import { ReviewHardwareSummary } from "./ReviewHardwareSummary";
 import { ReviewLikesModal } from "./ReviewLikesModal";
 
 const sortOptions: Array<{
@@ -352,7 +353,7 @@ export function GameReviewsSection({
                     )}
                   </div>
 
-                  <div className="flex flex-1 p-5 pt-4">
+                  <div className="flex-1 p-5 pt-4">
                     {review.containsSpoilers &&
                     !review.isMine &&
                     !isSpoilerRevealed ? (
@@ -389,6 +390,15 @@ export function GameReviewsSection({
                       <p className="whitespace-pre-wrap text-sm leading-7 text-zinc-300">
                         {review.content}
                       </p>
+                    )}
+
+                    {review.showHardwareProfile && (
+                      <ReviewHardwareSummary
+                        gpu={review.hardwareGpu}
+                        cpu={review.hardwareCpu}
+                        ramGb={review.hardwareRamGb}
+                        vramGb={review.hardwareVramGb}
+                      />
                     )}
                   </div>
 

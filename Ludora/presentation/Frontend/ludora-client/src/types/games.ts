@@ -62,6 +62,8 @@ export interface GameCatalogFilterDTO {
 
 export interface RelatedGamesDTO {
   parentGame: GameListItemDTO | null;
+  seriesGames: GameListItemDTO[];
+  franchiseGames: GameListItemDTO[];
   dlcs: GameListItemDTO[];
   expansions: GameListItemDTO[];
   standaloneExpansions: GameListItemDTO[];

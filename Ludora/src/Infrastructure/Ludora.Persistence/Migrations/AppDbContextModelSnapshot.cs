@@ -2467,6 +2467,20 @@ namespace Ludora.Persistence.Migrations
                     b.Property<long>("GameId")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("HardwareCpuName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<string>("HardwareGpuName")
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<int?>("HardwareRamGb")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("HardwareVramGb")
+                        .HasColumnType("int");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
@@ -2497,6 +2511,11 @@ namespace Ludora.Persistence.Migrations
                     b.Property<int?>("PlaytimeMinutes")
                         .HasColumnType("int");
 
+                    b.Property<bool>("ShowHardwareProfile")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("Source")
                         .HasColumnType("int");
 
@@ -2520,6 +2539,10 @@ namespace Ludora.Persistence.Migrations
                     b.ToTable("Reviews", t =>
                         {
                             t.HasCheckConstraint("CK_Reviews_GameReference", "[GameId] > 0 AND [Source] IN (1, 2) AND ([Source] <> 1 OR [GameId] <= 2147483647)");
+
+                            t.HasCheckConstraint("CK_Reviews_HardwareRamGb", "[HardwareRamGb] IS NULL OR ([HardwareRamGb] >= 1 AND [HardwareRamGb] <= 512)");
+
+                            t.HasCheckConstraint("CK_Reviews_HardwareVramGb", "[HardwareVramGb] IS NULL OR ([HardwareVramGb] >= 1 AND [HardwareVramGb] <= 128)");
 
                             t.HasCheckConstraint("CK_Reviews_PlatformReference", "([PlatformSource] IS NULL AND [PlatformId] IS NULL) OR ([PlatformSource] IN (1, 2) AND [PlatformId] > 0 AND ([PlatformSource] <> 1 OR [PlatformId] <= 2147483647))");
 

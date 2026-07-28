@@ -21,13 +21,13 @@ import {
   UserX,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
 import { NotificationSettingsPanel } from "../components/notifications/NotificationSettingsPanel";
 import { EditProfilePage } from "./EditProfilePage";
-import { getApiErrorMessage } from "../lib/api";
+import { getApiErrorMessage, getApiFieldErrors } from "../lib/api";
 import { useConfirmation } from "../lib/confirmation";
 import { applyTheme, getActiveTheme, type WellPlaydTheme } from "../lib/theme";
 import {
@@ -112,6 +112,95 @@ interface NoticeState {
   message: string;
 }
 
+type NoticeArea =
+  | "privacy"
+  | "appearance"
+  | "email"
+  | "password"
+  | "delete"
+  | "integrations"
+  | "blocked";
+
+type SettingsField =
+  | "newEmail"
+  | "emailPassword"
+  | "passwordCurrent"
+  | "newPassword"
+  | "confirmNewPassword"
+  | "deletePassword"
+  | "deleteConfirmation";
+
+type SettingsFieldErrors = Partial<Record<SettingsField, string>>;
+
+function normalizeApiFieldName(value: string): string {
+  return value
+    .split(".")
+    .at(-1)!
+    .replace(/[^a-z0-9]/gi, "")
+    .toLocaleLowerCase();
+}
+
+function getValidationMessage(
+  error: unknown,
+  ...fieldNames: string[]
+): string | null {
+  const expectedNames = new Set(
+    fieldNames.map((fieldName) => normalizeApiFieldName(fieldName)),
+  );
+
+  for (const [fieldName, messages] of Object.entries(getApiFieldErrors(error))) {
+    if (!expectedNames.has(normalizeApiFieldName(fieldName))) continue;
+
+    const message = messages.find(Boolean);
+    if (message) return message;
+  }
+
+  return null;
+}
+
+function containsAny(value: string, fragments: string[]): boolean {
+  const normalizedValue = value.toLocaleLowerCase("az-AZ");
+  return fragments.some((fragment) => normalizedValue.includes(fragment));
+}
+
+function InlineFieldError({
+  id,
+  message,
+}: {
+  id: string;
+  message?: string;
+}) {
+  if (!message) return null;
+
+  return (
+    <p id={id} role="alert" className="mt-2 text-xs leading-5 text-red-300">
+      {message}
+    </p>
+  );
+}
+
+function LocalNotice({ notice }: { notice?: NoticeState }) {
+  if (!notice) return null;
+
+  return (
+    <div
+      role={notice.type === "error" ? "alert" : "status"}
+      className={`mt-4 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
+        notice.type === "success"
+          ? "border-emerald-400/15 bg-emerald-500/[0.06] text-emerald-200"
+          : "border-red-400/15 bg-red-500/[0.06] text-red-200"
+      }`}
+    >
+      {notice.type === "success" ? (
+        <Check size={17} className="mt-0.5 shrink-0" />
+      ) : (
+        <X size={17} className="mt-0.5 shrink-0" />
+      )}
+      <span>{notice.message}</span>
+    </div>
+  );
+}
+
 function getInitialSteamNotice(): NoticeState | null {
   const query = new URLSearchParams(window.location.search);
 
@@ -143,16 +232,174 @@ export function SettingsPage() {
   const [passwordCurrent, setPasswordCurrent] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
-  const [notice, setNotice] = useState<NoticeState | null>(getInitialSteamNotice);
+  const [notices, setNotices] = useState<Partial<Record<NoticeArea, NoticeState>>>(
+    () => {
+      const steamNotice = getInitialSteamNotice();
+      return steamNotice ? { integrations: steamNotice } : {};
+    },
+  );
+  const [fieldErrors, setFieldErrors] = useState<SettingsFieldErrors>({});
   const [theme, setTheme] = useState<WellPlaydTheme>(() => getActiveTheme());
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
+  const setAreaNotice = useCallback((area: NoticeArea, notice: NoticeState | null) => {
+    setNotices((current) => {
+      const next = { ...current };
+      if (notice) next[area] = notice;
+      else delete next[area];
+      return next;
+    });
+  }, []);
+
+  const clearFieldError = (field: SettingsField) => {
+    setFieldErrors((current) => {
+      if (!current[field]) return current;
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
+  };
+
+  const applyEmailError = (error: unknown) => {
+    const message = getApiErrorMessage(
+      error,
+      "Email dəyişiklik sorğusu göndərilmədi.",
+    );
+    const nextErrors: SettingsFieldErrors = {};
+    const newEmailError = getValidationMessage(error, "NewEmail");
+    const currentPasswordError = getValidationMessage(error, "CurrentPassword");
+
+    if (newEmailError) nextErrors.newEmail = newEmailError;
+    if (currentPasswordError) nextErrors.emailPassword = currentPasswordError;
+
+    if (!newEmailError && !currentPasswordError) {
+      if (
+        containsAny(message, [
+          "cari şifrə",
+          "current password",
+          "password is incorrect",
+          "incorrect password",
+        ])
+      ) {
+        nextErrors.emailPassword = message;
+      } else if (containsAny(message, ["email", "e-mail"])) {
+        nextErrors.newEmail = message;
+      }
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors((current) => ({ ...current, ...nextErrors }));
+      setAreaNotice("email", null);
+      return;
+    }
+
+    setAreaNotice("email", { type: "error", message });
+  };
+
+  const applyPasswordError = (error: unknown) => {
+    const message = getApiErrorMessage(error, "Şifrə dəyişdirilmədi.");
+    const nextErrors: SettingsFieldErrors = {};
+    const currentPasswordError = getValidationMessage(error, "CurrentPassword");
+    const newPasswordError = getValidationMessage(error, "NewPassword");
+    const confirmationError = getValidationMessage(error, "ConfirmNewPassword");
+
+    if (currentPasswordError) nextErrors.passwordCurrent = currentPasswordError;
+    if (newPasswordError) nextErrors.newPassword = newPasswordError;
+    if (confirmationError) {
+      nextErrors.confirmNewPassword = confirmationError;
+    }
+
+    if (!currentPasswordError && !newPasswordError && !confirmationError) {
+      if (
+        containsAny(message, [
+          "cari şifrə",
+          "current password",
+          "password is incorrect",
+          "incorrect password",
+        ])
+      ) {
+        nextErrors.passwordCurrent = message;
+      } else if (
+        containsAny(message, [
+          "təkrar",
+          "təsdiq",
+          "confirm",
+          "passwords do not match",
+        ])
+      ) {
+        nextErrors.confirmNewPassword = message;
+      } else if (
+        containsAny(message, [
+          "yeni şifrə",
+          "password must",
+          "password requires",
+          "passwords must",
+          "too short",
+        ])
+      ) {
+        nextErrors.newPassword = message;
+      }
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors((current) => ({ ...current, ...nextErrors }));
+      setAreaNotice("password", null);
+      return;
+    }
+
+    setAreaNotice("password", { type: "error", message });
+  };
+
+  const applyDeleteAccountError = (error: unknown) => {
+    const message = getApiErrorMessage(
+      error,
+      "Hesab silinməsi başladılmadı.",
+    );
+    const nextErrors: SettingsFieldErrors = {};
+    const currentPasswordError = getValidationMessage(error, "CurrentPassword");
+    const confirmationError = getValidationMessage(error, "ConfirmationText");
+
+    if (currentPasswordError) nextErrors.deletePassword = currentPasswordError;
+    if (confirmationError) {
+      nextErrors.deleteConfirmation = confirmationError;
+    }
+
+    if (!currentPasswordError && !confirmationError) {
+      if (
+        containsAny(message, [
+          "cari şifrə",
+          "current password",
+          "password is incorrect",
+          "incorrect password",
+        ])
+      ) {
+        nextErrors.deletePassword = message;
+      } else if (
+        containsAny(message, [
+          "istifadəçi ad",
+          "confirmation",
+          "təsdiq",
+        ])
+      ) {
+        nextErrors.deleteConfirmation = message;
+      }
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setFieldErrors((current) => ({ ...current, ...nextErrors }));
+      setAreaNotice("delete", null);
+      return;
+    }
+
+    setAreaNotice("delete", { type: "error", message });
+  };
+
   const selectTheme = (nextTheme: WellPlaydTheme) => {
     applyTheme(nextTheme);
     setTheme(nextTheme);
-    setNotice({
+    setAreaNotice("appearance", {
       type: "success",
       message: nextTheme === "dark"
         ? "Tünd görünüş aktiv edildi."
@@ -215,14 +462,17 @@ export function SettingsPage() {
       if (userQuery.data) {
         setUser({ ...userQuery.data, isPrivate: settings.isPrivate });
       }
-      setNotice({ type: "success", message: "Məxfilik seçimi yeniləndi." });
+      setAreaNotice("privacy", {
+        type: "success",
+        message: "Məxfilik seçimi yeniləndi.",
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["user-settings"] }),
         queryClient.invalidateQueries({ queryKey: ["current-user"] }),
         queryClient.invalidateQueries({ queryKey: ["user-profile"] }),
       ]);
     },
-    onError: (error) => setNotice({
+    onError: (error) => setAreaNotice("privacy", {
       type: "error",
       message: getApiErrorMessage(error, "Məxfilik seçimi yenilənmədi."),
     }),
@@ -233,12 +483,14 @@ export function SettingsPage() {
     onSuccess: (result) => {
       setNewEmail("");
       setEmailPassword("");
-      setNotice({ type: "success", message: result.message });
+      setFieldErrors((current) => ({
+        ...current,
+        newEmail: undefined,
+        emailPassword: undefined,
+      }));
+      setAreaNotice("email", { type: "success", message: result.message });
     },
-    onError: (error) => setNotice({
-      type: "error",
-      message: getApiErrorMessage(error, "Email dəyişiklik sorğusu göndərilmədi."),
-    }),
+    onError: applyEmailError,
   });
 
 
@@ -248,12 +500,15 @@ export function SettingsPage() {
       setPasswordCurrent("");
       setNewPassword("");
       setConfirmNewPassword("");
-      setNotice({ type: "success", message: result.message });
+      setFieldErrors((current) => ({
+        ...current,
+        passwordCurrent: undefined,
+        newPassword: undefined,
+        confirmNewPassword: undefined,
+      }));
+      setAreaNotice("password", { type: "success", message: result.message });
     },
-    onError: (error) => setNotice({
-      type: "error",
-      message: getApiErrorMessage(error, "Şifrə dəyişdirilmədi."),
-    }),
+    onError: applyPasswordError,
   });
 
   const deleteAccountMutation = useMutation({
@@ -271,19 +526,19 @@ export function SettingsPage() {
         },
       });
     },
-    onError: (error) => setNotice({
-      type: "error",
-      message: getApiErrorMessage(error, "Hesab silinməsi başladılmadı."),
-    }),
+    onError: applyDeleteAccountError,
   });
 
   const unblockMutation = useMutation({
     mutationFn: unblockUser,
     onSuccess: async () => {
-      setNotice({ type: "success", message: "İstifadəçinin bloku açıldı." });
+      setAreaNotice("blocked", {
+        type: "success",
+        message: "İstifadəçinin bloku açıldı.",
+      });
       await queryClient.invalidateQueries({ queryKey: ["blocked-users"] });
     },
-    onError: (error) => setNotice({
+    onError: (error) => setAreaNotice("blocked", {
       type: "error",
       message: getApiErrorMessage(error, "İstifadəçinin bloku açılmadı."),
     }),
@@ -299,7 +554,7 @@ export function SettingsPage() {
     },
     onError: (error, popup) => {
       popup.close();
-      setNotice({
+      setAreaNotice("integrations", {
         type: "error",
         message: getApiErrorMessage(error, "Steam bağlantısı başladılmadı."),
       });
@@ -309,10 +564,13 @@ export function SettingsPage() {
   const steamDisconnectMutation = useMutation({
     mutationFn: disconnectSteam,
     onSuccess: async () => {
-      setNotice({ type: "success", message: "Steam hesabı ayrıldı." });
+      setAreaNotice("integrations", {
+        type: "success",
+        message: "Steam hesabı ayrıldı.",
+      });
       await queryClient.invalidateQueries({ queryKey: ["steam-connection"] });
     },
-    onError: (error) => setNotice({
+    onError: (error) => setAreaNotice("integrations", {
       type: "error",
       message: getApiErrorMessage(error, "Steam hesabı ayrıla bilmədi."),
     }),
@@ -321,7 +579,7 @@ export function SettingsPage() {
   const steamSyncMutation = useMutation({
     mutationFn: syncSteamOwnedGames,
     onSuccess: async (result) => {
-      setNotice({
+      setAreaNotice("integrations", {
         type: "success",
         message: `Steam kitabxanası sinxronlaşdırıldı: ${result.matchedGameCount} oyun uyğunlaşdırıldı, ${result.updatedReviewPlaytimeCount} oyun saatı Steam məlumatı ilə eyniləşdirildi.`,
       });
@@ -335,7 +593,7 @@ export function SettingsPage() {
         queryClient.invalidateQueries({ queryKey: ["user-reviews"] }),
       ]);
     },
-    onError: (error) => setNotice({
+    onError: (error) => setAreaNotice("integrations", {
       type: "error",
       message: getApiErrorMessage(error, "Steam kitabxanası sinxronlaşdırılmadı."),
     }),
@@ -355,7 +613,7 @@ export function SettingsPage() {
       if (event.data?.type !== "wellplayd:steam-link-result") return;
 
       if (event.data.success) {
-        setNotice({
+        setAreaNotice("integrations", {
           type: "success",
           message: `${event.data.steamName ?? "Steam hesabı"} uğurla bağlandı.`,
         });
@@ -364,7 +622,7 @@ export function SettingsPage() {
         return;
       }
 
-      setNotice({
+      setAreaNotice("integrations", {
         type: "error",
         message: event.data.error ?? "Steam hesabı bağlanmadı.",
       });
@@ -372,7 +630,7 @@ export function SettingsPage() {
 
     window.addEventListener("message", handleSteamMessage);
     return () => window.removeEventListener("message", handleSteamMessage);
-  }, [queryClient, setSearchParams]);
+  }, [queryClient, setAreaNotice, setSearchParams]);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -425,17 +683,6 @@ export function SettingsPage() {
           </div>
         </div>
 
-        {notice && (
-          <div className={`mt-6 flex items-start gap-3 rounded-2xl border px-4 py-3 text-sm ${
-            notice.type === "success"
-              ? "border-emerald-400/15 bg-emerald-500/[0.06] text-emerald-200"
-              : "border-red-400/15 bg-red-500/[0.06] text-red-200"
-          }`}>
-            {notice.type === "success" ? <Check size={18} /> : <X size={18} />}
-            {notice.message}
-          </div>
-        )}
-
         <div className="mt-7 grid items-start gap-6 lg:grid-cols-[17rem_minmax(0,1fr)]">
           <aside className="overflow-hidden rounded-3xl border border-white/[0.07] bg-[#101015] p-2 lg:sticky lg:top-24">
             <nav aria-label="Parametr bölmələri" className="space-y-1">
@@ -448,7 +695,6 @@ export function SettingsPage() {
                     key={section.id}
                     type="button"
                     onClick={() => {
-                      setNotice(null);
                       setSearchParams(
                         { section: section.id },
                         { replace: true },
@@ -515,6 +761,15 @@ export function SettingsPage() {
                 <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition ${settings.isPrivate ? "left-7" : "left-1"}`} />
               </button>
             </div>
+            {settingsQuery.isError && (
+              <div role="alert" className="mt-4 rounded-xl border border-red-400/15 bg-red-500/[0.06] px-4 py-3 text-sm text-red-200">
+                {getApiErrorMessage(
+                  settingsQuery.error,
+                  "Məxfilik seçimi yüklənmədi.",
+                )}
+              </div>
+            )}
+            <LocalNotice notice={notices.privacy} />
           </section>
           )}
 
@@ -629,6 +884,7 @@ export function SettingsPage() {
                 </span>
               </button>
             </div>
+            <LocalNotice notice={notices.appearance} />
           </section>
           )}
 
@@ -663,6 +919,13 @@ export function SettingsPage() {
               {steamConnectionQuery.isLoading ? (
                 <div className="flex items-center gap-2 text-sm text-zinc-500">
                   <LoaderCircle size={17} className="animate-spin" /> Steam statusu yoxlanılır...
+                </div>
+              ) : steamConnectionQuery.isError ? (
+                <div role="alert" className="rounded-xl border border-red-400/15 bg-red-500/[0.06] px-4 py-3 text-sm text-red-200">
+                  {getApiErrorMessage(
+                    steamConnectionQuery.error,
+                    "Steam bağlantısının vəziyyəti yoxlanılmadı.",
+                  )}
                 </div>
               ) : steamConnectionQuery.data?.isConnected ? (
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -766,7 +1029,7 @@ export function SettingsPage() {
                       );
 
                       if (!popup) {
-                        setNotice({
+                        setAreaNotice("integrations", {
                           type: "error",
                           message: "Brauzer Steam bağlantı pəncərəsini blokladı. Popup icazəsini aktiv edin.",
                         });
@@ -790,6 +1053,7 @@ export function SettingsPage() {
                 </div>
               )}
             </div>
+            <LocalNotice notice={notices.integrations} />
           </section>
           )}
 
@@ -808,9 +1072,20 @@ export function SettingsPage() {
                 <input
                   type="email"
                   value={newEmail}
-                  onChange={(event) => setNewEmail(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-sm text-zinc-100 outline-none focus:border-violet-400/50"
+                  aria-invalid={Boolean(fieldErrors.newEmail)}
+                  aria-describedby={fieldErrors.newEmail ? "new-email-error" : undefined}
+                  onChange={(event) => {
+                    setNewEmail(event.target.value);
+                    clearFieldError("newEmail");
+                    setAreaNotice("email", null);
+                  }}
+                  className={`mt-2 h-11 w-full rounded-xl border bg-white/[0.03] px-3 text-sm text-zinc-100 outline-none transition ${
+                    fieldErrors.newEmail
+                      ? "border-red-400/50 focus:border-red-400 focus:ring-4 focus:ring-red-500/10"
+                      : "border-white/[0.08] focus:border-violet-400/50"
+                  }`}
                 />
+                <InlineFieldError id="new-email-error" message={fieldErrors.newEmail} />
               </label>
               <label className="block">
                 <span className="text-xs font-semibold text-zinc-400">Cari şifrə</span>
@@ -818,20 +1093,49 @@ export function SettingsPage() {
                   <KeyRound size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600" />
                   <input
                     type="password"
+                    autoComplete="current-password"
                     value={emailPassword}
-                    onChange={(event) => setEmailPassword(event.target.value)}
-                    className="h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.03] pl-10 pr-3 text-sm text-zinc-100 outline-none focus:border-violet-400/50"
+                    aria-invalid={Boolean(fieldErrors.emailPassword)}
+                    aria-describedby={fieldErrors.emailPassword ? "email-password-error" : undefined}
+                    onChange={(event) => {
+                      setEmailPassword(event.target.value);
+                      clearFieldError("emailPassword");
+                      setAreaNotice("email", null);
+                    }}
+                    className={`h-11 w-full rounded-xl border bg-white/[0.03] pl-10 pr-3 text-sm text-zinc-100 outline-none transition ${
+                      fieldErrors.emailPassword
+                        ? "border-red-400/50 focus:border-red-400 focus:ring-4 focus:ring-red-500/10"
+                        : "border-white/[0.08] focus:border-violet-400/50"
+                    }`}
                   />
                 </div>
+                <InlineFieldError id="email-password-error" message={fieldErrors.emailPassword} />
               </label>
             </div>
+            <LocalNotice notice={notices.email} />
             <button
               type="button"
               onClick={() => {
-                setNotice(null);
+                const nextErrors: SettingsFieldErrors = {};
+                const normalizedEmail = newEmail.trim();
+
+                if (!normalizedEmail) {
+                  nextErrors.newEmail = "Yeni email ünvanını daxil edin.";
+                } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+                  nextErrors.newEmail = "Düzgün email ünvanı daxil edin.";
+                }
+
+                if (!emailPassword) {
+                  nextErrors.emailPassword = "Cari şifrəni daxil edin.";
+                }
+
+                setFieldErrors((current) => ({ ...current, ...nextErrors }));
+                setAreaNotice("email", null);
+                if (Object.keys(nextErrors).length > 0) return;
+
                 emailMutation.mutate({ newEmail: newEmail.trim(), currentPassword: emailPassword });
               }}
-              disabled={emailMutation.isPending || !newEmail.trim() || !emailPassword}
+              disabled={emailMutation.isPending}
               className="mt-4 flex h-11 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
             >
               {emailMutation.isPending ? <LoaderCircle size={17} className="animate-spin" /> : <Mail size={17} />}
@@ -852,15 +1156,50 @@ export function SettingsPage() {
             <div className="mt-5 space-y-3">
               {blockedUsersQuery.isLoading ? (
                 <div className="flex items-center gap-2 text-sm text-zinc-600"><LoaderCircle size={16} className="animate-spin" /> Yüklənir...</div>
+              ) : blockedUsersQuery.isError ? (
+                <div role="alert" className="rounded-xl border border-red-400/15 bg-red-500/[0.06] px-4 py-3 text-sm text-red-200">
+                  {getApiErrorMessage(
+                    blockedUsersQuery.error,
+                    "Bloklanmış istifadəçilər yüklənmədi.",
+                  )}
+                </div>
               ) : (blockedUsersQuery.data?.length ?? 0) === 0 ? (
                 <p className="rounded-2xl border border-dashed border-white/[0.07] p-5 text-sm text-zinc-600">Bloklanmış hesab yoxdur.</p>
               ) : blockedUsersQuery.data?.map((blockedUser) => (
-                <div key={blockedUser.id} className="flex items-center justify-between gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
-                  <Link to={`/users/${blockedUser.userName}`} className="font-semibold text-zinc-200 hover:text-violet-300">{blockedUser.userName}</Link>
-                  <button type="button" onClick={() => unblockMutation.mutate(blockedUser.id)} className="flex h-9 items-center gap-2 rounded-lg border border-red-400/10 bg-red-500/[0.04] px-3 text-xs font-semibold text-red-300"><UserX size={15} /> Bloku aç</button>
+                <div key={blockedUser.id} className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
+                  <div className="flex items-center justify-between gap-4">
+                    <Link to={`/users/${blockedUser.userName}`} className="font-semibold text-zinc-200 hover:text-violet-300">{blockedUser.userName}</Link>
+                    <button
+                      type="button"
+                      disabled={
+                        unblockMutation.isPending &&
+                        unblockMutation.variables === blockedUser.id
+                      }
+                      onClick={() => {
+                        setAreaNotice("blocked", null);
+                        unblockMutation.mutate(blockedUser.id);
+                      }}
+                      className="flex h-9 items-center gap-2 rounded-lg border border-red-400/10 bg-red-500/[0.04] px-3 text-xs font-semibold text-red-300 disabled:opacity-50"
+                    >
+                      {unblockMutation.isPending &&
+                      unblockMutation.variables === blockedUser.id ? (
+                        <LoaderCircle size={15} className="animate-spin" />
+                      ) : (
+                        <UserX size={15} />
+                      )}
+                      Bloku aç
+                    </button>
+                  </div>
+                  {notices.blocked?.type === "error" &&
+                    unblockMutation.variables === blockedUser.id && (
+                      <LocalNotice notice={notices.blocked} />
+                    )}
                 </div>
               ))}
             </div>
+            {notices.blocked?.type === "success" && (
+              <LocalNotice notice={notices.blocked} />
+            )}
           </section>
           )}
 
@@ -883,9 +1222,20 @@ export function SettingsPage() {
                   type="password"
                   autoComplete="current-password"
                   value={passwordCurrent}
-                  onChange={(event) => setPasswordCurrent(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-sm text-zinc-100 outline-none focus:border-violet-400/50"
+                  aria-invalid={Boolean(fieldErrors.passwordCurrent)}
+                  aria-describedby={fieldErrors.passwordCurrent ? "password-current-error" : undefined}
+                  onChange={(event) => {
+                    setPasswordCurrent(event.target.value);
+                    clearFieldError("passwordCurrent");
+                    setAreaNotice("password", null);
+                  }}
+                  className={`mt-2 h-11 w-full rounded-xl border bg-white/[0.03] px-3 text-sm text-zinc-100 outline-none transition ${
+                    fieldErrors.passwordCurrent
+                      ? "border-red-400/50 focus:border-red-400 focus:ring-4 focus:ring-red-500/10"
+                      : "border-white/[0.08] focus:border-violet-400/50"
+                  }`}
                 />
+                <InlineFieldError id="password-current-error" message={fieldErrors.passwordCurrent} />
               </label>
               <label className="block">
                 <span className="text-xs font-semibold text-zinc-400">Yeni şifrə</span>
@@ -893,9 +1243,20 @@ export function SettingsPage() {
                   type="password"
                   autoComplete="new-password"
                   value={newPassword}
-                  onChange={(event) => setNewPassword(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-sm text-zinc-100 outline-none focus:border-violet-400/50"
+                  aria-invalid={Boolean(fieldErrors.newPassword)}
+                  aria-describedby={fieldErrors.newPassword ? "new-password-error" : undefined}
+                  onChange={(event) => {
+                    setNewPassword(event.target.value);
+                    clearFieldError("newPassword");
+                    setAreaNotice("password", null);
+                  }}
+                  className={`mt-2 h-11 w-full rounded-xl border bg-white/[0.03] px-3 text-sm text-zinc-100 outline-none transition ${
+                    fieldErrors.newPassword
+                      ? "border-red-400/50 focus:border-red-400 focus:ring-4 focus:ring-red-500/10"
+                      : "border-white/[0.08] focus:border-violet-400/50"
+                  }`}
                 />
+                <InlineFieldError id="new-password-error" message={fieldErrors.newPassword} />
               </label>
               <label className="block">
                 <span className="text-xs font-semibold text-zinc-400">Yeni şifrəni təkrarla</span>
@@ -903,26 +1264,50 @@ export function SettingsPage() {
                   type="password"
                   autoComplete="new-password"
                   value={confirmNewPassword}
-                  onChange={(event) => setConfirmNewPassword(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 text-sm text-zinc-100 outline-none focus:border-violet-400/50"
+                  aria-invalid={Boolean(fieldErrors.confirmNewPassword)}
+                  aria-describedby={fieldErrors.confirmNewPassword ? "confirm-new-password-error" : undefined}
+                  onChange={(event) => {
+                    setConfirmNewPassword(event.target.value);
+                    clearFieldError("confirmNewPassword");
+                    setAreaNotice("password", null);
+                  }}
+                  className={`mt-2 h-11 w-full rounded-xl border bg-white/[0.03] px-3 text-sm text-zinc-100 outline-none transition ${
+                    fieldErrors.confirmNewPassword
+                      ? "border-red-400/50 focus:border-red-400 focus:ring-4 focus:ring-red-500/10"
+                      : "border-white/[0.08] focus:border-violet-400/50"
+                  }`}
                 />
+                <InlineFieldError id="confirm-new-password-error" message={fieldErrors.confirmNewPassword} />
               </label>
             </div>
 
+            <LocalNotice notice={notices.password} />
             <button
               type="button"
               onClick={() => {
-                setNotice(null);
+                const nextErrors: SettingsFieldErrors = {};
 
-                if (newPassword.length < 8) {
-                  setNotice({ type: "error", message: "Yeni şifrə minimum 8 simvol olmalıdır." });
-                  return;
+                if (!passwordCurrent) {
+                  nextErrors.passwordCurrent = "Cari şifrəni daxil edin.";
                 }
 
-                if (newPassword !== confirmNewPassword) {
-                  setNotice({ type: "error", message: "Yeni şifrə və təkrar şifrə eyni deyil." });
-                  return;
+                if (!newPassword) {
+                  nextErrors.newPassword = "Yeni şifrəni daxil edin.";
+                } else if (newPassword.length < 8) {
+                  nextErrors.newPassword = "Yeni şifrə minimum 8 simvol olmalıdır.";
+                } else if (newPassword === passwordCurrent) {
+                  nextErrors.newPassword = "Yeni şifrə cari şifrədən fərqli olmalıdır.";
                 }
+
+                if (!confirmNewPassword) {
+                  nextErrors.confirmNewPassword = "Yeni şifrəni təkrar daxil edin.";
+                } else if (newPassword !== confirmNewPassword) {
+                  nextErrors.confirmNewPassword = "Yeni şifrə və təkrar şifrə eyni deyil.";
+                }
+
+                setFieldErrors((current) => ({ ...current, ...nextErrors }));
+                setAreaNotice("password", null);
+                if (Object.keys(nextErrors).length > 0) return;
 
                 passwordMutation.mutate({
                   currentPassword: passwordCurrent,
@@ -931,10 +1316,7 @@ export function SettingsPage() {
                 });
               }}
               disabled={
-                passwordMutation.isPending ||
-                !passwordCurrent ||
-                !newPassword ||
-                !confirmNewPassword
+                passwordMutation.isPending
               }
               className="mt-4 flex h-11 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:opacity-50"
             >
@@ -974,7 +1356,12 @@ export function SettingsPage() {
               <button
                 type="button"
                 onClick={() => {
-                  setNotice(null);
+                  setFieldErrors((current) => ({
+                    ...current,
+                    deletePassword: undefined,
+                    deleteConfirmation: undefined,
+                  }));
+                  setAreaNotice("delete", null);
                   setIsDeleteModalOpen(true);
                 }}
                 className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-red-400/20 bg-red-500/10 px-4 text-sm font-semibold text-red-200 transition hover:bg-red-500/15"
@@ -1037,9 +1424,20 @@ export function SettingsPage() {
                   type="password"
                   autoComplete="current-password"
                   value={deletePassword}
-                  onChange={(event) => setDeletePassword(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-sm text-zinc-100 outline-none focus:border-red-400/50 focus:ring-4 focus:ring-red-500/10"
+                  aria-invalid={Boolean(fieldErrors.deletePassword)}
+                  aria-describedby={fieldErrors.deletePassword ? "delete-password-error" : undefined}
+                  onChange={(event) => {
+                    setDeletePassword(event.target.value);
+                    clearFieldError("deletePassword");
+                    setAreaNotice("delete", null);
+                  }}
+                  className={`mt-2 h-11 w-full rounded-xl border bg-white/[0.035] px-3 text-sm text-zinc-100 outline-none transition focus:ring-4 focus:ring-red-500/10 ${
+                    fieldErrors.deletePassword
+                      ? "border-red-400/50 focus:border-red-400"
+                      : "border-white/[0.08] focus:border-red-400/50"
+                  }`}
                 />
+                <InlineFieldError id="delete-password-error" message={fieldErrors.deletePassword} />
               </label>
 
               <label className="block">
@@ -1049,11 +1447,23 @@ export function SettingsPage() {
                 <input
                   type="text"
                   value={deleteConfirmation}
-                  onChange={(event) => setDeleteConfirmation(event.target.value)}
-                  className="mt-2 h-11 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-sm text-zinc-100 outline-none focus:border-red-400/50 focus:ring-4 focus:ring-red-500/10"
+                  aria-invalid={Boolean(fieldErrors.deleteConfirmation)}
+                  aria-describedby={fieldErrors.deleteConfirmation ? "delete-confirmation-error" : undefined}
+                  onChange={(event) => {
+                    setDeleteConfirmation(event.target.value);
+                    clearFieldError("deleteConfirmation");
+                    setAreaNotice("delete", null);
+                  }}
+                  className={`mt-2 h-11 w-full rounded-xl border bg-white/[0.035] px-3 text-sm text-zinc-100 outline-none transition focus:ring-4 focus:ring-red-500/10 ${
+                    fieldErrors.deleteConfirmation
+                      ? "border-red-400/50 focus:border-red-400"
+                      : "border-white/[0.08] focus:border-red-400/50"
+                  }`}
                 />
+                <InlineFieldError id="delete-confirmation-error" message={fieldErrors.deleteConfirmation} />
               </label>
 
+              <LocalNotice notice={notices.delete} />
               <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end">
                 <button
                   type="button"
@@ -1066,12 +1476,30 @@ export function SettingsPage() {
                 <button
                   type="button"
                   disabled={
-                    deleteAccountMutation.isPending ||
-                    !deletePassword ||
-                    deleteConfirmation.trim().toLocaleLowerCase() !== user.userName.toLocaleLowerCase()
+                    deleteAccountMutation.isPending
                   }
                   onClick={() => {
-                    setNotice(null);
+                    const nextErrors: SettingsFieldErrors = {};
+                    const normalizedConfirmation = deleteConfirmation.trim();
+
+                    if (!deletePassword) {
+                      nextErrors.deletePassword = "Cari şifrəni daxil edin.";
+                    }
+
+                    if (!normalizedConfirmation) {
+                      nextErrors.deleteConfirmation = "Təsdiq üçün istifadəçi adını daxil edin.";
+                    } else if (
+                      normalizedConfirmation.toLocaleLowerCase("az-AZ") !==
+                      user.userName.toLocaleLowerCase("az-AZ")
+                    ) {
+                      nextErrors.deleteConfirmation =
+                        "İstifadəçi adını yuxarıda göstərildiyi kimi düzgün yazın.";
+                    }
+
+                    setFieldErrors((current) => ({ ...current, ...nextErrors }));
+                    setAreaNotice("delete", null);
+                    if (Object.keys(nextErrors).length > 0) return;
+
                     deleteAccountMutation.mutate({
                       currentPassword: deletePassword,
                       confirmationText: deleteConfirmation.trim(),

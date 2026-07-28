@@ -441,8 +441,7 @@ export function ProfileGamesGallery({
                     Yalnız seçdiyin puanda oyunları göstər.
                   </p>
                 </div>
-                <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/15 bg-amber-500/[0.08] px-3 py-2 text-sm font-black text-amber-300">
-                  <Star size={14} fill="currentColor" />
+                <span className="inline-flex shrink-0 items-center rounded-xl border border-amber-300/15 bg-amber-500/[0.08] px-3 py-2 text-sm font-black text-amber-300">
                   {(selectedRating ?? 2.5).toFixed(1)}
                 </span>
               </div>
@@ -459,32 +458,9 @@ export function ProfileGamesGallery({
                   }}
                   className="block h-5 w-full cursor-pointer accent-violet-500"
                 />
-                <div className="relative mx-2 mt-3 h-4 text-[10px] font-semibold text-zinc-700">
-                  {[0.5, 1.5, 2.5, 3.5, 4.5, 5].map(
-                    (rating, index, values) => {
-                      const position =
-                        ((rating - 0.5) / (5 - 0.5)) * 100;
-                      const translate =
-                        index === 0
-                          ? "translateX(0)"
-                          : index === values.length - 1
-                            ? "translateX(-100%)"
-                            : "translateX(-50%)";
-
-                      return (
-                        <span
-                          key={rating}
-                          className="absolute top-0 whitespace-nowrap"
-                          style={{
-                            left: `${position}%`,
-                            transform: translate,
-                          }}
-                        >
-                          {rating.toFixed(1)}
-                        </span>
-                      );
-                    },
-                  )}
+                <div className="mx-2 mt-3 flex h-4 items-start justify-between text-[10px] font-semibold text-zinc-700">
+                  <span>0.5</span>
+                  <span>5</span>
                 </div>
                 {selectedRating !== null && (
                   <button

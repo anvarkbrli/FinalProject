@@ -62,6 +62,7 @@ import { UserReportModal } from "../components/profile/UserReportModal";
 import { ContentReportButton } from "../components/reporting/ContentReportButton";
 import { SocialPlatformIcon } from "../components/profile/SocialPlatformIcon";
 import { ReviewCommentsPanel } from "../components/reviews/ReviewCommentsPanel";
+import { ReviewHardwareSummary } from "../components/reviews/ReviewHardwareSummary";
 import { ReviewLikesModal } from "../components/reviews/ReviewLikesModal";
 import { ProfileGameCollection } from "../components/profile/ProfileGameCollection";
 import { SteamPlaytimeReconciliationModal } from "../components/steam/SteamPlaytimeReconciliationModal";
@@ -256,15 +257,6 @@ const reviewRatingSteps = [
   5,
 ];
 
-const reviewRatingScaleLabels = [
-  0.5,
-  1,
-  2,
-  3,
-  4,
-  5,
-] as const;
-
 function parseProfileTab(value: string | null): ProfileTab | null {
   return profileTabs.some((tab) => tab.id === value)
     ? (value as ProfileTab)
@@ -347,10 +339,6 @@ function formatReviewRating(value: number): string {
   return Number.isInteger(value)
     ? value.toFixed(0)
     : value.toFixed(1);
-}
-
-function getReviewRatingPosition(value: number): number {
-  return ((value - 0.5) / (5 - 0.5)) * 100;
 }
 
 const visibilityLabels = {
@@ -2751,8 +2739,7 @@ export function ProfilePage() {
                                 Sürüşdürərək yalnız seçdiyin puana aid rəyləri göstər.
                               </p>
                             </div>
-                            <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/15 bg-amber-500/[0.08] px-3 py-2 text-sm font-black text-amber-300">
-                              <Star size={14} fill="currentColor" />
+                            <span className="inline-flex shrink-0 items-center rounded-xl border border-amber-300/15 bg-amber-500/[0.08] px-3 py-2 text-sm font-black text-amber-300">
                               {formatReviewRating(reviewRating ?? 2.5)}
                             </span>
                           </div>
@@ -2773,39 +2760,9 @@ export function ProfilePage() {
                               className="block h-5 w-full cursor-pointer accent-violet-500"
                             />
 
-                            <div className="pointer-events-none relative mx-[9px] mt-1 h-5 text-[10px] font-semibold text-zinc-700">
-                              {reviewRatingScaleLabels.map(
-                                (rating, index) => {
-                                  const isFirst = index === 0;
-                                  const isLast =
-                                    index ===
-                                    reviewRatingScaleLabels.length - 1;
-
-                                  return (
-                                    <span
-                                      key={rating}
-                                      className={`absolute top-0 whitespace-nowrap ${
-                                        isFirst
-                                          ? "left-0"
-                                          : isLast
-                                            ? "right-0"
-                                            : "-translate-x-1/2"
-                                      }`}
-                                      style={
-                                        isFirst || isLast
-                                          ? undefined
-                                          : {
-                                              left: `${getReviewRatingPosition(
-                                                rating,
-                                              )}%`,
-                                            }
-                                      }
-                                    >
-                                      {formatReviewRating(rating)} ★
-                                    </span>
-                                  );
-                                },
-                              )}
+                            <div className="pointer-events-none mx-[9px] mt-1 flex h-5 items-start justify-between text-[10px] font-semibold text-zinc-700">
+                              <span>0.5</span>
+                              <span>5</span>
                             </div>
                           </div>
 
@@ -2967,6 +2924,15 @@ export function ProfilePage() {
                             <p className="whitespace-pre-wrap text-sm leading-7 text-zinc-300">
                               {review.content}
                             </p>
+                          )}
+
+                          {review.showHardwareProfile && (
+                            <ReviewHardwareSummary
+                              gpu={review.hardwareGpu}
+                              cpu={review.hardwareCpu}
+                              ramGb={review.hardwareRamGb}
+                              vramGb={review.hardwareVramGb}
+                            />
                           )}
 
                           <div className="mt-5 flex items-center gap-5 border-t border-white/[0.06] pt-4 text-xs text-zinc-600">

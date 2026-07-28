@@ -30,6 +30,20 @@ public sealed class ReviewConfiguration : IEntityTypeConfiguration<Review>
 
         builder.Property(x => x.PlaytimeMinutes);
 
+        builder.Property(x => x.ShowHardwareProfile)
+            .IsRequired()
+            .HasDefaultValue(false);
+
+        builder.Property(x => x.HardwareGpuName)
+            .HasMaxLength(150);
+
+        builder.Property(x => x.HardwareCpuName)
+            .HasMaxLength(150);
+
+        builder.Property(x => x.HardwareRamGb);
+
+        builder.Property(x => x.HardwareVramGb);
+
         builder.Property(x => x.IsSteamAutoLogged)
             .IsRequired()
             .HasDefaultValue(false);
@@ -85,6 +99,14 @@ public sealed class ReviewConfiguration : IEntityTypeConfiguration<Review>
             table.HasCheckConstraint(
                 "CK_Reviews_PlaytimeMinutes",
                 "[PlaytimeMinutes] IS NULL OR ([PlaytimeMinutes] >= 0 AND [PlaytimeMinutes] <= 600000)");
+
+            table.HasCheckConstraint(
+                "CK_Reviews_HardwareRamGb",
+                "[HardwareRamGb] IS NULL OR ([HardwareRamGb] >= 1 AND [HardwareRamGb] <= 512)");
+
+            table.HasCheckConstraint(
+                "CK_Reviews_HardwareVramGb",
+                "[HardwareVramGb] IS NULL OR ([HardwareVramGb] >= 1 AND [HardwareVramGb] <= 128)");
         });
 
         builder.HasOne(x => x.User)

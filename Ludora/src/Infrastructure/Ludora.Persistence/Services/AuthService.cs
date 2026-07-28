@@ -23,7 +23,7 @@ public class AuthService : IAuthService
         "Qeydiyyat tamamlandı. Hesabı aktivləşdirmək üçün email ünvanınıza göndərilən təsdiq linkinə keçin.";
 
     private const string ResendMessage =
-        "Bu email ilə təsdiqlənməmiş hesab mövcuddursa, yeni təsdiq linki göndərildi.";
+        "Yeni təsdiq linki email ünvanınıza göndərildi.";
 
     private readonly UserManager<AppUser> _userManager;
     private readonly IJwtTokenService _jwtTokenService;
@@ -208,8 +208,58 @@ public class AuthService : IAuthService
         var email = dto.Email.Trim();
         var user = await _userManager.FindByEmailAsync(email);
 
-        if (user is not null && !user.EmailConfirmed)
+        if (user is null)
+        {
+            throw new NotFoundException(
+                "Bu email ünvanı ilə qeydiyyatdan keçmiş hesab tapılmadı.");
+        }
+
+        if (user.AccountDeletionRequestedAtUtc.HasValue)
+        {
+            throw new ConflictException(
+                "Bu hesab üçün silinmə prosesi başladılıb. Yeni təsdiq emaili göndərilə bilməz.");
+        }
+
+        var now = DateTime.UtcNow;
+
+        if (user.IsPermanentlyBanned)
+        {
+            throw new ForbiddenException(
+                "Bu hesab daimi banlanıb. Yeni təsdiq emaili göndərilə bilməz.");
+        }
+
+        if (user.BannedUntilUtc.HasValue &&
+            user.BannedUntilUtc.Value > now)
+        {
+            var bannedUntilBaku = ConvertUtcToBakuTime(
+                user.BannedUntilUtc.Value);
+
+            throw new ForbiddenException(
+                $"Bu hesab {bannedUntilBaku:dd.MM.yyyy} saat {bannedUntilBaku:HH:mm}-dək banlanıb. Yeni təsdiq emaili göndərilə bilməz.");
+        }
+
+        if (user.EmailConfirmed)
+        {
+            throw new ConflictException(
+                "Bu email ünvanı artıq təsdiqlənib. Yeni təsdiq linkinə ehtiyac yoxdur; giriş səhifəsindən hesabınıza daxil olun.");
+        }
+
+        if (!_emailSettings.Enabled)
+        {
+            throw new ExternalServiceException(
+                "Email göndərmə xidməti hazırda aktiv deyil. Bir qədər sonra yenidən yoxlayın.");
+        }
+
+        try
+        {
             await SendConfirmationEmailAsync(user, cancellationToken);
+        }
+        catch (ExternalServiceException exception)
+        {
+            throw new ExternalServiceException(
+                "Təsdiq emailini hazırda göndərmək mümkün olmadı. Bir qədər sonra yenidən yoxlayın.",
+                exception);
+        }
 
         return new EmailOperationResultDTO
         {

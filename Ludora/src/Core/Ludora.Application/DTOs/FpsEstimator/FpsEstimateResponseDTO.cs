@@ -16,6 +16,10 @@ public sealed record FpsEstimateResponseDTO
     public string Summary { get; init; } = string.Empty;
     public IReadOnlyCollection<string> Recommendations { get; init; } = [];
     public IReadOnlyCollection<string> ImportantFactors { get; init; } = [];
+    public string EvidenceQuality { get; init; } = string.Empty;
+    public string EvidenceSummary { get; init; } = string.Empty;
+    public int BenchmarkSampleCount { get; init; }
+    public IReadOnlyCollection<FpsBenchmarkSourceDTO> BenchmarkSources { get; init; } = [];
     public string Disclaimer { get; init; } = string.Empty;
     public bool IsCached { get; init; }
 }

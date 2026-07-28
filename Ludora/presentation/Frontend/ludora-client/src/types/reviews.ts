@@ -33,6 +33,11 @@ export interface ReviewDTO {
   platformId: number | null;
   platformName: string | null;
   playtimeMinutes: number | null;
+  showHardwareProfile: boolean;
+  hardwareGpu: string | null;
+  hardwareCpu: string | null;
+  hardwareRamGb: number | null;
+  hardwareVramGb: number | null;
   createdAt: string;
   updatedAt: string | null;
   isMine: boolean;
@@ -50,6 +55,11 @@ export interface ReviewWriteDTO {
   platformSource: CatalogSource | null;
   platformId: number | null;
   playtimeMinutes: number | null;
+  showHardwareProfile: boolean;
+  hardwareGpu: string | null;
+  hardwareCpu: string | null;
+  hardwareRamGb: number | null;
+  hardwareVramGb: number | null;
 }
 
 export type ReviewsResultDTO =

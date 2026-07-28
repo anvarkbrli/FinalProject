@@ -147,6 +147,21 @@ public sealed class IgdbClient : IIgdbClient
             cancellationToken);
     }
 
+    public async Task<IReadOnlyList<IgdbGameModel>> GetGamesByIdsForCardsAsync(
+        IReadOnlyCollection<long> ids,
+        CancellationToken cancellationToken = default)
+    {
+        EnsureEnabled();
+
+        return await GetByIdsInBatchesAsync<IgdbGameResponse, IgdbGameModel>(
+            "games",
+            ids,
+            IgdbQueryBuilder.BuildGamesByIdsForCards,
+            MapGame,
+            IsValidNamedResponse,
+            cancellationToken);
+    }
+
 
     public async Task<IReadOnlyList<IgdbSteamGameMappingModel>> GetSteamGameMappingsAsync(
         IReadOnlyCollection<int> steamAppIds,
@@ -799,6 +814,12 @@ public sealed class IgdbClient : IIgdbClient
     private static IgdbGameModel MapGame(IgdbGameResponse response)
     {
         var companies = new List<IgdbCompanyRelationModel>();
+        var seriesGroup = SelectBestSeriesGroup(
+            response.Name,
+            response.Collections ?? []);
+        var franchiseGroup = SelectBestSeriesGroup(
+            response.Name,
+            response.Franchises ?? []);
 
         foreach (var involvedCompany in response.InvolvedCompanies ?? [])
         {
@@ -865,6 +886,24 @@ public sealed class IgdbClient : IIgdbClient
             VersionParentId = response.VersionParentId,
             VersionTitle = string.IsNullOrWhiteSpace(response.VersionTitle) ? null : response.VersionTitle.Trim(),
 
+            SeriesName = string.IsNullOrWhiteSpace(seriesGroup?.Name)
+                ? null
+                : seriesGroup.Name.Trim(),
+
+            SeriesGameIds = (seriesGroup?.GameIds ?? [])
+                .Where(x => x > 0 && x != response.Id)
+                .Distinct()
+                .ToList(),
+
+            FranchiseName = string.IsNullOrWhiteSpace(franchiseGroup?.Name)
+                ? null
+                : franchiseGroup.Name.Trim(),
+
+            FranchiseGameIds = (franchiseGroup?.GameIds ?? [])
+                .Where(x => x > 0 && x != response.Id)
+                .Distinct()
+                .ToList(),
+
             DlcIds = response.DlcIds?
             .Where(x => x > 0)
             .Distinct()
@@ -914,6 +953,41 @@ public sealed class IgdbClient : IIgdbClient
                 .DistinctBy(x => new { x.Company.Id, x.Role })
                 .ToList()
         };
+    }
+
+    private static IgdbSeriesGroupResponse? SelectBestSeriesGroup(
+        string gameName,
+        IReadOnlyCollection<IgdbSeriesGroupResponse> groups)
+    {
+        var normalizedGameName = NormalizeSeriesText(gameName);
+
+        return groups
+            .Where(group => group.GameIds is { Count: > 0 })
+            .OrderByDescending(group =>
+            {
+                var normalizedGroupName = NormalizeSeriesText(group.Name);
+
+                return normalizedGroupName.Length > 0 &&
+                       normalizedGameName.Contains(
+                           normalizedGroupName,
+                           StringComparison.Ordinal);
+            })
+            .ThenByDescending(group =>
+                NormalizeSeriesText(group.Name).Length)
+            .ThenBy(group => group.GameIds!.Count)
+            .FirstOrDefault();
+    }
+
+    private static string NormalizeSeriesText(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return string.Empty;
+
+        return new string(
+            value
+                .Where(char.IsLetterOrDigit)
+                .Select(char.ToLowerInvariant)
+                .ToArray());
     }
 
     private static IgdbGenreModel MapGenre(IgdbGenreResponse response)

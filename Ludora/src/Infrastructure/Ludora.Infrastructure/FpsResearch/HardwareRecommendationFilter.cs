@@ -1,7 +1,7 @@
 using System.Globalization;
 using System.Text;
 
-namespace Ludora.Infrastructure.Groq;
+namespace Ludora.Infrastructure.FpsResearch;
 
 public static class HardwareRecommendationFilter
 {

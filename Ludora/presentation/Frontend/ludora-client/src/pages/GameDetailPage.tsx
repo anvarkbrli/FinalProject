@@ -90,6 +90,16 @@ interface RelatedTab {
 
 const relatedSections: RelatedSection[] = [
   {
+    key: "seriesGames",
+    title: "Seriya oyunları",
+    shortTitle: "Seriya",
+  },
+  {
+    key: "franchiseGames",
+    title: "Franchise oyunları",
+    shortTitle: "Franchise",
+  },
+  {
     key: "dlcs",
     title: "DLC-lər",
     shortTitle: "DLC",
@@ -895,16 +905,6 @@ function RelatedGameCard({
           )}
 
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#09090d] via-transparent to-transparent" />
-
-          <div className="absolute inset-x-0 bottom-0 p-3">
-            <span className="inline-flex rounded-md border border-white/10 bg-black/45 px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-zinc-300 backdrop-blur-sm">
-              {
-                gameTypeLabels[
-                  game.gameType
-                ]
-              }
-            </span>
-          </div>
         </div>
 
         <div className="p-3.5">
@@ -986,7 +986,7 @@ function GameDetailContent({
         const section of relatedSections
       ) {
         const games =
-          game.relatedGames[section.key];
+          game.relatedGames[section.key] ?? [];
 
         if (games.length > 0) {
           tabs.push({
@@ -1248,6 +1248,13 @@ function GameDetailContent({
             <FpsEstimatorAction
               gameId={game.id}
               gameName={game.title}
+              gameReleaseYear={
+                game.releaseDate
+                  ? new Date(
+                      game.releaseDate,
+                    ).getUTCFullYear()
+                  : undefined
+              }
             />
 
             <FriendWishlistNotice
@@ -1407,9 +1414,9 @@ function GameDetailContent({
               </div>
 
               <p className="mt-2 text-sm text-zinc-600">
-                DLC, expansion, bundle,
-                remake və digər əlaqəli
-                buraxılışlar.
+                Davam oyunları, DLC,
+                expansion, bundle, remake və
+                digər əlaqəli buraxılışlar.
               </p>
             </div>
 
@@ -1484,8 +1491,8 @@ function GameDetailContent({
               </p>
 
               <p className="mt-2 text-sm text-zinc-600">
-                Bu oyun üçün DLC,
-                expansion, bundle və ya
+                Bu oyun üçün davam oyunu,
+                DLC, expansion, bundle və ya
                 başqa versiya tapılmadı.
               </p>
             </div>

@@ -59,6 +59,19 @@ public sealed class GameService : IGameService
         GameType.Remaster
     ];
 
+    private static readonly HashSet<GameType> SeriesGameTypes =
+    [
+        GameType.MainGame,
+        GameType.StandaloneExpansion,
+        GameType.Episode,
+        GameType.Season
+    ];
+
+    private static readonly HashSet<GameType> FranchiseGameTypes =
+    [
+        GameType.MainGame
+    ];
+
     private sealed record CommunityRankRow
     {
         public CatalogSource Source { get; init; }
@@ -1125,7 +1138,7 @@ public sealed class GameService : IGameService
     IgdbGameModel game,
     CancellationToken cancellationToken)
     {
-        var relatedIds = game.DlcIds
+        var categorizedRelatedIds = game.DlcIds
             .Concat(game.ExpansionIds)
             .Concat(game.StandaloneExpansionIds)
             .Concat(game.BundleIds)
@@ -1139,6 +1152,30 @@ public sealed class GameService : IGameService
             .Distinct()
             .ToArray();
 
+        var categorizedRelatedIdSet = categorizedRelatedIds.ToHashSet();
+
+        var seriesIds = game.SeriesGameIds
+            .Where(x =>
+                x > 0 &&
+                x != game.Id &&
+                !categorizedRelatedIdSet.Contains(x))
+            .Distinct()
+            .Take(200)
+            .ToArray();
+
+        var franchiseIds = game.FranchiseGameIds
+            .Where(x =>
+                x > 0 &&
+                x != game.Id)
+            .Distinct()
+            .ToArray();
+
+        var relatedIds = categorizedRelatedIds
+            .Concat(seriesIds)
+            .Concat(franchiseIds)
+            .Distinct()
+            .ToArray();
+
         if (relatedIds.Length == 0)
         {
             return new RelatedGamesDTO();
@@ -1148,7 +1185,7 @@ public sealed class GameService : IGameService
 
         try
         {
-            igdbGames = await _igdbClient.GetGamesByIdsAsync(
+            igdbGames = await _igdbClient.GetGamesByIdsForCardsAsync(
                 relatedIds,
                 cancellationToken);
         }
@@ -1166,6 +1203,9 @@ public sealed class GameService : IGameService
                 x => x.Id,
                 ToListItem);
 
+        var igdbGameMap = igdbGames
+            .ToDictionary(x => x.Id);
+
         List<GameListItemDTO> Resolve(
             IEnumerable<long> ids)
         {
@@ -1173,6 +1213,43 @@ public sealed class GameService : IGameService
                 .Distinct()
                 .Where(gameMap.ContainsKey)
                 .Select(id => gameMap[id])
+                .ToList();
+        }
+
+        List<GameListItemDTO> ResolveSeries()
+        {
+            return seriesIds
+                .Where(id =>
+                    gameMap.ContainsKey(id) &&
+                    igdbGameMap.TryGetValue(id, out var relatedGame) &&
+                    SeriesGameTypes.Contains(relatedGame.GameType) &&
+                    relatedGame.VersionParentId is null &&
+                    MatchesSeriesTitle(
+                        game.SeriesName,
+                        relatedGame.Name))
+                .Select(id => gameMap[id])
+                .OrderBy(x => x.ReleaseDate is null)
+                .ThenBy(x => x.ReleaseDate)
+                .ThenBy(x => x.Title, GameTitleComparer)
+                .Take(60)
+                .ToList();
+        }
+
+        List<GameListItemDTO> ResolveFranchise()
+        {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+            return franchiseIds
+                .Where(id =>
+                    gameMap.ContainsKey(id) &&
+                    igdbGameMap.TryGetValue(id, out var relatedGame) &&
+                    FranchiseGameTypes.Contains(relatedGame.GameType) &&
+                    relatedGame.VersionParentId is null &&
+                    relatedGame.ReleaseDate.HasValue &&
+                    relatedGame.ReleaseDate.Value <= today)
+                .Select(id => gameMap[id])
+                .OrderBy(x => x.ReleaseDate)
+                .ThenBy(x => x.Title, GameTitleComparer)
                 .ToList();
         }
 
@@ -1185,6 +1262,12 @@ public sealed class GameService : IGameService
                     out var parent)
                         ? parent
                         : null,
+
+            SeriesGames =
+                ResolveSeries(),
+
+            FranchiseGames =
+                ResolveFranchise(),
 
             Dlcs =
                 Resolve(game.DlcIds),
@@ -1332,6 +1415,12 @@ public sealed class GameService : IGameService
         return new RelatedGamesDTO
         {
             ParentGame = first.ParentGame ?? second.ParentGame,
+            SeriesGames = MergeRelatedList(
+                first.SeriesGames,
+                second.SeriesGames),
+            FranchiseGames = MergeRelatedList(
+                first.FranchiseGames,
+                second.FranchiseGames),
             Dlcs = MergeRelatedList(first.Dlcs, second.Dlcs),
             Expansions = MergeRelatedList(first.Expansions, second.Expansions),
             StandaloneExpansions = MergeRelatedList(
@@ -1341,6 +1430,30 @@ public sealed class GameService : IGameService
             Remakes = MergeRelatedList(first.Remakes, second.Remakes),
             Remasters = MergeRelatedList(first.Remasters, second.Remasters)
         };
+    }
+
+    private static bool MatchesSeriesTitle(
+        string? seriesName,
+        string gameTitle)
+    {
+        if (string.IsNullOrWhiteSpace(seriesName))
+            return true;
+
+        var seriesKey = seriesName
+            .Split(
+                [' ', '-', '_', ':', '.', ',', '/', '\\', '(', ')', '[', ']'],
+                StringSplitOptions.RemoveEmptyEntries)
+            .Select(NormalizeSearchText)
+            .LastOrDefault(token =>
+                token.Length >= 3 &&
+                token is not "series" and
+                    not "collection" and
+                    not "franchise");
+
+        return string.IsNullOrWhiteSpace(seriesKey) ||
+               NormalizeSearchText(gameTitle).Contains(
+                   seriesKey,
+                   StringComparison.Ordinal);
     }
 
     private static List<GameListItemDTO> MergeRelatedList(

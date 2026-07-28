@@ -4,47 +4,67 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
-namespace Ludora.Infrastructure.Groq;
+namespace Ludora.Infrastructure.FpsResearch;
 
 public static class ServiceRegistration
 {
-    public static IServiceCollection AddGroqIntegration(
+    public static IServiceCollection AddFpsResearchIntegration(
         this IServiceCollection services,
         IConfiguration configuration)
     {
         services
-            .AddOptions<GroqSettings>()
-            .Bind(configuration.GetSection(GroqSettings.SectionName))
+            .AddOptions<FpsResearchSettings>()
+            .Bind(configuration.GetSection(FpsResearchSettings.SectionName))
+            .PostConfigure(settings =>
+            {
+                if (!string.IsNullOrWhiteSpace(settings.ApiKey))
+                    return;
+
+                settings.ApiKey =
+                    configuration["GroqSettings:ApiKey"] ?? string.Empty;
+
+                if (bool.TryParse(
+                        configuration["GroqSettings:Enabled"],
+                        out var legacyEnabled))
+                {
+                    settings.Enabled = legacyEnabled;
+                }
+            })
             .Validate(
                 settings => !settings.Enabled ||
                             !string.IsNullOrWhiteSpace(settings.ApiKey),
-                "Groq aktivdirsə ApiKey boş ola bilməz.")
+                "FPS research aktivdirsə ApiKey boş ola bilməz.")
             .Validate(
                 settings => !settings.Enabled ||
                             !string.IsNullOrWhiteSpace(settings.Model),
-                "Groq aktivdirsə Model boş ola bilməz.")
+                "FPS research aktivdirsə Model boş ola bilməz.")
             .Validate(
                 settings => IsAbsoluteHttpUrl(settings.BaseUrl),
-                "GroqSettings:BaseUrl düzgün URL deyil.")
+                "FpsResearch:BaseUrl düzgün URL deyil.")
             .Validate(
-                settings => settings.TimeoutSeconds is >= 5 and <= 120,
-                "GroqSettings:TimeoutSeconds 5-120 aralığında olmalıdır.")
+                settings => !settings.Enabled ||
+                            !string.IsNullOrWhiteSpace(
+                                settings.ModelVersion),
+                "FPS research aktivdirsə ModelVersion boş ola bilməz.")
+            .Validate(
+                settings => settings.TimeoutSeconds is >= 10 and <= 180,
+                "FpsResearch:TimeoutSeconds 10-180 aralığında olmalıdır.")
             .Validate(
                 settings => settings.MaxRetries is >= 0 and <= 5,
-                "GroqSettings:MaxRetries 0-5 aralığında olmalıdır.")
+                "FpsResearch:MaxRetries 0-5 aralığında olmalıdır.")
             .Validate(
                 settings => settings.CacheDurationHours is >= 1 and <= 168,
-                "GroqSettings:CacheDurationHours 1-168 aralığında olmalıdır.")
+                "FpsResearch:CacheDurationHours 1-168 aralığında olmalıdır.")
             .ValidateOnStart();
 
         services.AddMemoryCache();
         services.AddScoped<IFpsEstimatorService, FpsEstimatorService>();
 
-        services.AddHttpClient<IGroqClient, GroqClient>(
+        services.AddHttpClient<IFpsResearchClient, GroqCompoundClient>(
             (serviceProvider, client) =>
             {
                 var settings = serviceProvider
-                    .GetRequiredService<IOptions<GroqSettings>>()
+                    .GetRequiredService<IOptions<FpsResearchSettings>>()
                     .Value;
 
                 client.BaseAddress =
@@ -52,7 +72,7 @@ public static class ServiceRegistration
                 client.Timeout =
                     TimeSpan.FromSeconds(settings.TimeoutSeconds);
                 client.DefaultRequestHeaders.UserAgent.ParseAdd(
-                    "Ludora-FpsEstimator/1.0");
+                    "Ludora-FpsBenchmark/2.0");
             });
 
         return services;

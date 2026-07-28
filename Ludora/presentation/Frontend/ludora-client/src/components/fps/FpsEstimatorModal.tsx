@@ -47,6 +47,7 @@ interface FpsEstimatorModalProps {
   isAuthenticated: boolean;
   gameId: number;
   gameName: string;
+  gameReleaseYear?: number;
   onClose: () => void;
 }
 
@@ -230,6 +231,7 @@ export function FpsEstimatorModal({
   isAuthenticated,
   gameId,
   gameName,
+  gameReleaseYear,
   onClose,
 }: FpsEstimatorModalProps) {
   const queryClient = useQueryClient();
@@ -549,6 +551,7 @@ export function FpsEstimatorModal({
     return {
       gameId,
       gameName,
+      gameReleaseYear,
       gpu,
       cpu,
       ramGb,
@@ -635,6 +638,9 @@ export function FpsEstimatorModal({
                 className="mt-1 truncate text-xs text-[var(--wp-text-muted)] sm:text-sm"
               >
                 {gameName}
+                {gameReleaseYear
+                  ? ` (${gameReleaseYear})`
+                  : ""}
               </p>
             </div>
           </div>
@@ -686,6 +692,9 @@ export function FpsEstimatorModal({
                     </p>
                     <p className="truncate text-sm font-bold text-[var(--wp-text-strong)]">
                       {gameName}
+                      {gameReleaseYear
+                        ? ` (${gameReleaseYear})`
+                        : ""}
                     </p>
                   </div>
                 </div>

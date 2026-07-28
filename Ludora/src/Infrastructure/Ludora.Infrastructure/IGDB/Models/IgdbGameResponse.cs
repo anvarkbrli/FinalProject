@@ -43,6 +43,12 @@ internal sealed class IgdbGameResponse
     [JsonPropertyName("version_title")]
     public string? VersionTitle { get; set; }
 
+    [JsonPropertyName("collections")]
+    public List<IgdbSeriesGroupResponse>? Collections { get; set; }
+
+    [JsonPropertyName("franchises")]
+    public List<IgdbSeriesGroupResponse>? Franchises { get; set; }
+
     [JsonPropertyName("dlcs")]
     public List<long>? DlcIds { get; set; }
 
@@ -61,6 +67,15 @@ internal sealed class IgdbGameResponse
     [JsonPropertyName("remasters")]
     public List<long>? RemasterIds { get; set; }
 
+}
+
+internal sealed class IgdbSeriesGroupResponse
+{
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonPropertyName("games")]
+    public List<long>? GameIds { get; set; }
 }
 
 internal sealed class IgdbCoverResponse

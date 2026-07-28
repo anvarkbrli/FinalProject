@@ -28,6 +28,7 @@ export type FpsUpscalerMode =
 export interface FpsEstimateRequest {
   gameId?: number;
   gameName: string;
+  gameReleaseYear?: number;
   gpu: string;
   cpu: string;
   ramGb: number;
@@ -40,6 +41,18 @@ export interface FpsEstimateRequest {
   frameGenerationEnabled: boolean;
   additionalNotes?: string;
   rememberHardware?: boolean;
+}
+
+export type FpsEvidenceQuality =
+  | "Exact"
+  | "Close"
+  | "Inferred"
+  | "Insufficient";
+
+export interface FpsBenchmarkSource {
+  title: string;
+  url: string;
+  publishedDate: string | null;
 }
 
 export interface FpsEstimateResponse {
@@ -57,6 +70,10 @@ export interface FpsEstimateResponse {
   summary: string;
   recommendations: string[];
   importantFactors: string[];
+  evidenceQuality: FpsEvidenceQuality;
+  evidenceSummary: string;
+  benchmarkSampleCount: number;
+  benchmarkSources: FpsBenchmarkSource[];
   disclaimer: string;
   isCached: boolean;
 }

@@ -84,6 +84,105 @@ function getComingSoonLabel(
   return `${remainingDays} gün qalıb`;
 }
 
+const retiredOrNichePlatformPatterns = [
+  "google stadia",
+  "amazon fire tv",
+  "fire os",
+  "ouya",
+  "onlive game system",
+];
+
+function getPlatformPriority(platformName: string): number {
+  const name = platformName.trim().toLocaleLowerCase("en");
+
+  if (
+    retiredOrNichePlatformPatterns.some((pattern) =>
+      name.includes(pattern),
+    )
+  ) {
+    return -1;
+  }
+
+  if (
+    name.includes("microsoft windows") ||
+    name === "pc" ||
+    name.startsWith("pc ")
+  ) {
+    return 1_000;
+  }
+
+  if (name.includes("playstation 5")) {
+    return 900;
+  }
+
+  if (name.includes("playstation 4")) {
+    return 850;
+  }
+
+  if (name.includes("xbox series")) {
+    return 800;
+  }
+
+  if (name.includes("xbox one")) {
+    return 750;
+  }
+
+  if (name.includes("nintendo switch 2")) {
+    return 700;
+  }
+
+  if (name.includes("nintendo switch")) {
+    return 680;
+  }
+
+  if (name === "android") {
+    return 600;
+  }
+
+  if (name === "ios" || name.includes("iphone")) {
+    return 580;
+  }
+
+  if (name.includes("playstation 3")) {
+    return 450;
+  }
+
+  if (name.includes("xbox 360")) {
+    return 430;
+  }
+
+  if (name.includes("mac")) {
+    return 200;
+  }
+
+  if (name.includes("linux")) {
+    return 150;
+  }
+
+  return 300;
+}
+
+function getPrimaryPlatform(
+  platforms: GameListItemDTO["platforms"],
+): string | undefined {
+  return platforms
+    .map((platform, index) => ({
+      name: platform.name.trim(),
+      priority: getPlatformPriority(platform.name),
+      index,
+    }))
+    .filter(
+      (platform) =>
+        platform.name.length > 0 &&
+        platform.priority >= 0,
+    )
+    .sort(
+      (left, right) =>
+        right.priority - left.priority ||
+        left.index - right.index,
+    )[0]?.name;
+}
+
 function getReleaseMetadata(
   game: DiscoveryGame,
   variant: DiscoveryGameCardProps["variant"],
@@ -100,7 +199,7 @@ function getReleaseMetadata(
 
   const primaryPlatform =
     "platforms" in game
-      ? game.platforms[0]?.name
+      ? getPrimaryPlatform(game.platforms)
       : undefined;
 
   if (primaryPlatform) {

@@ -16,6 +16,26 @@ export interface ApiErrorResponse {
   errors?: Record<string, string[]>;
 }
 
+export function getApiFieldErrors(
+  error: unknown,
+): Record<string, string[]> {
+  if (!axios.isAxiosError<ApiErrorResponse>(error)) {
+    return {};
+  }
+
+  const responseData = error.response?.data;
+
+  if (
+    !responseData ||
+    typeof responseData !== "object" ||
+    !responseData.errors
+  ) {
+    return {};
+  }
+
+  return responseData.errors;
+}
+
 export const api = axios.create({
   baseURL,
   timeout: 15_000,

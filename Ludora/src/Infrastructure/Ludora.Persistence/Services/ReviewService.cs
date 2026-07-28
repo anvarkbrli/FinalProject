@@ -81,6 +81,14 @@ public sealed class ReviewService : IReviewService
             game.Platforms,
             dto.PlatformSource,
             dto.PlatformId);
+        var isPcPlatform = IsPcPlatform(
+            dto.PlatformSource,
+            dto.PlatformId,
+            game.Platforms
+                .FirstOrDefault(platform =>
+                    platform.Source == dto.PlatformSource &&
+                    platform.Id == dto.PlatformId)
+                ?.Name);
 
         var review = await _context.Reviews
             .IgnoreQueryFilters()
@@ -132,6 +140,18 @@ public sealed class ReviewService : IReviewService
             review.IsDeleted = false;
             review.DeletedAtUtc = null;
         }
+
+        await ApplyHardwareSnapshotAsync(
+            review,
+            userId,
+            dto.ShowHardwareProfile,
+            dto.HardwareGpu,
+            dto.HardwareCpu,
+            dto.HardwareRamGb,
+            dto.HardwareVramGb,
+            HasReviewContent(content),
+            isPcPlatform,
+            cancellationToken);
 
         await using var transaction = await _context.Database
             .BeginTransactionAsync(cancellationToken);
@@ -394,6 +414,14 @@ public sealed class ReviewService : IReviewService
             game.Platforms,
             dto.PlatformSource,
             dto.PlatformId);
+        var isPcPlatform = IsPcPlatform(
+            dto.PlatformSource,
+            dto.PlatformId,
+            game.Platforms
+                .FirstOrDefault(platform =>
+                    platform.Source == dto.PlatformSource &&
+                    platform.Id == dto.PlatformId)
+                ?.Name);
 
         review.Content = content;
         review.ContainsSpoilers = dto.ContainsSpoilers;
@@ -402,6 +430,18 @@ public sealed class ReviewService : IReviewService
         review.PlatformId = dto.PlatformId;
         review.PlaytimeMinutes = normalizedPlaytimeMinutes;
         review.UpdatedAt = DateTime.UtcNow;
+
+        await ApplyHardwareSnapshotAsync(
+            review,
+            userId,
+            dto.ShowHardwareProfile,
+            dto.HardwareGpu,
+            dto.HardwareCpu,
+            dto.HardwareRamGb,
+            dto.HardwareVramGb,
+            hasReviewContent,
+            isPcPlatform,
+            cancellationToken);
 
         await ApplyUserGameStateAsync(
             userId,
@@ -497,6 +537,7 @@ public sealed class ReviewService : IReviewService
         {
             review.Content = string.Empty;
             review.ContainsSpoilers = false;
+            ClearHardwareSnapshot(review);
             review.UpdatedAt = now;
         }
         else
@@ -784,6 +825,19 @@ public sealed class ReviewService : IReviewService
                         (review.PlatformSource.Value, review.PlatformId.Value))
                     : null,
                 PlaytimeMinutes = review.PlaytimeMinutes,
+                ShowHardwareProfile = review.ShowHardwareProfile,
+                HardwareGpu = review.ShowHardwareProfile
+                    ? review.HardwareGpuName
+                    : null,
+                HardwareCpu = review.ShowHardwareProfile
+                    ? review.HardwareCpuName
+                    : null,
+                HardwareRamGb = review.ShowHardwareProfile
+                    ? review.HardwareRamGb
+                    : null,
+                HardwareVramGb = review.ShowHardwareProfile
+                    ? review.HardwareVramGb
+                    : null,
                 CreatedAt = review.CreatedAt,
                 UpdatedAt = review.UpdatedAt,
                 IsMine = currentUserId.HasValue &&
@@ -1079,6 +1133,120 @@ public sealed class ReviewService : IReviewService
                !userGame.IsFavorite &&
                !userGame.IsWishlisted &&
                !userGame.Rating.HasValue;
+    }
+
+    private async Task ApplyHardwareSnapshotAsync(
+        Review review,
+        Guid userId,
+        bool showHardwareProfile,
+        string? gpu,
+        string? cpu,
+        int? ramGb,
+        int? vramGb,
+        bool hasReviewContent,
+        bool isPcPlatform,
+        CancellationToken cancellationToken)
+    {
+        if (!showHardwareProfile)
+        {
+            ClearHardwareSnapshot(review);
+            return;
+        }
+
+        if (!hasReviewContent)
+        {
+            throw new BadRequestException(
+                "Sistem komponentləri yalnız mətnli rəydə göstərilə bilər.");
+        }
+
+        if (!isPcPlatform)
+        {
+            throw new BadRequestException(
+                "Sistem komponentləri yalnız PC platforması seçildikdə göstərilə bilər.");
+        }
+
+        var normalizedGpu = gpu.NormalizeOptionalText("GPU", 150);
+        var normalizedCpu = cpu.NormalizeOptionalText("CPU", 150);
+
+        if (normalizedGpu is null)
+            throw new BadRequestException("GPU boş ola bilməz.");
+
+        if (normalizedCpu is null)
+            throw new BadRequestException("CPU boş ola bilməz.");
+
+        if (!ramGb.HasValue || ramGb is < 1 or > 512)
+        {
+            throw new BadRequestException(
+                "RAM 1-512 GB aralığında olmalıdır.");
+        }
+
+        if (vramGb is < 1 or > 128)
+        {
+            throw new BadRequestException(
+                "VRAM 1-128 GB aralığında olmalıdır.");
+        }
+
+        review.ShowHardwareProfile = true;
+        review.HardwareGpuName = normalizedGpu;
+        review.HardwareCpuName = normalizedCpu;
+        review.HardwareRamGb = ramGb;
+        review.HardwareVramGb = vramGb;
+
+        var user = await _context.Users
+            .FirstOrDefaultAsync(
+                x => x.Id == userId,
+                cancellationToken)
+            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
+
+        var hardwareChanged =
+            user.FpsGpuName != normalizedGpu ||
+            user.FpsCpuName != normalizedCpu ||
+            user.FpsRamGb != ramGb ||
+            user.FpsVramGb != vramGb;
+
+        if (hardwareChanged)
+        {
+            user.FpsGpuName = normalizedGpu;
+            user.FpsCpuName = normalizedCpu;
+            user.FpsRamGb = ramGb;
+            user.FpsVramGb = vramGb;
+            user.FpsHardwareUpdatedAtUtc = DateTime.UtcNow;
+        }
+    }
+
+    private static void ClearHardwareSnapshot(Review review)
+    {
+        review.ShowHardwareProfile = false;
+        review.HardwareGpuName = null;
+        review.HardwareCpuName = null;
+        review.HardwareRamGb = null;
+        review.HardwareVramGb = null;
+    }
+
+    private static bool IsPcPlatform(
+        CatalogSource? source,
+        long? platformId,
+        string? platformName)
+    {
+        if (source == CatalogSource.Igdb && platformId == 6)
+            return true;
+
+        if (string.IsNullOrWhiteSpace(platformName))
+            return false;
+
+        var normalizedName = platformName.Trim();
+        return normalizedName.Equals(
+                   "PC",
+                   StringComparison.OrdinalIgnoreCase) ||
+               normalizedName.StartsWith(
+                   "PC (",
+                   StringComparison.OrdinalIgnoreCase) ||
+               normalizedName.Contains(
+                   "Microsoft Windows",
+                   StringComparison.OrdinalIgnoreCase) ||
+               normalizedName.Equals(
+                   "Windows",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     private static void ValidateFilter(ReviewFilterDTO filter)

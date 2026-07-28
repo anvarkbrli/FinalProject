@@ -22,6 +22,11 @@ public record ReviewDTO
     public long? PlatformId { get; init; }
     public string? PlatformName { get; init; }
     public int? PlaytimeMinutes { get; init; }
+    public bool ShowHardwareProfile { get; init; }
+    public string? HardwareGpu { get; init; }
+    public string? HardwareCpu { get; init; }
+    public int? HardwareRamGb { get; init; }
+    public int? HardwareVramGb { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
     public bool IsMine { get; init; }

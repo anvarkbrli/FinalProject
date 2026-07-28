@@ -35,6 +35,9 @@ public interface IIgdbClient
         IReadOnlyCollection<long> ids,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<IgdbGameModel>> GetGamesByIdsForCardsAsync(
+        IReadOnlyCollection<long> ids,
+        CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<IgdbSteamGameMappingModel>> GetSteamGameMappingsAsync(
         IReadOnlyCollection<int> steamAppIds,

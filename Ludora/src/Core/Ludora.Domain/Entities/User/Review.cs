@@ -14,6 +14,11 @@ public class Review
     public CatalogSource? PlatformSource { get; set; }
     public long? PlatformId { get; set; }
     public int? PlaytimeMinutes { get; set; }
+    public bool ShowHardwareProfile { get; set; }
+    public string? HardwareGpuName { get; set; }
+    public string? HardwareCpuName { get; set; }
+    public int? HardwareRamGb { get; set; }
+    public int? HardwareVramGb { get; set; }
     public bool IsSteamAutoLogged { get; set; }
     public bool IsSteamPlaytimeOverridden { get; set; }
     public bool IsSteamPlayedOnOverridden { get; set; }

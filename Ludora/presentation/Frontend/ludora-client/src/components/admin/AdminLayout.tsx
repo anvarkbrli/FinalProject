@@ -49,10 +49,15 @@ const activeItems = [
     icon: FileText,
     end: false,
   },
+  {
+    label: "Elanlar",
+    to: "/admin/announcements",
+    icon: BellRing,
+    end: false,
+  },
 ];
 
 const upcomingItems = [
-  { label: "Elanlar", icon: BellRing },
   { label: "Forum", icon: MessageSquareText },
   { label: "Audit jurnalı", icon: ScrollText },
 ];
@@ -71,6 +76,8 @@ export function AdminLayout() {
 
   const pageTitle = location.pathname === "/admin"
     ? "İdarə paneli"
+    : location.pathname.startsWith("/admin/announcements")
+      ? "Elanlar"
     : location.pathname.startsWith("/admin/posts")
       ? "Postlar"
     : location.pathname.startsWith("/admin/reports/users/")
