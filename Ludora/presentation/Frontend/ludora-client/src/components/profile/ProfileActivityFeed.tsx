@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
 import { formatDateTime, resolveAssetUrl } from "../../lib/helpers";
 import type {
@@ -59,9 +60,19 @@ const statusLabels = {
   Dropped: "Yarım qoyub",
 } as const;
 
-function GameLink({ activity }: { activity: UserActivityDTO }) {
+function GameLink({
+  activity,
+  language = "az",
+}: {
+  activity: UserActivityDTO;
+  language?: "az" | "en";
+}) {
   if (!activity.gameSource || activity.gameId === null) {
-    return <span className="font-semibold text-zinc-200">oyun</span>;
+    return (
+      <span className="font-semibold text-zinc-200">
+        {language === "en" ? "game" : "oyun"}
+      </span>
+    );
   }
 
   return (
@@ -69,14 +80,24 @@ function GameLink({ activity }: { activity: UserActivityDTO }) {
       to={`/games/${activity.gameSource}/${activity.gameId}`}
       className="font-semibold text-violet-300 transition hover:text-violet-200"
     >
-      {activity.gameName ?? "Oyun"}
+      {activity.gameName ?? (language === "en" ? "Game" : "Oyun")}
     </Link>
   );
 }
 
-function TargetUserLink({ activity }: { activity: UserActivityDTO }) {
+function TargetUserLink({
+  activity,
+  language = "az",
+}: {
+  activity: UserActivityDTO;
+  language?: "az" | "en";
+}) {
   if (!activity.targetUserName) {
-    return <span className="font-semibold text-zinc-200">istifadəçi</span>;
+    return (
+      <span className="font-semibold text-zinc-200">
+        {language === "en" ? "user" : "istifadəçi"}
+      </span>
+    );
   }
 
   return (
@@ -113,16 +134,114 @@ function ActorLink({
 function getPresentation(
   activity: UserActivityDTO,
   isOwnActivity: boolean,
+  language: "az" | "en",
 ): {
   icon: typeof History;
   accent: string;
   action: ReactNode;
 } {
-  const game = <GameLink activity={activity} />;
-  const user = <TargetUserLink activity={activity} />;
+  const game = <GameLink activity={activity} language={language} />;
+  const user = <TargetUserLink activity={activity} language={language} />;
   const listName = activity.subjectTitle ?? "siyahı";
   const verb = (secondPerson: string, thirdPerson: string) =>
     isOwnActivity ? secondPerson : thirdPerson;
+
+  if (language === "en") {
+    const subject = isOwnActivity ? <>You </> : null;
+    const englishStatusLabels = {
+      Played: "Played",
+      Playing: "Playing",
+      PlanToPlay: "Going to play",
+      Dropped: "Abandoned",
+    } as const;
+    const list = (
+      <strong className="text-zinc-200">
+        {activity.subjectTitle ?? "list"}
+      </strong>
+    );
+
+    switch (activity.type) {
+      case "GameStatusChanged":
+        return { icon: Gamepad2, accent: "bg-emerald-500/10 text-emerald-300", action: <>{subject}changed {game} to “{activity.status ? englishStatusLabels[activity.status] : "Status"}”.</> };
+      case "GameStatusRemoved":
+        return { icon: Gamepad2, accent: "bg-zinc-500/10 text-zinc-400", action: <>{subject}removed the status from {game}.</> };
+      case "GameAddedToFavorites":
+        return { icon: Heart, accent: "bg-rose-500/10 text-rose-300", action: <>{subject}added {game} to favorites.</> };
+      case "GameRemovedFromFavorites":
+        return { icon: Heart, accent: "bg-zinc-500/10 text-zinc-400", action: <>{subject}removed {game} from favorites.</> };
+      case "GameAddedToWishlist":
+        return { icon: Bookmark, accent: "bg-cyan-500/10 text-cyan-300", action: <>{subject}added {game} to the wishlist.</> };
+      case "GameRemovedFromWishlist":
+        return { icon: Bookmark, accent: "bg-zinc-500/10 text-zinc-400", action: <>{subject}removed {game} from the wishlist.</> };
+      case "GameRated":
+        return { icon: Star, accent: "bg-amber-500/10 text-amber-300", action: <>{subject}rated {game} {activity.rating ?? "—"} stars.</> };
+      case "GameRatingRemoved":
+        return { icon: Star, accent: "bg-zinc-500/10 text-zinc-400", action: <>{subject}removed the rating from {game}.</> };
+      case "ReviewCreated":
+        return { icon: NotebookPen, accent: "bg-violet-500/10 text-violet-300", action: <>{subject}logged {game}.</> };
+      case "ReviewUpdated":
+        return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>{subject}updated the log for {game}.</> };
+      case "ReviewDeleted":
+        return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>{subject}deleted the review for {game}.</> };
+      case "ReviewLiked":
+        return { icon: Heart, accent: "bg-rose-500/10 text-rose-300", action: <>{subject}liked {user}'s review of {game}.</> };
+      case "ReviewUnliked":
+        return { icon: Heart, accent: "bg-zinc-500/10 text-zinc-400", action: <>{subject}removed a like from a review of {game}.</> };
+      case "ReviewCommented":
+        return { icon: MessageCircle, accent: "bg-cyan-500/10 text-cyan-300", action: <>{subject}commented on a review of {game}.</> };
+      case "ReviewCommentUpdated":
+        return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>{subject}updated a review comment.</> };
+      case "ReviewCommentDeleted":
+        return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>{subject}deleted a review comment.</> };
+      case "UserFollowRequested":
+        return { icon: UserPlus, accent: "bg-cyan-500/10 text-cyan-300", action: <>{subject}sent {user} a follow request.</> };
+      case "UserFollowed":
+        return { icon: UserPlus, accent: "bg-emerald-500/10 text-emerald-300", action: <>{subject}started following {user}.</> };
+      case "UserUnfollowed":
+      case "FollowRequestCancelled":
+        return { icon: UserPlus, accent: "bg-zinc-500/10 text-zinc-400", action: <>{subject}stopped following {user}.</> };
+      case "PostCreated":
+        return { icon: MessageSquareText, accent: "bg-violet-500/10 text-violet-300", action: <>{subject}shared a new post.</> };
+      case "PostUpdated":
+        return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>{subject}updated a post.</> };
+      case "PostDeleted":
+        return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>{subject}deleted a post.</> };
+      case "PostLiked":
+        return { icon: Heart, accent: "bg-rose-500/10 text-rose-300", action: <>{subject}liked {user}'s post.</> };
+      case "PostUnliked":
+        return { icon: Heart, accent: "bg-zinc-500/10 text-zinc-400", action: <>{subject}removed a like from a post.</> };
+      case "PostCommented":
+        return { icon: MessageCircle, accent: "bg-cyan-500/10 text-cyan-300", action: <>{subject}commented on {user}'s post.</> };
+      case "PostCommentUpdated":
+        return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>{subject}updated a post comment.</> };
+      case "PostCommentDeleted":
+        return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>{subject}deleted a post comment.</> };
+      case "GameListCreated":
+        return { icon: ListChecks, accent: "bg-violet-500/10 text-violet-300", action: <>{subject}created the list {list}.</> };
+      case "GameListUpdated":
+        return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>{subject}updated the list {list}.</> };
+      case "GameListDeleted":
+        return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>{subject}deleted the list {list}.</> };
+      case "GameAddedToList":
+        return { icon: ListChecks, accent: "bg-violet-500/10 text-violet-300", action: <>{subject}added {game} to {list}.</> };
+      case "GameRemovedFromList":
+        return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>{subject}removed {game} from {list}.</> };
+      case "GameListGameReordered":
+        return { icon: ListChecks, accent: "bg-amber-500/10 text-amber-300", action: <>{subject}reordered the games in {list}.</> };
+      case "GameListLiked":
+        return { icon: Heart, accent: "bg-rose-500/10 text-rose-300", action: <>{subject}liked the list {list}.</> };
+      case "GameListUnliked":
+        return { icon: Heart, accent: "bg-zinc-500/10 text-zinc-400", action: <>{subject}removed a like from {list}.</> };
+      case "GameListCommented":
+        return { icon: MessageCircle, accent: "bg-cyan-500/10 text-cyan-300", action: <>{subject}commented on the list {list}.</> };
+      case "GameListCommentUpdated":
+        return { icon: Pencil, accent: "bg-blue-500/10 text-blue-300", action: <>{subject}updated a list comment.</> };
+      case "GameListCommentDeleted":
+        return { icon: Trash2, accent: "bg-red-500/10 text-red-300", action: <>{subject}deleted a list comment.</> };
+      default:
+        return { icon: History, accent: "bg-zinc-500/10 text-zinc-400", action: <>{subject}recorded new activity.</> };
+    }
+  }
 
   switch (activity.type) {
     case "GameStatusChanged":
@@ -228,7 +347,22 @@ export function ProfileActivityFeed({
   onScopeChange,
   onPageChange,
 }: ProfileActivityFeedProps) {
+  const { language } = useI18n();
   const activities = result?.items ?? [];
+  const localizedFilters = filters.map((filter) => ({
+    ...filter,
+    label:
+      language === "en"
+        ? {
+            All: "All",
+            Statuses: "Statuses",
+            Lists: "Lists",
+            Ratings: "Ratings",
+            Reviews: "Logs",
+            Posts: "Posts",
+          }[filter.value]
+        : filter.label,
+  }));
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -236,17 +370,23 @@ export function ProfileActivityFeed({
         <div className="flex flex-col gap-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="font-semibold text-zinc-100">İcma axını</h2>
+              <h2 className="font-semibold text-zinc-100">
+                {language === "en" ? "Community feed" : "İcma axını"}
+              </h2>
               <p className="mt-1 text-xs text-zinc-600">
                 {scope === "Mine"
-                  ? "Yalnız sənin fəaliyyətin, ən yenidən köhnəyə."
-                  : "Dostlarının fəaliyyəti, ən yenidən köhnəyə."}
+                  ? language === "en"
+                    ? "Only your activity, from newest to oldest."
+                    : "Yalnız sənin fəaliyyətin, ən yenidən köhnəyə."
+                  : language === "en"
+                    ? "Activity from people you follow, from newest to oldest."
+                    : "Dostlarının fəaliyyəti, ən yenidən köhnəyə."}
               </p>
             </div>
 
             <label className="flex shrink-0 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2">
               <span className="text-xs font-semibold text-zinc-500">
-                Göstərilir:
+                {language === "en" ? "Showing:" : "Göstərilir:"}
               </span>
               <select
                 value={scope}
@@ -256,17 +396,17 @@ export function ProfileActivityFeed({
                 className="bg-transparent text-xs font-bold text-zinc-200 outline-none"
               >
                 <option value="Mine" className="bg-[#12121a]">
-                  Özüm
+                  {language === "en" ? "Me" : "Özüm"}
                 </option>
                 <option value="Following" className="bg-[#12121a]">
-                  Dostlarım
+                  {language === "en" ? "Following" : "Dostlarım"}
                 </option>
               </select>
             </label>
           </div>
 
           <div className="flex gap-2 overflow-x-auto pb-1">
-            {filters.map((filter) => (
+            {localizedFilters.map((filter) => (
               <button
                 key={filter.value}
                 type="button"
@@ -287,24 +427,35 @@ export function ProfileActivityFeed({
       {isLoading ? (
         <div className="flex items-center justify-center gap-3 py-16 text-sm text-zinc-500">
           <LoaderCircle size={19} className="animate-spin" />
-          Axın yüklənir...
+          {language === "en" ? "Loading feed..." : "Axın yüklənir..."}
         </div>
       ) : isError ? (
         <div className="rounded-3xl border border-red-400/15 bg-red-500/[0.05] p-8 text-center text-sm text-red-100/70">
-          {getApiErrorMessage(error, "İcma axınını yükləmək mümkün olmadı.")}
+          {getApiErrorMessage(
+            error,
+            language === "en"
+              ? "The community feed could not be loaded."
+              : "İcma axınını yükləmək mümkün olmadı.",
+          )}
         </div>
       ) : activities.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-white/[0.08] p-12 text-center">
           <History size={31} className="mx-auto text-zinc-700" />
           <p className="mt-4 text-sm text-zinc-500">
-            Bu filtr üzrə hələ fəaliyyət yoxdur.
+            {language === "en"
+              ? "There is no activity for this filter yet."
+              : "Bu filtr üzrə hələ fəaliyyət yoxdur."}
           </p>
         </div>
       ) : (
         <div className="space-y-3">
           {activities.map((activity) => {
             const isOwnActivity = activity.actorUserId === currentUserId;
-            const presentation = getPresentation(activity, isOwnActivity);
+            const presentation = getPresentation(
+              activity,
+              isOwnActivity,
+              language,
+            );
             const Icon = presentation.icon;
             const coverUrl = resolveAssetUrl(activity.gameCoverImageUrl);
             const actorImageUrl = resolveAssetUrl(activity.actorUserProfileImageUrl);
@@ -321,7 +472,11 @@ export function ProfileActivityFeed({
                   {actorImageUrl ? (
                     <img
                       src={actorImageUrl}
-                      alt={`${activity.actorUserName} profil şəkli`}
+                      alt={
+                        language === "en"
+                          ? `${activity.actorUserName}'s profile picture`
+                          : `${activity.actorUserName} profil şəkli`
+                      }
                       className="h-full w-full object-cover"
                     />
                   ) : (
@@ -354,7 +509,11 @@ export function ProfileActivityFeed({
                   >
                     <img
                       src={coverUrl}
-                      alt={`${activity.gameName ?? "Oyun"} örtüyü`}
+                      alt={
+                        language === "en"
+                          ? `${activity.gameName ?? "Game"} cover`
+                          : `${activity.gameName ?? "Oyun"} örtüyü`
+                      }
                       className="h-full w-full object-cover"
                     />
                   </Link>
@@ -373,7 +532,8 @@ export function ProfileActivityFeed({
             disabled={page <= 1}
             className="flex h-10 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm font-semibold text-zinc-400 transition hover:bg-white/[0.07] hover:text-white disabled:opacity-40"
           >
-            <ChevronLeft size={16} /> Əvvəlki
+            <ChevronLeft size={16} />{" "}
+            {language === "en" ? "Previous" : "Əvvəlki"}
           </button>
           <span className="min-w-24 text-center text-xs font-semibold text-zinc-500">
             {page} / {result?.totalPages}
@@ -384,7 +544,8 @@ export function ProfileActivityFeed({
             disabled={page >= (result?.totalPages ?? 1)}
             className="flex h-10 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 text-sm font-semibold text-zinc-400 transition hover:bg-white/[0.07] hover:text-white disabled:opacity-40"
           >
-            Növbəti <ChevronRight size={16} />
+            {language === "en" ? "Next" : "Növbəti"}{" "}
+            <ChevronRight size={16} />
           </button>
         </div>
       )}

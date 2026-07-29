@@ -24,6 +24,7 @@ import {
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
+import { useI18n, type I18nContextValue } from "../../i18n/useI18n";
 import { formatDateTime, formatRelativeDate, resolveAssetUrl } from "../../lib/helpers";
 import {
   getNotifications,
@@ -83,14 +84,17 @@ function renderNotificationIcon(type: NotificationType) {
   }
 }
 
-function getNotificationTone(notification: NotificationDTO): NotificationTone {
+function getNotificationTone(
+  notification: NotificationDTO,
+  t: I18nContextValue["t"],
+): NotificationTone {
   if (notification.type === "WarningIssued") {
     return {
       containerClassName:
         "notification-item--warning border-red-300/25 bg-red-500/[0.10] hover:bg-red-500/[0.15]",
       iconClassName: "bg-red-400/15 text-red-200",
       dotClassName: "bg-red-300",
-      badgeLabel: "Vacib xəbərdarlıq",
+      badgeLabel: t("notifications:badges.warning"),
       badgeClassName: "bg-red-400/12 text-red-200",
     };
   }
@@ -104,7 +108,7 @@ function getNotificationTone(notification: NotificationDTO): NotificationTone {
         "notification-item--announcement border-amber-300/20 bg-amber-400/[0.08] hover:bg-amber-400/[0.13]",
       iconClassName: "bg-amber-400/15 text-amber-200",
       dotClassName: "bg-amber-300",
-      badgeLabel: "Admin elanı",
+      badgeLabel: t("notifications:badges.announcement"),
       badgeClassName: "bg-amber-400/12 text-amber-200",
     };
   }
@@ -116,7 +120,7 @@ function getNotificationTone(notification: NotificationDTO): NotificationTone {
         : "notification-item--high border-fuchsia-300/15 bg-fuchsia-500/[0.07] hover:bg-fuchsia-500/[0.11]",
       iconClassName: "bg-fuchsia-500/12 text-fuchsia-300",
       dotClassName: "bg-fuchsia-400",
-      badgeLabel: "Diqqət",
+      badgeLabel: t("notifications:badges.high"),
       badgeClassName: "bg-fuchsia-500/10 text-fuchsia-200",
     };
   }
@@ -129,6 +133,84 @@ function getNotificationTone(notification: NotificationDTO): NotificationTone {
     dotClassName: "bg-violet-400",
     badgeLabel: null,
     badgeClassName: "",
+  };
+}
+
+function getLocalizedNotificationContent(
+  notification: NotificationDTO,
+  language: "az" | "en",
+  t: I18nContextValue["t"],
+): { title: string; message: string } {
+  if (notification.type === "AnnouncementPublished") {
+    return {
+      title: notification.title,
+      message: notification.message,
+    };
+  }
+
+  if (notification.type === "WarningIssued") {
+    return {
+      title: t("notifications:types.WarningIssued.title"),
+      message: notification.message,
+    };
+  }
+
+  if (language === "az") {
+    return {
+      title: notification.title,
+      message: notification.message,
+    };
+  }
+
+  if (notification.type === "FollowRequestReceived") {
+    const communityName =
+      notification.message.match(/^(.+?) icmasına/)?.[1]?.trim();
+
+    if (notification.title.includes("üzvlük sorğusu")) {
+      return {
+        title: "New community membership request",
+        message: communityName
+          ? `requested to join the ${communityName} community.`
+          : "sent a community membership request.",
+      };
+    }
+
+    if (notification.title.includes("icmaya dəvət")) {
+      return {
+        title: "Private community invitation",
+        message: communityName
+          ? `invited you to join the ${communityName} community.`
+          : "invited you to join a private community.",
+      };
+    }
+  }
+
+  if (notification.type === "CommunityOwnershipOffered") {
+    const communityName =
+      notification.message.match(/^(.+?) icma(?:sında|sının)/)?.[1]?.trim();
+    const offered = notification.title.includes("təklifi");
+    const failed = notification.title.includes("ötürülmədi");
+
+    return {
+      title: offered
+        ? "Community ownership offer"
+        : failed
+          ? "Community ownership transfer failed"
+          : "Community ownership transferred",
+      message: communityName
+        ? offered
+          ? `You were offered ownership of the ${communityName} community.`
+          : failed
+            ? `No member accepted the ownership offer for the ${communityName} community.`
+            : `Ownership of the ${communityName} community was transferred.`
+        : t("notifications:types.CommunityOwnershipOffered.message"),
+    };
+  }
+
+  const translationKey = `notifications:types.${notification.type}`;
+  return {
+    title: t(`${translationKey}.title`, undefined, notification.title),
+    message: t(`${translationKey}.message`, undefined, notification.message),
   };
 }
 
@@ -184,8 +266,14 @@ function NotificationItem({
   onRead: (notificationId: number) => void;
   onWarningOpen: (notification: NotificationDTO) => void;
 }) {
+  const { language, t } = useI18n();
   const actorImageUrl = resolveAssetUrl(notification.actorProfileImageUrl);
-  const tone = getNotificationTone(notification);
+  const tone = getNotificationTone(notification, t);
+  const localizedContent = getLocalizedNotificationContent(
+    notification,
+    language,
+    t,
+  );
   const shouldShowActorImage = !notification.isAdminNotification && actorImageUrl;
   const rootClassName = `notification-item ${
     notification.isRead
@@ -221,7 +309,7 @@ function NotificationItem({
                   : "font-semibold text-white"
             }`}
           >
-            {notification.title}
+            {localizedContent.title}
           </span>
 
           {tone.badgeLabel && (
@@ -239,7 +327,7 @@ function NotificationItem({
               {notification.actorUserName}{" "}
             </strong>
           )}
-          {notification.message}
+          {localizedContent.message}
         </span>
 
         <time
@@ -254,7 +342,7 @@ function NotificationItem({
       {!notification.isRead && (
         <span
           className={`notification-item__unread-dot mt-1 h-2 w-2 shrink-0 rounded-full ${tone.dotClassName}`}
-          aria-label="Oxunmamış bildiriş"
+          aria-label={t("notifications:unreadAria")}
         />
       )}
     </>
@@ -296,6 +384,7 @@ function NotificationItem({
 }
 
 export function NotificationBell() {
+  const { language, t } = useI18n();
   const queryClient = useQueryClient();
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -418,8 +507,8 @@ export function NotificationBell() {
         type="button"
         aria-label={
           unreadCount > 0
-            ? `Bildirişlər, ${unreadCount} oxunmamış`
-            : "Bildirişlər"
+            ? t("notifications:bellUnreadAria", { count: unreadCount })
+            : t("notifications:title")
         }
         aria-haspopup="dialog"
         aria-expanded={isOpen}
@@ -446,16 +535,18 @@ export function NotificationBell() {
       {isOpen && (
         <section
           role="dialog"
-          aria-label="Bildirişlər"
+          aria-label={t("notifications:title")}
           className="notification-panel fixed left-3 right-3 top-[78px] z-[70] overflow-hidden rounded-3xl border border-white/[0.09] bg-[#101015] shadow-2xl shadow-black/55 sm:absolute sm:left-auto sm:right-0 sm:top-[calc(100%+10px)] sm:w-[420px]"
         >
           <header className="notification-panel__header flex items-center justify-between border-b border-white/[0.06] px-5 py-4">
             <div>
-              <h2 className="font-bold text-white">Bildirişlər</h2>
+              <h2 className="font-bold text-white">
+                {t("notifications:title")}
+              </h2>
               <p className="mt-0.5 text-xs text-zinc-600">
                 {unreadCount > 0
-                  ? `${unreadCount} oxunmamış bildiriş`
-                  : "Bütün bildirişlər oxunub"}
+                  ? t("notifications:unread", { count: unreadCount })
+                  : t("notifications:allRead")}
               </p>
             </div>
 
@@ -471,7 +562,7 @@ export function NotificationBell() {
                 ) : (
                   <CheckCheck size={14} />
                 )}
-                Hamısını oxu
+                {t("notifications:markAllRead")}
               </button>
             )}
           </header>
@@ -480,20 +571,20 @@ export function NotificationBell() {
             {notificationsQuery.isLoading ? (
               <div className="flex min-h-40 items-center justify-center gap-2 text-sm text-zinc-500">
                 <LoaderCircle size={17} className="animate-spin" />
-                Bildirişlər yüklənir...
+                {t("notifications:loading")}
               </div>
             ) : notificationsQuery.isError ? (
               <div className="rounded-2xl border border-red-400/15 bg-red-500/[0.06] p-4 text-sm text-red-200">
-                Bildirişlər yüklənmədi.
+                {t("notifications:loadError")}
               </div>
             ) : notifications.length === 0 ? (
               <div className="flex min-h-40 flex-col items-center justify-center text-center">
                 <Bell size={24} className="text-zinc-700" />
                 <p className="mt-3 text-sm font-semibold text-zinc-400">
-                  Hələ bildiriş yoxdur
+                  {t("notifications:emptyTitle")}
                 </p>
                 <p className="mt-1 text-xs text-zinc-600">
-                  Yeni fəaliyyətlər burada görünəcək.
+                  {t("notifications:emptyDescription")}
                 </p>
               </div>
             ) : (
@@ -527,7 +618,7 @@ export function NotificationBell() {
                     {notificationsQuery.isFetchingNextPage && (
                       <LoaderCircle size={14} className="animate-spin" />
                     )}
-                    Daha çox göstər
+                    {t("notifications:loadMore")}
                   </button>
                 )}
               </>
@@ -540,7 +631,7 @@ export function NotificationBell() {
               onClick={() => setIsOpen(false)}
               className="flex h-10 items-center justify-center rounded-xl bg-white/[0.04] text-xs font-semibold text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
             >
-              Bildiriş ayarlarını idarə et
+              {t("notifications:manageSettings")}
             </Link>
           </footer>
         </section>
@@ -568,13 +659,17 @@ export function NotificationBell() {
                   </span>
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-red-300/70">
-                      Rəsmi xəbərdarlıq
+                      {t("notifications:officialWarning")}
                     </p>
                     <h2
                       id="warning-notification-title"
                       className="mt-1 text-lg font-bold text-white"
                     >
-                      {selectedWarning.title}
+                      {getLocalizedNotificationContent(
+                        selectedWarning,
+                        language,
+                        t,
+                      ).title}
                     </h2>
                   </div>
                 </div>
@@ -582,7 +677,7 @@ export function NotificationBell() {
                   type="button"
                   onClick={() => setSelectedWarning(null)}
                   className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-500 transition hover:bg-white/[0.07] hover:text-white"
-                  aria-label="Xəbərdarlıq pəncərəsini bağla"
+                  aria-label={t("notifications:closeWarningAria")}
                 >
                   <X size={18} />
                 </button>
@@ -597,7 +692,7 @@ export function NotificationBell() {
                   {formatDateTime(selectedWarning.createdAtUtc)}
                 </div>
                 <p className="mt-4 text-xs leading-5 text-zinc-600">
-                  Xəbərdarlıq açıldığı üçün oxunmuş kimi qeydə alındı.
+                  {t("notifications:warningReadNotice")}
                 </p>
               </div>
 
@@ -607,7 +702,7 @@ export function NotificationBell() {
                   onClick={() => setSelectedWarning(null)}
                   className="h-10 rounded-xl bg-red-500 px-5 text-sm font-bold text-white transition hover:bg-red-400"
                 >
-                  Bağla
+                  {t("common:actions.close")}
                 </button>
               </footer>
             </section>

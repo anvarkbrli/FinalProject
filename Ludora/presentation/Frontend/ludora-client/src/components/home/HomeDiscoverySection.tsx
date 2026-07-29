@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 import { Link } from "react-router-dom";
+import { useI18n } from "../../i18n/useI18n";
 import { resolveAssetUrl } from "../../lib/helpers";
 import type {
   GameListItemDTO,
@@ -55,11 +56,12 @@ function formatReleaseDate(value: Date): string {
 
 function getComingSoonLabel(
   releaseDate: string | null,
+  language: "az" | "en",
 ): string {
   const value = getReleaseDateValue(releaseDate);
 
   if (!value) {
-    return "Tezliklə";
+    return language === "en" ? "Soon" : "Tezliklə";
   }
 
   const today = new Date();
@@ -74,14 +76,16 @@ function getComingSoonLabel(
   );
 
   if (remainingDays === 0) {
-    return "Bu gün";
+    return language === "en" ? "Today" : "Bu gün";
   }
 
   if (remainingDays === 1) {
-    return "Sabah";
+    return language === "en" ? "1 day left" : "Sabah";
   }
 
-  return `${remainingDays} gün qalıb`;
+  return language === "en"
+    ? `${remainingDays} days left`
+    : `${remainingDays} gün qalıb`;
 }
 
 const retiredOrNichePlatformPatterns = [
@@ -220,6 +224,7 @@ function DiscoveryGameCard({
   index,
   variant,
 }: DiscoveryGameCardProps) {
+  const { language } = useI18n();
   const coverUrl = resolveAssetUrl(
     game.coverImageUrl,
   );
@@ -253,7 +258,7 @@ function DiscoveryGameCard({
           ) : (
             <>
               <CalendarClock size={11} />
-              {getComingSoonLabel(game.releaseDate)}
+              {getComingSoonLabel(game.releaseDate, language)}
             </>
           )}
         </span>
@@ -643,6 +648,8 @@ export function HomeDiscoverySection({
   isLoading,
   isError,
 }: HomeDiscoverySectionProps) {
+  const { language } = useI18n();
+
   return (
     <section className="home-discovery-section border-b border-white/5 bg-transparent">
       <div className="mx-auto max-w-7xl space-y-14 px-5 py-16 lg:px-8 lg:py-20">
@@ -657,18 +664,18 @@ export function HomeDiscoverySection({
         ) : (
           <>
             <DiscoveryRail
-              eyebrow="İndi populyar"
-              title="Trend oyunlar"
-              description="IGDB, Steam və Twitch aktivlik göstəricilərinin birləşdirilmiş trend sıralaması."
+              eyebrow={language === "en" ? "Popular now" : "İndi populyar"}
+              title={language === "en" ? "Now trending" : "Trend oyunlar"}
+              description={language === "en" ? "A combined trending ranking based on IGDB, Steam, and Twitch activity signals." : "IGDB, Steam və Twitch aktivlik göstəricilərinin birləşdirilmiş trend sıralaması."}
               games={trendingGames}
               variant="trending"
               isLoading={isLoading}
             />
 
             <DiscoveryRail
-              eyebrow="Buraxılışa hazırlaş"
-              title="Tezliklə çıxacaq"
-              description="Steam Top Wishlists əsas götürülür; Steam səhifəsi olmayan böyük oyunlar ümumi gözlənti və buraxılış yaxınlığı ilə tamamlanır."
+              eyebrow={language === "en" ? "Prepare for release" : "Buraxılışa hazırlaş"}
+              title={language === "en" ? "Coming soon" : "Tezliklə çıxacaq"}
+              description={language === "en" ? "Based on Steam Top Wishlists; big games without a Steam page are completed using general anticipation and proximity to release." : "Steam Top Wishlists əsas götürülür; Steam səhifəsi olmayan böyük oyunlar ümumi gözlənti və buraxılış yaxınlığı ilə tamamlanır."}
               games={comingSoonGames}
               variant="comingSoon"
               isLoading={isLoading}

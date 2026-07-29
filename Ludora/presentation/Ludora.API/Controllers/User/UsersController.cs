@@ -42,6 +42,20 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
+    [HttpPut("me/language")]
+    public async Task<IActionResult> UpdatePreferredLanguage(
+        [FromBody] UpdatePreferredLanguageDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await _userService.UpdatePreferredLanguageAsync(
+            GetCurrentUserId(),
+            dto,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [Authorize]
     [HttpGet("me/feed")]
     public async Task<IActionResult> GetMyFeed(
         [FromQuery] UserActivityFilterDTO filter,

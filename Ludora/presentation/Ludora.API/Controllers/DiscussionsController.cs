@@ -1,4 +1,7 @@
 using System.Security.Claims;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using Ludora.Application.Exceptions;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -68,6 +71,8 @@ public sealed class DiscussionsController : ControllerBase
         [FromForm] string? content,
         [FromForm] int categoryId,
         [FromForm] int? communityId,
+        [FromForm] bool isSpoiler,
+        [FromForm] string? pollJson,
         [FromForm] List<IFormFile>? mediaFiles,
         CancellationToken cancellationToken)
     {
@@ -89,6 +94,8 @@ public sealed class DiscussionsController : ControllerBase
                 Content = content,
                 CategoryId = categoryId,
                 CommunityId = communityId,
+                IsSpoiler = isSpoiler,
+                Poll = ParsePoll(pollJson),
                 Media = uploads
             },
             cancellationToken);
@@ -126,6 +133,8 @@ public sealed class DiscussionsController : ControllerBase
         [FromForm] string title,
         [FromForm] string? content,
         [FromForm] int categoryId,
+        [FromForm] bool isSpoiler,
+        [FromForm] string? pollJson,
         [FromForm] List<int>? keptMediaIds,
         [FromForm] List<IFormFile>? mediaFiles,
         CancellationToken cancellationToken)
@@ -149,12 +158,41 @@ public sealed class DiscussionsController : ControllerBase
                 Title = title,
                 Content = content ?? string.Empty,
                 CategoryId = categoryId,
+                IsSpoiler = isSpoiler,
+                Poll = ParsePoll(pollJson),
                 KeptMediaIds = keptMediaIds ?? [],
                 Media = uploads
             },
             cancellationToken);
 
         return Ok(result);
+    }
+
+    [Authorize]
+    [HttpPost("{id:int}/poll/vote")]
+    public async Task<ActionResult<DiscussionPollDTO>> VotePoll(
+        int id,
+        [FromBody] DiscussionPollVoteRequestDTO dto,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _discussionService.VoteAsync(
+            id,
+            GetCurrentUserId(),
+            dto,
+            cancellationToken));
+    }
+
+    [Authorize]
+    [HttpPost("{id:int}/poll/close")]
+    public async Task<ActionResult<DiscussionPollDTO>> ClosePoll(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _discussionService.ClosePollAsync(
+            id,
+            GetCurrentUserId(),
+            CanModerate(),
+            cancellationToken));
     }
 
     [Authorize]
@@ -242,5 +280,26 @@ public sealed class DiscussionsController : ControllerBase
         return Guid.TryParse(userIdValue, out var userId)
             ? userId
             : null;
+    }
+
+    private static DiscussionPollWriteDTO? ParsePoll(string? pollJson)
+    {
+        if (string.IsNullOrWhiteSpace(pollJson))
+            return null;
+
+        try
+        {
+            return JsonSerializer.Deserialize<DiscussionPollWriteDTO>(
+                pollJson,
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    Converters = { new JsonStringEnumConverter() }
+                });
+        }
+        catch (JsonException)
+        {
+            throw new BadRequestException("Sorğu məlumatı düzgün formatda deyil.");
+        }
     }
 }

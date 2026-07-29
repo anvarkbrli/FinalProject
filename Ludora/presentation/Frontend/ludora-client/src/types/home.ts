@@ -66,6 +66,7 @@ export interface DiscussionListItemDTO {
   isSavedByCurrentUser: boolean;
   isPinned: boolean;
   isLocked: boolean;
+  isSpoiler: boolean;
   isDeleted: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -82,6 +83,39 @@ export interface DiscussionMediaDTO {
   fileSize: number;
   sortOrder: number;
   isVideo: boolean;
+}
+
+export type PollResultsVisibility = "Always" | "AfterVote" | "AfterEnd";
+
+export interface DiscussionPollOptionDTO {
+  id: number;
+  text: string;
+  displayOrder: number;
+  voteCount: number | null;
+  percentage: number | null;
+}
+
+export interface DiscussionPollParticipantDTO {
+  userId: string;
+  userName: string;
+  avatarUrl: string | null;
+}
+
+export interface DiscussionPollDTO {
+  id: number;
+  question: string;
+  endsAtUtc: string;
+  isClosed: boolean;
+  hasEnded: boolean;
+  allowVoteChange: boolean;
+  resultsVisibility: PollResultsVisibility;
+  canViewResults: boolean;
+  hasVoted: boolean;
+  selectedOptionId: number | null;
+  totalVotes: number | null;
+  canEdit: boolean;
+  options: DiscussionPollOptionDTO[];
+  participantPreview: DiscussionPollParticipantDTO[];
 }
 
 export interface ForumCategoryDTO {

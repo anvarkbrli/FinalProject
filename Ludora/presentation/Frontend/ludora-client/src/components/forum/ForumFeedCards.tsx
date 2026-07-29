@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useI18n } from "../../i18n/useI18n";
 import {
   formatRelativeDate,
   resolveAssetUrl,
@@ -17,6 +18,7 @@ import {
   unlikeContent,
 } from "../../services/contentInteractionsService";
 import { setDiscussionLike } from "../../services/forumService";
+import { useAuthStore } from "../../stores/authStore";
 import type { DiscussionListItemDTO } from "../../types/home";
 import type { PostDTO } from "../../types/profile";
 import { InteractionCommentsPanel } from "../interactions/InteractionCommentsPanel";
@@ -36,7 +38,14 @@ export function DiscussionFeedCard({
 }: FeedCardProps & {
   discussion: DiscussionListItemDTO;
 }) {
+  useI18n();
   const queryClient = useQueryClient();
+  const [isSpoilerRevealed, setIsSpoilerRevealed] = useState(false);
+  const currentUserId = useAuthStore((state) => state.user?.id);
+  const shouldHideSpoiler =
+    discussion.isSpoiler &&
+    discussion.authorId !== currentUserId &&
+    !isSpoilerRevealed;
   const avatarUrl = resolveAssetUrl(
     discussion.communityIconUrl ?? discussion.authorProfileImageUrl,
   );
@@ -117,22 +126,36 @@ export function DiscussionFeedCard({
 
           <Link
             to={`/forum/discussions/${discussion.slug}`}
+            data-i18n-ignore
             className="mt-2 block text-base font-bold leading-6 text-zinc-100 transition group-hover:text-white sm:text-lg"
           >
             {discussion.title}
           </Link>
 
-          {discussion.contentPreview && (
-            <p className="mt-2 line-clamp-3 text-sm leading-6 text-zinc-500">
+          {shouldHideSpoiler && (
+            <button
+              type="button"
+              onClick={() => setIsSpoilerRevealed(true)}
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-300/15 bg-amber-300/[0.05] px-4 py-5 text-xs font-bold text-amber-200 transition hover:bg-amber-300/[0.09]"
+            >
+              <Eye size={15} />
+              Spoiler məzmununu göstər
+            </button>
+          )}
+
+          {discussion.contentPreview && !shouldHideSpoiler && (
+            <p data-i18n-ignore className="mt-2 line-clamp-3 text-sm leading-6 text-zinc-500">
               {discussion.contentPreview}
             </p>
           )}
 
-          <ForumMediaGallery
-            media={discussion.media}
-            title={discussion.title}
-            compact
-          />
+          {!shouldHideSpoiler && (
+            <ForumMediaGallery
+              media={discussion.media}
+              title={discussion.title}
+              compact
+            />
+          )}
 
           <div className="mt-2.5">
             <span className="rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 py-1 text-[11px] font-semibold text-zinc-500">
@@ -187,6 +210,7 @@ export function ForumPostCard({
 }: FeedCardProps & {
   post: PostDTO;
 }) {
+  useI18n();
   const queryClient = useQueryClient();
   const [showComments, setShowComments] = useState(false);
   const avatarUrl = resolveAssetUrl(post.profileImageUrl);

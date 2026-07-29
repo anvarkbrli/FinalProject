@@ -19,6 +19,9 @@ public sealed class DiscussionService : IDiscussionService
     private const int MaxSearchLength = 200;
     private const int MaxPageSize = 100;
     private const int MaxMediaCount = 8;
+    private const int MaxPollQuestionLength = 300;
+    private const int MaxPollOptionLength = 120;
+    private static readonly TimeSpan MaxPollDuration = TimeSpan.FromDays(30);
 
     private readonly AppDbContext _context;
     private readonly INotificationService _notificationService;
@@ -227,7 +230,7 @@ public sealed class DiscussionService : IDiscussionService
             throw new BadRequestException(
                 $"Bir müzakirəyə maksimum {MaxMediaCount} media əlavə edilə bilər.");
 
-        if (content.Length == 0 && dto.Media.Count == 0)
+        if (content.Length == 0 && dto.Media.Count == 0 && dto.Poll is null)
             throw new BadRequestException(
                 "Müzakirə mətni və ya ən azı bir media əlavə edilməlidir.");
 
@@ -240,8 +243,10 @@ public sealed class DiscussionService : IDiscussionService
             Content = content,
             CategoryId = dto.CategoryId,
             CommunityId = dto.CommunityId,
+            IsSpoiler = dto.IsSpoiler,
             UserId = userId,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            Poll = CreatePoll(dto.Poll, DateTime.UtcNow)
         };
 
         var savedUrls = new List<string>();
@@ -475,6 +480,7 @@ public sealed class DiscussionService : IDiscussionService
             discussion.Title = title;
             discussion.Content = content;
             discussion.CategoryId = dto.CategoryId;
+            discussion.IsSpoiler = dto.IsSpoiler;
             discussion.UpdatedAt = now;
 
             for (var index = 0; index < keptMedia.Count; index++)
@@ -652,6 +658,89 @@ public sealed class DiscussionService : IDiscussionService
 
         _context.DiscussionLikes.Remove(like);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<DiscussionPollDTO> VoteAsync(
+        int discussionId,
+        Guid userId,
+        DiscussionPollVoteRequestDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        discussionId.EnsureValidId("Müzakirə ID-si");
+        ArgumentNullException.ThrowIfNull(dto);
+        dto.OptionId.EnsureValidId("Seçim ID-si");
+
+        var poll = await _context.DiscussionPolls
+            .Include(x => x.Options)
+            .Include(x => x.Votes.Where(vote => vote.UserId == userId))
+            .FirstOrDefaultAsync(x => x.DiscussionId == discussionId, cancellationToken)
+            ?? throw new NotFoundException("Bu müzakirədə sorğu yoxdur.");
+
+        var nowUtc = DateTime.UtcNow;
+        if (poll.IsClosed || poll.EndsAtUtc <= nowUtc)
+            throw new ConflictException("Bu sorğu artıq bitib.");
+
+        if (!poll.Options.Any(x => x.Id == dto.OptionId))
+            throw new BadRequestException("Seçilmiş variant bu sorğuya aid deyil.");
+
+        var existingVote = poll.Votes.SingleOrDefault();
+        if (existingVote is null)
+        {
+            await _context.DiscussionPollVotes.AddAsync(
+                new DiscussionPollVote
+                {
+                    PollId = poll.Id,
+                    OptionId = dto.OptionId,
+                    UserId = userId,
+                    CreatedAt = nowUtc
+                },
+                cancellationToken);
+        }
+        else if (existingVote.OptionId != dto.OptionId)
+        {
+            if (!poll.AllowVoteChange)
+                throw new ConflictException("Bu sorğuda verilmiş səsi dəyişmək mümkün deyil.");
+
+            existingVote.OptionId = dto.OptionId;
+            existingVote.UpdatedAt = nowUtc;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return (await ProjectDetails(
+                _context.Discussions.AsNoTracking().Where(x => x.Id == discussionId),
+                userId,
+                false)
+            .FirstAsync(cancellationToken)).Poll!;
+    }
+
+    public async Task<DiscussionPollDTO> ClosePollAsync(
+        int discussionId,
+        Guid userId,
+        bool canModerate,
+        CancellationToken cancellationToken = default)
+    {
+        discussionId.EnsureValidId("Müzakirə ID-si");
+
+        var poll = await _context.DiscussionPolls
+            .Include(x => x.Discussion)
+            .FirstOrDefaultAsync(x => x.DiscussionId == discussionId, cancellationToken)
+            ?? throw new NotFoundException("Bu müzakirədə sorğu yoxdur.");
+
+        EnsureCanModify(poll.Discussion.UserId, userId, canModerate);
+
+        if (poll.IsClosed)
+            throw new ConflictException("Bu sorğu artıq bağlanıb.");
+
+        poll.IsClosed = true;
+        poll.UpdatedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return (await ProjectDetails(
+                _context.Discussions.AsNoTracking().Where(x => x.Id == discussionId),
+                userId,
+                canModerate)
+            .FirstAsync(cancellationToken)).Poll!;
     }
 
     public async Task SaveAsync(
@@ -911,6 +1000,7 @@ public sealed class DiscussionService : IDiscussionService
                                    x.Saves.Any(saved => saved.UserId == currentUserId.Value),
             IsPinned = x.IsPinned,
             IsLocked = x.IsLocked,
+            IsSpoiler = x.IsSpoiler,
             IsDeleted = x.IsDeleted,
             CanEdit = currentUserId.HasValue &&
                       (canModerate || x.UserId == currentUserId.Value),
@@ -941,6 +1031,7 @@ public sealed class DiscussionService : IDiscussionService
         Guid? currentUserId,
         bool canModerate)
     {
+        var nowUtc = DateTime.UtcNow;
         return query.Select(x => new DiscussionDetailDTO
         {
             Id = x.Id,
@@ -959,6 +1050,89 @@ public sealed class DiscussionService : IDiscussionService
                     SortOrder = media.SortOrder
                 })
                 .ToList(),
+            Poll = x.Poll == null ? null : new DiscussionPollDTO
+            {
+                Id = x.Poll.Id,
+                Question = x.Poll.Question,
+                EndsAtUtc = x.Poll.EndsAtUtc,
+                IsClosed = x.Poll.IsClosed,
+                HasEnded = x.Poll.IsClosed || x.Poll.EndsAtUtc <= nowUtc,
+                AllowVoteChange = x.Poll.AllowVoteChange,
+                ResultsVisibility = x.Poll.ResultsVisibility,
+                HasVoted = currentUserId.HasValue &&
+                           x.Poll.Votes.Any(vote => vote.UserId == currentUserId.Value),
+                SelectedOptionId = currentUserId.HasValue
+                    ? x.Poll.Votes
+                        .Where(vote => vote.UserId == currentUserId.Value)
+                        .Select(vote => (int?)vote.OptionId)
+                        .FirstOrDefault()
+                    : null,
+                CanViewResults =
+                    x.Poll.ResultsVisibility == PollResultsVisibility.Always ||
+                    (x.Poll.ResultsVisibility == PollResultsVisibility.AfterVote &&
+                     currentUserId.HasValue &&
+                     x.Poll.Votes.Any(vote => vote.UserId == currentUserId.Value)) ||
+                    (x.Poll.ResultsVisibility == PollResultsVisibility.AfterEnd &&
+                     (x.Poll.IsClosed || x.Poll.EndsAtUtc <= nowUtc)),
+                TotalVotes =
+                    x.Poll.ResultsVisibility == PollResultsVisibility.Always ||
+                    (x.Poll.ResultsVisibility == PollResultsVisibility.AfterVote &&
+                     currentUserId.HasValue &&
+                     x.Poll.Votes.Any(vote => vote.UserId == currentUserId.Value)) ||
+                    (x.Poll.ResultsVisibility == PollResultsVisibility.AfterEnd &&
+                     (x.Poll.IsClosed || x.Poll.EndsAtUtc <= nowUtc))
+                        ? x.Poll.Votes.Count
+                        : null,
+                CanEdit = currentUserId.HasValue &&
+                          (canModerate || x.UserId == currentUserId.Value),
+                Options = x.Poll.Options
+                    .OrderBy(option => option.DisplayOrder)
+                    .Select(option => new DiscussionPollOptionDTO
+                    {
+                        Id = option.Id,
+                        Text = option.Text,
+                        DisplayOrder = option.DisplayOrder,
+                        VoteCount =
+                            x.Poll.ResultsVisibility == PollResultsVisibility.Always ||
+                            (x.Poll.ResultsVisibility == PollResultsVisibility.AfterVote &&
+                             currentUserId.HasValue &&
+                             x.Poll.Votes.Any(vote => vote.UserId == currentUserId.Value)) ||
+                            (x.Poll.ResultsVisibility == PollResultsVisibility.AfterEnd &&
+                             (x.Poll.IsClosed || x.Poll.EndsAtUtc <= nowUtc))
+                                ? option.Votes.Count
+                                : null,
+                        Percentage =
+                            (x.Poll.ResultsVisibility == PollResultsVisibility.Always ||
+                             (x.Poll.ResultsVisibility == PollResultsVisibility.AfterVote &&
+                              currentUserId.HasValue &&
+                              x.Poll.Votes.Any(vote => vote.UserId == currentUserId.Value)) ||
+                             (x.Poll.ResultsVisibility == PollResultsVisibility.AfterEnd &&
+                              (x.Poll.IsClosed || x.Poll.EndsAtUtc <= nowUtc))) &&
+                            x.Poll.Votes.Any()
+                                ? decimal.Round(
+                                    100m * option.Votes.Count / x.Poll.Votes.Count,
+                                    1)
+                                : null
+                    })
+                    .ToList(),
+                ParticipantPreview = x.Poll.Votes
+                    .Where(_ =>
+                        x.Poll.ResultsVisibility == PollResultsVisibility.Always ||
+                        (x.Poll.ResultsVisibility == PollResultsVisibility.AfterVote &&
+                         currentUserId.HasValue &&
+                         x.Poll.Votes.Any(vote => vote.UserId == currentUserId.Value)) ||
+                        (x.Poll.ResultsVisibility == PollResultsVisibility.AfterEnd &&
+                         (x.Poll.IsClosed || x.Poll.EndsAtUtc <= nowUtc)))
+                    .OrderByDescending(vote => vote.CreatedAt)
+                    .Take(5)
+                    .Select(vote => new DiscussionPollParticipantDTO
+                    {
+                        UserId = vote.UserId,
+                        UserName = vote.User.UserName ?? string.Empty,
+                        AvatarUrl = vote.User.ProfileImageUrl
+                    })
+                    .ToList()
+            },
             CategoryId = x.CategoryId,
             CategoryName = x.Category.Name,
             CategorySlug = x.Category.Slug,
@@ -987,6 +1161,7 @@ public sealed class DiscussionService : IDiscussionService
                                    x.Saves.Any(saved => saved.UserId == currentUserId.Value),
             IsPinned = x.IsPinned,
             IsLocked = x.IsLocked,
+            IsSpoiler = x.IsSpoiler,
             IsDeleted = x.IsDeleted,
             CanEdit = currentUserId.HasValue &&
                       (canModerate || x.UserId == currentUserId.Value),
@@ -1154,6 +1329,83 @@ public sealed class DiscussionService : IDiscussionService
 
         return slug;
     }
+
+    private static DiscussionPoll? CreatePoll(
+        DiscussionPollWriteDTO? dto,
+        DateTime nowUtc)
+    {
+        if (dto is null)
+            return null;
+
+        var normalized = NormalizePoll(dto, nowUtc);
+        return new DiscussionPoll
+        {
+            Question = normalized.Question,
+            EndsAtUtc = normalized.EndsAtUtc,
+            ResultsVisibility = normalized.ResultsVisibility,
+            AllowVoteChange = normalized.AllowVoteChange,
+            CreatedAt = nowUtc,
+            Options = normalized.Options
+                .Select((text, index) => new DiscussionPollOption
+                {
+                    Text = text,
+                    DisplayOrder = index + 1,
+                    CreatedAt = nowUtc
+                })
+                .ToList()
+        };
+    }
+
+    private static NormalizedPoll NormalizePoll(
+        DiscussionPollWriteDTO dto,
+        DateTime nowUtc)
+    {
+        var question = dto.Question.NormalizeRequiredText(
+            "Sorğu sualı",
+            MaxPollQuestionLength);
+
+        if (dto.Options is null || dto.Options.Count is < 2 or > 6)
+            throw new BadRequestException("Sorğuda minimum 2, maksimum 6 seçim olmalıdır.");
+
+        var options = dto.Options
+            .Select(option => option.NormalizeRequiredText(
+                "Sorğu seçimi",
+                MaxPollOptionLength))
+            .ToList();
+
+        if (options.Distinct(StringComparer.OrdinalIgnoreCase).Count() != options.Count)
+            throw new BadRequestException("Sorğu seçimləri təkrarlana bilməz.");
+
+        if (!Enum.IsDefined(dto.ResultsVisibility))
+            throw new BadRequestException("Sorğu nəticələrinin görünmə qaydası etibarsızdır.");
+
+        var endsAtUtc = dto.EndsAtUtc.Kind switch
+        {
+            DateTimeKind.Utc => dto.EndsAtUtc,
+            DateTimeKind.Local => dto.EndsAtUtc.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(dto.EndsAtUtc, DateTimeKind.Utc)
+        };
+
+        if (endsAtUtc <= nowUtc)
+            throw new BadRequestException("Sorğunun bitmə tarixi gələcəkdə olmalıdır.");
+
+        if (endsAtUtc > nowUtc.Add(MaxPollDuration))
+            throw new BadRequestException("Sorğunun müddəti 30 gündən çox ola bilməz.");
+
+        return new NormalizedPoll(
+            question,
+            options,
+            endsAtUtc,
+            dto.ResultsVisibility,
+            dto.AllowVoteChange);
+    }
+
+    private sealed record NormalizedPoll(
+        string Question,
+        IReadOnlyList<string> Options,
+        DateTime EndsAtUtc,
+        PollResultsVisibility ResultsVisibility,
+        bool AllowVoteChange);
 
     private static void ValidatePagination(int pageNumber, int pageSize)
     {

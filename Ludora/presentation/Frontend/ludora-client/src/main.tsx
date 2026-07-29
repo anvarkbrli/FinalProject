@@ -7,6 +7,7 @@ import {
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
 import { ConfirmationDialogProvider } from "./components/common/ConfirmationDialogProvider";
+import { I18nProvider } from "./i18n/I18nProvider";
 import "./index.css";
 import "./components/forum/forum.css";
 
@@ -30,9 +31,11 @@ createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <ConfirmationDialogProvider>
-          <App />
-        </ConfirmationDialogProvider>
+        <I18nProvider>
+          <ConfirmationDialogProvider>
+            <App />
+          </ConfirmationDialogProvider>
+        </I18nProvider>
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

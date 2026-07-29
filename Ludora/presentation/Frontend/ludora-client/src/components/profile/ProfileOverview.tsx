@@ -14,7 +14,12 @@ import {
 } from "react";
 import { Link } from "react-router-dom";
 import { ProfileBadges } from "./ProfileBadges";
-import { resolveAssetUrl } from "../../lib/helpers";
+import { getCurrentLanguage, getCurrentLocale } from "../../i18n/localization";
+import { useI18n } from "../../i18n/useI18n";
+import {
+  formatPlaytime as formatLocalizedPlaytime,
+  resolveAssetUrl,
+} from "../../lib/helpers";
 import type {
   ProfileGameEntryDTO,
   UserPlaytimeChartPointDTO,
@@ -197,8 +202,11 @@ function formatRating(value: number): string {
 }
 
 function formatPlaytime(totalMinutes: number): string {
-  const totalHours = totalMinutes / 60;
+  if (getCurrentLanguage() === "en") {
+    return formatLocalizedPlaytime(totalMinutes);
+  }
 
+  const totalHours = totalMinutes / 60;
   if (totalHours < 1) {
     return `${totalMinutes} dəq`;
   }
@@ -219,9 +227,28 @@ function formatChartLabel(
 ): string {
   const start = parseChartDate(startDate);
   const end = parseChartDate(endDate);
+  const locale = getCurrentLocale();
+  const language = getCurrentLanguage();
+
+  if (language === "az") {
+    if (period === "Weekly") {
+      return azWeekdayNames[start.getDay()];
+    }
+
+    if (period === "Monthly") {
+      const dayRange = start.getDate() === end.getDate()
+        ? String(start.getDate())
+        : `${start.getDate()}–${end.getDate()}`;
+      return `${dayRange} ${azMonthNames[start.getMonth()]}`;
+    }
+
+    return azMonthNames[start.getMonth()];
+  }
 
   if (period === "Weekly") {
-    return azWeekdayNames[start.getDay()];
+    return new Intl.DateTimeFormat(locale, {
+      weekday: "long",
+    }).format(start);
   }
 
   if (period === "Monthly") {
@@ -229,10 +256,17 @@ function formatChartLabel(
       ? String(start.getDate())
       : `${start.getDate()}–${end.getDate()}`;
 
-    return `${dayRange} ${azMonthNames[start.getMonth()]}`;
+    const month = new Intl.DateTimeFormat(locale, {
+      month: "long",
+    }).format(start);
+    return language === "en"
+      ? `${month} ${dayRange}`
+      : `${dayRange} ${month}`;
   }
 
-  return azMonthNames[start.getMonth()];
+  return new Intl.DateTimeFormat(locale, {
+    month: "long",
+  }).format(start);
 }
 
 function formatChartRangeTitle(
@@ -241,19 +275,51 @@ function formatChartRangeTitle(
 ): string {
   const start = parseChartDate(startDate);
   const end = parseChartDate(endDate);
+  const locale = getCurrentLocale();
+  const language = getCurrentLanguage();
+
+  if (language === "az") {
+    if (startDate === endDate) {
+      return `${azWeekdayNames[start.getDay()]}, ${start.getDate()} ${azMonthNames[start.getMonth()]} ${start.getFullYear()}`;
+    }
+
+    if (
+      start.getMonth() === end.getMonth() &&
+      start.getFullYear() === end.getFullYear()
+    ) {
+      return `${start.getDate()}–${end.getDate()} ${azMonthNames[start.getMonth()]} ${start.getFullYear()}`;
+    }
+
+    return `${start.getDate()} ${azMonthNames[start.getMonth()]} ${start.getFullYear()} – ${end.getDate()} ${azMonthNames[end.getMonth()]} ${end.getFullYear()}`;
+  }
+
+  const month = (date: Date) =>
+    new Intl.DateTimeFormat(locale, { month: "long" }).format(date);
 
   if (startDate === endDate) {
-    return `${azWeekdayNames[start.getDay()]}, ${start.getDate()} ${azMonthNames[start.getMonth()]} ${start.getFullYear()}`;
+    return new Intl.DateTimeFormat(locale, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(start);
   }
 
   if (
     start.getMonth() === end.getMonth() &&
     start.getFullYear() === end.getFullYear()
   ) {
-    return `${start.getDate()}–${end.getDate()} ${azMonthNames[start.getMonth()]} ${start.getFullYear()}`;
+    return language === "en"
+      ? `${month(start)} ${start.getDate()}–${end.getDate()}, ${start.getFullYear()}`
+      : `${start.getDate()}–${end.getDate()} ${month(start)} ${start.getFullYear()}`;
   }
 
-  return `${start.getDate()} ${azMonthNames[start.getMonth()]} ${start.getFullYear()} – ${end.getDate()} ${azMonthNames[end.getMonth()]} ${end.getFullYear()}`;
+  const dateFormatter = new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+  return `${dateFormatter.format(start)} – ${dateFormatter.format(end)}`;
 }
 
 function formatTopStatPlaytime(totalMinutes: number): string {
@@ -280,6 +346,7 @@ export function ProfileOverview({
   onPlaytimePeriodChange,
   onRatingSelect,
 }: ProfileOverviewProps) {
+  useI18n();
   const [selectedPlaytimePoint, setSelectedPlaytimePoint] =
     useState<UserPlaytimeChartPointDTO | null>(null);
   const topGenre = playtimeStatistics?.topGenre;

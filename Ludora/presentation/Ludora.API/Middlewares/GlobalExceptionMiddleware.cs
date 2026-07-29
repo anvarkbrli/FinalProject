@@ -1,6 +1,8 @@
 using System.Text.Json;
+using Ludora.API.Localization;
 using Ludora.Application.Exceptions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Localization;
 
 namespace Ludora.API.Middlewares;
 
@@ -8,13 +10,16 @@ public sealed class GlobalExceptionMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<GlobalExceptionMiddleware> _logger;
+    private readonly IStringLocalizer<SharedResource> _localizer;
 
     public GlobalExceptionMiddleware(
         RequestDelegate next,
-        ILogger<GlobalExceptionMiddleware> logger)
+        ILogger<GlobalExceptionMiddleware> logger,
+        IStringLocalizer<SharedResource> localizer)
     {
         _next = next;
         _logger = logger;
+        _localizer = localizer;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -55,11 +60,19 @@ public sealed class GlobalExceptionMiddleware
             context.Response.StatusCode = statusCode;
             context.Response.ContentType = "application/json";
 
-            var message = statusCode == StatusCodes.Status500InternalServerError
-                ? "Gözlənilməz server xətası baş verdi."
-                : exception is DbUpdateException
-                    ? "Məlumat bazasında eyni və ya ziddiyyətli məlumat mövcuddur."
-                    : exception.Message;
+            var localizedException = _localizer[exception.Message];
+            var message = !localizedException.ResourceNotFound
+                ? localizedException.Value
+                : statusCode switch
+                {
+                    StatusCodes.Status400BadRequest => _localizer["BadRequest"],
+                    StatusCodes.Status401Unauthorized => _localizer["Unauthorized"],
+                    StatusCodes.Status403Forbidden => _localizer["Forbidden"],
+                    StatusCodes.Status404NotFound => _localizer["NotFound"],
+                    StatusCodes.Status409Conflict => _localizer["Conflict"],
+                    StatusCodes.Status503ServiceUnavailable => _localizer["ExternalServiceUnavailable"],
+                    _ => _localizer["UnexpectedServerError"]
+                };
 
             var response = new
             {

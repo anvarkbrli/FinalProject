@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   FileVideo2,
   Heart,
+  Eye,
   ImagePlus,
   LoaderCircle,
   Lock,
@@ -19,8 +20,10 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ForumMediaGallery } from "../components/forum/ForumMediaGallery";
 import { ForumContentMenu } from "../components/forum/ForumContentMenu";
+import { DiscussionPollCard } from "../components/forum/DiscussionPollCard";
 import "../components/forum/forum.css";
 import { Navbar } from "../components/layout/Navbar";
+import { useI18n } from "../i18n/useI18n";
 import { getApiErrorMessage } from "../lib/api";
 import {
   formatRelativeDate,
@@ -234,7 +237,7 @@ function CommentItem({
                 </div>
               </div>
             ) : (
-              <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-300">
+              <p data-i18n-ignore className="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-300">
                 {reply.content}
               </p>
             )}
@@ -384,6 +387,7 @@ function CommentItem({
 }
 
 export function ForumDiscussionPage() {
+  useI18n();
   const { slug = "" } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -404,6 +408,7 @@ export function ForumDiscussionPage() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLikeBusy, setIsLikeBusy] = useState(false);
+  const [isSpoilerRevealed, setIsSpoilerRevealed] = useState(false);
   const [isEditingDiscussion, setIsEditingDiscussion] = useState(false);
   const [editDiscussionTitle, setEditDiscussionTitle] = useState("");
   const [editDiscussionContent, setEditDiscussionContent] = useState("");
@@ -435,6 +440,10 @@ export function ForumDiscussionPage() {
   });
 
   const discussion = discussionQuery.data;
+  const shouldHideSpoiler =
+    Boolean(discussion?.isSpoiler) &&
+    discussion?.authorId !== user?.id &&
+    !isSpoilerRevealed;
   const repliesQuery = useQuery({
     queryKey: ["forum", "replies", discussion?.id],
     queryFn: ({ signal }) =>
@@ -653,6 +662,7 @@ export function ForumDiscussionPage() {
         title: editDiscussionTitle.trim(),
         content: normalizedContent,
         categoryId: discussion.categoryId,
+        isSpoiler: discussion.isSpoiler,
         keptMediaIds: editKeptMediaIds,
         mediaFiles: editDiscussionFiles,
       });
@@ -1014,17 +1024,42 @@ export function ForumDiscussionPage() {
             </div>
           ) : (
             <>
-              <h1 className="mt-6 text-2xl font-bold leading-tight text-white sm:text-3xl">
+              <h1 data-i18n-ignore className="mt-6 text-2xl font-bold leading-tight text-white sm:text-3xl">
                 {discussion.title}
               </h1>
-              <ForumMediaGallery
-                media={discussion.media}
-                title={discussion.title}
-              />
-              {discussion.content && (
-                <p className="mt-5 whitespace-pre-wrap text-sm leading-7 text-zinc-300">
+              {shouldHideSpoiler && (
+                <button
+                  type="button"
+                  onClick={() => setIsSpoilerRevealed(true)}
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-2xl border border-amber-300/15 bg-amber-300/[0.05] px-5 py-8 text-sm font-bold text-amber-200 transition hover:bg-amber-300/[0.09]"
+                >
+                  <Eye size={18} />
+                  Spoiler məzmununu göstər
+                </button>
+              )}
+              {!shouldHideSpoiler && (
+                <ForumMediaGallery
+                  media={discussion.media}
+                  title={discussion.title}
+                />
+              )}
+              {discussion.content && !shouldHideSpoiler && (
+                <p data-i18n-ignore className="mt-5 whitespace-pre-wrap text-sm leading-7 text-zinc-300">
                   {discussion.content}
                 </p>
+              )}
+              {discussion.poll && !shouldHideSpoiler && (
+                <DiscussionPollCard
+                  discussionId={discussion.id}
+                  poll={discussion.poll}
+                  isAuthenticated={isAuthenticated}
+                  onChanged={(poll) =>
+                    queryClient.setQueryData(
+                      ["forum", "discussion", slug],
+                      { ...discussion, poll },
+                    )
+                  }
+                />
               )}
             </>
           )}

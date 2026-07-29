@@ -43,6 +43,11 @@ public class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         builder.Property(x => x.IsPrivate)
             .HasDefaultValue(false);
 
+        builder.Property(x => x.PreferredLanguage)
+            .IsRequired()
+            .HasMaxLength(10)
+            .HasDefaultValue("az");
+
         builder.Property(x => x.IsPermanentlyBanned)
             .HasDefaultValue(false);
 

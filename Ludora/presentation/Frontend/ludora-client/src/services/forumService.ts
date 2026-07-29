@@ -1,6 +1,7 @@
 import { api } from "../lib/api";
 import type {
   DiscussionListItemDTO,
+  DiscussionPollDTO,
   PagedResultDTO,
 } from "../types/home";
 import type {
@@ -60,6 +61,10 @@ export async function createDiscussion(
   if (input.communityId !== null) {
     formData.append("communityId", String(input.communityId));
   }
+  formData.append("isSpoiler", String(input.isSpoiler));
+  if (input.poll) {
+    formData.append("pollJson", JSON.stringify(input.poll));
+  }
   input.mediaFiles.forEach((file) => {
     formData.append("mediaFiles", file);
   });
@@ -82,6 +87,10 @@ export async function updateDiscussion(
   formData.append("title", input.title);
   formData.append("content", input.content);
   formData.append("categoryId", String(input.categoryId));
+  formData.append("isSpoiler", String(input.isSpoiler));
+  if (input.poll) {
+    formData.append("pollJson", JSON.stringify(input.poll));
+  }
   input.keptMediaIds.forEach((mediaId) => {
     formData.append("keptMediaIds", String(mediaId));
   });
@@ -194,4 +203,24 @@ export async function setDiscussionReplyFollowed(
   } else {
     await api.delete(`/discussion-replies/${replyId}/follow`);
   }
+}
+
+export async function voteDiscussionPoll(
+  discussionId: number,
+  optionId: number,
+): Promise<DiscussionPollDTO> {
+  const response = await api.post<DiscussionPollDTO>(
+    `/discussions/${discussionId}/poll/vote`,
+    { optionId },
+  );
+  return response.data;
+}
+
+export async function closeDiscussionPoll(
+  discussionId: number,
+): Promise<DiscussionPollDTO> {
+  const response = await api.post<DiscussionPollDTO>(
+    `/discussions/${discussionId}/poll/close`,
+  );
+  return response.data;
 }

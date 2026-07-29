@@ -32,6 +32,7 @@ import {
   useParams,
 } from "react-router-dom";
 import { RatingStarIcon } from "../components/common/RatingStarIcon";
+import { useI18n } from "../i18n/useI18n";
 import { FpsEstimatorAction } from "../components/fps/FpsEstimatorAction";
 import { GameCommunityStats } from "../components/game/GameCommunityStats";
 import { FriendWishlistNotice } from "../components/game/FriendWishlistNotice";
@@ -88,48 +89,31 @@ interface RelatedTab {
   games: GameListItemDTO[];
 }
 
-const relatedSections: RelatedSection[] = [
-  {
-    key: "seriesGames",
-    title: "Seriya oyunları",
-    shortTitle: "Seriya",
-  },
-  {
-    key: "franchiseGames",
-    title: "Franchise oyunları",
-    shortTitle: "Franchise",
-  },
-  {
-    key: "dlcs",
-    title: "DLC-lər",
-    shortTitle: "DLC",
-  },
-  {
-    key: "expansions",
-    title: "Expansion-lar",
-    shortTitle: "Expansion",
-  },
-  {
-    key: "standaloneExpansions",
-    title: "Müstəqil expansion-lar",
-    shortTitle: "Standalone",
-  },
-  {
-    key: "bundles",
-    title: "Bundle-lar",
-    shortTitle: "Bundle",
-  },
-  {
-    key: "remakes",
-    title: "Remake-lər",
-    shortTitle: "Remake",
-  },
-  {
-    key: "remasters",
-    title: "Remaster-lər",
-    shortTitle: "Remaster",
-  },
-];
+function getRelatedSections(language: "az" | "en"): RelatedSection[] {
+  if (language === "en") {
+    return [
+      { key: "seriesGames", title: "Series titles", shortTitle: "Series" },
+      { key: "franchiseGames", title: "Franchise titles", shortTitle: "Franchise" },
+      { key: "dlcs", title: "DLCs", shortTitle: "DLC" },
+      { key: "expansions", title: "Expansions", shortTitle: "Expansion" },
+      { key: "standaloneExpansions", title: "Standalone expansions", shortTitle: "Standalone" },
+      { key: "bundles", title: "Bundles", shortTitle: "Bundle" },
+      { key: "remakes", title: "Remakes", shortTitle: "Remake" },
+      { key: "remasters", title: "Remasters", shortTitle: "Remaster" },
+    ];
+  }
+
+  return [
+    { key: "seriesGames", title: "Seriya oyunları", shortTitle: "Seriya" },
+    { key: "franchiseGames", title: "Franchise oyunları", shortTitle: "Franchise" },
+    { key: "dlcs", title: "DLC-lər", shortTitle: "DLC" },
+    { key: "expansions", title: "Expansion-lar", shortTitle: "Expansion" },
+    { key: "standaloneExpansions", title: "Müstəqil expansion-lar", shortTitle: "Standalone" },
+    { key: "bundles", title: "Bundle-lar", shortTitle: "Bundle" },
+    { key: "remakes", title: "Remake-lər", shortTitle: "Remake" },
+    { key: "remasters", title: "Remaster-lər", shortTitle: "Remaster" },
+  ];
+}
 
 const gameTypeLabels: Record<
   GameType,
@@ -376,38 +360,35 @@ type TrackingAction =
       value: number | null;
     };
 
-const trackingStatusOptions: Array<{
+function getTrackingStatusOptions(language: "az" | "en"): Array<{
   value: UserGameStatus;
   label: string;
   icon: typeof PlayCircle;
-}> = [
-  {
-    value: "Playing",
-    label: "Oynayıram",
-    icon: PlayCircle,
-  },
-  {
-    value: "PlanToPlay",
-    label: "Oynayacağam",
-    icon: Clock3,
-  },
-  {
-    value: "Played",
-    label: "Oynamışam",
-    icon: CheckCircle2,
-  },
-  {
-    value: "Dropped",
-    label: "Yarımçıq qoydum",
-    icon: XCircle,
-  },
-];
+}> {
+  if (language === "en") {
+    return [
+      { value: "Playing", label: "Playing", icon: PlayCircle },
+      { value: "PlanToPlay", label: "Going to play", icon: Clock3 },
+      { value: "Played", label: "Played", icon: CheckCircle2 },
+      { value: "Dropped", label: "Abandoned", icon: XCircle },
+    ];
+  }
+
+  return [
+    { value: "Playing", label: "Oynayıram", icon: PlayCircle },
+    { value: "PlanToPlay", label: "Oynayacağam", icon: Clock3 },
+    { value: "Played", label: "Oynamışam", icon: CheckCircle2 },
+    { value: "Dropped", label: "Yarımçıq qoydum", icon: XCircle },
+  ];
+}
 
 function GameTrackingPanel({
   game,
 }: {
   game: GameDetailDTO;
 }) {
+  const { language } = useI18n();
+  const trackingStatusOptions = getTrackingStatusOptions(language);
   const queryClient = useQueryClient();
 
   const accessToken = useAuthStore(
@@ -574,20 +555,20 @@ function GameTrackingPanel({
     return (
       <div className="rounded-2xl border border-violet-400/15 bg-violet-500/[0.07] p-5">
         <p className="text-sm font-bold text-zinc-100">
-          Oyunu öz profilində izlə
+          {language === "en" ? "Track this game on your profile" : "Oyunu öz profilində izlə"}
         </p>
 
         <p className="mt-2 text-sm leading-6 text-zinc-500">
-          Status, wishlist, favori və
-          şəxsi reytinq əlavə etmək üçün
-          hesabına daxil ol.
+          {language === "en"
+            ? "Sign in to add a status, wishlist, favorite, and personal rating."
+            : "Status, wishlist, favori və şəxsi reytinq əlavə etmək üçün hesabına daxil ol."}
         </p>
 
         <Link
           to="/login"
           className="mt-4 inline-flex rounded-lg bg-violet-500 px-4 py-2 text-sm font-bold text-white transition hover:bg-violet-400"
         >
-          Daxil ol
+          {language === "en" ? "Sign in" : "Daxil ol"}
         </Link>
       </div>
     );
@@ -609,12 +590,11 @@ function GameTrackingPanel({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-bold text-zinc-100">
-            Mənim oyun vəziyyətim
+            {language === "en" ? "My game state" : "Mənim oyun vəziyyətim"}
           </p>
 
           <p className="mt-1 text-xs text-zinc-600">
-            Statusunu və reytinqini
-            idarə et
+            {language === "en" ? "Manage your status and rating" : "Statusunu və reytinqini idarə et"}
           </p>
         </div>
 
@@ -730,14 +710,14 @@ function GameTrackingPanel({
                 }
               />
 
-              Favori
+              {language === "en" ? "Favorite" : "Favori"}
             </button>
           </div>
 
           <div className="mt-5 border-t border-white/[0.08] pt-5">
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm font-semibold text-zinc-300">
-                Mənim reytinqim
+                {language === "en" ? "My rating" : "Mənim reytinqim"}
               </span>
 
               {userState?.rating !== null &&
@@ -933,6 +913,8 @@ function GameDetailContent({
 }: {
   game: GameDetailDTO;
 }) {
+  const { language } = useI18n();
+  const relatedSections = useMemo(() => getRelatedSections(language), [language]);
   const accessToken = useAuthStore(
     (state) => state.accessToken,
   );
@@ -975,7 +957,7 @@ function GameDetailContent({
       if (game.relatedGames.parentGame) {
         tabs.push({
           key: "parentGame",
-          title: "Əsas oyun",
+          title: language === "en" ? "Main game" : "Əsas oyun",
           games: [
             game.relatedGames.parentGame,
           ],
@@ -998,7 +980,7 @@ function GameDetailContent({
       }
 
       return tabs;
-    }, [game.relatedGames]);
+    }, [game.relatedGames, language, relatedSections]);
 
   const [
     activeRelatedTab,
@@ -1125,40 +1107,79 @@ function GameDetailContent({
                   {companyByline.length >
                     0 && (
                     <p className="mt-4 text-base text-zinc-300 sm:text-lg">
-                      {companyByline.map(
-                        (
-                          company,
-                          index,
-                        ) => (
-                          <span
-                            key={`${company.source}-${company.id}-${company.role}`}
-                          >
-                            {index > 0 &&
-                              ", "}
+                      {language === "en" ? (
+                        <>
+                          <span className="text-zinc-500">by </span>
+                          {companyByline.map(
+                            (
+                              company,
+                              index,
+                            ) => (
+                              <span
+                                key={`${company.source}-${company.id}-${company.role}`}
+                              >
+                                {index > 0 &&
+                                  ", "}
 
-                            <Link
-                              to={buildCatalogFilterUrl(
-                                "company",
-                                company.name,
-                              )}
-                              state={buildCatalogFilterState(
-                                "company",
-                                company.source,
-                                company.id,
-                                company.name,
-                              )}
-                              className="font-semibold text-zinc-200 underline decoration-white/20 underline-offset-4 transition hover:text-violet-200 hover:decoration-violet-300"
-                            >
-                              {
-                                company.name
-                              }
-                            </Link>
+                                <Link
+                                  to={buildCatalogFilterUrl(
+                                    "company",
+                                    company.name,
+                                  )}
+                                  state={buildCatalogFilterState(
+                                    "company",
+                                    company.source,
+                                    company.id,
+                                    company.name,
+                                  )}
+                                  className="font-semibold text-zinc-200 underline decoration-white/20 underline-offset-4 transition hover:text-violet-200 hover:decoration-violet-300"
+                                >
+                                  {
+                                    company.name
+                                  }
+                                </Link>
+                              </span>
+                            ),
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {companyByline.map(
+                            (
+                              company,
+                              index,
+                            ) => (
+                              <span
+                                key={`${company.source}-${company.id}-${company.role}`}
+                              >
+                                {index > 0 &&
+                                  ", "}
+
+                                <Link
+                                  to={buildCatalogFilterUrl(
+                                    "company",
+                                    company.name,
+                                  )}
+                                  state={buildCatalogFilterState(
+                                    "company",
+                                    company.source,
+                                    company.id,
+                                    company.name,
+                                  )}
+                                  className="font-semibold text-zinc-200 underline decoration-white/20 underline-offset-4 transition hover:text-violet-200 hover:decoration-violet-300"
+                                >
+                                  {
+                                    company.name
+                                  }
+                                </Link>
+                              </span>
+                            ),
+                          )}{" "}
+                          <span className="text-zinc-500">
+                            tərəfindən
                           </span>
-                        ),
-                      )}{" "}
-                      <span className="text-zinc-500">
-                        tərəfindən
-                      </span>
+                        </>
+                      )}
                     </p>
                   )}
                 </div>
@@ -1231,7 +1252,7 @@ function GameDetailContent({
 
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-zinc-500">
-                    Əlaqəli məzmun
+                    {language === "en" ? "Related" : "Əlaqəli məzmun"}
                   </dt>
 
                   <dd className="font-semibold text-zinc-200">
@@ -1409,20 +1430,20 @@ function GameDetailContent({
                 />
 
                 <h2 className="text-2xl font-black tracking-tight text-white">
-                  Əlaqəli oyunlar
+                  {language === "en" ? "Related" : "Əlaqəli oyunlar"}
                 </h2>
               </div>
 
               <p className="mt-2 text-sm text-zinc-600">
-                Davam oyunları, DLC,
-                expansion, bundle, remake və
-                digər əlaqəli buraxılışlar.
+                {language === "en"
+                  ? "Sequels, DLC, expansions, bundles, remakes, and other related releases."
+                  : "Davam oyunları, DLC, expansion, bundle, remake və digər əlaqəli buraxılışlar."}
               </p>
             </div>
 
             {relatedTabs.length > 0 && (
               <span className="pb-4 text-sm font-semibold text-zinc-500">
-                {relatedGameCount} nəticə
+                {relatedGameCount} {language === "en" ? "results" : "nəticə"}
               </span>
             )}
           </div>
@@ -1487,13 +1508,13 @@ function GameDetailContent({
               />
 
               <p className="mt-4 font-bold text-zinc-300">
-                Əlaqəli məzmun yoxdur
+                {language === "en" ? "No related content" : "Əlaqəli məzmun yoxdur"}
               </p>
 
               <p className="mt-2 text-sm text-zinc-600">
-                Bu oyun üçün davam oyunu,
-                DLC, expansion, bundle və ya
-                başqa versiya tapılmadı.
+                {language === "en"
+                  ? "No sequel, DLC, expansion, bundle, or alternate version was found for this game."
+                  : "Bu oyun üçün davam oyunu, DLC, expansion, bundle və ya başqa versiya tapılmadı."}
               </p>
             </div>
           )}

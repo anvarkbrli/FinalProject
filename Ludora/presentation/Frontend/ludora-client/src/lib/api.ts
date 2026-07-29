@@ -1,4 +1,5 @@
 import axios from "axios";
+import { getAcceptLanguage, t } from "../i18n/localization";
 import { useAuthStore } from "../stores/authStore";
 
 const baseURL = import.meta.env.VITE_API_BASE_URL;
@@ -45,6 +46,7 @@ export const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
+  config.headers.set("Accept-Language", getAcceptLanguage());
   const accessToken =
     useAuthStore.getState().accessToken;
 
@@ -83,6 +85,21 @@ export function getApiErrorMessage(
       | ApiErrorResponse
       | string
       | undefined;
+
+    const technicalForbiddenMessage =
+      typeof responseData === "string"
+        ? responseData
+        : responseData?.message ?? responseData?.title;
+
+    if (
+      error.response?.status === 403 &&
+      (!technicalForbiddenMessage ||
+        /^(?:forbidden\.?|bu (?:profil|hesab) gizlidir\.?|this (?:profile|account) is private\.?)$/i.test(
+          technicalForbiddenMessage.trim(),
+        ))
+    ) {
+      return t("profile:private");
+    }
 
     if (
       typeof responseData === "string" &&

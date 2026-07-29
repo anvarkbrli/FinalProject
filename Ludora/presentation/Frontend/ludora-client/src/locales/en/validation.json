@@ -1,0 +1,8 @@
+{
+  "required": "This field is required.",
+  "email": "Enter a valid email address.",
+  "passwordMismatch": "Passwords do not match.",
+  "requestFailed": "An error occurred while processing the request.",
+  "unauthorized": "You must sign in to perform this action.",
+  "notFound": "The requested information was not found."
+}

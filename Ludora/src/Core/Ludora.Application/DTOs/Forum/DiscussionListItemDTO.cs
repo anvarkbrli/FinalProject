@@ -32,6 +32,7 @@ public record DiscussionListItemDTO
     public bool IsSavedByCurrentUser { get; init; }
     public bool IsPinned { get; init; }
     public bool IsLocked { get; init; }
+    public bool IsSpoiler { get; init; }
     public bool IsDeleted { get; init; }
     public bool CanEdit { get; init; }
     public bool CanDelete { get; init; }

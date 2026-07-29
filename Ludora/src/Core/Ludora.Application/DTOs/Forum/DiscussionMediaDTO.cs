@@ -5,9 +5,12 @@ public sealed record DiscussionMediaDTO
     public int Id { get; init; }
     public string Url { get; init; } = string.Empty;
     public string ContentType { get; init; } = string.Empty;
+    public string MediaType { get; init; } = string.Empty;
     public string OriginalFileName { get; init; } = string.Empty;
     public long FileSize { get; init; }
     public int SortOrder { get; init; }
+    public int DisplayOrder { get; init; }
+    public bool IsSpoiler { get; init; }
     public bool IsVideo => ContentType.StartsWith("video/", StringComparison.OrdinalIgnoreCase);
 }
 

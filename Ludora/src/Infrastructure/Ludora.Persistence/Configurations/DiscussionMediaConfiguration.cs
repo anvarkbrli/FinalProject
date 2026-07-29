@@ -20,6 +20,9 @@ public sealed class DiscussionMediaConfiguration : IEntityTypeConfiguration<Disc
             .IsRequired()
             .HasMaxLength(255);
 
+        builder.Property(x => x.IsSpoiler)
+            .IsRequired();
+
         builder.HasIndex(x => new { x.DiscussionId, x.SortOrder });
 
         builder.HasOne(x => x.Discussion)

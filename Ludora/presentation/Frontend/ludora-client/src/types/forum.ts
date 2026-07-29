@@ -1,6 +1,8 @@
 import type {
   DiscussionMediaDTO,
+  DiscussionPollDTO,
   PagedResultDTO,
+  PollResultsVisibility,
 } from "./home";
 
 export interface DiscussionDetailDTO {
@@ -9,6 +11,7 @@ export interface DiscussionDetailDTO {
   slug: string;
   content: string;
   media: DiscussionMediaDTO[];
+  poll: DiscussionPollDTO | null;
   categoryId: number;
   categoryName: string;
   categorySlug: string;
@@ -27,6 +30,7 @@ export interface DiscussionDetailDTO {
   isSavedByCurrentUser: boolean;
   isPinned: boolean;
   isLocked: boolean;
+  isSpoiler: boolean;
   isDeleted: boolean;
   canEdit: boolean;
   canDelete: boolean;
@@ -63,7 +67,17 @@ export interface CreateDiscussionInput {
   content: string;
   categoryId: number;
   communityId: number | null;
+  isSpoiler: boolean;
+  poll: DiscussionPollWriteDTO | null;
   mediaFiles: File[];
+}
+
+export interface DiscussionPollWriteDTO {
+  question: string;
+  options: string[];
+  endsAtUtc: string;
+  resultsVisibility: PollResultsVisibility;
+  allowVoteChange: boolean;
 }
 
 export interface UpdateDiscussionInput {
@@ -71,6 +85,8 @@ export interface UpdateDiscussionInput {
   title: string;
   content: string;
   categoryId: number;
+  isSpoiler: boolean;
+  poll?: DiscussionPollWriteDTO | null;
   keptMediaIds: number[];
   mediaFiles: File[];
 }

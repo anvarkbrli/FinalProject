@@ -35,6 +35,11 @@ import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
 import { Navbar } from "../components/layout/Navbar";
 import { useChatRealtime } from "../hooks/useChatRealtime";
+import {
+  getCurrentLanguage,
+  getCurrentLocale,
+} from "../i18n/localization";
+import { useI18n } from "../i18n/useI18n";
 import { getApiErrorMessage } from "../lib/api";
 import { useConfirmation } from "../lib/confirmation";
 import { resolveAssetUrl } from "../lib/helpers";
@@ -76,34 +81,42 @@ const AZERBAIJANI_MONTH_NAMES = [
   "dekabr",
 ] as const;
 
-function formatAzerbaijaniDate(
+function formatLocalizedDate(
   date: Date,
   includeYear = false,
 ): string {
-  const day = date.getDate();
-  const month = AZERBAIJANI_MONTH_NAMES[date.getMonth()];
-  return includeYear
-    ? `${day} ${month} ${date.getFullYear()}`
-    : `${day} ${month}`;
+  if (getCurrentLanguage() === "az") {
+    const day = date.getDate();
+    const month = AZERBAIJANI_MONTH_NAMES[date.getMonth()];
+    return includeYear
+      ? `${day} ${month} ${date.getFullYear()}`
+      : `${day} ${month}`;
+  }
+
+  return new Intl.DateTimeFormat(getCurrentLocale(), {
+    day: "numeric",
+    month: "long",
+    ...(includeYear ? { year: "numeric" as const } : {}),
+  }).format(date);
 }
 
 function formatConversationTime(value: string): string {
   const date = new Date(value);
   const today = new Date();
   if (date.toDateString() === today.toDateString()) {
-    return new Intl.DateTimeFormat("az-AZ", {
+    return new Intl.DateTimeFormat(getCurrentLocale(), {
       hour: "2-digit",
       minute: "2-digit",
     }).format(date);
   }
-  return formatAzerbaijaniDate(
+  return formatLocalizedDate(
     date,
     date.getFullYear() !== today.getFullYear(),
   );
 }
 
 function formatMessageTime(value: string): string {
-  return new Intl.DateTimeFormat("az-AZ", {
+  return new Intl.DateTimeFormat(getCurrentLocale(), {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -116,9 +129,13 @@ function formatDateSeparator(value: string): string {
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
 
-  if (date.toDateString() === today.toDateString()) return "Bu gün";
-  if (date.toDateString() === yesterday.toDateString()) return "Dünən";
-  return formatAzerbaijaniDate(
+  if (date.toDateString() === today.toDateString()) {
+    return getCurrentLanguage() === "en" ? "Today" : "Bu gün";
+  }
+  if (date.toDateString() === yesterday.toDateString()) {
+    return getCurrentLanguage() === "en" ? "Yesterday" : "Dünən";
+  }
+  return formatLocalizedDate(
     date,
     date.getFullYear() !== today.getFullYear(),
   );
@@ -348,6 +365,7 @@ function ConversationItem({
 }
 
 export function MessagesPage() {
+  const { language } = useI18n();
   const requestConfirmation = useConfirmation();
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.user);
@@ -366,12 +384,15 @@ export function MessagesPage() {
     message: ChatMessageDTO;
     scope: ChatMessageDeleteScope;
   } | null>(null);
-  const [pinnedPanelOpen, setPinnedPanelOpen] = useState(false);
+  const [deleteChoiceTarget, setDeleteChoiceTarget] =
+    useState<ChatMessageDTO | null>(null);
+  const [pinnedMessageIndex, setPinnedMessageIndex] = useState(0);
 
   const selectConversation = (conversationId: number | null) => {
     setOpenMessageMenuId(null);
-    setPinnedPanelOpen(false);
     setDeleteTarget(null);
+    setDeleteChoiceTarget(null);
+    setPinnedMessageIndex(0);
     setSelectedConversationId(conversationId);
   };
 
@@ -450,7 +471,47 @@ export function MessagesPage() {
     enabled: selectedConversationId !== null,
   });
   const pinnedMessages = pinnedMessagesQuery.data ?? [];
-  const latestPinnedMessage = pinnedMessages[0] ?? null;
+  const pinnedMessageToOpen =
+    pinnedMessages[pinnedMessageIndex % Math.max(pinnedMessages.length, 1)] ??
+    null;
+  const pinnedMessageIds = pinnedMessages
+    .map((message) => message.id)
+    .join(",");
+
+  useEffect(() => {
+    setPinnedMessageIndex(0);
+  }, [pinnedMessageIds, selectedConversationId]);
+
+  const scrollToPinnedMessage = async () => {
+    if (!pinnedMessageToOpen || pinnedMessages.length === 0) {
+      return;
+    }
+
+    const messageId = pinnedMessageToOpen.id;
+    let messageElement = document.getElementById(`chat-message-${messageId}`);
+    let hasMoreMessages = messagesQuery.hasNextPage === true;
+
+    while (!messageElement && hasMoreMessages) {
+      const result = await messagesQuery.fetchNextPage();
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      });
+
+      messageElement = document.getElementById(`chat-message-${messageId}`);
+      const pages = result.data?.pages ?? [];
+      hasMoreMessages = pages.at(-1)?.hasMore === true;
+    }
+
+    window.setTimeout(() => {
+      document
+        .getElementById(`chat-message-${messageId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 50);
+
+    setPinnedMessageIndex(
+      (current) => (current + 1) % pinnedMessages.length,
+    );
+  };
 
   useEffect(() => {
     if (!selectedConversationId) return;
@@ -515,6 +576,7 @@ export function MessagesPage() {
     }) => deleteChatMessage(messageId, scope),
     onSuccess: async (event) => {
       setDeleteTarget(null);
+      setDeleteChoiceTarget(null);
       setOpenMessageMenuId(null);
       await Promise.all([
         refreshChat(),
@@ -668,11 +730,16 @@ export function MessagesPage() {
                   </div>
                 </header>
 
-                {latestPinnedMessage && (
+                {pinnedMessageToOpen && (
                   <button
                     type="button"
-                    onClick={() => setPinnedPanelOpen(true)}
+                    onClick={() => void scrollToPinnedMessage()}
                     className="flex shrink-0 items-center gap-3 border-b border-white/[0.07] bg-violet-500/[0.06] px-4 py-2.5 text-left transition hover:bg-violet-500/[0.1] sm:px-5"
+                    aria-label={
+                      language === "en"
+                        ? "Go to the next pinned message"
+                        : "Növbəti pinlənmiş mesaja get"
+                    }
                   >
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300">
                       <Pin size={15} />
@@ -680,11 +747,15 @@ export function MessagesPage() {
                     <span className="min-w-0 flex-1">
                       <strong className="block text-xs text-violet-200">
                         {pinnedMessages.length === 1
-                          ? "Pinlənmiş mesaj"
-                          : `${pinnedMessages.length} pinlənmiş mesaj`}
+                          ? language === "en"
+                            ? "Pinned message"
+                            : "Pinlənmiş mesaj"
+                          : language === "en"
+                            ? `${pinnedMessages.length} pinned messages`
+                            : `${pinnedMessages.length} pinlənmiş mesaj`}
                       </strong>
                       <span className="mt-0.5 block truncate text-xs text-zinc-500">
-                        {getMessagePreview(latestPinnedMessage)}
+                        {getMessagePreview(pinnedMessageToOpen)}
                       </span>
                     </span>
                   </button>
@@ -729,7 +800,11 @@ export function MessagesPage() {
                             )
                           }
                           className="flex h-8 w-8 items-center justify-center rounded-lg text-zinc-600 opacity-70 transition hover:bg-white/[0.06] hover:text-zinc-200 hover:opacity-100"
-                          aria-label="Mesaj əməliyyatları"
+                          aria-label={
+                            language === "en"
+                              ? "Message actions"
+                              : "Mesaj əməliyyatları"
+                          }
                         >
                           <MoreVertical size={16} />
                         </button>
@@ -756,37 +831,43 @@ export function MessagesPage() {
                                   <Pin size={16} />
                                 )}
                                 {message.isPinnedByCurrentUser
-                                  ? "Pindən çıxar"
-                                  : "Mesajı pinlə"}
+                                  ? language === "en"
+                                    ? "Unpin"
+                                    : "Pindən çıxar"
+                                  : language === "en"
+                                    ? "Pin message"
+                                    : "Mesajı pinlə"}
                               </button>
                             )}
                             <button
                               type="button"
                               onClick={() => {
-                                setDeleteTarget({ message, scope: "ForMe" });
-                                setOpenMessageMenuId(null);
-                              }}
-                              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-zinc-300 transition hover:bg-white/[0.06]"
-                            >
-                              <Trash2 size={16} />
-                              Məndən sil
-                            </button>
-                            {mine && !message.isDeletedForEveryone && (
-                              <button
-                                type="button"
-                                onClick={() => {
+                                deleteMessageMutation.reset();
+                                if (mine) {
+                                  setDeleteChoiceTarget(message);
+                                } else {
                                   setDeleteTarget({
                                     message,
-                                    scope: "ForEveryone",
+                                    scope: "ForMe",
                                   });
-                                  setOpenMessageMenuId(null);
-                                }}
-                                className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-red-300 transition hover:bg-red-500/[0.09]"
-                              >
-                                <Trash2 size={16} />
-                                Hər kəsdən sil
-                              </button>
-                            )}
+                                }
+                                setOpenMessageMenuId(null);
+                              }}
+                              className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition ${
+                                mine
+                                  ? "text-red-300 hover:bg-red-500/[0.09]"
+                                  : "text-zinc-300 hover:bg-white/[0.06]"
+                              }`}
+                            >
+                              <Trash2 size={16} />
+                              {mine
+                                ? language === "en"
+                                  ? "Delete"
+                                  : "Sil"
+                                : language === "en"
+                                  ? "Delete for me"
+                                  : "Məndən sil"}
+                            </button>
                           </div>
                         )}
                       </div>
@@ -1083,43 +1164,186 @@ export function MessagesPage() {
         </div>
       )}
 
-      {deleteTarget &&
+      {deleteChoiceTarget &&
         createPortal(
-          <div className="fixed inset-0 z-[310] flex items-center justify-center bg-black/75 p-4 backdrop-blur-md">
-            <div className="w-full max-w-md rounded-3xl border border-white/[0.09] bg-[#15151c] p-5 shadow-2xl shadow-black/60">
-              <div className="flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-red-500/10 text-red-300">
-                  <Trash2 size={20} />
-                </span>
-                <div>
-                  <h2 className="text-lg font-bold text-white">
-                    {deleteTarget.scope === "ForEveryone"
-                      ? "Mesajı hər kəsdən sil?"
-                      : "Mesajı səndən sil?"}
-                  </h2>
-                  <p className="mt-1 text-sm leading-6 text-zinc-500">
-                    {deleteTarget.scope === "ForEveryone"
-                      ? "Mesajın mətni və media faylı söhbətin hər iki tərəfindən silinəcək. Bu əməliyyatı geri qaytarmaq mümkün deyil."
-                      : "Mesaj yalnız sənin söhbət tarixçəndən yox olacaq. Qarşı tərəf onu görməyə davam edəcək."}
-                  </p>
-                </div>
-              </div>
+          <div
+            className="fixed inset-0 z-[310] grid place-items-center bg-black/75 p-4 backdrop-blur-md"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-message-options-title"
+            onMouseDown={(event) => {
+              if (
+                event.target === event.currentTarget &&
+                !deleteMessageMutation.isPending
+              ) {
+                setDeleteChoiceTarget(null);
+              }
+            }}
+          >
+            <section className="relative w-full max-w-sm rounded-[1.75rem] border border-white/[0.09] bg-[#15151c] p-6 shadow-2xl shadow-black/65">
+              <button
+                type="button"
+                onClick={() => setDeleteChoiceTarget(null)}
+                disabled={deleteMessageMutation.isPending}
+                className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-xl text-zinc-600 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-40"
+                aria-label={language === "en" ? "Close" : "Bağla"}
+              >
+                <X size={18} />
+              </button>
+
+              <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-red-500/12 text-red-300">
+                <Trash2 size={21} />
+              </span>
+              <h2
+                id="delete-message-options-title"
+                className="mt-4 text-center text-xl font-bold text-white"
+              >
+                {language === "en" ? "Delete message" : "Mesajı sil"}
+              </h2>
+              <p className="mx-auto mt-2 max-w-xs text-center text-sm leading-6 text-zinc-500">
+                {language === "en"
+                  ? "Choose who this message should be deleted for."
+                  : "Mesajın kim üçün silinəcəyini seç."}
+              </p>
+
               {deleteMessageMutation.isError && (
-                <p className="mt-4 rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                <p className="mt-4 rounded-xl bg-red-500/10 px-3 py-2 text-center text-xs text-red-200">
                   {getApiErrorMessage(
                     deleteMessageMutation.error,
-                    "Mesaj silinmədi.",
+                    language === "en"
+                      ? "The message could not be deleted."
+                      : "Mesaj silinmədi.",
                   )}
                 </p>
               )}
-              <div className="mt-6 flex justify-end gap-3">
+
+              <div className="mt-6 flex flex-col gap-3">
+                <button
+                  type="button"
+                  onClick={() =>
+                    deleteMessageMutation.mutate({
+                      messageId: deleteChoiceTarget.id,
+                      scope: "ForMe",
+                    })
+                  }
+                  disabled={deleteMessageMutation.isPending}
+                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.035] px-4 py-3 text-left transition hover:border-white/[0.14] hover:bg-white/[0.065] disabled:opacity-50"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/[0.06] text-zinc-300">
+                    {deleteMessageMutation.isPending ? (
+                      <LoaderCircle size={18} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={18} />
+                    )}
+                  </span>
+                  <span>
+                    <strong className="block text-sm text-zinc-100">
+                      {language === "en"
+                        ? "Delete for me"
+                        : "Məndən sil"}
+                    </strong>
+                    <span className="mt-0.5 block text-xs leading-5 text-zinc-600">
+                      {language === "en"
+                        ? "The other person will still see it."
+                        : "Qarşı tərəf mesajı görməyə davam edəcək."}
+                    </span>
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDeleteTarget({
+                      message: deleteChoiceTarget,
+                      scope: "ForEveryone",
+                    });
+                    setDeleteChoiceTarget(null);
+                    deleteMessageMutation.reset();
+                  }}
+                  disabled={deleteMessageMutation.isPending}
+                  className="flex min-h-16 w-full items-center gap-3 rounded-2xl border border-red-400/15 bg-red-500/[0.07] px-4 py-3 text-left transition hover:border-red-300/25 hover:bg-red-500/[0.12] disabled:opacity-50"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/12 text-red-300">
+                    <Trash2 size={18} />
+                  </span>
+                  <span>
+                    <strong className="block text-sm text-red-200">
+                      {language === "en"
+                        ? "Delete for everyone"
+                        : "Hər kəsdən sil"}
+                    </strong>
+                    <span className="mt-0.5 block text-xs leading-5 text-red-200/45">
+                      {language === "en"
+                        ? "It will be removed from both sides."
+                        : "Mesaj söhbətin hər iki tərəfindən silinəcək."}
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </section>
+          </div>,
+          document.body,
+        )}
+
+      {deleteTarget &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[315] grid place-items-center bg-black/75 p-4 backdrop-blur-md"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-message-confirmation-title"
+            onMouseDown={(event) => {
+              if (
+                event.target === event.currentTarget &&
+                !deleteMessageMutation.isPending
+              ) {
+                setDeleteTarget(null);
+              }
+            }}
+          >
+            <section className="w-full max-w-md rounded-[1.9rem] border border-white/[0.09] bg-[#15151c] p-6 text-center shadow-2xl shadow-black/65 sm:p-7">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-500/12 text-red-300">
+                <Trash2 size={23} />
+              </span>
+              <h2
+                id="delete-message-confirmation-title"
+                className="mt-5 text-xl font-bold text-white"
+              >
+                {deleteTarget.scope === "ForEveryone"
+                  ? language === "en"
+                    ? "Delete message for everyone?"
+                    : "Mesaj hər kəsdən silinsin?"
+                  : language === "en"
+                    ? "Delete message for you?"
+                    : "Mesaj səndən silinsin?"}
+              </h2>
+              <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-zinc-500">
+                {deleteTarget.scope === "ForEveryone"
+                  ? language === "en"
+                    ? "The message text and media will be removed from both sides of the conversation. This action cannot be undone."
+                    : "Mesajın mətni və mediası söhbətin hər iki tərəfindən silinəcək. Bu əməliyyatı geri qaytarmaq mümkün deyil."
+                  : language === "en"
+                    ? "The message will disappear only from your chat history. The other person will still be able to see it."
+                    : "Mesaj yalnız sənin söhbət tarixçəndən yox olacaq. Qarşı tərəf onu görməyə davam edəcək."}
+              </p>
+              {deleteMessageMutation.isError && (
+                <p className="mt-5 rounded-xl bg-red-500/10 px-3 py-2 text-xs text-red-200">
+                  {getApiErrorMessage(
+                    deleteMessageMutation.error,
+                    language === "en"
+                      ? "The message could not be deleted."
+                      : "Mesaj silinmədi.",
+                  )}
+                </p>
+              )}
+              <div className="mt-7 grid grid-cols-2 gap-3">
                 <button
                   type="button"
                   onClick={() => setDeleteTarget(null)}
                   disabled={deleteMessageMutation.isPending}
-                  className="h-10 rounded-xl border border-white/[0.09] px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.05]"
+                  className="h-11 rounded-xl border border-white/[0.09] bg-white/[0.025] px-4 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06]"
                 >
-                  Ləğv et
+                  {language === "en" ? "Cancel" : "Ləğv et"}
                 </button>
                 <button
                   type="button"
@@ -1130,103 +1354,19 @@ export function MessagesPage() {
                     })
                   }
                   disabled={deleteMessageMutation.isPending}
-                  className="flex h-10 items-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
+                  className="flex h-11 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 text-sm font-semibold text-white transition hover:bg-red-500 disabled:opacity-50"
                 >
                   {deleteMessageMutation.isPending && (
                     <LoaderCircle size={15} className="animate-spin" />
                   )}
-                  Sil
+                  {language === "en" ? "Delete" : "Sil"}
                 </button>
               </div>
-            </div>
+            </section>
           </div>,
           document.body,
         )}
 
-      {pinnedPanelOpen &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[305] flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
-            onClick={() => setPinnedPanelOpen(false)}
-          >
-            <div
-              className="w-full max-w-xl rounded-3xl border border-white/[0.09] bg-[#15151c] p-5 shadow-2xl shadow-black/60"
-              onClick={(event) => event.stopPropagation()}
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-violet-500/15 text-violet-300">
-                    <Pin size={18} />
-                  </span>
-                  <div>
-                    <h2 className="text-lg font-bold text-white">
-                      Pinlənmiş mesajlar
-                    </h2>
-                    <p className="text-xs text-zinc-500">
-                      {pinnedMessages.length} mesaj
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setPinnedPanelOpen(false)}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-500 transition hover:bg-white/[0.06] hover:text-white"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-              <div className="mt-4 max-h-[60vh] space-y-2 overflow-y-auto">
-                {pinnedMessages.map((message) => (
-                  <div
-                    key={message.id}
-                    className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.035] p-3"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPinnedPanelOpen(false);
-                        window.setTimeout(() => {
-                          document
-                            .getElementById(`chat-message-${message.id}`)
-                            ?.scrollIntoView({ behavior: "smooth", block: "center" });
-                        }, 50);
-                      }}
-                      className="min-w-0 flex-1 text-left"
-                    >
-                      <strong className="block truncate text-sm text-zinc-200">
-                        {message.senderUserId === currentUser?.id
-                          ? "Sən"
-                          : recipientName}
-                      </strong>
-                      <span className="mt-1 block truncate text-xs text-zinc-500">
-                        {getMessagePreview(message)}
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        pinMessageMutation.mutate({
-                          messageId: message.id,
-                          isPinned: false,
-                        })
-                      }
-                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-200"
-                      aria-label="Pindən çıxar"
-                    >
-                      <PinOff size={16} />
-                    </button>
-                  </div>
-                ))}
-                {pinnedMessages.length === 0 && (
-                  <p className="py-10 text-center text-sm text-zinc-600">
-                    Pinlənmiş mesaj yoxdur.
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>,
-          document.body,
-        )}
     </div>
   );
 }

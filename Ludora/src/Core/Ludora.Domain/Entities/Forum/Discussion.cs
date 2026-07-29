@@ -20,6 +20,7 @@ public class Discussion : BaseEntity
 
     public bool IsPinned { get; set; }
     public bool IsLocked { get; set; }
+    public bool IsSpoiler { get; set; }
     public int ViewCount { get; set; }
 
     public ICollection<DiscussionReply> Replies { get; set; } = [];
@@ -27,4 +28,5 @@ public class Discussion : BaseEntity
     public ICollection<DiscussionMedia> Media { get; set; } = [];
     public ICollection<DiscussionSave> Saves { get; set; } = [];
     public ICollection<DiscussionView> Views { get; set; } = [];
+    public DiscussionPoll? Poll { get; set; }
 }

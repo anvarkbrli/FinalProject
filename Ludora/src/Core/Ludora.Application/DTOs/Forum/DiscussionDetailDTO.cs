@@ -9,6 +9,7 @@ public record DiscussionDetailDTO
     public string Slug { get; init; } = string.Empty;
     public string Content { get; init; } = string.Empty;
     public IReadOnlyList<DiscussionMediaDTO> Media { get; init; } = [];
+    public DiscussionPollDTO? Poll { get; init; }
 
     public int CategoryId { get; init; }
     public string CategoryName { get; init; } = string.Empty;
@@ -32,6 +33,7 @@ public record DiscussionDetailDTO
     public bool IsSavedByCurrentUser { get; init; }
     public bool IsPinned { get; init; }
     public bool IsLocked { get; init; }
+    public bool IsSpoiler { get; init; }
     public bool IsDeleted { get; init; }
     public bool CanEdit { get; init; }
     public bool CanDelete { get; init; }

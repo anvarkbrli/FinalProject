@@ -27,6 +27,7 @@ import {
 import { CommunityOwnershipOfferModal } from "../components/forum/CommunityOwnershipOfferModal";
 import { Navbar } from "../components/layout/Navbar";
 import { UserReportModal } from "../components/profile/UserReportModal";
+import { useI18n } from "../i18n/useI18n";
 import { getApiErrorMessage } from "../lib/api";
 import { useConfirmation } from "../lib/confirmation";
 import {
@@ -71,6 +72,7 @@ const visibilityLabels: Record<ForumCommunityVisibility, string> = {
 };
 
 export function ForumCommunityPage() {
+  useI18n();
   const { slug = "" } = useParams();
   const navigate = useNavigate();
   const requestConfirmation = useConfirmation();

@@ -53,6 +53,7 @@ import { InteractionCommentsPanel } from "../components/interactions/Interaction
 import { InteractionLikesModal } from "../components/interactions/InteractionLikesModal";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
+import { useI18n } from "../i18n/useI18n";
 import { GameListEditorModal } from "../components/lists/GameListEditorModal";
 import { ProfileActivityFeed } from "../components/profile/ProfileActivityFeed";
 import { ProfileGamesGallery } from "../components/profile/ProfileGamesGallery";
@@ -419,6 +420,7 @@ function ProfileLoadingState() {
 }
 
 export function ProfilePage() {
+  useI18n();
   const { userName = "" } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();

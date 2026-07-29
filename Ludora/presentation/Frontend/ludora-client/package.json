@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "i18n:check": "node scripts/check-i18n.mjs && node scripts/build-auto-locales.mjs --check",
+    "i18n:generate": "node scripts/build-auto-locales.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

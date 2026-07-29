@@ -24,7 +24,9 @@ import {
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Footer } from "../components/layout/Footer";
+import { LanguageSwitcher } from "../components/layout/LanguageSwitcher";
 import { Navbar } from "../components/layout/Navbar";
+import { useI18n } from "../i18n/useI18n";
 import { NotificationSettingsPanel } from "../components/notifications/NotificationSettingsPanel";
 import { EditProfilePage } from "./EditProfilePage";
 import { getApiErrorMessage, getApiFieldErrors } from "../lib/api";
@@ -216,6 +218,7 @@ function getInitialSteamNotice(): NoticeState | null {
 }
 
 export function SettingsPage() {
+  const { t } = useI18n();
   const requestConfirmation = useConfirmation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -734,6 +737,22 @@ export function SettingsPage() {
           <div className="min-w-0 space-y-6">
           {activeSection === "profile" && (
             <EditProfilePage embedded />
+          )}
+
+          {activeSection === "account" && (
+          <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="font-semibold text-white">
+                  {t("profile:settings.language")}
+                </h2>
+                <p className="mt-1 text-xs leading-5 text-zinc-600">
+                  {t("profile:settings.languageDescription")}
+                </p>
+              </div>
+              <LanguageSwitcher />
+            </div>
+          </section>
           )}
 
           {activeSection === "account" && (

@@ -29,6 +29,7 @@ import {
 import { LogGameModal } from "../reviews/LogGameModal";
 import { GlobalSearchBox } from "../search/GlobalSearchBox";
 import { NotificationBell } from "../notifications/NotificationBell";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { resolveAssetUrl } from "../../lib/helpers";
 import { canAccessAdminPanel } from "../../lib/authRoles";
 import { useNotificationRealtime } from "../../hooks/useNotificationRealtime";
@@ -268,6 +269,7 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
+          <LanguageSwitcher />
           <GlobalSearchBox />
 
           {hasValidSession && <NotificationBell />}
@@ -549,7 +551,12 @@ export function Navbar() {
               );
             })}
 
-            <div className="mt-2"><GlobalSearchBox mobile /></div>
+            <div className="mt-2 flex items-center justify-between gap-3">
+              <LanguageSwitcher />
+              <div className="min-w-0 flex-1">
+                <GlobalSearchBox mobile />
+              </div>
+            </div>
 
             {hasValidSession ? (
               <>

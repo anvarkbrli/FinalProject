@@ -12,4 +12,5 @@ public sealed class DiscussionMedia : BaseEntity
     public string OriginalFileName { get; set; } = null!;
     public long FileSize { get; set; }
     public int SortOrder { get; set; }
+    public bool IsSpoiler { get; set; }
 }

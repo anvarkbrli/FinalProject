@@ -1,0 +1,64 @@
+{
+  "title": "Profile",
+  "edit": "Edit profile",
+  "followers": "{count} followers",
+  "following": "{count} following",
+  "posts": "{count} posts",
+  "private": "This profile is private",
+  "tabs": {
+    "posts": "Posts",
+    "lists": "Lists",
+    "reviews": "Reviews",
+    "owned": "Owned",
+    "favorites": "Favorites",
+    "activity": "Activity"
+  },
+  "overview": {
+    "ratingChart": "Rating chart",
+    "ratingDescription": "All ratings, whether or not a written review was added.",
+    "ratings": "{count} ratings",
+    "ratingWord": "ratings",
+    "recentGames": "Recently played games",
+    "recentGamesDescription": "The four games this user completed most recently.",
+    "favoriteGames": "Favorite games",
+    "favoriteGamesDescription": "A favorite-games collection visible only to you.",
+    "badges": "Badges",
+    "badgesDescription": "Earned achievements will appear here.",
+    "earned": "{count} earned",
+    "earnedWord": "earned"
+  },
+  "privacy": {
+    "postsHidden": "Posts are hidden"
+  },
+  "badges": {
+    "firstGame": "First Game",
+    "firstGameDescription": "Log your first game.",
+    "collector": "Collector",
+    "collectorDescription": "Log 10 games.",
+    "greatCollector": "Great Collector",
+    "greatCollectorDescription": "Log 50 games.",
+    "firstStep": "First Step",
+    "firstStepDescription": "Complete your first game.",
+    "player": "Player",
+    "playerDescription": "Mark 25 games as played.",
+    "critic": "Critic",
+    "criticDescription": "Write your first review.",
+    "firstPost": "First Post",
+    "firstPostDescription": "Share your first post.",
+    "curator": "Curator",
+    "curatorDescription": "Create your first game list.",
+    "marathoner": "Marathoner",
+    "marathonerDescription": "Accumulate 100 hours of playtime.",
+    "discussant": "Discussant",
+    "steamConnection": "Steam Connection",
+    "steamCollector": "Steam Collector"
+  },
+  "settings": {
+    "title": "Settings",
+    "account": "Account",
+    "privacy": "Privacy",
+    "notifications": "Notifications",
+    "language": "Language",
+    "languageDescription": "Choose the language for the interface and server messages."
+  }
+}

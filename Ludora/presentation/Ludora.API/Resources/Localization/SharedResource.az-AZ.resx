@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Errors.Unexpected" xml:space="preserve"><value>Gözlənilməz server xətası baş verdi.</value></data>
+  <data name="Errors.DatabaseConflict" xml:space="preserve"><value>Məlumat bazasında eyni və ya ziddiyyətli məlumat mövcuddur.</value></data>
+  <data name="Errors.BadRequest" xml:space="preserve"><value>Sorğu məlumatları düzgün deyil.</value></data>
+  <data name="Errors.Unauthorized" xml:space="preserve"><value>Bu əməliyyat üçün sistemə daxil olmalısınız.</value></data>
+  <data name="Errors.Forbidden" xml:space="preserve"><value>Bu əməliyyat üçün icazəniz yoxdur.</value></data>
+  <data name="Errors.NotFound" xml:space="preserve"><value>Tələb olunan məlumat tapılmadı.</value></data>
+  <data name="Errors.Conflict" xml:space="preserve"><value>Əməliyyat mövcud məlumatla ziddiyyət yaratdı.</value></data>
+  <data name="Errors.ExternalService" xml:space="preserve"><value>Xarici xidmət müvəqqəti olaraq əlçatan deyil.</value></data>
+  <data name="Dil yalnız az və ya en ola bilər." xml:space="preserve"><value>Dil yalnız az və ya en ola bilər.</value></data>
+  <data name="İstifadəçi tapılmadı." xml:space="preserve"><value>İstifadəçi tapılmadı.</value></data>
+  <data name="Oyun tapılmadı." xml:space="preserve"><value>Oyun tapılmadı.</value></data>
+  <data name="IGDB oyunu tapılmadı." xml:space="preserve"><value>IGDB oyunu tapılmadı.</value></data>
+  <data name="Mövzu tapılmadı." xml:space="preserve"><value>Mövzu tapılmadı.</value></data>
+  <data name="Bu sorğu bağlanıb." xml:space="preserve"><value>Bu sorğu bağlanıb.</value></data>
+  <data name="Bu sorğu artıq bitib." xml:space="preserve"><value>Bu sorğu artıq bitib.</value></data>
+  <data name="Bu sorğuda verilmiş səsi dəyişmək mümkün deyil." xml:space="preserve"><value>Bu sorğuda verilmiş səsi dəyişmək mümkün deyil.</value></data>
+</root>

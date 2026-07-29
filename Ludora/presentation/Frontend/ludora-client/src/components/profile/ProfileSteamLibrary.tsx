@@ -9,8 +9,16 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import {
+  getCurrentLanguage,
+  getCurrentLocale,
+} from "../../i18n/localization";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
-import { resolveAssetUrl } from "../../lib/helpers";
+import {
+  formatPlaytime as formatLocalizedPlaytime,
+  resolveAssetUrl,
+} from "../../lib/helpers";
 import type { SteamOwnedGameDTO } from "../../types/steam";
 
 interface ProfileSteamLibraryProps {
@@ -25,6 +33,12 @@ interface ProfileSteamLibraryProps {
 }
 
 function formatPlaytime(minutes: number): string {
+  if (getCurrentLanguage() === "en") {
+    return minutes <= 0
+      ? "Not played"
+      : formatLocalizedPlaytime(minutes);
+  }
+
   if (minutes <= 0) return "Oynanılmayıb";
 
   const hours = Math.floor(minutes / 60);
@@ -39,19 +53,36 @@ function formatLastPlayed(
   value: string | null | undefined,
   playtimeMinutes: number,
 ): string {
-  if (playtimeMinutes <= 0) return "Hələki oynanmayıb";
-  if (!value) return "Son oynanma tarixi məlum deyil";
+  const isEnglish = getCurrentLanguage() === "en";
+  if (playtimeMinutes <= 0) {
+    return isEnglish ? "Not played yet" : "Hələki oynanmayıb";
+  }
+  if (!value) {
+    return isEnglish
+      ? "Last played date is unknown"
+      : "Son oynanma tarixi məlum deyil";
+  }
 
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
-    return "Son oynanma tarixi məlum deyil";
+    return isEnglish
+      ? "Last played date is unknown"
+      : "Son oynanma tarixi məlum deyil";
   }
 
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
+  if (!isEnglish) {
+    const day = String(date.getDate()).padStart(2, "0");
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const year = date.getFullYear();
+    return `Son oynanma: ${day}.${month}.${year}`;
+  }
 
-  return `Son oynanma: ${day}.${month}.${year}`;
+  const formattedDate = new Intl.DateTimeFormat(getCurrentLocale(), {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+  return `Last played: ${formattedDate}`;
 }
 
 function SteamGameCover({ game }: { game: SteamOwnedGameDTO }) {
@@ -118,6 +149,7 @@ export function ProfileSteamLibrary({
   onSync,
   onResolvePlaytime,
 }: ProfileSteamLibraryProps) {
+  useI18n();
   if (isLoading) {
     return (
       <div className="flex items-center justify-center gap-3 py-20 text-sm text-zinc-500">

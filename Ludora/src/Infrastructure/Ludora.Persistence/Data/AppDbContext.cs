@@ -46,6 +46,9 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<DiscussionSave> DiscussionSaves { get; set; }
     public DbSet<DiscussionReplyFollow> DiscussionReplyFollows { get; set; }
     public DbSet<DiscussionView> DiscussionViews { get; set; }
+    public DbSet<DiscussionPoll> DiscussionPolls { get; set; }
+    public DbSet<DiscussionPollOption> DiscussionPollOptions { get; set; }
+    public DbSet<DiscussionPollVote> DiscussionPollVotes { get; set; }
     public DbSet<ForumCommunity> ForumCommunities { get; set; }
     public DbSet<ForumCommunityMember> ForumCommunityMembers { get; set; }
     public DbSet<ForumCommunityFollow> ForumCommunityFollows { get; set; }
@@ -70,6 +73,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<UserBadge> UserBadges { get; set; }
 
     public DbSet<IgdbGameOverride> IgdbGameOverrides { get; set; }
+    public DbSet<GameTranslation> GameTranslations { get; set; }
     public DbSet<IgdbGenreOverride> IgdbGenreOverrides { get; set; }
     public DbSet<IgdbPlatformOverride> IgdbPlatformOverrides { get; set; }
     public DbSet<IgdbCompanyOverride> IgdbCompanyOverrides { get; set; }

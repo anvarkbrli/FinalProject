@@ -59,6 +59,7 @@ public class UserService : IUserService
             ProfileImageUrl = user.ProfileImageUrl,
             SocialLinks = SocialLinkHelper.Deserialize(user.SocialLinksJson),
             IsPrivate = user.IsPrivate,
+            PreferredLanguage = user.PreferredLanguage,
             CreatedAt = user.CreatedAt,
             FollowerCount = summary.FollowerCount,
             FollowingCount = summary.FollowingCount,
@@ -193,6 +194,26 @@ public class UserService : IUserService
         {
             IsPrivate = user.IsPrivate
         };
+    }
+
+    public async Task<CurrentUserDTO> UpdatePreferredLanguageAsync(
+        Guid userId,
+        UpdatePreferredLanguageDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+        var language = dto.Language.Trim().ToLowerInvariant();
+
+        if (language is not ("az" or "en"))
+            throw new BadRequestException("Dil yalnız az və ya en ola bilər.");
+
+        var user = await _userManager.FindByIdOrThrowAsync(userId);
+        user.PreferredLanguage = language;
+
+        var result = await _userManager.UpdateAsync(user);
+        result.ThrowIfFailed();
+
+        return await GetCurrentUserAsync(userId);
     }
 
     public async Task<FpsHardwareProfileDTO> GetFpsHardwareProfileAsync(

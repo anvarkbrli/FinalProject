@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Claims;
 using System.IO.Compression;
 using System.Text;
@@ -5,6 +6,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Ludora.API.BackgroundServices;
 using Ludora.API.Hubs;
+using Ludora.API.Localization;
 using Ludora.API.Middlewares;
 using Ludora.Application.Common;
 using Ludora.Application.Interfaces;
@@ -14,9 +16,11 @@ using Ludora.Infrastructure.Email;
 using Ludora.Infrastructure.FpsResearch;
 using Ludora.Infrastructure.IGDB;
 using Ludora.Infrastructure.Steam;
+using Ludora.Infrastructure.Translation;
 using Ludora.Persistence.ServiceRegistration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
@@ -29,6 +33,23 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+        builder.Services.AddLocalization(options => options.ResourcesPath = "Resources");
+        builder.Services.Configure<RequestLocalizationOptions>(options =>
+        {
+            var supportedCultures = new[]
+            {
+                new CultureInfo("az-AZ"),
+                new CultureInfo("en-US")
+            };
+
+            options.DefaultRequestCulture = new RequestCulture("az-AZ");
+            options.SupportedCultures = supportedCultures;
+            options.SupportedUICultures = supportedCultures;
+            options.RequestCultureProviders =
+            [
+                new AcceptLanguageHeaderRequestCultureProvider()
+            ];
+        });
         builder.Services.AddControllers().AddJsonOptions(options =>
             options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
         builder.Services.AddResponseCompression(options =>
@@ -291,6 +312,7 @@ public class Program
         builder.Services.AddIgdbIntegration(builder.Configuration);
         builder.Services.AddFpsResearchIntegration(builder.Configuration);
         builder.Services.AddSteamIntegration(builder.Configuration);
+        builder.Services.AddTranslationInfrastructure(builder.Configuration);
 
         var origins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() ?? [];
         builder.Services.AddCors(options => options.AddPolicy("Frontend", policy =>
@@ -312,6 +334,7 @@ public class Program
             app.UseSwaggerUI();
         }
 
+        app.UseRequestLocalization();
         app.UseMiddleware<GlobalExceptionMiddleware>();
         app.UseResponseCompression();
         app.UseHttpsRedirection();

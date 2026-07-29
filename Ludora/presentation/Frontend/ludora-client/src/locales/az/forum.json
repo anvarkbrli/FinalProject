@@ -1,0 +1,69 @@
+{
+  "title": "Ludora Forum",
+  "hero": "Oyun bitəndə söhbət başlayır.",
+  "create": "Müzakirə yarat",
+  "discussion": "Müzakirə",
+  "comments": "{count} cavab",
+  "views": "{count} baxış",
+  "empty": "Burada hələ müzakirə yoxdur.",
+  "navigation": {
+    "home": "Ana lent",
+    "discussions": "Müzakirələr",
+    "popular": "Populyar",
+    "communities": "İcmalar",
+    "explore": "Kəşf",
+    "homeTitle": "İzlədiklərindəki yeniliklər",
+    "discussionsTitle": "Ən yeni müzakirələr",
+    "popularTitle": "İcmaların gündəmi",
+    "communitiesTitle": "Oyun icmaları",
+    "exploreTitle": "Sənin üçün yeni kəşflər"
+  },
+  "actions": {
+    "searchPlaceholder": "Bu bölmədə axtar...",
+    "createCommunity": "Öz icmanı yarat",
+    "all": "Hamısı",
+    "previous": "Əvvəlki",
+    "next": "Növbəti",
+    "allCommunities": "Bütün icmalar",
+    "chooseInterests": "Maraqlarımı seç"
+  },
+  "period": {
+    "week": "7 gün",
+    "month": "30 gün",
+    "all": "Bütün zamanlar"
+  },
+  "categories": {
+    "GameNews": "Oyun xəbərləri",
+    "BugsAndSolutions": "Buglar və həlləri",
+    "EsportsAndCompetitiveGaming": "Esports və rəqabətli oyunlar",
+    "HardwareAndGamingSetup": "Hardware və gaming setup",
+    "GuidesAndTutorials": "Bələdçilər və təlimatlar",
+    "ModdingAndGameDevelopment": "Modding və oyun inkişafı",
+    "OffTopic": "Mövzudan kənar",
+    "Other": "Digər"
+  },
+  "states": {
+    "loadFailed": "Müzakirələr yüklənmədi",
+    "noDiscussion": "Uyğun müzakirə tapılmadı",
+    "noCommunity": "Hələ heç bir icma yaradılmayıb",
+    "discoverCommunities": "Kəşf edə biləcəyin icmalar",
+    "discoverUsers": "İzləyə biləcəyin istifadəçilər",
+    "feedFailed": "Lent yüklənmədi",
+    "member": "{count} üzv",
+    "discussionCount": "{count} müzakirə"
+  },
+  "spoiler": {
+    "badge": "Spoiler",
+    "show": "Spoileri göstər",
+    "contains": "Bu müzakirədə spoiler var"
+  },
+  "poll": {
+    "title": "Sorğu",
+    "vote": "Səs ver",
+    "changeVote": "Səsi dəyiş",
+    "closed": "Sorğu bağlanıb",
+    "ended": "Sorğu bitib",
+    "afterVote": "Nəticələri görmək üçün səs ver.",
+    "afterEnd": "Nəticələr sorğu bitdikdən sonra göstəriləcək."
+  }
+}

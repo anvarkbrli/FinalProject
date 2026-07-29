@@ -20,6 +20,7 @@ public static class UserMappings
             ProfileImageUrl = user.ProfileImageUrl,
             SocialLinks = SocialLinkHelper.Deserialize(user.SocialLinksJson),
             IsPrivate = user.IsPrivate,
+            PreferredLanguage = user.PreferredLanguage,
             CreatedAt = user.CreatedAt
         };
     }

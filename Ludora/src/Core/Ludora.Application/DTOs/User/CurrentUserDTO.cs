@@ -20,6 +20,8 @@ public record CurrentUserDTO
 
     public bool IsPrivate { get; set; }
 
+    public string PreferredLanguage { get; set; } = "az";
+
     public DateTime CreatedAt { get; set; }
 
     public int FollowerCount { get; set; }

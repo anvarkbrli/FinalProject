@@ -5,6 +5,7 @@ import {
   Megaphone,
 } from "lucide-react";
 import { useState } from "react";
+import { useI18n } from "../../i18n/useI18n";
 import { formatRelativeDate } from "../../lib/helpers";
 import { getHomeAnnouncements } from "../../services/homeService";
 import {
@@ -13,6 +14,7 @@ import {
 } from "../../stores/authStore";
 
 export function HomeAnnouncements() {
+  useI18n();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore(

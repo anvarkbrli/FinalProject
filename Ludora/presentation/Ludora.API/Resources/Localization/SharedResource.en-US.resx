@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
+  <data name="Errors.Unexpected" xml:space="preserve"><value>An unexpected server error occurred.</value></data>
+  <data name="Errors.DatabaseConflict" xml:space="preserve"><value>Duplicate or conflicting data already exists.</value></data>
+  <data name="Errors.BadRequest" xml:space="preserve"><value>The request data is invalid.</value></data>
+  <data name="Errors.Unauthorized" xml:space="preserve"><value>You must sign in to perform this action.</value></data>
+  <data name="Errors.Forbidden" xml:space="preserve"><value>You do not have permission to perform this action.</value></data>
+  <data name="Errors.NotFound" xml:space="preserve"><value>The requested resource was not found.</value></data>
+  <data name="Errors.Conflict" xml:space="preserve"><value>The operation conflicts with existing data.</value></data>
+  <data name="Errors.ExternalService" xml:space="preserve"><value>An external service is temporarily unavailable.</value></data>
+  <data name="Dil yalnız az və ya en ola bilər." xml:space="preserve"><value>Language must be either az or en.</value></data>
+  <data name="İstifadəçi tapılmadı." xml:space="preserve"><value>User not found.</value></data>
+  <data name="Oyun tapılmadı." xml:space="preserve"><value>Game not found.</value></data>
+  <data name="IGDB oyunu tapılmadı." xml:space="preserve"><value>IGDB game not found.</value></data>
+  <data name="Mövzu tapılmadı." xml:space="preserve"><value>Discussion not found.</value></data>
+  <data name="Bu sorğu bağlanıb." xml:space="preserve"><value>This poll is closed.</value></data>
+  <data name="Bu sorğu artıq bitib." xml:space="preserve"><value>This poll has already ended.</value></data>
+  <data name="Bu sorğuda verilmiş səsi dəyişmək mümkün deyil." xml:space="preserve"><value>Votes cannot be changed in this poll.</value></data>
+</root>

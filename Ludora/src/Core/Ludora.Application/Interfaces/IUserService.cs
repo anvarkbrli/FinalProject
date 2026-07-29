@@ -11,6 +11,10 @@ public interface IUserService
     Task<CurrentUserDTO> UpdateProfileImageAsync(Guid userId, ProfileImageUploadDTO dto);
     Task<UserSettingsDTO> GetSettingsAsync(Guid userId);
     Task<UserSettingsDTO> UpdateSettingsAsync(Guid userId, UpdateUserSettingsDTO dto);
+    Task<CurrentUserDTO> UpdatePreferredLanguageAsync(
+        Guid userId,
+        UpdatePreferredLanguageDTO dto,
+        CancellationToken cancellationToken = default);
     Task<FpsHardwareProfileDTO> GetFpsHardwareProfileAsync(
         Guid userId,
         CancellationToken cancellationToken = default);

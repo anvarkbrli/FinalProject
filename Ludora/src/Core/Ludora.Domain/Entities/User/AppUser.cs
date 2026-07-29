@@ -10,6 +10,7 @@ public class AppUser : IdentityUser<Guid>
     public string? ProfileImageUrl { get; set; }
     public string? SocialLinksJson { get; set; }
     public bool IsPrivate { get; set; }
+    public string PreferredLanguage { get; set; } = "az";
     public DateTime CreatedAt { get; set; }
     public DateTime? AccountDeletionRequestedAtUtc { get; set; }
 
@@ -51,6 +52,7 @@ public class AppUser : IdentityUser<Guid>
     public ICollection<DiscussionReply> DiscussionReplies { get; set; } = new List<DiscussionReply>();
     public ICollection<DiscussionLike> DiscussionLikes { get; set; } = new List<DiscussionLike>();
     public ICollection<DiscussionReplyLike> DiscussionReplyLikes { get; set; } = new List<DiscussionReplyLike>();
+    public ICollection<DiscussionPollVote> DiscussionPollVotes { get; set; } = new List<DiscussionPollVote>();
     public ICollection<UserWarning> ReceivedWarnings { get; set; } = new List<UserWarning>();
     public ICollection<UserWarning> SentWarnings { get; set; } = new List<UserWarning>();
     public ICollection<UserReport> SubmittedReports { get; set; } = new List<UserReport>();

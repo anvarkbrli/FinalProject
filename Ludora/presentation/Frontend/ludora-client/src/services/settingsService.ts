@@ -75,6 +75,17 @@ export async function updateUserSettings(
   return response.data;
 }
 
+export async function updatePreferredLanguage(
+  language: "az" | "en",
+): Promise<CurrentUserDTO> {
+  const response = await api.put<CurrentUserDTO>(
+    "/users/me/language",
+    { language },
+  );
+
+  return response.data;
+}
+
 export async function getBlockedUsers(
   signal?: AbortSignal,
 ): Promise<BlockedUserDTO[]> {

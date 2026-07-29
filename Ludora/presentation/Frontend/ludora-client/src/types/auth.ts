@@ -32,6 +32,7 @@ export interface CurrentUserDTO {
   profileImageUrl: string | null;
   socialLinks: UserSocialLinkDTO[];
   isPrivate: boolean;
+  preferredLanguage: "az" | "en";
   createdAt: string;
   followerCount: number;
   followingCount: number;

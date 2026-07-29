@@ -15,6 +15,7 @@ import {
   Star,
 } from "lucide-react";
 import { useState } from "react";
+import { useI18n } from "../../i18n/useI18n";
 import { Link } from "react-router-dom";
 import { getApiErrorMessage } from "../../lib/api";
 import {
@@ -63,6 +64,7 @@ const sortOptions: Array<{
 
 function formatPlaytime(
   totalMinutes: number | null,
+  language: "az" | "en",
 ): string | null {
   if (
     totalMinutes === null ||
@@ -77,14 +79,20 @@ function formatPlaytime(
   const minutes = totalMinutes % 60;
 
   if (hours === 0) {
-    return `${minutes} dəqiqə`;
+    return language === "en"
+      ? `${minutes} ${minutes === 1 ? "minute" : "minutes"}`
+      : `${minutes} dəqiqə`;
   }
 
   if (minutes === 0) {
-    return `${hours} saat`;
+    return language === "en"
+      ? `${hours} ${hours === 1 ? "hour" : "hours"}`
+      : `${hours} saat`;
   }
 
-  return `${hours} saat ${minutes} dəqiqə`;
+  return language === "en"
+    ? `${hours} ${hours === 1 ? "hour" : "hours"} ${minutes} ${minutes === 1 ? "minute" : "minutes"}`
+    : `${hours} saat ${minutes} dəqiqə`;
 }
 
 function ReviewAvatar({
@@ -119,6 +127,7 @@ export function GameReviewsSection({
 }: {
   game: GameDetailDTO;
 }) {
+  const { language } = useI18n();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [sort, setSort] =
@@ -299,6 +308,7 @@ export function GameReviewsSection({
                 revealedSpoilers.has(review.id);
               const playtime = formatPlaytime(
                 review.playtimeMinutes,
+                language,
               );
 
               return (
@@ -380,10 +390,10 @@ export function GameReviewsSection({
                           className="text-amber-300"
                         />
                         <span className="mt-3 text-sm font-bold text-amber-200">
-                          Bu rəy spoiler ehtiva edir
+                          {language === "en" ? "This review contains spoilers" : "Bu rəy spoiler ehtiva edir"}
                         </span>
                         <span className="mt-1 text-xs text-amber-100/45">
-                          Rəyi açmaq üçün bir dəfə kliklə
+                          {language === "en" ? "Click once to reveal the review" : "Rəyi açmaq üçün bir dəfə kliklə"}
                         </span>
                       </button>
                     ) : (

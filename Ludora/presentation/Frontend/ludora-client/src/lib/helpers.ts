@@ -1,3 +1,9 @@
+import {
+  getCurrentLanguage,
+  getCurrentLocale,
+  t,
+} from "../i18n/localization";
+
 const apiOrigin = import.meta.env.VITE_API_ORIGIN;
 const azerbaijanTimeZone = "Asia/Baku";
 const dateOnlyPattern = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -76,7 +82,7 @@ export function formatDate(
     return value;
   }
 
-  return new Intl.DateTimeFormat("az-AZ", {
+  return new Intl.DateTimeFormat(getCurrentLocale(), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -101,7 +107,7 @@ export function formatDateTime(
     return formatDate(value);
   }
 
-  return new Intl.DateTimeFormat("az-AZ", {
+  return new Intl.DateTimeFormat(getCurrentLocale(), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -176,39 +182,112 @@ export function formatRelativeDate(
   const absoluteDifference = Math.abs(differenceInMilliseconds);
 
   if (absoluteDifference < 45_000) {
-    return "İndicə";
+    return t("common:date.now");
   }
 
   const isFuture = differenceInMilliseconds < 0;
   const absoluteMinutes = Math.max(1, Math.floor(absoluteDifference / 60_000));
 
-  const formatUnit = (amount: number, unit: string) =>
-    isFuture ? `${amount} ${unit} sonra` : `${amount} ${unit} əvvəl`;
+  if (getCurrentLanguage() === "az") {
+    const formatUnit = (amount: number, unit: string) =>
+      isFuture
+        ? `${amount} ${unit} sonra`
+        : `${amount} ${unit} əvvəl`;
+
+    if (absoluteMinutes < 60) {
+      return formatUnit(absoluteMinutes, "dəqiqə");
+    }
+
+    const hours = Math.floor(absoluteMinutes / 60);
+    if (hours < 24) {
+      return formatUnit(hours, "saat");
+    }
+
+    const days = Math.floor(hours / 24);
+    if (days < 7) {
+      return formatUnit(days, "gün");
+    }
+
+    const weeks = Math.floor(days / 7);
+    if (weeks < 5) {
+      return formatUnit(weeks, "həftə");
+    }
+
+    const months = Math.floor(days / 30);
+    if (months < 12) {
+      return formatUnit(months, "ay");
+    }
+
+    return formatUnit(Math.floor(days / 365), "il");
+  }
+
+  const relativeTime = new Intl.RelativeTimeFormat(getCurrentLocale(), {
+    numeric: "always",
+  });
 
   if (absoluteMinutes < 60) {
-    return formatUnit(absoluteMinutes, "dəqiqə");
+    return relativeTime.format(
+      isFuture ? absoluteMinutes : -absoluteMinutes,
+      "minute",
+    );
   }
 
   const hours = Math.floor(absoluteMinutes / 60);
   if (hours < 24) {
-    return formatUnit(hours, "saat");
+    return relativeTime.format(isFuture ? hours : -hours, "hour");
   }
 
   const days = Math.floor(hours / 24);
   if (days < 7) {
-    return formatUnit(days, "gün");
+    return relativeTime.format(isFuture ? days : -days, "day");
   }
 
   const weeks = Math.floor(days / 7);
   if (weeks < 5) {
-    return formatUnit(weeks, "həftə");
+    return relativeTime.format(isFuture ? weeks : -weeks, "week");
   }
 
   const months = Math.floor(days / 30);
   if (months < 12) {
-    return formatUnit(months, "ay");
+    return relativeTime.format(isFuture ? months : -months, "month");
   }
 
   const years = Math.floor(days / 365);
-  return formatUnit(years, "il");
+  return relativeTime.format(isFuture ? years : -years, "year");
+}
+
+export function formatPlaytime(
+  totalMinutes: number | null | undefined,
+): string {
+  const normalizedMinutes = Math.max(0, Math.round(totalMinutes ?? 0));
+  const hours = Math.floor(normalizedMinutes / 60);
+  const minutes = normalizedMinutes % 60;
+  const language = getCurrentLanguage();
+
+  const formatUnit = (
+    amount: number,
+    singular: string,
+    plural: string,
+  ) => `${new Intl.NumberFormat(getCurrentLocale()).format(amount)} ${
+    language === "en" && amount === 1 ? singular : plural
+  }`;
+
+  const hourText =
+    language === "en"
+      ? formatUnit(hours, "hour", "hours")
+      : `${new Intl.NumberFormat(getCurrentLocale()).format(hours)} saat`;
+  const minuteText =
+    language === "en"
+      ? formatUnit(minutes, "minute", "minutes")
+      : `${new Intl.NumberFormat(getCurrentLocale()).format(minutes)} dəqiqə`;
+
+  if (hours === 0) {
+    return minuteText;
+  }
+
+  if (minutes === 0) {
+    return hourText;
+  }
+
+  return `${hourText} ${minuteText}`;
 }

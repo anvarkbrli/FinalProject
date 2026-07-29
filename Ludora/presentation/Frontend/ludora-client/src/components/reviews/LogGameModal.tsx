@@ -17,6 +17,7 @@ import {
   useState,
 } from "react";
 import { RatingStarIcon } from "../common/RatingStarIcon";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
 import { resolveAssetUrl } from "../../lib/helpers";
 import {
@@ -51,27 +52,26 @@ interface LogGameModalProps {
   onSaved?: () => void;
 }
 
-const statusOptions: Array<{
+function getStatusOptions(language: "az" | "en"): Array<{
   value: UserGameStatus;
   label: string;
-}> = [
-  {
-    value: "Playing",
-    label: "Oynayıram",
-  },
-  {
-    value: "PlanToPlay",
-    label: "Oynayacağam",
-  },
-  {
-    value: "Played",
-    label: "Oynamışam",
-  },
-  {
-    value: "Dropped",
-    label: "Yarımçıq qoydum",
-  },
-];
+}> {
+  if (language === "en") {
+    return [
+      { value: "Playing", label: "Playing" },
+      { value: "PlanToPlay", label: "Going to play" },
+      { value: "Played", label: "Played" },
+      { value: "Dropped", label: "Abandoned" },
+    ];
+  }
+
+  return [
+    { value: "Playing", label: "Oynayıram" },
+    { value: "PlanToPlay", label: "Oynayacağam" },
+    { value: "Played", label: "Oynamışam" },
+    { value: "Dropped", label: "Yarımçıq qoydum" },
+  ];
+}
 
 function formatPlatformKey(
   source: CatalogSource,
@@ -251,6 +251,8 @@ export function LogGameModal({
   game,
   onSaved,
 }: LogGameModalProps) {
+  const { language } = useI18n();
+  const statusOptions = getStatusOptions(language);
   const queryClient = useQueryClient();
   const hydratedKeyRef = useRef("");
 
@@ -1012,7 +1014,7 @@ export function LogGameModal({
 
                 <div>
                   <label className="block text-sm font-semibold text-zinc-200">
-                    Oyun müddəti
+                    {language === "en" ? "Time played" : "Oyun müddəti"}
                   </label>
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <label className="relative">
@@ -1028,7 +1030,7 @@ export function LogGameModal({
                         className="h-12 w-full rounded-2xl border border-white/[0.09] bg-white/[0.035] px-4 pr-12 text-sm text-white outline-none transition focus:border-violet-400/45 disabled:cursor-not-allowed disabled:opacity-60"
                       />
                       <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-zinc-600">
-                        saat
+                        {language === "en" ? "hours" : "saat"}
                       </span>
                     </label>
 
@@ -1047,7 +1049,7 @@ export function LogGameModal({
                         className="h-12 w-full rounded-2xl border border-white/[0.09] bg-white/[0.035] px-4 pr-14 text-sm text-white outline-none transition focus:border-violet-400/45 disabled:cursor-not-allowed disabled:opacity-60"
                       />
                       <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-xs text-zinc-600">
-                        dəq.
+                        {language === "en" ? "minutes" : "dəq."}
                       </span>
                     </label>
                   </div>
@@ -1226,63 +1228,84 @@ export function LogGameModal({
                 </fieldset>
               )}
 
-              <fieldset className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
-                <legend className="px-1 text-sm font-semibold text-zinc-200">
-                  Spoiler vəziyyəti
-                </legend>
+              {language === "en" ? (
+                <label className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 transition ${
+                  containsSpoilers
+                    ? "border-amber-300/30 bg-amber-500/[0.07]"
+                    : "border-white/[0.08] bg-white/[0.025] hover:border-white/[0.14]"
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={containsSpoilers}
+                    disabled={isPending}
+                    onChange={(event) => {
+                      setContainsSpoilers(event.target.checked);
+                    }}
+                    className="h-5 w-5 shrink-0 cursor-pointer rounded-md border border-white/20 bg-[#171923] accent-violet-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  />
+                  <span className="text-sm font-semibold text-zinc-200">
+                    Contains spoilers
+                  </span>
+                </label>
+              ) : (
+                <fieldset className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4">
+                  <legend className="px-1 text-sm font-semibold text-zinc-200">
+                    Spoiler vəziyyəti
+                  </legend>
 
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
-                    !containsSpoilers
-                      ? "border-violet-400/35 bg-violet-500/[0.09]"
-                      : "border-white/[0.07] bg-white/[0.02]"
-                  }`}>
-                    <input
-                      type="radio"
-                      name="review-spoiler"
-                      checked={!containsSpoilers}
-                      disabled={isPending}
-                      onChange={() => {
-                        setContainsSpoilers(false);
-                      }}
-                      className="mt-1 h-4 w-4 accent-violet-500"
-                    />
-                    <span>
-                      <span className="block text-sm font-semibold text-zinc-200">
-                        Spoiler yoxdur
+                  <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                    <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
+                      !containsSpoilers
+                        ? "border-violet-400/35 bg-violet-500/[0.09]"
+                        : "border-white/[0.07] bg-white/[0.02]"
+                    }`}>
+                      <input
+                        type="radio"
+                        name="review-spoiler"
+                        checked={!containsSpoilers}
+                        disabled={isPending}
+                        onChange={() => {
+                          setContainsSpoilers(false);
+                        }}
+                        className="mt-1 h-4 w-4 accent-violet-500"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-zinc-200">
+                          Spoiler yoxdur
+                        </span>
+                        <span className="mt-1 block text-xs text-zinc-600">
+                          Rəy birbaşa görünəcək.
+                        </span>
                       </span>
-                      <span className="mt-1 block text-xs text-zinc-600">
-                        Rəy birbaşa görünəcək.
-                      </span>
-                    </span>
-                  </label>
+                    </label>
 
-                  <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
-                    containsSpoilers
-                      ? "border-amber-300/30 bg-amber-500/[0.07]"
-                      : "border-white/[0.07] bg-white/[0.02]"
-                  }`}>
-                    <input
-                      type="radio"
-                      name="review-spoiler"
-                      checked={containsSpoilers}
-                      disabled={isPending}
-                      onChange={() => {
-                        setContainsSpoilers(true);
-                      }}
-                      className="mt-1 h-4 w-4 accent-amber-400"
-                    />
-                    <span>
-                      <span className="block text-sm font-semibold text-zinc-200">
-                        Spoiler var
+                    <label className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition ${
+                      containsSpoilers
+                        ? "border-amber-300/30 bg-amber-500/[0.07]"
+                        : "border-white/[0.07] bg-white/[0.02]"
+                    }`}>
+                      <input
+                        type="radio"
+                        name="review-spoiler"
+                        checked={containsSpoilers}
+                        disabled={isPending}
+                        onChange={() => {
+                          setContainsSpoilers(true);
+                        }}
+                        className="mt-1 h-4 w-4 accent-amber-400"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-zinc-200">
+                          Spoiler var
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-zinc-600">
+                          Rəy klik edilənədək bağlı görünəcək.
+                        </span>
                       </span>
-                      <span className="mt-1 block text-xs leading-5 text-zinc-600">
-                        Rəy klik edilənədək bağlı görünəcək.
-                      </span>
-                    </span>
-                  </label>
-                </div>
-              </fieldset>
+                    </label>
+                  </div>
+                </fieldset>
+              )}
 
               {formError && (
                 <p className="rounded-2xl border border-red-400/15 bg-red-500/[0.06] px-4 py-3 text-sm leading-6 text-red-200">

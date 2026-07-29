@@ -10,8 +10,13 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { getCurrentLanguage } from "../../i18n/localization";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
-import { resolveAssetUrl } from "../../lib/helpers";
+import {
+  formatPlaytime as formatLocalizedPlaytime,
+  resolveAssetUrl,
+} from "../../lib/helpers";
 import {
   applySteamPlaytimeReconciliation,
   getSteamPlaytimeReconciliation,
@@ -55,6 +60,10 @@ const resolutionOptions: Array<{
 ];
 
 function formatPlaytime(minutes: number): string {
+  if (getCurrentLanguage() === "en") {
+    return formatLocalizedPlaytime(minutes);
+  }
+
   if (minutes <= 0) return "0 saat";
   const hours = Math.floor(minutes / 60);
   const remainder = minutes % 60;
@@ -90,6 +99,7 @@ export function SteamPlaytimeReconciliationModal({
   onClose,
   onApplied,
 }: SteamPlaytimeReconciliationModalProps) {
+  useI18n();
   const [decisions, setDecisions] = useState<Record<number, UserResolution>>({});
 
   const reconciliationQuery = useQuery({
