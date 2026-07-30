@@ -281,6 +281,7 @@ function InteractiveRatingStar({
   ) => void;
   onSelect: (value: number) => void;
 }) {
+  const { language } = useI18n();
   const halfValue = starNumber - 0.5;
 
   const fillPercent =
@@ -303,7 +304,7 @@ function InteractiveRatingStar({
         disabled={disabled}
         aria-label={`${halfValue.toFixed(
           1,
-        )} ulduz reytinq ver`}
+        )} ${language === "en" ? "star rating" : "ulduz reytinq ver"}`}
         onMouseEnter={() =>
           onPreview(halfValue)
         }
@@ -322,7 +323,7 @@ function InteractiveRatingStar({
         disabled={disabled}
         aria-label={`${starNumber.toFixed(
           1,
-        )} ulduz reytinq ver`}
+        )} ${language === "en" ? "star rating" : "ulduz reytinq ver"}`}
         onMouseEnter={() =>
           onPreview(starNumber)
         }
@@ -734,7 +735,7 @@ function GameTrackingPanel({
                     }}
                     className="text-xs font-semibold text-zinc-600 transition hover:text-red-300 disabled:opacity-50"
                   >
-                    Sil
+                    {language === "en" ? "Remove" : "Sil"}
                   </button>
                 )}
             </div>
@@ -775,7 +776,7 @@ function GameTrackingPanel({
                 ? `${userState.rating.toFixed(
                     1,
                   )} / 5`
-                : "Hələ reytinq verməmisən"}
+                : language === "en" ? "You have not rated this game yet" : "Hələ reytinq verməmisən"}
             </p>
 
             <button
@@ -798,10 +799,10 @@ function GameTrackingPanel({
                 <PenLine size={17} />
               )}
               {myReviewQuery.isLoading
-                ? "Rəy yoxlanılır..."
+                ? language === "en" ? "Checking review..." : "Rəy yoxlanılır..."
                 : myReviewQuery.data
-                  ? "Rəyi redaktə et"
-                  : "Rəy əlavə et"}
+                  ? language === "en" ? "Edit review" : "Rəyi redaktə et"
+                  : language === "en" ? "Add review" : "Rəy əlavə et"}
             </button>
           </div>
         </>
@@ -898,7 +899,7 @@ function RelatedGameCard({
           {canViewSources && (
             <p className="mt-2 text-xs text-zinc-600">
               {game.source === "Local"
-                ? "Ludora"
+                ? "WellPlayd"
                 : "IGDB"}
             </p>
           )}
@@ -1045,7 +1046,7 @@ function GameDetailContent({
               <div className="relative aspect-[3/4] overflow-hidden rounded-2xl border border-white/15 bg-gradient-to-br from-zinc-800 to-zinc-950 shadow-2xl shadow-black/50">
                 {isComingSoon && (
                   <span className="coming-soon-badge">
-                    Coming Soon
+                    {language === "en" ? "Coming Soon" : "Tezliklə"}
                   </span>
                 )}
 
@@ -1085,7 +1086,7 @@ function GameDetailContent({
                 {canViewSources && (
                   <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1.5 text-xs font-semibold text-zinc-300 backdrop-blur-sm">
                     {game.source === "Local"
-                      ? "Ludora"
+                      ? "WellPlayd"
                       : "IGDB"}
                   </span>
                 )}
@@ -1187,8 +1188,8 @@ function GameDetailContent({
                 <div className="inline-flex w-fit shrink-0 items-center gap-3 rounded-xl border border-white/10 bg-[#1a1b22]/85 px-4 py-3 text-sm backdrop-blur-md">
                   <span className="font-bold text-zinc-100">
                     {isComingSoon
-                      ? "Coming Soon"
-                      : "Çıxış tarixi"}
+                      ? language === "en" ? "Coming Soon" : "Tezliklə"
+                      : language === "en" ? "Release date" : "Çıxış tarixi"}
                   </span>
 
                   <span className="text-zinc-400">
@@ -1230,7 +1231,7 @@ function GameDetailContent({
                     <dd className="font-semibold text-zinc-200">
                       {game.source ===
                       "Local"
-                        ? "Ludora"
+                        ? "WellPlayd"
                         : "IGDB"}
                     </dd>
                   </div>
@@ -1252,7 +1253,7 @@ function GameDetailContent({
 
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-zinc-500">
-                    {language === "en" ? "Related" : "Əlaqəli məzmun"}
+                    {language === "en" ? "Related" : "Əlaqəli kontent"}
                   </dt>
 
                   <dd className="font-semibold text-zinc-200">
@@ -1430,7 +1431,7 @@ function GameDetailContent({
                 />
 
                 <h2 className="text-2xl font-black tracking-tight text-white">
-                  {language === "en" ? "Related" : "Əlaqəli oyunlar"}
+                  {language === "en" ? "Related" : "Əlaqəli kontent"}
                 </h2>
               </div>
 

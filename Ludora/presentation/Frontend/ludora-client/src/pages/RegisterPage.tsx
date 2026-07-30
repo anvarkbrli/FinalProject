@@ -27,6 +27,7 @@ import {
   isAuthSessionValid,
   useAuthStore,
 } from "../stores/authStore";
+import { BrandLogo } from "../components/common/BrandLogo";
 
 const userNamePattern = /^[a-zA-Z0-9_.]+$/;
 
@@ -200,12 +201,10 @@ export function RegisterPage() {
             to="/"
             className="inline-flex items-center gap-3"
           >
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600">
-              <Gamepad2 size={20} />
-            </span>
+            <BrandLogo className="h-10 w-12" />
 
             <span className="font-bold text-white">
-              Ludora
+              WellPlayd
             </span>
           </Link>
 
@@ -297,13 +296,11 @@ export function RegisterPage() {
             to="/"
             className="inline-flex w-fit items-center gap-3"
           >
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-lg shadow-violet-950/50">
-              <Gamepad2 size={22} />
-            </span>
+            <BrandLogo className="h-11 w-14" />
 
             <span>
               <span className="block text-xl font-bold tracking-tight text-white">
-                Ludora
+                WellPlayd
               </span>
 
               <span className="block text-[10px] font-semibold uppercase tracking-[0.25em] text-zinc-500">
@@ -315,7 +312,7 @@ export function RegisterPage() {
           <div className="max-w-lg">
             <span className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1.5 text-xs font-semibold text-violet-200">
               <UserPlus size={14} />
-              Ludora icmasına qoşul
+              WellPlayd icmasına qoşul
             </span>
 
             <h1 className="mt-6 text-5xl font-bold leading-[1.08] tracking-[-0.04em] text-white">
@@ -383,7 +380,7 @@ export function RegisterPage() {
           </div>
 
           <p className="text-xs text-zinc-600">
-            © {new Date().getFullYear()} Ludora
+            © {new Date().getFullYear()} WellPlayd
           </p>
         </section>
 
@@ -394,12 +391,10 @@ export function RegisterPage() {
                 to="/"
                 className="flex items-center gap-2.5"
               >
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600">
-                  <Gamepad2 size={20} />
-                </span>
+                <BrandLogo className="h-10 w-12" />
 
                 <span className="font-bold text-white">
-                  Ludora
+                  WellPlayd
                 </span>
               </Link>
 
@@ -418,7 +413,7 @@ export function RegisterPage() {
               </p>
 
               <h2 className="mt-3 text-3xl font-bold tracking-tight text-white">
-                Ludora-ya qoşul
+                WellPlayd-ə qoşul
               </h2>
 
               <p className="mt-3 text-sm leading-6 text-zinc-500">

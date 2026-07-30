@@ -38,6 +38,7 @@ import {
 } from "../components/lists/GameListEditorModal";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
+import { useI18n } from "../i18n/useI18n";
 import { getApiErrorMessage } from "../lib/api";
 import {
   formatDate,
@@ -123,6 +124,7 @@ function getRankBadgeClasses(position: number) {
 }
 
 export function GameListDetailPage() {
+  const { language } = useI18n();
   const { id = "" } = useParams();
   const listId = Number(id);
   const navigate = useNavigate();
@@ -370,7 +372,9 @@ export function GameListDetailPage() {
               className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-500 transition hover:text-violet-300"
             >
               <ArrowLeft size={16} />
-              {list.ownerUserName} profilinə qayıt
+              {language === "en"
+                ? `Back to ${list.ownerUserName}'s profile`
+                : `${list.ownerUserName} profilinə qayıt`}
             </Link>
 
             <div className="mt-8 flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
@@ -731,7 +735,9 @@ export function GameListDetailPage() {
                             </span>
                           )}
                           <span>
-                            {formatDate(game.addedAt)} tarixində əlavə edilib
+                            {language === "en"
+                              ? `Added on ${formatDate(game.addedAt)}`
+                              : `${formatDate(game.addedAt)} tarixində əlavə edilib`}
                           </span>
                         </div>
                       </div>

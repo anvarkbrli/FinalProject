@@ -22,27 +22,93 @@
     "high": "Diqqət"
   },
   "types": {
-    "WarningIssued": { "title": "Admin xəbərdarlığı", "message": "" },
-    "FollowingPostCreated": { "title": "Yeni post", "message": "Yeni post paylaşdı." },
-    "FollowingReviewCreated": { "title": "Yeni rəy", "message": "Yeni oyun rəyi yazdı." },
-    "FollowingGameStatusChanged": { "title": "Oyun statusu dəyişdi", "message": "Oyun statusunu yenilədi." },
-    "FollowingPublicListCreated": { "title": "Yeni açıq siyahı", "message": "Yeni açıq siyahı yaratdı." },
-    "FollowingDiscussionCreated": { "title": "Yeni müzakirə", "message": "Yeni müzakirə açdı." },
-    "CommunityDiscussionCreated": { "title": "İcmada yeni müzakirə", "message": "İcmada yeni müzakirə açdı." },
-    "PostLiked": { "title": "Postunuz bəyənildi", "message": "Postunuzu bəyəndi." },
-    "PostCommented": { "title": "Postunuza şərh yazıldı", "message": "Postunuza şərh yazdı." },
-    "ReviewLiked": { "title": "Rəyiniz bəyənildi", "message": "Rəyinizi bəyəndi." },
-    "ReviewCommented": { "title": "Rəyinizə cavab yazıldı", "message": "Rəyinizə cavab yazdı." },
-    "GameListLiked": { "title": "Siyahınız bəyənildi", "message": "Siyahınızı bəyəndi." },
-    "GameListCommented": { "title": "Siyahınıza şərh yazıldı", "message": "Siyahınıza şərh yazdı." },
-    "DiscussionLiked": { "title": "Müzakirəniz bəyənildi", "message": "Açdığınız müzakirəni bəyəndi." },
-    "DiscussionReplied": { "title": "Müzakirənizə cavab yazıldı", "message": "Açdığınız müzakirəyə cavab yazdı." },
-    "DiscussionReplyLiked": { "title": "Cavabınız bəyənildi", "message": "Müzakirədəki cavabınızı bəyəndi." },
-    "FollowedDiscussionReplyActivity": { "title": "İzlənən şərhdə yeni cavab", "message": "İzlədiyiniz forum şərhinə yeni cavab əlavə etdi." },
-    "FollowRequestReceived": { "title": "Yeni izləmə sorğusu", "message": "Sizə izləmə sorğusu göndərdi." },
-    "UserFollowed": { "title": "Yeni izləyici", "message": "Sizi izləməyə başladı." },
-    "FollowRequestAccepted": { "title": "İzləmə sorğusu qəbul edildi", "message": "Göndərdiyiniz izləmə sorğusunu qəbul etdi." },
-    "CommunityOwnershipOffered": { "title": "İcma sahibliyi yeniləndi", "message": "İcma sahibliyi ilə bağlı yeni bildiriş var." },
-    "CommunityModeratorAssigned": { "title": "İcma rolu yeniləndi", "message": "İcma moderatoru rolu təyin edildi." }
+    "WarningIssued": {
+      "title": "Admin xəbərdarlığı",
+      "message": "Sizə admin xəbərdarlığı göndərildi."
+    },
+    "FollowingPostCreated": {
+      "title": "Yeni post",
+      "message": "Yeni post paylaşdı."
+    },
+    "FollowingReviewCreated": {
+      "title": "Yeni rəy",
+      "message": "Yeni oyun rəyi yazdı."
+    },
+    "FollowingGameStatusChanged": {
+      "title": "Oyun statusu dəyişdi",
+      "message": "Oyun statusunu yenilədi."
+    },
+    "FollowingPublicListCreated": {
+      "title": "Yeni açıq siyahı",
+      "message": "Yeni açıq siyahı yaratdı."
+    },
+    "FollowingDiscussionCreated": {
+      "title": "Yeni müzakirə",
+      "message": "Yeni müzakirə açdı."
+    },
+    "CommunityDiscussionCreated": {
+      "title": "İcmada yeni müzakirə",
+      "message": "İcmada yeni müzakirə açdı."
+    },
+    "PostLiked": {
+      "title": "Postunuz bəyənildi",
+      "message": "Postunuzu bəyəndi."
+    },
+    "PostCommented": {
+      "title": "Postunuza şərh yazıldı",
+      "message": "Postunuza şərh yazdı."
+    },
+    "ReviewLiked": {
+      "title": "Rəyiniz bəyənildi",
+      "message": "Rəyinizi bəyəndi."
+    },
+    "ReviewCommented": {
+      "title": "Rəyinizə cavab yazıldı",
+      "message": "Rəyinizə cavab yazdı."
+    },
+    "GameListLiked": {
+      "title": "Siyahınız bəyənildi",
+      "message": "Siyahınızı bəyəndi."
+    },
+    "GameListCommented": {
+      "title": "Siyahınıza şərh yazıldı",
+      "message": "Siyahınıza şərh yazdı."
+    },
+    "DiscussionLiked": {
+      "title": "Müzakirəniz bəyənildi",
+      "message": "Açdığınız müzakirəni bəyəndi."
+    },
+    "DiscussionReplied": {
+      "title": "Müzakirənizə cavab yazıldı",
+      "message": "Açdığınız müzakirəyə cavab yazdı."
+    },
+    "DiscussionReplyLiked": {
+      "title": "Cavabınız bəyənildi",
+      "message": "Müzakirədəki cavabınızı bəyəndi."
+    },
+    "FollowedDiscussionReplyActivity": {
+      "title": "İzlənən şərhdə yeni cavab",
+      "message": "İzlədiyiniz forum şərhinə yeni cavab əlavə etdi."
+    },
+    "FollowRequestReceived": {
+      "title": "Yeni izləmə sorğusu",
+      "message": "Sizə izləmə sorğusu göndərdi."
+    },
+    "UserFollowed": {
+      "title": "Yeni izləyici",
+      "message": "Sizi izləməyə başladı."
+    },
+    "FollowRequestAccepted": {
+      "title": "İzləmə sorğusu qəbul edildi",
+      "message": "Göndərdiyiniz izləmə sorğusunu qəbul etdi."
+    },
+    "CommunityOwnershipOffered": {
+      "title": "İcma sahibliyi yeniləndi",
+      "message": "İcma sahibliyi ilə bağlı yeni bildiriş var."
+    },
+    "CommunityModeratorAssigned": {
+      "title": "İcma rolu yeniləndi",
+      "message": "İcma moderatoru rolu təyin edildi."
+    }
   }
 }

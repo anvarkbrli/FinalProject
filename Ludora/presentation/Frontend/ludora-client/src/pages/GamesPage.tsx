@@ -148,7 +148,7 @@ function getCatalogDescription(
   source: CatalogSource,
 ): string {
   return source === "Local"
-    ? "Ludora kataloqu"
+    ? "WellPlayd kataloqu"
     : "IGDB kataloqu";
 }
 
@@ -792,7 +792,7 @@ export function GamesPage() {
             <div className="max-w-3xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1.5 text-xs font-semibold text-violet-200">
                 <Gamepad2 size={14} />
-                Ludora oyun kataloqu
+                WellPlayd oyun kataloqu
               </div>
 
               <h1 className="mt-6 text-4xl font-bold tracking-[-0.04em] text-white sm:text-5xl">

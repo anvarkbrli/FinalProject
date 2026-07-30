@@ -4,7 +4,6 @@ import {
   ArrowLeft,
   Eye,
   EyeOff,
-  Gamepad2,
   ListChecks,
   LoaderCircle,
   LockKeyhole,
@@ -27,6 +26,7 @@ import {
   isAuthSessionValid,
   useAuthStore,
 } from "../stores/authStore";
+import { BrandLogo } from "../components/common/BrandLogo";
 
 const loginSchema = z.object({
   emailOrUserName: z
@@ -161,13 +161,11 @@ export function LoginPage() {
             to="/"
             className="inline-flex w-fit items-center gap-3"
           >
-            <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 shadow-lg shadow-violet-950/50">
-              <Gamepad2 size={22} />
-            </span>
+            <BrandLogo className="h-11 w-14" />
 
             <span>
               <span className="block text-xl font-bold tracking-tight text-white">
-                Ludora
+                WellPlayd
               </span>
 
               <span className="block text-[10px] font-semibold uppercase tracking-[0.25em] text-zinc-500">
@@ -222,7 +220,7 @@ export function LoginPage() {
           </div>
 
           <p className="text-xs text-zinc-600">
-            © {new Date().getFullYear()} Ludora
+            © {new Date().getFullYear()} WellPlayd
           </p>
         </section>
 
@@ -233,12 +231,10 @@ export function LoginPage() {
                 to="/"
                 className="flex items-center gap-2.5"
               >
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600">
-                  <Gamepad2 size={20} />
-                </span>
+                <BrandLogo className="h-10 w-12" />
 
                 <span className="font-bold text-white">
-                  Ludora
+                  WellPlayd
                 </span>
               </Link>
 

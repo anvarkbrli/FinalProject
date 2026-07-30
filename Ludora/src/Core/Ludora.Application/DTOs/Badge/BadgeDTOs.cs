@@ -9,6 +9,7 @@ public sealed record BadgeDTO
     public string Name { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
     public string Icon { get; init; } = string.Empty;
+    public string? IconUrl { get; init; }
     public string Color { get; init; } = string.Empty;
     public BadgeMetric Metric { get; init; }
     public int Threshold { get; init; }
@@ -23,6 +24,7 @@ public sealed record UserBadgeDTO
     public string Name { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
     public string Icon { get; init; } = string.Empty;
+    public string? IconUrl { get; init; }
     public string Color { get; init; } = string.Empty;
     public int MetricValueAtAward { get; init; }
     public DateTime AwardedAtUtc { get; init; }

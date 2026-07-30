@@ -72,7 +72,7 @@ export function HomeAnnouncements() {
 
   return (
     <section
-      aria-label="Ludora elanları"
+      aria-label="WellPlayd elanları"
       className="border-b border-white/5"
     >
       <div className="mx-auto max-w-7xl px-5 py-3 lg:px-8">
@@ -90,7 +90,7 @@ export function HomeAnnouncements() {
             >
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                 <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-violet-300">
-                  Ludora elanı
+                  WellPlayd elanı
                 </p>
 
                 <span className="text-[11px] text-zinc-600">

@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using Ludora.API.BackgroundServices;
+using Ludora.API.Filters;
 using Ludora.API.Hubs;
 using Ludora.API.Localization;
 using Ludora.API.Middlewares;
@@ -50,8 +51,13 @@ public class Program
                 new AcceptLanguageHeaderRequestCultureProvider()
             ];
         });
-        builder.Services.AddControllers().AddJsonOptions(options =>
-            options.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
+        builder.Services.AddScoped<AdminActionAuditFilter>();
+        builder.Services
+            .AddControllers(options =>
+                options.Filters.AddService<AdminActionAuditFilter>())
+            .AddJsonOptions(options =>
+                options.JsonSerializerOptions.Converters.Add(
+                    new JsonStringEnumConverter()));
         builder.Services.AddResponseCompression(options =>
         {
             options.EnableForHttps = true;

@@ -82,6 +82,20 @@ public class LocalFileStorageService : IFileStorageService
             cancellationToken);
     }
 
+    public async Task<string> SaveBadgeIconAsync(
+        ProfileImageUploadDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        dto.ValidateUpload(MaxProfileImageSize, FileSize.MB);
+
+        return await SavePublicImageAsync(
+            dto.Stream,
+            dto.Length,
+            MaxProfileImageSize,
+            "badge-icons",
+            cancellationToken);
+    }
+
     public async Task<string> SaveReportEvidenceImageAsync(
         UserReportEvidenceUploadDTO dto,
         CancellationToken cancellationToken = default)

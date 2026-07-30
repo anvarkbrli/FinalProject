@@ -16,6 +16,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
 import { useConfirmation } from "../../lib/confirmation";
 import { resolveAssetUrl } from "../../lib/helpers";
@@ -121,6 +122,7 @@ export function CommunityOwnerManagementModal({
   onCommunityChanged,
   onExited,
 }: CommunityOwnerManagementModalProps) {
+  const { language } = useI18n();
   const requestConfirmation = useConfirmation();
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
@@ -567,7 +569,9 @@ export function CommunityOwnerManagementModal({
                   <Trash2 size={24} />
                 </div>
                 <h3 className="mt-5 text-lg font-black text-[var(--wp-text-strong)]">
-                  “{communityName}” icmasını silmək istəyirsiniz?
+                  {language === "en"
+                    ? `Delete the “${communityName}” community?`
+                    : `“${communityName}” icmasını silmək istəyirsiniz?`}
                 </h3>
                 <p className="mx-auto mt-3 max-w-md text-sm leading-7 text-[var(--wp-text-muted)]">
                   İcma və onun daxilindəki müzakirələr artıq istifadəçilərə
@@ -605,7 +609,9 @@ export function CommunityOwnerManagementModal({
                   <LogOut size={24} />
                 </div>
                 <h3 className="mt-5 text-lg font-black text-[var(--wp-text-strong)]">
-                  “{communityName}” icmasından ayrılmaq istəyirsiniz?
+                  {language === "en"
+                    ? `Leave the “${communityName}” community?`
+                    : `“${communityName}” icmasından ayrılmaq istəyirsiniz?`}
                 </h3>
                 <p className="mx-auto mt-3 max-w-lg text-sm leading-7 text-[var(--wp-text-muted)]">
                   Sahiblik əvvəlcə icmaya ən tez qoşulan moderatora təklif
@@ -676,10 +682,22 @@ export function CommunityOwnerManagementModal({
               İstifadəçini icmadan çıxar
             </h3>
             <p className="mt-3 text-sm leading-7 text-[var(--wp-text-muted)]">
-              <strong className="text-[var(--wp-text-strong)]">
-                {memberToRemove.userName}
-              </strong>{" "}
-              istifadəçisini icmadan çıxarmaq istədiyinizə əminsiniz?
+              {language === "en" ? (
+                <>
+                  Are you sure you want to remove{" "}
+                  <strong className="text-[var(--wp-text-strong)]">
+                    {memberToRemove.userName}
+                  </strong>{" "}
+                  from the community?
+                </>
+              ) : (
+                <>
+                  <strong className="text-[var(--wp-text-strong)]">
+                    {memberToRemove.userName}
+                  </strong>{" "}
+                  istifadəçisini icmadan çıxarmaq istədiyinizə əminsiniz?
+                </>
+              )}
             </p>
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button

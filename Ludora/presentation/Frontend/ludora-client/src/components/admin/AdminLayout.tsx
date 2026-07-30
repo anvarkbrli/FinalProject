@@ -1,13 +1,14 @@
 import {
+  Award,
   BellRing,
   ChevronLeft,
   FileText,
+  Flag,
   Gamepad2,
   LayoutDashboard,
   Menu,
   MessageSquareText,
   ScrollText,
-  ShieldCheck,
   UsersRound,
   X,
 } from "lucide-react";
@@ -23,6 +24,8 @@ import {
   hasAuthRole,
 } from "../../lib/authRoles";
 import { useAuthStore } from "../../stores/authStore";
+import { BrandLogo } from "../common/BrandLogo";
+import "./admin.css";
 
 const activeItems = [
   {
@@ -40,7 +43,7 @@ const activeItems = [
   {
     label: "Şikayətlər",
     to: "/admin/reports",
-    icon: ShieldCheck,
+    icon: Flag,
     end: false,
   },
   {
@@ -55,11 +58,30 @@ const activeItems = [
     icon: BellRing,
     end: false,
   },
-];
-
-const upcomingItems = [
-  { label: "Forum", icon: MessageSquareText },
-  { label: "Audit jurnalı", icon: ScrollText },
+  {
+    label: "Audit jurnalı",
+    to: "/admin/audit",
+    icon: ScrollText,
+    end: false,
+  },
+  {
+    label: "Forum",
+    to: "/admin/forum",
+    icon: MessageSquareText,
+    end: false,
+  },
+  {
+    label: "Nişanlar",
+    to: "/admin/badges",
+    icon: Award,
+    end: false,
+  },
+  {
+    label: "Kataloq",
+    to: "/admin/catalog",
+    icon: Gamepad2,
+    end: false,
+  },
 ];
 
 export function AdminLayout() {
@@ -76,6 +98,14 @@ export function AdminLayout() {
 
   const pageTitle = location.pathname === "/admin"
     ? "İdarə paneli"
+    : location.pathname.startsWith("/admin/catalog")
+      ? "Kataloq idarəetməsi"
+    : location.pathname.startsWith("/admin/badges")
+      ? "Nişan idarəetməsi"
+    : location.pathname.startsWith("/admin/forum")
+      ? "Forum idarəetməsi"
+    : location.pathname.startsWith("/admin/audit")
+      ? "Audit jurnalı"
     : location.pathname.startsWith("/admin/announcements")
       ? "Elanlar"
     : location.pathname.startsWith("/admin/posts")
@@ -96,12 +126,10 @@ export function AdminLayout() {
           className="flex items-center gap-3"
           onClick={() => setMobileMenuOpen(false)}
         >
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-600 text-white shadow-lg shadow-violet-950/40">
-            <Gamepad2 size={20} />
-          </span>
+          <BrandLogo className="h-10 w-12" />
           <span>
             <span className="block text-base font-bold text-white">
-              Ludora
+              WellPlayd
             </span>
             <span className="block text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300">
               Admin
@@ -138,28 +166,6 @@ export function AdminLayout() {
           })}
         </div>
 
-        <p className="mt-8 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600">
-          Növbəti mərhələ
-        </p>
-        <div className="mt-3 space-y-1">
-          {upcomingItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <div
-                key={item.label}
-                className="flex items-center justify-between rounded-xl px-3 py-3 text-sm text-zinc-600"
-              >
-                <span className="flex items-center gap-3">
-                  <Icon size={18} />
-                  {item.label}
-                </span>
-                <span className="rounded-full border border-white/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide">
-                  Tezliklə
-                </span>
-              </div>
-            );
-          })}
-        </div>
       </nav>
 
       <div className="border-t border-white/[0.06] p-4">
@@ -175,8 +181,8 @@ export function AdminLayout() {
   );
 
   return (
-    <div className="min-h-screen bg-[#07070a] text-zinc-100">
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-white/[0.06] bg-[#0b0b0f] lg:block">
+    <div className="admin-theme min-h-screen text-zinc-100">
+      <aside className="admin-sidebar fixed inset-y-0 left-0 z-40 hidden w-72 border-r lg:block">
         {sidebar}
       </aside>
 
@@ -188,7 +194,7 @@ export function AdminLayout() {
             aria-label="Menyunu bağla"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <aside className="relative h-full w-[min(86vw,19rem)] border-r border-white/[0.08] bg-[#0b0b0f]">
+          <aside className="admin-sidebar relative h-full w-[min(86vw,19rem)] border-r">
             <button
               type="button"
               className="absolute right-4 top-6 z-10 flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.06] text-zinc-300"
@@ -203,7 +209,7 @@ export function AdminLayout() {
       )}
 
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-white/[0.06] bg-[#08080c]/90 px-5 backdrop-blur-xl sm:px-8">
+        <header className="admin-header sticky top-0 z-30 flex h-20 items-center justify-between border-b px-5 backdrop-blur-xl sm:px-8">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -238,7 +244,7 @@ export function AdminLayout() {
           </div>
         </header>
 
-        <main className="p-5 sm:p-8">
+        <main className="admin-main p-5 sm:p-8">
           <div className="mx-auto max-w-[1500px]">
             <Outlet />
           </div>

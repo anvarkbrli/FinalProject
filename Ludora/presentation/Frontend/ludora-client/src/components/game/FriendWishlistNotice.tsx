@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Bookmark } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useI18n } from "../../i18n/useI18n";
 import { resolveAssetUrl } from "../../lib/helpers";
 import { getWishlistedFriends } from "../../services/userGamesService";
 import {
@@ -18,6 +19,7 @@ export function FriendWishlistNotice({
   source,
   gameId,
 }: FriendWishlistNoticeProps) {
+  const { language } = useI18n();
   const accessToken = useAuthStore((state) => state.accessToken);
   const expiresAtUtc = useAuthStore((state) => state.expiresAtUtc);
   const isAuthenticated = isAuthSessionValid(accessToken, expiresAtUtc);
@@ -58,18 +60,35 @@ export function FriendWishlistNotice({
 
         <div className="min-w-0 flex-1">
           <p className="text-sm leading-6 text-zinc-300">
-            Dostun{" "}
-            <Link
-              to={`/users/${firstFriend.userName}`}
-              className="font-bold text-fuchsia-200 transition hover:text-fuchsia-100"
-            >
-              {firstFriend.userName}
-            </Link>{" "}
-            bu oyunu istəyir.
+            {language === "en" ? (
+              <>
+                Your friend{" "}
+                <Link
+                  to={`/users/${firstFriend.userName}`}
+                  className="font-bold text-fuchsia-200 transition hover:text-fuchsia-100"
+                >
+                  {firstFriend.userName}
+                </Link>{" "}
+                wants this game.
+              </>
+            ) : (
+              <>
+                Dostun{" "}
+                <Link
+                  to={`/users/${firstFriend.userName}`}
+                  className="font-bold text-fuchsia-200 transition hover:text-fuchsia-100"
+                >
+                  {firstFriend.userName}
+                </Link>{" "}
+                bu oyunu istəyir.
+              </>
+            )}
           </p>
           {remainingCount > 0 && (
             <p className="mt-1 text-xs font-semibold text-zinc-600">
-              Daha {remainingCount} dostunun wishlist-indədir.
+              {language === "en"
+                ? `${remainingCount} more ${remainingCount === 1 ? "friend has" : "friends have"} it on their wishlist.`
+                : `Daha ${remainingCount} dostunun wishlist-indədir.`}
             </p>
           )}
         </div>

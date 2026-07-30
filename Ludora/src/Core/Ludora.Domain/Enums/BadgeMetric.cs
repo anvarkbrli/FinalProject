@@ -21,5 +21,6 @@ public enum BadgeMetric
     SteamGamesImported = 16,
     SteamAccountLinked = 17,
     MessagesSent = 18,
-    ConsecutiveActivityDays = 19
+    ConsecutiveActivityDays = 19,
+    Manual = 20
 }

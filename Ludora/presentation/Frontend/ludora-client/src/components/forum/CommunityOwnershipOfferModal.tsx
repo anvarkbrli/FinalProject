@@ -1,6 +1,7 @@
 import { Crown, LoaderCircle, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
 import { useConfirmation } from "../../lib/confirmation";
 import {
@@ -21,6 +22,7 @@ export function CommunityOwnershipOfferModal({
   onAccepted,
   onDeclined,
 }: CommunityOwnershipOfferModalProps) {
+  const { language } = useI18n();
   const requestConfirmation = useConfirmation();
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState("");
@@ -87,10 +89,27 @@ export function CommunityOwnershipOfferModal({
           İcma sahibliyi təklifi
         </h2>
         <p className="mt-3 text-sm leading-7 text-[var(--wp-text-muted)]">
-          Sizə <strong className="text-[var(--wp-text-strong)]">{communityName}</strong>{" "}
-          icmasının sahibi olmaq təklif edilir. Qəbul etdikdə icmanın idarəsi,
-          üzvləri çıxarmaq, moderator təyin etmək və icmanı silmək daxil bütün
-          sahib səlahiyyətləri sizə keçəcək.
+          {language === "en" ? (
+            <>
+              You have been offered ownership of the{" "}
+              <strong className="text-[var(--wp-text-strong)]">
+                {communityName}
+              </strong>{" "}
+              community. If you accept, you will receive full owner permissions,
+              including community management, removing members, assigning
+              moderators, and deleting the community.
+            </>
+          ) : (
+            <>
+              Sizə{" "}
+              <strong className="text-[var(--wp-text-strong)]">
+                {communityName}
+              </strong>{" "}
+              icmasının sahibi olmaq təklif edilir. Qəbul etdikdə icmanın idarəsi,
+              üzvləri çıxarmaq, moderator təyin etmək və icmanı silmək daxil bütün
+              sahib səlahiyyətləri sizə keçəcək.
+            </>
+          )}
         </p>
 
         {error && (

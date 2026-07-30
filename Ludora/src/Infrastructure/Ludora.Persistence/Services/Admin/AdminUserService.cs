@@ -382,18 +382,10 @@ public sealed class AdminUserService : IAdminUserService
             "Xəbərdarlıq mətni",
             1000);
 
-        var user = await _userManager.FindByIdAsync(userId.ToString())
-            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
-
-        var roles = await _userManager.GetRolesAsync(user);
-
-        if (roles.Contains(
-            RoleNames.Admin,
-            StringComparer.OrdinalIgnoreCase))
-        {
-            throw new ForbiddenException(
-                "Admin rolundakı istifadəçiyə xəbərdarlıq göndərmək olmaz.");
-        }
+        var user = await GetModerationTargetAsync(
+            adminUserId,
+            userId,
+            cancellationToken);
 
         var warning = new UserWarning
         {
@@ -408,6 +400,18 @@ public sealed class AdminUserService : IAdminUserService
 
         await _context.UserWarnings.AddAsync(
             warning,
+            cancellationToken);
+
+        await _context.ModeratorActionLogs.AddAsync(
+            new ModeratorActionLog
+            {
+                AdminUserId = adminUserId,
+                TargetUserId = userId,
+                UserWarning = warning,
+                ActionType = ModeratorActionType.WarningIssued,
+                Reason = message,
+                CreatedAtUtc = DateTime.UtcNow
+            },
             cancellationToken);
 
         await _context.SaveChangesAsync(cancellationToken);
@@ -491,20 +495,10 @@ public sealed class AdminUserService : IAdminUserService
                 "Müddətsiz ban zamanı müddət göndərilməməlidir.");
         }
 
-        var user = await _userManager.FindByIdAsync(
-            userId.ToString())
-            ?? throw new NotFoundException(
-                "İstifadəçi tapılmadı.");
-
-        var roles = await _userManager.GetRolesAsync(user);
-
-        if (roles.Contains(
-            RoleNames.Admin,
-            StringComparer.OrdinalIgnoreCase))
-        {
-            throw new ForbiddenException(
-                "Admin rolundakı istifadəçini birbaşa banlamaq olmaz. Əvvəlcə rolunu dəyişin.");
-        }
+        var user = await GetModerationTargetAsync(
+            adminUserId,
+            userId,
+            cancellationToken);
 
         var now = DateTime.UtcNow;
 
@@ -561,6 +555,20 @@ public sealed class AdminUserService : IAdminUserService
             history,
             cancellationToken);
 
+        await _context.ModeratorActionLogs.AddAsync(
+            new ModeratorActionLog
+            {
+                AdminUserId = adminUserId,
+                TargetUserId = userId,
+                UserBanHistory = history,
+                ActionType = dto.Type == BanType.Temporary
+                    ? ModeratorActionType.TemporaryBanIssued
+                    : ModeratorActionType.PermanentBanIssued,
+                Reason = reason,
+                CreatedAtUtc = now
+            },
+            cancellationToken);
+
         await _context.SaveChangesAsync(
             cancellationToken);
 
@@ -582,10 +590,10 @@ public sealed class AdminUserService : IAdminUserService
             userId,
             "Öz hesabınız üçün bu əməliyyatı edə bilməzsiniz.");
 
-        var user = await _userManager.FindByIdAsync(
-            userId.ToString())
-            ?? throw new NotFoundException(
-                "İstifadəçi tapılmadı.");
+        var user = await GetModerationTargetAsync(
+            adminUserId,
+            userId,
+            cancellationToken);
 
         var now = DateTime.UtcNow;
 
@@ -616,6 +624,7 @@ public sealed class AdminUserService : IAdminUserService
                     ))
                 .OrderByDescending(x => x.BannedAtUtc)
                 .FirstOrDefaultAsync(cancellationToken);
+        var previousBanReason = user.BanReason;
 
         await using var transaction =
             await _context.Database.BeginTransactionAsync(
@@ -642,10 +651,21 @@ public sealed class AdminUserService : IAdminUserService
             activeBanHistory.UnbannedAtUtc = now;
             activeBanHistory.UnbannedByUserId =
                 adminUserId;
-
-            await _context.SaveChangesAsync(
-                cancellationToken);
         }
+
+        await _context.ModeratorActionLogs.AddAsync(
+            new ModeratorActionLog
+            {
+                AdminUserId = adminUserId,
+                TargetUserId = userId,
+                UserBanHistory = activeBanHistory,
+                ActionType = ModeratorActionType.UserUnbanned,
+                Reason = previousBanReason,
+                CreatedAtUtc = now
+            },
+            cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
 
         await transaction.CommitAsync(
             cancellationToken);
@@ -663,6 +683,7 @@ public sealed class AdminUserService : IAdminUserService
     {
         ArgumentNullException.ThrowIfNull(dto);
         EnsureDifferentUsers(adminUserId, userId, "Öz rolunuzu dəyişə bilməzsiniz.");
+        await EnsureActorIsAdminAsync(adminUserId);
 
         var role = NormalizeRequiredRole(dto.Role);
 
@@ -703,6 +724,18 @@ public sealed class AdminUserService : IAdminUserService
 
         var stampResult = await _userManager.UpdateSecurityStampAsync(user);
         stampResult.ThrowIfFailed();
+
+        await _context.ModeratorActionLogs.AddAsync(
+            new ModeratorActionLog
+            {
+                AdminUserId = adminUserId,
+                TargetUserId = userId,
+                ActionType = ModeratorActionType.RoleChanged,
+                Reason = $"{string.Join(", ", currentRoles)} -> {role}",
+                CreatedAtUtc = DateTime.UtcNow
+            },
+            cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
 
         await transaction.CommitAsync(cancellationToken);
 
@@ -774,6 +807,67 @@ public sealed class AdminUserService : IAdminUserService
 
         if (adminUserId == targetUserId)
             throw new ForbiddenException(message);
+    }
+
+    private async Task<AppUser> GetModerationTargetAsync(
+        Guid actorUserId,
+        Guid targetUserId,
+        CancellationToken cancellationToken)
+    {
+        var actor = await _userManager.FindByIdAsync(actorUserId.ToString())
+            ?? throw new ForbiddenException(
+                "Moderasiya əməliyyatı üçün istifadəçi müəyyən edilmədi.");
+
+        var actorRoles = await _userManager.GetRolesAsync(actor);
+        var actorIsAdmin = actorRoles.Contains(
+            RoleNames.Admin,
+            StringComparer.OrdinalIgnoreCase);
+        var actorIsModerator = actorRoles.Contains(
+            RoleNames.Moderator,
+            StringComparer.OrdinalIgnoreCase);
+
+        if (!actorIsAdmin && !actorIsModerator)
+            throw new ForbiddenException(
+                "Bu moderasiya əməliyyatı üçün icazəniz yoxdur.");
+
+        var target = await _userManager.FindByIdAsync(targetUserId.ToString())
+            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
+        var targetRoles = await _userManager.GetRolesAsync(target);
+
+        if (targetRoles.Contains(
+            RoleNames.Admin,
+            StringComparer.OrdinalIgnoreCase))
+        {
+            throw new ForbiddenException(
+                "Admin rolundakı istifadəçi üzərində bu əməliyyatı yerinə yetirmək olmaz.");
+        }
+
+        if (!actorIsAdmin &&
+            targetRoles.Contains(
+                RoleNames.Moderator,
+                StringComparer.OrdinalIgnoreCase))
+        {
+            throw new ForbiddenException(
+                "Moderator başqa moderator üzərində bu əməliyyatı yerinə yetirə bilməz.");
+        }
+
+        return target;
+    }
+
+    private async Task EnsureActorIsAdminAsync(Guid actorUserId)
+    {
+        var actor = await _userManager.FindByIdAsync(actorUserId.ToString())
+            ?? throw new ForbiddenException(
+                "Rol əməliyyatı üçün istifadəçi müəyyən edilmədi.");
+        var actorRoles = await _userManager.GetRolesAsync(actor);
+
+        if (!actorRoles.Contains(
+            RoleNames.Admin,
+            StringComparer.OrdinalIgnoreCase))
+        {
+            throw new ForbiddenException(
+                "İstifadəçi rolunu yalnız admin dəyişə bilər.");
+        }
     }
 
     private static void ValidatePagination(int pageNumber, int pageSize)

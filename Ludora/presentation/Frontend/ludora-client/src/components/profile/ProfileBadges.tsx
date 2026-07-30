@@ -1,4 +1,5 @@
 import { Award, LockKeyhole, Sparkles } from "lucide-react";
+import { resolveAssetUrl } from "../../lib/helpers";
 
 export interface ProfileBadgeItem {
   id: string | number;
@@ -59,11 +60,19 @@ export function ProfileBadges({ badges = [] }: ProfileBadgesProps) {
                 backgroundColor: badge.color ? `${badge.color}0d` : undefined,
               }}
             >
-              <Sparkles
-                size={20}
-                className="text-amber-300"
-                style={{ color: badge.color }}
-              />
+              {resolveAssetUrl(badge.iconUrl) ? (
+                <img
+                  src={resolveAssetUrl(badge.iconUrl) ?? undefined}
+                  alt=""
+                  className="h-10 w-10 rounded-xl object-cover"
+                />
+              ) : (
+                <Sparkles
+                  size={20}
+                  className="text-amber-300"
+                  style={{ color: badge.color }}
+                />
+              )}
               <h3 className="mt-3 font-semibold text-zinc-100">
                 {badge.name}
               </h3>

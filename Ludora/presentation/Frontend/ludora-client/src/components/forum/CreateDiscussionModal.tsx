@@ -216,7 +216,7 @@ export function CreateDiscussionModal({
         <div className="mt-6 space-y-5">
           <div>
             <p className="text-xs font-bold text-zinc-300">
-              Kim kimi paylaşır?
+              Kim olaraq paylaşırsan?
             </p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
               <button

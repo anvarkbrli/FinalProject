@@ -9,6 +9,7 @@ public sealed class BadgeDefinition
     public string Name { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string Icon { get; set; } = "Award";
+    public string? IconUrl { get; set; }
     public string Color { get; set; } = "#8b5cf6";
     public BadgeMetric Metric { get; set; }
     public int Threshold { get; set; }

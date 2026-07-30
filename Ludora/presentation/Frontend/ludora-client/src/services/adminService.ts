@@ -1,10 +1,14 @@
 import { api } from "../lib/api";
 import type {
   AdminDashboard,
+  AdminBadge,
+  AdminBadgeUpsert,
+  AdminModerationAuditFilter,
   AdminPost,
   AdminReportedUserDetail,
   AdminReportedUserListItem,
   AdminUserBanHistory,
+  AdminUserBadge,
   AdminUserDetail,
   AdminUserFilter,
   AdminUserListItem,
@@ -18,6 +22,7 @@ import type {
   ModeratorActionLog,
   PagedResult,
   UserReportCategory,
+  UserReportContentType,
   UserReportStatus,
   UserWarning,
 } from "../types/admin";
@@ -127,7 +132,10 @@ export async function getReportedUsers(
     search?: string;
     category?: UserReportCategory;
     status?: UserReportStatus;
+    contentType?: UserReportContentType;
     isBanned?: boolean;
+    fromUtc?: string;
+    toUtc?: string;
     sortBy?: string;
     pageNumber?: number;
     pageSize?: number;
@@ -430,4 +438,108 @@ export async function getModerationAuditByReport(
     { signal },
   );
   return response.data;
+}
+
+export async function getModerationAudit(
+  filter: AdminModerationAuditFilter,
+  signal?: AbortSignal,
+): Promise<PagedResult<ModeratorActionLog>> {
+  const response = await api.get<PagedResult<ModeratorActionLog>>(
+    "/admin/moderation-audit",
+    { params: filter, signal },
+  );
+  return response.data;
+}
+
+export async function getAdminBadges(
+  signal?: AbortSignal,
+): Promise<AdminBadge[]> {
+  const response = await api.get<AdminBadge[]>("/admin/badges", { signal });
+  return response.data;
+}
+
+export async function createAdminBadge(
+  request: AdminBadgeUpsert,
+): Promise<AdminBadge> {
+  const response = await api.post<AdminBadge>("/admin/badges", request);
+  return response.data;
+}
+
+export async function updateAdminBadge(
+  badgeId: number,
+  request: AdminBadgeUpsert,
+): Promise<AdminBadge> {
+  const response = await api.put<AdminBadge>(
+    `/admin/badges/${badgeId}`,
+    request,
+  );
+  return response.data;
+}
+
+export async function archiveAdminBadge(badgeId: number): Promise<void> {
+  await api.delete(`/admin/badges/${badgeId}`);
+}
+
+export async function restoreAdminBadge(
+  badgeId: number,
+): Promise<AdminBadge> {
+  const response = await api.post<AdminBadge>(
+    `/admin/badges/${badgeId}/restore`,
+  );
+  return response.data;
+}
+
+export async function evaluateAdminBadgesForUser(
+  userId: string,
+): Promise<number> {
+  const response = await api.post<{ awardedCount: number }>(
+    `/admin/badges/evaluate/users/${userId}`,
+  );
+  return response.data.awardedCount;
+}
+
+export async function uploadAdminBadgeIcon(
+  badgeId: number,
+  image: File,
+): Promise<AdminBadge> {
+  const formData = new FormData();
+  formData.append("image", image);
+  const response = await api.put<AdminBadge>(
+    `/admin/badges/${badgeId}/icon`,
+    formData,
+    {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    },
+  );
+  return response.data;
+}
+
+export async function getAdminUserBadges(
+  userId: string,
+  signal?: AbortSignal,
+): Promise<AdminUserBadge[]> {
+  const response = await api.get<AdminUserBadge[]>(
+    `/badges/users/${userId}`,
+    { signal },
+  );
+  return response.data;
+}
+
+export async function assignAdminBadgeToUser(
+  userId: string,
+  badgeId: number,
+): Promise<AdminUserBadge> {
+  const response = await api.post<AdminUserBadge>(
+    `/admin/badges/${badgeId}/users/${userId}`,
+  );
+  return response.data;
+}
+
+export async function revokeAdminBadgeFromUser(
+  userId: string,
+  badgeId: number,
+): Promise<void> {
+  await api.delete(`/admin/badges/${badgeId}/users/${userId}`);
 }

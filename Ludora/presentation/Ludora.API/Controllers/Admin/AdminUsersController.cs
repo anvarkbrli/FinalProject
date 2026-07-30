@@ -89,6 +89,7 @@ public sealed class AdminUsersController : ControllerBase
     }
 
     [HttpPut("{userId:guid}/role")]
+    [Authorize(Roles = RoleNames.Admin)]
     public async Task<ActionResult<AdminUserDetailDTO>> ChangeRole(
         Guid userId,
         [FromBody] ChangeUserRoleDTO dto,

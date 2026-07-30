@@ -1,3 +1,4 @@
+using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Badge;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
@@ -11,10 +12,14 @@ namespace Ludora.Persistence.Services;
 public sealed class BadgeService : IBadgeService
 {
     private readonly AppDbContext _context;
+    private readonly IFileStorageService _fileStorageService;
 
-    public BadgeService(AppDbContext context)
+    public BadgeService(
+        AppDbContext context,
+        IFileStorageService fileStorageService)
     {
         _context = context;
+        _fileStorageService = fileStorageService;
     }
 
     public async Task<IReadOnlyList<BadgeDTO>> GetAllAsync(
@@ -54,6 +59,7 @@ public sealed class BadgeService : IBadgeService
                 Name = x.BadgeDefinition.Name,
                 Description = x.BadgeDefinition.Description,
                 Icon = x.BadgeDefinition.Icon,
+                IconUrl = x.BadgeDefinition.IconUrl,
                 Color = x.BadgeDefinition.Color,
                 MetricValueAtAward = x.MetricValueAtAward,
                 AwardedAtUtc = x.AwardedAtUtc
@@ -69,7 +75,7 @@ public sealed class BadgeService : IBadgeService
         var codeExists = await _context.BadgeDefinitions
             .AnyAsync(x => x.Code == normalized.Code, cancellationToken);
         if (codeExists)
-            throw new ConflictException("Bu badge kodu artıq mövcuddur.");
+            throw new ConflictException("Bu nişan kodu artıq mövcuddur.");
 
         var entity = new BadgeDefinition
         {
@@ -98,12 +104,12 @@ public sealed class BadgeService : IBadgeService
         var normalized = Validate(dto);
         var entity = await _context.BadgeDefinitions
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new NotFoundException("Badge tapılmadı.");
+            ?? throw new NotFoundException("Nişan tapılmadı.");
 
         var duplicate = await _context.BadgeDefinitions
             .AnyAsync(x => x.Id != id && x.Code == normalized.Code, cancellationToken);
         if (duplicate)
-            throw new ConflictException("Bu badge kodu artıq mövcuddur.");
+            throw new ConflictException("Bu nişan kodu artıq mövcuddur.");
 
         entity.Code = normalized.Code;
         entity.Name = normalized.Name;
@@ -126,10 +132,63 @@ public sealed class BadgeService : IBadgeService
     {
         var entity = await _context.BadgeDefinitions
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
-            ?? throw new NotFoundException("Badge tapılmadı.");
+            ?? throw new NotFoundException("Nişan tapılmadı.");
 
-        _context.BadgeDefinitions.Remove(entity);
+        if (!entity.IsActive)
+            return;
+
+        entity.IsActive = false;
+        entity.UpdatedAtUtc = DateTime.UtcNow;
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<BadgeDTO> RestoreAsync(
+        int id,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await _context.BadgeDefinitions
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Nişan tapılmadı.");
+
+        if (!entity.IsActive)
+        {
+            entity.IsActive = true;
+            entity.UpdatedAtUtc = DateTime.UtcNow;
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        return MapBadge(entity);
+    }
+
+    public async Task<BadgeDTO> UpdateIconAsync(
+        int id,
+        ProfileImageUploadDTO icon,
+        CancellationToken cancellationToken = default)
+    {
+        var entity = await _context.BadgeDefinitions
+            .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
+            ?? throw new NotFoundException("Nişan tapılmadı.");
+
+        var previousIconUrl = entity.IconUrl;
+        var newIconUrl = await _fileStorageService.SaveBadgeIconAsync(
+            icon,
+            cancellationToken);
+
+        entity.IconUrl = newIconUrl;
+        entity.UpdatedAtUtc = DateTime.UtcNow;
+
+        try
+        {
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+        catch
+        {
+            await _fileStorageService.DeleteAsync(newIconUrl);
+            throw;
+        }
+
+        await _fileStorageService.DeleteAsync(previousIconUrl);
+        return MapBadge(entity);
     }
 
     public async Task<int> EvaluateUserAsync(
@@ -139,7 +198,7 @@ public sealed class BadgeService : IBadgeService
         var snapshot = await LoadMetricSnapshotAsync(userId, cancellationToken);
         var definitions = await _context.BadgeDefinitions
             .AsNoTracking()
-            .Where(x => x.IsActive)
+            .Where(x => x.IsActive && x.Metric != BadgeMetric.Manual)
             .ToListAsync(cancellationToken);
         var existingBadgeIds = await _context.UserBadges
             .AsNoTracking()
@@ -182,13 +241,82 @@ public sealed class BadgeService : IBadgeService
         }
     }
 
+    public async Task<UserBadgeDTO> AssignToUserAsync(
+        Guid userId,
+        int badgeDefinitionId,
+        CancellationToken cancellationToken = default)
+    {
+        var userExists = await _context.Users
+            .AsNoTracking()
+            .AnyAsync(x => x.Id == userId, cancellationToken);
+        if (!userExists)
+            throw new NotFoundException("İstifadəçi tapılmadı.");
+
+        var badge = await _context.BadgeDefinitions
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                x => x.Id == badgeDefinitionId && x.IsActive,
+                cancellationToken)
+            ?? throw new NotFoundException("Aktiv nişan tapılmadı.");
+
+        var alreadyAssigned = await _context.UserBadges
+            .AsNoTracking()
+            .AnyAsync(
+                x => x.UserId == userId &&
+                     x.BadgeDefinitionId == badgeDefinitionId,
+                cancellationToken);
+        if (alreadyAssigned)
+            throw new ConflictException("Bu nişan istifadəçiyə artıq verilib.");
+
+        var userBadge = new UserBadge
+        {
+            UserId = userId,
+            BadgeDefinitionId = badgeDefinitionId,
+            MetricValueAtAward = 0,
+            AwardedAtUtc = DateTime.UtcNow
+        };
+
+        _context.UserBadges.Add(userBadge);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return new UserBadgeDTO
+        {
+            Id = badge.Id,
+            Code = badge.Code,
+            Name = badge.Name,
+            Description = badge.Description,
+            Icon = badge.Icon,
+            IconUrl = badge.IconUrl,
+            Color = badge.Color,
+            MetricValueAtAward = userBadge.MetricValueAtAward,
+            AwardedAtUtc = userBadge.AwardedAtUtc
+        };
+    }
+
+    public async Task RevokeFromUserAsync(
+        Guid userId,
+        int badgeDefinitionId,
+        CancellationToken cancellationToken = default)
+    {
+        var userBadge = await _context.UserBadges
+            .FirstOrDefaultAsync(
+                x => x.UserId == userId &&
+                     x.BadgeDefinitionId == badgeDefinitionId,
+                cancellationToken)
+            ?? throw new NotFoundException(
+                "İstifadəçidə bu nişan tapılmadı.");
+
+        _context.UserBadges.Remove(userBadge);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<IReadOnlyList<Guid>> GetUserBatchAsync(
         int skip,
         int take,
         CancellationToken cancellationToken = default)
     {
         if (skip < 0 || take is < 1 or > 500)
-            throw new BadRequestException("Badge batch parametrləri düzgün deyil.");
+            throw new BadRequestException("Nişan paketinin parametrləri düzgün deyil.");
 
         return await _context.Users
             .AsNoTracking()
@@ -275,17 +403,17 @@ public sealed class BadgeService : IBadgeService
     {
         ArgumentNullException.ThrowIfNull(dto);
         if (!Enum.IsDefined(dto.Metric))
-            throw new BadRequestException("Badge metrikası düzgün deyil.");
+            throw new BadRequestException("Nişan metrikası düzgün deyil.");
         if (dto.Threshold <= 0)
-            throw new BadRequestException("Badge limiti sıfırdan böyük olmalıdır.");
+            throw new BadRequestException("Nişan limiti sıfırdan böyük olmalıdır.");
 
         return dto with
         {
-            Code = Normalize(dto.Code, 80, "Badge kodu").ToLowerInvariant(),
-            Name = Normalize(dto.Name, 120, "Badge adı"),
-            Description = Normalize(dto.Description, 500, "Badge açıqlaması"),
-            Icon = Normalize(dto.Icon, 60, "Badge ikonu"),
-            Color = Normalize(dto.Color, 20, "Badge rəngi")
+            Code = Normalize(dto.Code, 80, "Nişan kodu").ToLowerInvariant(),
+            Name = Normalize(dto.Name, 120, "Nişan adı"),
+            Description = Normalize(dto.Description, 500, "Nişan açıqlaması"),
+            Icon = Normalize(dto.Icon, 60, "Nişan ikonu"),
+            Color = Normalize(dto.Color, 20, "Nişan rəngi")
         };
     }
 
@@ -305,6 +433,7 @@ public sealed class BadgeService : IBadgeService
             Name = x.Name,
             Description = x.Description,
             Icon = x.Icon,
+            IconUrl = x.IconUrl,
             Color = x.Color,
             Metric = x.Metric,
             Threshold = x.Threshold,

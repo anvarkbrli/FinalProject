@@ -12,6 +12,7 @@ const outputRoots = {
 };
 const listOnly = process.argv.includes("--list");
 const checkOnly = process.argv.includes("--check");
+const syncMissingOnly = process.argv.includes("--sync-missing");
 const englishOverridesPath = path.join(projectRoot, "scripts", "auto-ui.en-overrides.json");
 const azerbaijaniLetters = /[ƏəĞğİıÖöÜüŞşÇç]/;
 const knownSingleWords = new Set([
@@ -55,9 +56,102 @@ const knownSingleWords = new Set([
   "Yüklənir",
   "Əlavə",
   "Əvvəlki",
+  "Aktiv icmalar",
+  "Aktiv kateqoriyalar",
+  "Aktiv postlar",
+  "Bu janra aid oyunlar",
+  "Daxil ol",
+  "Daxil olunur...",
+  "Hesaba daxil ol",
+  "Indie oyunlar",
+  "Sahib olunan oyunlar",
+  "Sevimli oyunlar",
+  "Son oynanan oyunlar",
+  "Trend oyunlar",
+  "Son tarix",
+  "Moderator et",
+  "Davam et",
+  "1 saat",
+  "Kvadrat · maksimum 5 MB",
+  "Yadda saxla",
+  "Sevdiyin janrlar",
+  "Sonra tamamla",
+  "Sevdiyin oyunu axtar...",
+  "Ana lent",
+  "FPS hesabla",
+  "FPS-i hesabla",
+  "yeni videokart",
+  "yeni prosessor",
+  "Orta FPS",
+  "Mobil naviqasiya",
+  "Yeni post",
+  "25 oyunu statusla qeyd et.",
+  "Puan qrafiki",
+  "Steam kataloqu",
+  "Oyunu log et",
+  "Spoiler yoxdur",
+  "Spoiler var",
+  "Log et",
+  "Saytda axtar",
+  "0 saat",
+  "Tarix yoxdur",
+  "Ad: A–Z",
+  "Ad: Z–A",
+  "Ad A–Z",
+  "Ad Z–A",
+  "sosial link",
+  "Sosial linki sil",
+  "24 saat",
+  "WellPlayd kataloqu",
+  "IGDB kataloqu",
+  "Janr axtar...",
+  "Platforma axtar...",
+  "Minimum 8 simvol",
+  "Bu mesaj silindi",
+  "Mesaj yaz...",
+  "Oyunu axtar",
+  "Sahib olunanlar",
+  "Mesaj yaz",
+  "Post silindi.",
+  "Postu sil",
+  "Ulduz filtrini sil",
+  "Cari email:",
+  "Yeni email",
+  "Elan silinsin?",
+  "Yeni elan",
+  "Aktiv elanlar",
+  "Elan yarat",
+  "Qaralama kimi saxla",
+  "audit qeydi",
+  "Aktiv et",
+  "Sistem avtomatik verir",
+  "Aktiv ban",
+  "Pin edilib",
+  "cavab ·",
+  "Pini sil",
+  "Pin et",
+  "silinsin?",
+  "Moderasiya et",
+  "Admin qeydi",
+  "Son baxan:",
+  "Ban statusu",
+  "Email yoxdur",
+  "— Avtomatik",
+  "Audit qeydi yoxdur.",
+  "Oynayacaq",
+  "Dostun",
+  "Daha",
+  "Ana lent:",
+  "1 üzv · yeni yaradılır",
+  "Çıxış ili: köhnədən yeniyə",
+  "Bu istifadəçinin yeni paylaşımları və fəaliyyətləri artıq lentində görünməyəcək.",
+  "Sistemə daxil olmaq mümkün olmadı.",
+  "Oyununa uyğun məkan",
+  "Moderator admin CRUD əməliyyatlarına daxil ola bilər, lakin silmə əməliyyatlarını yerinə yetirə bilməz.",
+  "Bu istifadəçi artıq səni izləməyəcək və izləyicilər siyahında görünməyəcək.",
 ]);
 const azerbaijaniWordHint =
-  /\b(?:admin|ana|artıq|avatar|bio|buglar|dost|email|filter|forum|hesab|icma|istifadəçi|kateqoriya|kolleksiya|login|media|mesaj|oyun|parol|platforma|post|profil|reytinq|rəy|server|siyahı|sort|steam|standart|status|şifrə|video)\b/iu;
+  /\b(?:ana səhifə|artıq|buglar|daxil|digər|filterlər|göndər|hamısı|hesab|icma|icmalar|istifadəçi|istifadəçilər|kateqoriya|kateqoriyalar|kolleksiya|ləğv|mesajlar|müzakirə|müzakirələr|nəticələr|növbəti|oyun|oyunlar|oynayır|paylaş|postlar|profil|reytinq|rəylər|sevimlilər|siyahı|siyahılar|sıralama|sorğu|statuslar|təmizlə|yüklənir|əlavə|əvvəlki)\b/iu;
 
 function normalize(value) {
   return value.replace(/\s+/g, " ").trim();
@@ -72,7 +166,7 @@ function looksLikeUiText(rawValue) {
     return false;
   }
   if (
-    /(?:^|\s)(?:bg-|text-|border-|rounded-|hover:|focus:|sm:|md:|lg:|xl:|flex|grid|block|inline|absolute|relative|fixed|sticky|hidden|transition)(?:\s|$)/.test(
+    /(?:^|\s)(?:bg-|text-|border-|rounded-|hover:|focus:|sm:|md:|lg:|xl:|flex|grid|block|inline|absolute|relative|fixed|sticky|hidden|transition)[^\s]*/.test(
       value,
     )
   ) {
@@ -106,14 +200,12 @@ function collectFromNode(node, values) {
     const value = normalize(node.text);
     if (looksLikeUiText(value)) values.add(value);
   } else if (ts.isTemplateExpression(node)) {
-    const fragments = [
-      node.head.text,
-      ...node.templateSpans.map((span) => span.literal.text),
-    ];
-    fragments
-      .map(normalize)
-      .filter(looksLikeUiText)
-      .forEach((fragment) => values.add(fragment));
+    let template = node.head.text;
+    node.templateSpans.forEach((span, index) => {
+      template += `{value${index + 1}}${span.literal.text}`;
+    });
+    const value = normalize(template);
+    if (looksLikeUiText(value)) values.add(value);
   }
   ts.forEachChild(node, (child) => collectFromNode(child, values));
 }
@@ -143,6 +235,58 @@ function buildEntries(values) {
     result[key] = value;
   }
   return result;
+}
+
+function buildExistingTranslationMap(existingAz, existingEn) {
+  const result = new Map();
+  Object.entries(existingAz).forEach(([key, sourceText]) => {
+    const translatedText = existingEn[key];
+    if (typeof sourceText === "string" && typeof translatedText === "string") {
+      result.set(normalize(sourceText), translatedText);
+    }
+  });
+  return result;
+}
+
+async function readJsonOrEmpty(filePath) {
+  try {
+    return JSON.parse(await readFile(filePath, "utf8"));
+  } catch (error) {
+    if (error?.code === "ENOENT") return {};
+    throw error;
+  }
+}
+
+async function resolveEnglishTranslations(
+  sourceValues,
+  englishOverrides,
+  existingTranslations = new Map(),
+) {
+  const resolved = new Array(sourceValues.length);
+  const valuesToTranslate = [];
+  const indexesToTranslate = [];
+
+  sourceValues.forEach((sourceText, index) => {
+    const overridden = englishOverrides[sourceText];
+    const existing = existingTranslations.get(normalize(sourceText));
+    if (typeof overridden === "string" && overridden.trim()) {
+      resolved[index] = overridden;
+    } else if (typeof existing === "string" && existing.trim()) {
+      resolved[index] = existing;
+    } else {
+      valuesToTranslate.push(sourceText);
+      indexesToTranslate.push(index);
+    }
+  });
+
+  if (valuesToTranslate.length) {
+    const translated = await translate(valuesToTranslate);
+    indexesToTranslate.forEach((sourceIndex, translatedIndex) => {
+      resolved[sourceIndex] = translated[translatedIndex] || sourceValues[sourceIndex];
+    });
+  }
+
+  return resolved;
 }
 
 async function translateChunk(values) {
@@ -211,16 +355,69 @@ if (checkOnly) {
   process.exit(0);
 }
 
-const translatedValues = await translate(values);
-const azEntries = buildEntries(values);
-const englishOverrides = JSON.parse(
-  await readFile(englishOverridesPath, "utf8"),
+if (syncMissingOnly) {
+  const [existingAz, existingEn, englishOverrides] = await Promise.all([
+    readFile(outputRoots.az, "utf8").then(JSON.parse),
+    readFile(outputRoots.en, "utf8").then(JSON.parse),
+    readFile(englishOverridesPath, "utf8").then(JSON.parse),
+  ]);
+  const existingValues = new Set(Object.values(existingAz).map(normalize));
+  const missingValues = values.filter((value) => !existingValues.has(value));
+
+  if (!missingValues.length) {
+    console.log("Automatic UI catalogs are already synchronized.");
+    process.exit(0);
+  }
+
+  console.log(
+    `Appending ${missingValues.length} missing UI fragments.`,
+  );
+  const existingTranslations = buildExistingTranslationMap(existingAz, existingEn);
+  const translatedValues = await resolveEnglishTranslations(
+    missingValues,
+    englishOverrides,
+    existingTranslations,
+  );
+  const missingEntries = buildEntries(missingValues);
+
+  Object.keys(missingEntries).forEach((key, index) => {
+    const sourceText = missingEntries[key];
+    existingAz[key] = sourceText;
+    existingEn[key] = translatedValues[index] || sourceText;
+  });
+
+  await Promise.all([
+    writeFile(
+      outputRoots.az,
+      `${JSON.stringify(existingAz, null, 2)}\n`,
+      "utf8",
+    ),
+    writeFile(
+      outputRoots.en,
+      `${JSON.stringify(existingEn, null, 2)}\n`,
+      "utf8",
+    ),
+  ]);
+  console.log("Missing AZ/EN automatic UI entries were appended.");
+  process.exit(0);
+}
+
+const [existingAz, existingEn, englishOverrides] = await Promise.all([
+  readJsonOrEmpty(outputRoots.az),
+  readJsonOrEmpty(outputRoots.en),
+  readFile(englishOverridesPath, "utf8").then(JSON.parse),
+]);
+const existingTranslations = buildExistingTranslationMap(existingAz, existingEn);
+const translatedValues = await resolveEnglishTranslations(
+  values,
+  englishOverrides,
+  existingTranslations,
 );
+const azEntries = buildEntries(values);
 const enEntries = {};
 Object.keys(azEntries).forEach((key, index) => {
   const sourceText = azEntries[key];
-  enEntries[key] =
-    englishOverrides[sourceText] || translatedValues[index] || sourceText;
+  enEntries[key] = translatedValues[index] || sourceText;
 });
 
 await Promise.all(

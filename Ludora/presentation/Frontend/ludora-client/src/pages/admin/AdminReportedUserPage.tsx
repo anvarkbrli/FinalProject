@@ -35,6 +35,7 @@ import {
   resolveAssetUrl,
 } from "../../lib/helpers";
 import { getModerationActionTitle } from "../../lib/moderationAudit";
+import { useI18n } from "../../i18n/useI18n";
 import {
   getModerationAuditByReport,
   getReportedUser,
@@ -762,6 +763,8 @@ function AuditTimeline({
     data: ModeratorActionLog[] | undefined;
   };
 }) {
+  const { language } = useI18n();
+
   return (
     <div className="border-t border-white/[0.06] px-5 py-4">
       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-600">
@@ -782,7 +785,7 @@ function AuditTimeline({
             >
               <div>
                 <p className="text-xs font-semibold text-zinc-300">
-                  {getModerationActionTitle(entry)}
+                  {getModerationActionTitle(entry, language)}
                 </p>
                 <p className="mt-1 text-xs text-zinc-600">
                   Əməliyyatı edən: {entry.adminUserName}

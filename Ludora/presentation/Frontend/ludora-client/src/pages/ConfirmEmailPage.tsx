@@ -1,7 +1,6 @@
 import {
   AlertTriangle,
   CheckCircle2,
-  Gamepad2,
   LoaderCircle,
   Mail,
 } from "lucide-react";
@@ -16,6 +15,7 @@ import {
 } from "react-router-dom";
 import { getApiErrorMessage } from "../lib/api";
 import { confirmEmail } from "../services/authService";
+import { BrandLogo } from "../components/common/BrandLogo";
 
 interface ConfirmationState {
   status: "loading" | "success" | "error";
@@ -77,12 +77,10 @@ export function ConfirmEmailPage() {
           to="/"
           className="inline-flex items-center gap-3"
         >
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600">
-            <Gamepad2 size={20} />
-          </span>
+          <BrandLogo className="h-10 w-12" />
 
           <span className="font-bold text-white">
-            Ludora
+            WellPlayd
           </span>
         </Link>
 

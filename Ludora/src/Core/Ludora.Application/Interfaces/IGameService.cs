@@ -16,6 +16,9 @@ public interface IGameService
         long id,
         CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<GameDetailDTO>> GetDeletedAsync(
+        CancellationToken cancellationToken = default);
+
     Task<long> CreateAsync(
         GameCreateDTO dto,
         CancellationToken cancellationToken = default);

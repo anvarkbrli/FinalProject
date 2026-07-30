@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
+import { useI18n } from "../i18n/useI18n";
 import {
   formatDateTime,
   getReleaseYear,
@@ -27,6 +28,7 @@ type SearchTab =
   | "lists";
 
 export function SearchPage() {
+  const { language } = useI18n();
   const [searchParams, setSearchParams] =
     useSearchParams();
   const query =
@@ -55,27 +57,27 @@ export function SearchPage() {
   }> = [
     {
       id: "games",
-      label: "Oyunlar",
+      label: language === "en" ? "Games" : "Oyunlar",
       count: data?.counts.games ?? 0,
     },
     {
       id: "users",
-      label: "İstifadəçilər",
+      label: language === "en" ? "Users" : "İstifadəçilər",
       count: data?.counts.users ?? 0,
     },
     {
       id: "discussions",
-      label: "Müzakirələr",
+      label: language === "en" ? "Discussions" : "Müzakirələr",
       count: data?.counts.discussions ?? 0,
     },
     {
       id: "reviews",
-      label: "Rəylər",
+      label: language === "en" ? "Reviews" : "Rəylər",
       count: data?.counts.reviews ?? 0,
     },
     {
       id: "lists",
-      label: "Siyahılar",
+      label: language === "en" ? "Lists" : "Siyahılar",
       count: data?.counts.lists ?? 0,
     },
   ];
@@ -98,16 +100,16 @@ export function SearchPage() {
 
           <div>
             <h1 className="text-2xl font-black text-white">
-              Axtarış nəticələri
+              {language === "en" ? "Search results" : "Axtarış nəticələri"}
             </h1>
             <p className="mt-1 text-sm text-zinc-500">
-              “{query}” üçün tapılan məzmun
+              {language === "en" ? `Content found for “${query}”` : `“${query}” üçün tapılan məzmun`}
             </p>
           </div>
         </div>
 
         {query.length < 2 ? (
-          <EmptyState text="Axtarış üçün ən azı 2 simvol yaz." />
+          <EmptyState text={language === "en" ? "Enter at least 2 characters to search." : "Axtarış üçün ən azı 2 simvol yaz."} />
         ) : resultQuery.isLoading ? (
           <div className="flex min-h-72 items-center justify-center">
             <LoaderCircle
@@ -117,7 +119,7 @@ export function SearchPage() {
           </div>
         ) : resultQuery.isError || !data ? (
           <div className="mt-10 rounded-3xl border border-red-400/15 bg-red-500/[0.05] p-10 text-center text-red-300">
-            Axtarış nəticələri yüklənmədi.
+            {language === "en" ? "Search results could not be loaded." : "Axtarış nəticələri yüklənmədi."}
           </div>
         ) : (
           <>
@@ -151,7 +153,7 @@ export function SearchPage() {
                       item.releaseDate,
                     )}${
                       item.averageRating !== null
-                        ? ` · ${item.averageRating.toFixed(1)} puan`
+                        ? ` · ${item.averageRating.toFixed(1)} ${language === "en" ? "rating" : "puan"}`
                         : ""
                     }`}
                   />
@@ -166,7 +168,7 @@ export function SearchPage() {
                     icon={<UserRound size={20} />}
                     title={item.userName}
                     description={
-                      item.bio ?? "Bio əlavə edilməyib"
+                      item.bio ?? (language === "en" ? "No bio added" : "Bio əlavə edilməyib")
                     }
                     rounded
                   />
@@ -191,7 +193,7 @@ export function SearchPage() {
                     imageUrl={item.gameCoverImageUrl}
                     icon={<Star size={20} />}
                     title={item.gameName}
-                    eyebrow={`${item.userName} tərəfindən rəy`}
+                    eyebrow={language === "en" ? `Review by ${item.userName}` : `${item.userName} tərəfindən rəy`}
                     description={item.contentPreview}
                   />
                 ))}
@@ -203,14 +205,16 @@ export function SearchPage() {
                     to={`/lists/${item.id}`}
                     icon={<ListChecks size={20} />}
                     title={item.name}
-                    description={`${item.ownerUserName} · ${item.gameCount} oyun${item.isRanked ? " · Sıralı" : ""}`}
+                    description={language === "en"
+                      ? `${item.ownerUserName} · ${item.gameCount} ${item.gameCount === 1 ? "game" : "games"}${item.isRanked ? " · Ranked" : ""}`
+                      : `${item.ownerUserName} · ${item.gameCount} oyun${item.isRanked ? " · Sıralı" : ""}`}
                   />
                 ))}
 
               {tabs.find(
                 (item) => item.id === activeTab,
               )?.count === 0 && (
-                <EmptyState text="Bu kateqoriyada nəticə tapılmadı." />
+                <EmptyState text={language === "en" ? "No results were found in this category." : "Bu kateqoriyada nəticə tapılmadı."} />
               )}
             </div>
           </>

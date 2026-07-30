@@ -72,7 +72,7 @@ const visibilityLabels: Record<ForumCommunityVisibility, string> = {
 };
 
 export function ForumCommunityPage() {
-  useI18n();
+  const { language } = useI18n();
   const { slug = "" } = useParams();
   const navigate = useNavigate();
   const requestConfirmation = useConfirmation();
@@ -254,9 +254,21 @@ export function ForumCommunityPage() {
                   {community.description}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-4 text-xs text-zinc-600">
-                  <span>{community.memberCount} üzv</span>
-                  <span>{community.followerCount} izləyici</span>
-                  <span>{community.discussionCount} müzakirə</span>
+                  <span>
+                    {language === "en"
+                      ? `${community.memberCount} ${community.memberCount === 1 ? "member" : "members"}`
+                      : `${community.memberCount} üzv`}
+                  </span>
+                  <span>
+                    {language === "en"
+                      ? `${community.followerCount} ${community.followerCount === 1 ? "follower" : "followers"}`
+                      : `${community.followerCount} izləyici`}
+                  </span>
+                  <span>
+                    {language === "en"
+                      ? `${community.discussionCount} ${community.discussionCount === 1 ? "discussion" : "discussions"}`
+                      : `${community.discussionCount} müzakirə`}
+                  </span>
                   <span>
                     Sahib:{" "}
                     <Link
@@ -554,8 +566,9 @@ export function ForumCommunityPage() {
                     )}
                     <div className="pointer-events-none relative mt-4 flex items-center justify-between text-[11px] text-zinc-600">
                       <span>
-                        {discussion.likeCount} bəyənmə ·{" "}
-                        {discussion.replyCount} cavab
+                        {language === "en"
+                          ? `${discussion.likeCount} ${discussion.likeCount === 1 ? "like" : "likes"} · ${discussion.replyCount} ${discussion.replyCount === 1 ? "reply" : "replies"}`
+                          : `${discussion.likeCount} bəyənmə · ${discussion.replyCount} cavab`}
                       </span>
                       <ChevronRight
                         size={15}

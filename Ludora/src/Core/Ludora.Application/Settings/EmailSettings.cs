@@ -10,7 +10,7 @@ public sealed class EmailSettings
     public string? UserName { get; set; }
     public string? Password { get; set; }
     public string FromEmail { get; set; } = string.Empty;
-    public string FromName { get; set; } = "Ludora";
+    public string FromName { get; set; } = "WellPlayd";
     public bool EnableSsl { get; set; } = true;
 
     // API endpoint-ləri ilə email dəyişiklik təsdiqi kimi server linkləri üçün qalır.

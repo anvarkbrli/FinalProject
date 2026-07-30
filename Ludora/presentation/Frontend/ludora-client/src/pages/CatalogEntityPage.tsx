@@ -388,7 +388,7 @@ export function CatalogEntityPage({
                       <span className="rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1 text-xs font-semibold text-violet-200">
                         {entityQuery.data.source ===
                         "Local"
-                          ? "Ludora"
+                          ? "WellPlayd"
                           : "IGDB"}
                       </span>
                     </div>

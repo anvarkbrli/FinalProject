@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "Ludora",
+    "name": "WellPlayd",
     "tagline": "Oyna. İzlə. Müzakirə et.",
     "loading": "Səhifə yüklənir...",
     "unexpectedError": "Gözlənilməz xəta baş verdi."
@@ -16,7 +16,7 @@
     "mobileAria": "Mobil naviqasiya",
     "openMobile": "Mobil menyunu aç",
     "closeMobile": "Mobil menyunu bağla",
-    "homeAria": "Ludora ana səhifə"
+    "homeAria": "WellPlayd ana səhifə"
   },
   "actions": {
     "save": "Yadda saxla",
@@ -74,7 +74,7 @@
     "joinDescription": "Kateqoriyalar üzrə müzakirələr aç, cavab yaz, mövzuları bəyən və trend söhbətləri izlə.",
     "finalEyebrow": "Bir oyundan daha çoxu",
     "finalTitle": "Növbəti oyunun yalnız siyahında deyil, söhbətin içində də olsun.",
-    "finalDescription": "Ludora oyun kataloqunu şəxsi izləmə sistemi və forum icması ilə birləşdirir.",
+    "finalDescription": "WellPlayd oyun kataloqunu şəxsi izləmə sistemi və forum icması ilə birləşdirir.",
     "backToTop": "Yuxarı qayıt",
     "coverAlt": "Oyun örtüyü",
     "gameFallback": "Oyun",

@@ -108,10 +108,8 @@ function collectAutomaticTranslationKeys(
   );
 }
 
-Object.values(bundles).forEach((bundle) => {
-  Object.entries(bundle).forEach(([namespace, values]) =>
-    collectAutomaticTranslationKeys(values, `${namespace}:`),
-  );
+supportedLanguages.forEach((language) => {
+  collectAutomaticTranslationKeys(bundles[language].auto, "auto:");
 });
 
 automaticTemplateTranslations.sort(

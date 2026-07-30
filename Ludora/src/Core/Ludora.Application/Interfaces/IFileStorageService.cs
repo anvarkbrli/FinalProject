@@ -17,6 +17,9 @@ public interface IFileStorageService
     Task<string> SaveCommunityCoverImageAsync(
         ProfileImageUploadDTO dto,
         CancellationToken cancellationToken = default);
+    Task<string> SaveBadgeIconAsync(
+        ProfileImageUploadDTO dto,
+        CancellationToken cancellationToken = default);
     Task<string> SaveReportEvidenceImageAsync(
         UserReportEvidenceUploadDTO dto,
         CancellationToken cancellationToken = default);

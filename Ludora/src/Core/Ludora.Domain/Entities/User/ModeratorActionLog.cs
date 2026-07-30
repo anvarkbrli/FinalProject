@@ -9,8 +9,8 @@ public sealed class ModeratorActionLog
     public Guid AdminUserId { get; set; }
     public AppUser AdminUser { get; set; } = null!;
 
-    public Guid TargetUserId { get; set; }
-    public AppUser TargetUser { get; set; } = null!;
+    public Guid? TargetUserId { get; set; }
+    public AppUser? TargetUser { get; set; }
 
     public long? UserReportId { get; set; }
     public UserReport? UserReport { get; set; }
@@ -24,6 +24,10 @@ public sealed class ModeratorActionLog
     public ModeratorActionType ActionType { get; set; }
     public UserReportStatus? PreviousReportStatus { get; set; }
     public UserReportStatus? NewReportStatus { get; set; }
+    public string? Operation { get; set; }
+    public string? ResourceType { get; set; }
+    public string? ResourceId { get; set; }
+    public string? ResourceName { get; set; }
     public string? Reason { get; set; }
     public DateTime CreatedAtUtc { get; set; }
 }

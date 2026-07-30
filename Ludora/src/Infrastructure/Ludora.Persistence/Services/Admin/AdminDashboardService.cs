@@ -1,6 +1,7 @@
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Persistence.Data;
+using Ludora.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Ludora.Persistence.Services.Admin;
@@ -55,7 +56,21 @@ public sealed class AdminDashboardService : IAdminDashboardService
                 .CountAsync(x => x.IsPublished, cancellationToken),
             DeletedAnnouncements = await _context.Announcements
                 .IgnoreQueryFilters()
-                .CountAsync(x => x.IsDeleted, cancellationToken)
+                .CountAsync(x => x.IsDeleted, cancellationToken),
+            TotalReports = await _context.UserReports
+                .CountAsync(cancellationToken),
+            PendingReports = await _context.UserReports
+                .CountAsync(
+                    x =>
+                        x.Status == UserReportStatus.Pending ||
+                        x.Status == UserReportStatus.UnderReview,
+                    cancellationToken),
+            ModerationActionsLast30Days = await _context.ModeratorActionLogs
+                .CountAsync(
+                    x => x.CreatedAtUtc >= thirtyDaysAgo,
+                    cancellationToken),
+            ActiveBadges = await _context.BadgeDefinitions
+                .CountAsync(x => x.IsActive, cancellationToken)
         };
     }
 }

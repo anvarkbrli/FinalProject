@@ -21,6 +21,7 @@ import {
 } from "react";
 import { Link } from "react-router-dom";
 import { RatingStarIcon } from "../common/RatingStarIcon";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
 import { resolveAssetUrl } from "../../lib/helpers";
 import {
@@ -79,9 +80,12 @@ interface CategoryCard {
   accentClassName: string;
 }
 
-function formatCount(value: number): string {
+function formatCount(
+  value: number,
+  language: "az" | "en",
+): string {
   return new Intl.NumberFormat(
-    "az-AZ",
+    language === "en" ? "en-US" : "az-AZ",
   ).format(Math.max(0, value));
 }
 
@@ -91,16 +95,20 @@ function formatRating(value: number): string {
 
 function AverageRatingStars({
   rating,
+  language,
 }: {
   rating: number | null;
+  language: "az" | "en";
 }) {
   return (
     <div
       className="flex items-center gap-2"
       aria-label={
         rating === null
-          ? "Reytinq yoxdur"
-          : `Orta reytinq ${rating.toFixed(1)} ulduzdur`
+          ? language === "en" ? "No rating" : "Reytinq yoxdur"
+          : language === "en"
+            ? `Average rating: ${rating.toFixed(1)} stars`
+            : `Orta reytinq ${rating.toFixed(1)} ulduzdur`
       }
     >
       {Array.from({ length: 5 }).map((_, index) => {
@@ -170,6 +178,8 @@ function CommunityUsersModal({
   onRetry: () => void;
   onClose: () => void;
 }) {
+  const { language } = useI18n();
+
   useEffect(() => {
     if (!selection) {
       return;
@@ -249,7 +259,9 @@ function CommunityUsersModal({
 
             {!isLoading && !error && (
               <p className="mt-2 text-xs font-semibold uppercase tracking-[0.16em] text-violet-300">
-                {formatCount(totalCount)} istifadəçi
+                {language === "en"
+                  ? `${formatCount(totalCount, language)} ${totalCount === 1 ? "user" : "users"}`
+                  : `${formatCount(totalCount, language)} istifadəçi`}
               </p>
             )}
           </div>
@@ -390,6 +402,7 @@ export function GameCommunityStats({
   gameId: number;
   stats: GameCommunityStatsDTO;
 }) {
+  const { language } = useI18n();
   const [activeSelection, setActiveSelection] =
     useState<CommunitySelection | null>(null);
   const [pageNumber, setPageNumber] = useState(1);
@@ -414,12 +427,14 @@ export function GameCommunityStats({
   const categoryCards: CategoryCard[] = [
     {
       key: "Played",
-      label: "Oynayıb",
+      label: language === "en" ? "Played" : "Oynayıb",
       count: stats.playedCount,
-      detail:
-        "Oyunu tamamlayan və ya oynayıb qeyd edənlər",
-      modalDescription:
-        "Oyunu oynanılmış kimi işarələyən istifadəçilər.",
+      detail: language === "en"
+        ? "Users who marked the game as Played"
+        : "Oyunu tamamlayan və ya oynayıb qeyd edənlər",
+      modalDescription: language === "en"
+        ? "Users who marked the game as Played."
+        : "Oyunu oynanılmış kimi işarələyən istifadəçilər.",
       icon: Gamepad2,
       iconClassName: "text-emerald-300",
       iconContainerClassName:
@@ -430,12 +445,14 @@ export function GameCommunityStats({
     },
     {
       key: "Playing",
-      label: "Oynayır",
+      label: language === "en" ? "Playing" : "Oynayır",
       count: stats.playingCount,
-      detail:
-        "Hazırda bu oyunu oynayan istifadəçilər",
-      modalDescription:
-        "Hazırda bu oyunu oynayan istifadəçilər.",
+      detail: language === "en"
+        ? "Users currently playing this game"
+        : "Hazırda bu oyunu oynayan istifadəçilər",
+      modalDescription: language === "en"
+        ? "Users currently playing this game."
+        : "Hazırda bu oyunu oynayan istifadəçilər.",
       icon: PlayCircle,
       iconClassName: "text-violet-300",
       iconContainerClassName:
@@ -446,12 +463,14 @@ export function GameCommunityStats({
     },
     {
       key: "PlanToPlay",
-      label: "Oynayacaq",
+      label: language === "en" ? "Going to play" : "Oynayacaq",
       count: stats.planToPlayCount,
-      detail:
-        "Sonra oynamağı planlaşdıran istifadəçilər",
-      modalDescription:
-        "Oyunu gələcəkdə oynamağı planlaşdıran istifadəçilər.",
+      detail: language === "en"
+        ? "Users with the Going to play status"
+        : "Sonra oynamağı planlaşdıran istifadəçilər",
+      modalDescription: language === "en"
+        ? "Users with the Going to play status."
+        : "Oyunu gələcəkdə oynamağı planlaşdıran istifadəçilər.",
       icon: Clock3,
       iconClassName: "text-sky-300",
       iconContainerClassName:
@@ -464,10 +483,12 @@ export function GameCommunityStats({
       key: "Wishlist",
       label: "Wishlist",
       count: stats.wishlistCount,
-      detail:
-        "İstək siyahısına əlavə edən istifadəçilər",
-      modalDescription:
-        "Oyunu wishlist siyahısına əlavə edən istifadəçilər.",
+      detail: language === "en"
+        ? "Users who added the game to their wishlist"
+        : "İstək siyahısına əlavə edən istifadəçilər",
+      modalDescription: language === "en"
+        ? "Users who added the game to their wishlist."
+        : "Oyunu wishlist siyahısına əlavə edən istifadəçilər.",
       icon: Bookmark,
       iconClassName: "text-amber-300",
       iconContainerClassName:
@@ -478,12 +499,14 @@ export function GameCommunityStats({
     },
     {
       key: "Dropped",
-      label: "Yarım qoyub",
+      label: language === "en" ? "Abandoned" : "Yarım qoyub",
       count: stats.droppedCount,
-      detail:
-        "Oyunu tamamlamadan dayandıran istifadəçilər",
-      modalDescription:
-        "Oyunu yarım qoyan istifadəçilər.",
+      detail: language === "en"
+        ? "Users who marked the game as Abandoned"
+        : "Oyunu tamamlamadan dayandıran istifadəçilər",
+      modalDescription: language === "en"
+        ? "Users who marked the game as Abandoned."
+        : "Oyunu yarım qoyan istifadəçilər.",
       icon: CircleStop,
       iconClassName: "text-rose-300",
       iconContainerClassName:
@@ -508,7 +531,7 @@ export function GameCommunityStats({
     queryFn: () => {
       if (!activeSelection) {
         throw new Error(
-          "Community seçimi tapılmadı.",
+          "İcma seçimi tapılmadı.",
         );
       }
 
@@ -539,15 +562,16 @@ export function GameCommunityStats({
 
   function openRatingUsers(rating: number) {
     setPageNumber(1);
+    const formattedRating = formatRating(rating);
     setActiveSelection({
       type: "rating",
       rating,
-      title: `${formatRating(
-        rating,
-      )} ulduz verənlər`,
-      description: `${formatRating(
-        rating,
-      )} reytinqini verən istifadəçilərin siyahısı.`,
+      title: language === "en"
+        ? `Users who rated it ${formattedRating} stars`
+        : `${formattedRating} ulduz verənlər`,
+      description: language === "en"
+        ? `Users who gave the game a ${formattedRating}-star rating.`
+        : `${formattedRating} reytinqini verən istifadəçilərin siyahısı.`,
     });
   }
 
@@ -556,7 +580,9 @@ export function GameCommunityStats({
     setActiveSelection({
       type: "category",
       category: card.key,
-      title: `${card.label} siyahısı`,
+      title: language === "en"
+        ? `${card.label} users`
+        : `${card.label} siyahısı`,
       description: card.modalDescription,
     });
   }
@@ -613,9 +639,12 @@ export function GameCommunityStats({
                 <div className="mt-5">
                   <AverageRatingStars
                     rating={stats.averageRating}
+                    language={language}
                   />
                   <p className="mt-4 text-sm text-zinc-500">
-                    {formatCount(stats.ratingCount)} istifadəçi reytinqi
+                    {language === "en"
+                      ? `${formatCount(stats.ratingCount, language)} ${stats.ratingCount === 1 ? "user rating" : "user ratings"}`
+                      : `${formatCount(stats.ratingCount, language)} istifadəçi reytinqi`}
                   </p>
                 </div>
               </div>
@@ -652,7 +681,7 @@ export function GameCommunityStats({
                       </div>
 
                       <span className="text-right text-sm font-medium tabular-nums text-zinc-500 transition group-hover:text-zinc-300">
-                        {formatCount(item.count)}
+                        {formatCount(item.count, language)}
                       </span>
                     </button>
                   );
@@ -692,7 +721,7 @@ export function GameCommunityStats({
                     {card.label}
                   </p>
                   <p className="mt-3 text-4xl font-black leading-none tracking-[-0.04em] text-white">
-                    {formatCount(card.count)}
+                    {formatCount(card.count, language)}
                   </p>
                   <p className="mt-3 max-w-[14rem] text-xs leading-5 text-zinc-500">
                     {card.detail}

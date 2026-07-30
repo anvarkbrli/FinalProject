@@ -54,6 +54,26 @@ public sealed class AdminUserReportService : IAdminUserReportService
         if (filter.Status.HasValue)
             reportQuery = reportQuery.Where(x => x.Status == filter.Status.Value);
 
+        if (filter.ContentType.HasValue)
+        {
+            reportQuery = reportQuery.Where(
+                x => x.ReportedContentType == filter.ContentType.Value);
+        }
+
+        if (filter.FromUtc.HasValue)
+            reportQuery = reportQuery.Where(x => x.CreatedAtUtc >= filter.FromUtc.Value);
+
+        if (filter.ToUtc.HasValue)
+            reportQuery = reportQuery.Where(x => x.CreatedAtUtc <= filter.ToUtc.Value);
+
+        if (filter.FromUtc.HasValue &&
+            filter.ToUtc.HasValue &&
+            filter.FromUtc.Value > filter.ToUtc.Value)
+        {
+            throw new BadRequestException(
+                "Başlanğıc tarixi bitiş tarixindən sonra ola bilməz.");
+        }
+
         if (filter.IsBanned.HasValue)
         {
             reportQuery = filter.IsBanned.Value

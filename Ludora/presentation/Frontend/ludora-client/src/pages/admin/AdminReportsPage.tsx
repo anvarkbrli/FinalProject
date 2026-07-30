@@ -6,8 +6,12 @@ import {
   Eye,
   Filter,
   ShieldAlert,
+  SlidersHorizontal,
+  X,
 } from "lucide-react";
+import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { AdminDateRangeFilter } from "../../components/admin/AdminDateRangeFilter";
 import { AdminLiveSearch } from "../../components/admin/AdminLiveSearch";
 import { getApiErrorMessage } from "../../lib/api";
 import {
@@ -17,6 +21,7 @@ import {
 import { getReportedUsers } from "../../services/adminService";
 import type {
   UserReportCategory,
+  UserReportContentType,
   UserReportStatus,
 } from "../../types/admin";
 
@@ -41,6 +46,18 @@ const statusLabels: Record<UserReportStatus, string> = {
   Rejected: "Rədd edilib",
 };
 
+const contentTypeLabels: Record<UserReportContentType, string> = {
+  UserProfile: "İstifadəçi profili",
+  Post: "Post",
+  PostComment: "Post şərhi",
+  Review: "Rəy",
+  ReviewComment: "Rəy şərhi",
+  Discussion: "Müzakirə",
+  DiscussionReply: "Müzakirə cavabı",
+  DirectMessage: "Şəxsi mesaj",
+  Community: "İcma",
+};
+
 export function AdminReportsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -51,8 +68,11 @@ export function AdminReportsPage() {
   const search = searchParams.get("search") ?? "";
   const categoryValue = searchParams.get("category") ?? "";
   const statusValue = searchParams.get("status") ?? "";
+  const contentTypeValue = searchParams.get("contentType") ?? "";
   const banState = searchParams.get("ban") ?? "";
   const sortBy = searchParams.get("sort") ?? "mostReported";
+  const from = searchParams.get("from") ?? "";
+  const to = searchParams.get("to") ?? "";
 
   const filter = {
     search: search || undefined,
@@ -62,12 +82,21 @@ export function AdminReportsPage() {
     status: statusValue
       ? statusValue as UserReportStatus
       : undefined,
+    contentType: contentTypeValue
+      ? contentTypeValue as UserReportContentType
+      : undefined,
     isBanned: banState === "banned"
       ? true
       : banState === "notBanned"
         ? false
         : undefined,
     sortBy,
+    fromUtc: from
+      ? new Date(`${from}T00:00:00.000Z`).toISOString()
+      : undefined,
+    toUtc: to
+      ? new Date(`${to}T23:59:59.999Z`).toISOString()
+      : undefined,
     pageNumber,
     pageSize,
   };
@@ -91,6 +120,29 @@ export function AdminReportsPage() {
     if (nextPage <= 1) next.delete("page");
     else next.set("page", String(nextPage));
     setSearchParams(next);
+  }
+
+  const activeFilterCount = [
+    search,
+    categoryValue,
+    statusValue,
+    contentTypeValue,
+    banState,
+    sortBy !== "mostReported" ? sortBy : "",
+    from,
+    to,
+  ].filter(Boolean).length;
+
+  function clearFilters() {
+    setSearchParams(new URLSearchParams(), { replace: true });
+  }
+
+  function clearDateRange() {
+    const next = new URLSearchParams(searchParams);
+    next.delete("from");
+    next.delete("to");
+    next.delete("page");
+    setSearchParams(next, { replace: true });
   }
 
   const data = reportsQuery.data;
@@ -118,13 +170,41 @@ export function AdminReportsPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
-        <div className="grid gap-3 xl:grid-cols-[minmax(17rem,1fr)_auto_auto_auto_auto]">
-          <AdminLiveSearch
-            placeholder="İstifadəçi adı və ya email..."
-            ariaLabel="Şikayətlər arasında axtarış"
-          />
+      <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5">
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] pb-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+              <SlidersHorizontal size={17} />
+            </span>
+            <div>
+              <h3 className="text-sm font-semibold text-zinc-200">Filtrlər</h3>
+              <p className="mt-0.5 text-xs text-zinc-600">
+                Şikayət siyahısını dəqiqləşdir
+              </p>
+            </div>
+          </div>
+          {activeFilterCount > 0 && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/[0.08] px-3 text-xs font-semibold text-zinc-400 transition hover:bg-white/[0.05] hover:text-zinc-200"
+            >
+              <X size={14} />
+              Hamısını təmizlə
+              <span className="rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] text-violet-200">
+                {activeFilterCount}
+              </span>
+            </button>
+          )}
+        </div>
 
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <FilterField label="Axtarış">
+            <AdminLiveSearch
+              placeholder="İstifadəçi adı və ya email..."
+              ariaLabel="Şikayətlər arasında axtarış"
+            />
+          </FilterField>
           <FilterSelect
             label="Kateqoriya"
             value={categoryValue}
@@ -144,11 +224,23 @@ export function AdminReportsPage() {
             ]}
           />
           <FilterSelect
+            label="Kontent növü"
+            value={contentTypeValue}
+            onChange={(value) => updateParam("contentType", value)}
+            options={[
+              ["", "Bütün kontent növləri"],
+              ...Object.entries(contentTypeLabels),
+            ]}
+          />
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(28rem,2fr)]">
+          <FilterSelect
             label="Ban statusu"
             value={banState}
             onChange={(value) => updateParam("ban", value)}
             options={[
-              ["", "Ban statusu"],
+              ["", "Bütün istifadəçilər"],
               ["notBanned", "Banlanmayıb"],
               ["banned", "Banlanıb"],
             ]}
@@ -164,6 +256,14 @@ export function AdminReportsPage() {
               ["oldest", "Ən köhnə"],
               ["username", "Ad A–Z"],
             ]}
+          />
+          <AdminDateRangeFilter
+            from={from}
+            to={to}
+            onFromChange={(value) => updateParam("from", value)}
+            onToChange={(value) => updateParam("to", value)}
+            onClear={clearDateRange}
+            className="md:col-span-2 xl:col-span-1"
           />
         </div>
       </section>
@@ -349,24 +449,45 @@ function FilterSelect({
   onChange,
 }: FilterSelectProps) {
   return (
-    <label className="relative">
-      <span className="sr-only">{label}</span>
-      <Filter
-        size={15}
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
-      />
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full appearance-none rounded-xl border border-white/[0.08] bg-[#0a0a0e] pl-9 pr-8 text-sm text-zinc-300 outline-none transition focus:border-violet-500/50 xl:w-auto"
-      >
-        {options.map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>
-            {optionLabel}
-          </option>
-        ))}
-      </select>
+    <label className="block min-w-0">
+      <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
+        {label}
+      </span>
+      <span className="relative block">
+        <Filter
+          size={15}
+          className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+        />
+        <select
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+          className="h-14 w-full appearance-none rounded-xl border border-white/[0.08] bg-[#0a0a0e] pl-9 pr-8 text-sm text-zinc-300 outline-none transition focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/10"
+        >
+          {options.map(([optionValue, optionLabel]) => (
+            <option key={optionValue} value={optionValue}>
+              {optionLabel}
+            </option>
+          ))}
+        </select>
+      </span>
     </label>
+  );
+}
+
+function FilterField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 [&_input]:h-14">
+      <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
+        {label}
+      </span>
+      {children}
+    </div>
   );
 }
 

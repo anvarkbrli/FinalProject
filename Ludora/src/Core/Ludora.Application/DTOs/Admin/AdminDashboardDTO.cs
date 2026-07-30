@@ -17,4 +17,8 @@ public record AdminDashboardDTO
     public int TotalAnnouncements { get; init; }
     public int PublishedAnnouncements { get; init; }
     public int DeletedAnnouncements { get; init; }
+    public int TotalReports { get; init; }
+    public int PendingReports { get; init; }
+    public int ModerationActionsLast30Days { get; init; }
+    public int ActiveBadges { get; init; }
 }

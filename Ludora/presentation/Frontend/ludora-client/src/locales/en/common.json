@@ -1,6 +1,6 @@
 {
   "app": {
-    "name": "Ludora",
+    "name": "WellPlayd",
     "tagline": "Play. Track. Discuss.",
     "loading": "Loading page...",
     "unexpectedError": "An unexpected error occurred."
@@ -16,7 +16,7 @@
     "mobileAria": "Mobile navigation",
     "openMobile": "Open mobile menu",
     "closeMobile": "Close mobile menu",
-    "homeAria": "Ludora home page"
+    "homeAria": "WellPlayd home page"
   },
   "actions": {
     "save": "Save",
@@ -67,14 +67,14 @@
     "discussionsEmpty": "There are no forum discussions yet.",
     "activeCategories": "Active categories",
     "trackTitle": "Track your games",
-    "trackDescription": "Record the games you are playing, planning, have completed, or have dropped.",
+    "trackDescription": "Track games as Playing, Going to play, Played, or Abandoned.",
     "listsTitle": "Create your own lists",
     "listsDescription": "Collect your favorite games by theme, genre, and personal preference.",
     "joinTitle": "Join the community",
     "joinDescription": "Open discussions by category, reply, like topics, and follow trending conversations.",
     "finalEyebrow": "More than a game",
     "finalTitle": "Let your next game be part of the conversation, not just your list.",
-    "finalDescription": "Ludora combines a game catalog with personal tracking and a forum community.",
+    "finalDescription": "WellPlayd combines a game catalog with personal tracking and a forum community.",
     "backToTop": "Back to top",
     "coverAlt": "Game cover",
     "gameFallback": "Game",

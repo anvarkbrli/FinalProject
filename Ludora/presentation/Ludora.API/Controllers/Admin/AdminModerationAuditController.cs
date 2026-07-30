@@ -19,6 +19,14 @@ public sealed class AdminModerationAuditController : ControllerBase
         _auditService = auditService;
     }
 
+    [HttpGet]
+    public async Task<ActionResult<PagedResultDTO<ModeratorActionLogDTO>>> GetAll(
+        [FromQuery] AdminModerationAuditFilterDTO filter,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _auditService.GetAllAsync(filter, cancellationToken));
+    }
+
     [HttpGet("reports/{reportId:long}")]
     public async Task<ActionResult<IReadOnlyList<ModeratorActionLogDTO>>> GetByReport(
         long reportId,

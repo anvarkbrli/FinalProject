@@ -2,7 +2,6 @@ import {
   Activity,
   Bookmark,
   ChevronDown,
-  Gamepad2,
   Heart,
   ListChecks,
   LogIn,
@@ -37,6 +36,7 @@ import {
   isAuthSessionValid,
   useAuthStore,
 } from "../../stores/authStore";
+import { BrandLogo } from "../common/BrandLogo";
 
 const navigationItems = [
   {
@@ -223,18 +223,13 @@ export function Navbar() {
           to="/"
           onClick={closeMenus}
           className="flex shrink-0 items-center gap-3"
-          aria-label="Ludora ana səhifə"
+          aria-label="WellPlayd ana səhifə"
         >
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-600 text-white shadow-lg shadow-violet-950/50">
-            <Gamepad2
-              size={21}
-              strokeWidth={2.2}
-            />
-          </span>
+          <BrandLogo className="h-10 w-12" />
 
           <span>
             <span className="block text-lg font-bold tracking-tight text-white">
-              Ludora
+              WellPlayd
             </span>
 
             <span className="block text-[10px] font-semibold uppercase tracking-[0.24em] text-zinc-500">

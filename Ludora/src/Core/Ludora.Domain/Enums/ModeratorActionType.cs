@@ -6,5 +6,7 @@ public enum ModeratorActionType
     WarningIssued = 2,
     TemporaryBanIssued = 3,
     PermanentBanIssued = 4,
-    UserUnbanned = 5
+    UserUnbanned = 5,
+    RoleChanged = 6,
+    AdministrativeAction = 7
 }

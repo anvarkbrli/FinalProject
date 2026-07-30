@@ -12,7 +12,7 @@ public sealed class ModeratorActionLogConfiguration : IEntityTypeConfiguration<M
         {
             tableBuilder.HasCheckConstraint(
                 "CK_ModeratorActionLogs_ActionType",
-                "[ActionType] BETWEEN 1 AND 5");
+                "[ActionType] BETWEEN 1 AND 7");
         });
 
         builder.HasKey(x => x.Id);
@@ -23,12 +23,25 @@ public sealed class ModeratorActionLogConfiguration : IEntityTypeConfiguration<M
         builder.Property(x => x.Reason)
             .HasMaxLength(1000);
 
+        builder.Property(x => x.Operation)
+            .HasMaxLength(160);
+
+        builder.Property(x => x.ResourceType)
+            .HasMaxLength(100);
+
+        builder.Property(x => x.ResourceId)
+            .HasMaxLength(200);
+
+        builder.Property(x => x.ResourceName)
+            .HasMaxLength(300);
+
         builder.Property(x => x.CreatedAtUtc)
             .IsRequired();
 
         builder.HasIndex(x => new { x.TargetUserId, x.CreatedAtUtc });
         builder.HasIndex(x => new { x.UserReportId, x.CreatedAtUtc });
         builder.HasIndex(x => new { x.AdminUserId, x.CreatedAtUtc });
+        builder.HasIndex(x => new { x.ResourceType, x.CreatedAtUtc });
 
         builder.HasOne(x => x.AdminUser)
             .WithMany(x => x.PerformedModeratorActions)

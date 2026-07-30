@@ -4,6 +4,7 @@ import {
   Heart,
   MessageSquareText,
 } from "lucide-react";
+import { BrandLogo } from "../common/BrandLogo";
 
 const footerLinks = [
   {
@@ -31,14 +32,12 @@ export function Footer() {
             <a
               href="#home"
               className="inline-flex items-center gap-3"
-              aria-label="Ludora ana səhifə"
+              aria-label="WellPlayd ana səhifə"
             >
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/15 text-violet-300">
-                <Gamepad2 size={20} />
-              </span>
+              <BrandLogo className="h-10 w-12" />
 
               <span className="text-lg font-bold text-white">
-                Ludora
+                WellPlayd
               </span>
             </a>
 
@@ -96,7 +95,7 @@ export function Footer() {
         </div>
 
         <div className="mt-10 flex flex-col gap-3 border-t border-white/5 pt-6 text-sm text-zinc-600 sm:flex-row sm:items-center sm:justify-between">
-          <p>© {currentYear} Ludora. Bütün hüquqlar qorunur.</p>
+          <p>© {currentYear} WellPlayd. Bütün hüquqlar qorunur.</p>
 
           <p>Play. Track. Discuss.</p>
         </div>

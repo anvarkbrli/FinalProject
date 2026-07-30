@@ -4,6 +4,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useI18n } from "../../i18n/useI18n";
 import {
   getReleaseYear,
   isFutureReleaseDate,
@@ -18,6 +19,7 @@ interface GameCardProps {
 export function GameCard({
   game,
 }: GameCardProps) {
+  const { language } = useI18n();
   const coverUrl = resolveAssetUrl(
     game.coverImageUrl,
   );
@@ -43,7 +45,7 @@ export function GameCard({
       <div className="relative aspect-[3/4] overflow-hidden bg-gradient-to-br from-zinc-800 to-zinc-950">
         {isComingSoon && (
           <span className="coming-soon-badge">
-            Coming Soon
+            {language === "en" ? "Coming Soon" : "Tezliklə"}
           </span>
         )}
 

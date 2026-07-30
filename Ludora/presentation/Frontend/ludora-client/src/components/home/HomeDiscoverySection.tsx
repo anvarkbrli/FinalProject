@@ -247,7 +247,7 @@ function DiscoveryGameCard({
           className={`absolute left-2.5 top-2.5 z-10 inline-flex items-center gap-1 rounded-lg border px-2 py-1 text-[10px] font-bold backdrop-blur-md ${
             isTrending
               ? "border-orange-300/20 bg-orange-500/15 text-orange-200"
-              : "border-white/20 bg-[#09090c]/95 text-white shadow-[0_4px_14px_rgba(0,0,0,0.75)]"
+              : "coming-soon-countdown border-white/20 bg-[#09090c]/95 text-white shadow-[0_4px_14px_rgba(0,0,0,0.75)]"
           }`}
         >
           {isTrending ? (

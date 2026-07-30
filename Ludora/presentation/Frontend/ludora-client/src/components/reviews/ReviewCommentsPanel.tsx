@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
 import {
   formatDateTime,
@@ -61,6 +62,7 @@ export function ReviewCommentsPanel({
   reviewId,
   isAuthenticated,
 }: ReviewCommentsPanelProps) {
+  const { language } = useI18n();
   const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [content, setContent] = useState("");
@@ -200,14 +202,28 @@ export function ReviewCommentsPanel({
         </div>
       ) : (
         <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-sm text-zinc-500">
-          Şərh yazmaq üçün{" "}
-          <Link
-            to="/login"
-            className="font-semibold text-violet-300 transition hover:text-violet-200"
-          >
-            hesabına daxil ol
-          </Link>
-          .
+          {language === "en" ? (
+            <>
+              <Link
+                to="/login"
+                className="font-semibold text-violet-300 transition hover:text-violet-200"
+              >
+                Sign in
+              </Link>{" "}
+              to write a comment.
+            </>
+          ) : (
+            <>
+              Şərh yazmaq üçün{" "}
+              <Link
+                to="/login"
+                className="font-semibold text-violet-300 transition hover:text-violet-200"
+              >
+                hesabına daxil ol
+              </Link>
+              .
+            </>
+          )}
         </div>
       )}
 

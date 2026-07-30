@@ -119,6 +119,26 @@ const AdminAnnouncementsPage = lazy(() =>
     default: module.AdminAnnouncementsPage,
   })),
 );
+const AdminAuditPage = lazy(() =>
+  import("./pages/admin/AdminAuditPage").then((module) => ({
+    default: module.AdminAuditPage,
+  })),
+);
+const AdminForumPage = lazy(() =>
+  import("./pages/admin/AdminForumPage").then((module) => ({
+    default: module.AdminForumPage,
+  })),
+);
+const AdminBadgesPage = lazy(() =>
+  import("./pages/admin/AdminBadgesPage").then((module) => ({
+    default: module.AdminBadgesPage,
+  })),
+);
+const AdminCatalogPage = lazy(() =>
+  import("./pages/admin/AdminCatalogPage").then((module) => ({
+    default: module.AdminCatalogPage,
+  })),
+);
 
 function RouteFallback() {
   return (
@@ -219,6 +239,10 @@ function App() {
             path="announcements"
             element={<AdminAnnouncementsPage />}
           />
+          <Route path="audit" element={<AdminAuditPage />} />
+          <Route path="forum" element={<AdminForumPage />} />
+          <Route path="badges" element={<AdminBadgesPage />} />
+          <Route path="catalog" element={<AdminCatalogPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

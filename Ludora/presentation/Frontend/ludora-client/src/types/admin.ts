@@ -34,6 +34,10 @@ export interface AdminDashboard {
   totalAnnouncements: number;
   publishedAnnouncements: number;
   deletedAnnouncements: number;
+  totalReports: number;
+  pendingReports: number;
+  moderationActionsLast30Days: number;
+  activeBadges: number;
 }
 
 export interface AdminUserFilter {
@@ -144,11 +148,15 @@ export type ModeratorActionType =
   | 3
   | 4
   | 5
+  | 6
+  | 7
   | "ReportStatusChanged"
   | "WarningIssued"
   | "TemporaryBanIssued"
   | "PermanentBanIssued"
-  | "UserUnbanned";
+  | "UserUnbanned"
+  | "RoleChanged"
+  | "AdministrativeAction";
 
 export interface UserReportCategoryCount {
   category: UserReportCategory;
@@ -202,7 +210,7 @@ export interface ModeratorActionLog {
   id: number;
   adminUserId: string;
   adminUserName: string;
-  targetUserId: string;
+  targetUserId: string | null;
   targetUserName: string;
   userReportId: number | null;
   userWarningId: number | null;
@@ -210,8 +218,85 @@ export interface ModeratorActionLog {
   actionType: ModeratorActionType;
   previousReportStatus: UserReportStatus | null;
   newReportStatus: UserReportStatus | null;
+  operation: string | null;
+  resourceType: string | null;
+  resourceId: string | null;
+  resourceName: string | null;
   reason: string | null;
   createdAtUtc: string;
+}
+
+export interface AdminModerationAuditFilter {
+  adminUserId?: string;
+  targetUserId?: string;
+  userReportId?: number;
+  actionType?: number;
+  fromUtc?: string;
+  toUtc?: string;
+  search?: string;
+  pageNumber?: number;
+  pageSize?: number;
+}
+
+export type BadgeMetric =
+  | "AccountAgeDays"
+  | "GamesLogged"
+  | "GamesPlayed"
+  | "ReviewsWritten"
+  | "RatingsGiven"
+  | "PostsCreated"
+  | "Followers"
+  | "Following"
+  | "ListsCreated"
+  | "Favorites"
+  | "WishlistItems"
+  | "TotalPlaytimeHours"
+  | "ForumDiscussions"
+  | "ForumReplies"
+  | "CommentsWritten"
+  | "LikesReceived"
+  | "SteamGamesImported"
+  | "SteamAccountLinked"
+  | "MessagesSent"
+  | "ConsecutiveActivityDays"
+  | "Manual";
+
+export interface AdminBadge {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  icon: string;
+  iconUrl: string | null;
+  color: string;
+  metric: BadgeMetric;
+  threshold: number;
+  isActive: boolean;
+  displayOrder: number;
+}
+
+export interface AdminUserBadge {
+  id: number;
+  code: string;
+  name: string;
+  description: string;
+  icon: string;
+  iconUrl: string | null;
+  color: string;
+  metricValueAtAward: number;
+  awardedAtUtc: string;
+}
+
+export interface AdminBadgeUpsert {
+  code: string;
+  name: string;
+  description: string;
+  icon: string;
+  color: string;
+  metric: BadgeMetric;
+  threshold: number;
+  isActive: boolean;
+  displayOrder: number;
 }
 
 export interface AdminPost {

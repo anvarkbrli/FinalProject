@@ -420,7 +420,7 @@ function ProfileLoadingState() {
 }
 
 export function ProfilePage() {
-  useI18n();
+  const { language } = useI18n();
   const { userName = "" } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1714,10 +1714,9 @@ export function ProfilePage() {
                   <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-zinc-500">
                     <span className="inline-flex items-center gap-2">
                       <CalendarDays size={15} />
-                      {formatDate(
-                        profile.createdAt,
-                      )}{" "}
-                      tarixindən üzvdür
+                      {language === "en"
+                        ? `Member since ${formatDate(profile.createdAt)}`
+                        : `${formatDate(profile.createdAt)} tarixindən üzvdür`}
                     </span>
 
                   </div>
@@ -2651,7 +2650,7 @@ export function ProfilePage() {
                     {reviewRating !== null && (
                       <div className="inline-flex h-11 items-center gap-2 rounded-xl border border-amber-300/15 bg-amber-500/[0.08] px-3 text-sm font-bold text-amber-300">
                         <Star size={14} fill="currentColor" />
-                        {formatReviewRating(reviewRating)} ulduz
+                        {formatReviewRating(reviewRating)}
                         <button
                           type="button"
                           onClick={() => {
@@ -2720,7 +2719,13 @@ export function ProfilePage() {
                                     : "text-zinc-300"
                                 }`}
                               >
-                                {option.label}
+                                {language === "en"
+                                  ? {
+                                      date: "Date",
+                                      comments: "Comment count",
+                                      rating: "Star",
+                                    }[option.value]
+                                  : option.label}
                               </span>
                               <span className="mt-1 block text-[11px] leading-5 text-zinc-600">
                                 {option.description}

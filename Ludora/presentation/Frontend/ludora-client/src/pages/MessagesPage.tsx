@@ -650,7 +650,7 @@ export function MessagesPage() {
           >
             <div className="flex items-center justify-between px-3 py-3">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-300">Ludora chat</p>
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-violet-300">WellPlayd chat</p>
                 <h1 className="mt-1 text-xl font-bold text-white">Mesajlar</h1>
               </div>
               <MessageCircle size={22} className="text-violet-300" />

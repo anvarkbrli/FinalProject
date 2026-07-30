@@ -103,6 +103,7 @@ export interface UserBadgeDTO {
   name: string;
   description: string;
   icon: string;
+  iconUrl: string | null;
   color: string;
   metricValueAtAward: number;
   awardedAtUtc: string;

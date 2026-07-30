@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useI18n } from "../../i18n/useI18n";
 import { resolveAssetUrl } from "../../lib/helpers";
 import { getMyUserGameDashboard } from "../../services/userGamesService";
 import {
@@ -31,12 +32,21 @@ const ratingSteps = [
   5,
 ];
 
-const statusLabels: Record<UserGameStatus, string> = {
-  Playing: "Oynayır",
-  PlanToPlay: "Oynayacaq",
-  Played: "Oynayıb",
-  Dropped: "Yarım qoyub",
-};
+function getStatusLabels(language: "az" | "en"): Record<UserGameStatus, string> {
+  return language === "en"
+    ? {
+        Playing: "Playing",
+        PlanToPlay: "Going to play",
+        Played: "Played",
+        Dropped: "Abandoned",
+      }
+    : {
+        Playing: "Oynayır",
+        PlanToPlay: "Oynayacaq",
+        Played: "Oynayıb",
+        Dropped: "Yarım qoyub",
+      };
+}
 
 function formatRating(value: number): string {
   return Number.isInteger(value)
@@ -45,6 +55,8 @@ function formatRating(value: number): string {
 }
 
 export function UserWelcomePanel() {
+  const { language } = useI18n();
+  const statusLabels = getStatusLabels(language);
   const [failedProfileImageUrl, setFailedProfileImageUrl] =
     useState<string | null>(null);
 
@@ -200,7 +212,7 @@ export function UserWelcomePanel() {
                     {user.userName}
                   </Link>
                   <span className="text-zinc-600">, </span>
-                  növbəti oyunun üçün Ludora hazırdır.
+                  növbəti oyunun üçün WellPlayd hazırdır.
                 </p>
               </div>
             </div>
@@ -236,11 +248,27 @@ export function UserWelcomePanel() {
               </div>
 
               <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-t border-white/[0.05] pt-4 text-xs text-zinc-500">
-                <span>{user.followerCount} izləyici</span>
-                <span>{user.followingCount} izlənilən</span>
-                <span>{user.postCount} paylaşım</span>
                 <span>
-                  {userGamesQuery.isLoading ? "—" : (listCount ?? "—")} siyahı
+                  {language === "en"
+                    ? `${user.followerCount} ${user.followerCount === 1 ? "follower" : "followers"}`
+                    : `${user.followerCount} izləyici`}
+                </span>
+                <span>
+                  {language === "en"
+                    ? `${user.followingCount} following`
+                    : `${user.followingCount} izlənilən`}
+                </span>
+                <span>
+                  {language === "en"
+                    ? `${user.postCount} ${user.postCount === 1 ? "post" : "posts"}`
+                    : `${user.postCount} paylaşım`}
+                </span>
+                <span>
+                  {userGamesQuery.isLoading
+                    ? "—"
+                    : language === "en"
+                      ? `${listCount ?? "—"} ${listCount === 1 ? "list" : "lists"}`
+                      : `${listCount ?? "—"} siyahı`}
                 </span>
               </div>
             </div>
@@ -274,7 +302,9 @@ export function UserWelcomePanel() {
                       ? "Yüklənir"
                       : userGamesQuery.isError
                         ? "Yüklənmədi"
-                        : `${dashboardData.ratingCount} oyun`}
+                        : language === "en"
+                          ? `${dashboardData.ratingCount} ${dashboardData.ratingCount === 1 ? "game" : "games"}`
+                          : `${dashboardData.ratingCount} oyun`}
                   </p>
                 </div>
               </div>
@@ -296,7 +326,9 @@ export function UserWelcomePanel() {
                       key={rating}
                       to={`/users/${user.userName}`}
                       className="group relative flex h-full min-w-0 flex-1 items-end rounded-t-md outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
-                      aria-label={`${formatRating(rating)} ulduz verdiyin ${count} oyunu profildə göstər`}
+                      aria-label={language === "en"
+                        ? `Show the ${count} ${count === 1 ? "game" : "games"} you rated ${formatRating(rating)} stars on your profile`
+                        : `${formatRating(rating)} ulduz verdiyin ${count} oyunu profildə göstər`}
                     >
                       <span
                         className={`w-full rounded-t-md transition duration-200 group-hover:-translate-y-1 group-hover:opacity-100 ${
@@ -310,7 +342,9 @@ export function UserWelcomePanel() {
                       />
 
                       <span className="pointer-events-none absolute bottom-[calc(100%+10px)] left-1/2 z-20 hidden -translate-x-1/2 whitespace-nowrap rounded-xl border border-white/[0.1] bg-[#181820] px-3 py-2 text-[11px] font-semibold text-zinc-100 shadow-2xl shadow-black/50 group-hover:block group-focus-visible:block">
-                        {formatRating(rating)} ulduz: {count} oyun
+                        {language === "en"
+                          ? `${formatRating(rating)} stars: ${count} ${count === 1 ? "game" : "games"}`
+                          : `${formatRating(rating)} ulduz: ${count} oyun`}
                         <span className="absolute left-1/2 top-full h-2 w-2 -translate-x-1/2 -translate-y-1/2 rotate-45 border-b border-r border-white/[0.1] bg-[#181820]" />
                       </span>
                     </Link>
@@ -326,7 +360,7 @@ export function UserWelcomePanel() {
 
             <div className="p-5 sm:p-7">
               <p className="text-xs font-bold uppercase tracking-[0.18em] text-violet-300">
-                Tez keçid
+                {language === "en" ? "Quick links" : "Tez keçid"}
               </p>
 
               {userGamesQuery.isLoading ? (

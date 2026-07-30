@@ -446,7 +446,7 @@ export function HomePage() {
             </h2>
 
             <p className="mx-auto mt-4 max-w-xl text-sm leading-7 text-zinc-400">
-              Ludora oyun kataloqunu şəxsi izləmə sistemi
+              WellPlayd oyun kataloqunu şəxsi izləmə sistemi
               və forum icması ilə birləşdirir.
             </p>
 

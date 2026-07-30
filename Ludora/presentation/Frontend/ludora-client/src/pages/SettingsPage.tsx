@@ -203,7 +203,7 @@ function LocalNotice({ notice }: { notice?: NoticeState }) {
   );
 }
 
-function getInitialSteamNotice(): NoticeState | null {
+function getInitialSteamNotice(language: "az" | "en"): NoticeState | null {
   const query = new URLSearchParams(window.location.search);
 
   if (!query.has("steamSuccess")) return null;
@@ -212,13 +212,18 @@ function getInitialSteamNotice(): NoticeState | null {
   return {
     type: success ? "success" : "error",
     message: success
-      ? `${query.get("steamName") ?? "Steam hesabı"} uğurla bağlandı.`
-      : query.get("steamError") ?? "Steam hesabı bağlanmadı.",
+      ? language === "en"
+        ? `${query.get("steamName") ?? "Steam account"} connected successfully.`
+        : `${query.get("steamName") ?? "Steam hesabı"} uğurla bağlandı.`
+      : query.get("steamError") ??
+        (language === "en"
+          ? "The Steam account could not be connected."
+          : "Steam hesabı bağlanmadı."),
   };
 }
 
 export function SettingsPage() {
-  const { t } = useI18n();
+  const { t, language } = useI18n();
   const requestConfirmation = useConfirmation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
@@ -237,7 +242,7 @@ export function SettingsPage() {
   const [confirmNewPassword, setConfirmNewPassword] = useState("");
   const [notices, setNotices] = useState<Partial<Record<NoticeArea, NoticeState>>>(
     () => {
-      const steamNotice = getInitialSteamNotice();
+      const steamNotice = getInitialSteamNotice(language);
       return steamNotice ? { integrations: steamNotice } : {};
     },
   );
@@ -618,7 +623,9 @@ export function SettingsPage() {
       if (event.data.success) {
         setAreaNotice("integrations", {
           type: "success",
-          message: `${event.data.steamName ?? "Steam hesabı"} uğurla bağlandı.`,
+          message: language === "en"
+            ? `${event.data.steamName ?? "Steam account"} connected successfully.`
+            : `${event.data.steamName ?? "Steam hesabı"} uğurla bağlandı.`,
         });
         await queryClient.invalidateQueries({ queryKey: ["steam-connection"] });
         setSearchParams({ section: "integrations" }, { replace: true });
@@ -627,13 +634,17 @@ export function SettingsPage() {
 
       setAreaNotice("integrations", {
         type: "error",
-        message: event.data.error ?? "Steam hesabı bağlanmadı.",
+        message:
+          event.data.error ??
+          (language === "en"
+            ? "The Steam account could not be connected."
+            : "Steam hesabı bağlanmadı."),
       });
     };
 
     window.addEventListener("message", handleSteamMessage);
     return () => window.removeEventListener("message", handleSteamMessage);
-  }, [queryClient, setAreaNotice, setSearchParams]);
+  }, [language, queryClient, setAreaNotice, setSearchParams]);
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search);
@@ -801,7 +812,7 @@ export function SettingsPage() {
               <div>
                 <h2 className="font-semibold text-white">Görünüş</h2>
                 <p className="mt-1 text-xs leading-5 text-zinc-600">
-                  Ludora interfeysinin rəng rejimini seç. Seçimin bu brauzerdə yadda qalacaq.
+                  WellPlayd interfeysinin rəng rejimini seç. Seçimin bu brauzerdə yadda qalacaq.
                 </p>
               </div>
             </div>
@@ -1006,7 +1017,7 @@ export function SettingsPage() {
                           await requestConfirmation({
                             title: "Steam hesabını ayırmaq istəyirsən?",
                             description:
-                              "Steam bağlantın Ludora hesabından silinəcək və avtomatik kitabxana sinxronizasiyası dayanacaq.",
+                              "Steam bağlantın WellPlayd hesabından silinəcək və avtomatik kitabxana sinxronizasiyası dayanacaq.",
                             detail:
                               "Sonradan Steam hesabını yenidən qoşa bilərsən. Mövcud oyun qeydlərin silinməyəcək.",
                             confirmLabel: "Steam-i ayır",

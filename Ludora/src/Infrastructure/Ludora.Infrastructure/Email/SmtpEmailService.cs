@@ -39,7 +39,7 @@ public sealed class SmtpEmailService : IEmailService
             <body style="margin:0;background:#f4f4f5;font-family:Arial,sans-serif;line-height:1.6;color:#1f2937">
                 <div style="max-width:600px;margin:0 auto;padding:32px 18px">
                     <div style="background:#ffffff;border:1px solid #e4e4e7;border-radius:16px;padding:30px">
-                        <h2 style="margin-top:0">Ludora hesabını təsdiqlə</h2>
+                        <h2 style="margin-top:0">WellPlayd hesabını təsdiqlə</h2>
                         <p>Salam, <strong>{{safeUserName}}</strong>.</p>
                         <p>Qeydiyyatı tamamlamaq üçün aşağıdakı düyməyə kliklə:</p>
                         <p style="margin:26px 0">
@@ -64,7 +64,7 @@ public sealed class SmtpEmailService : IEmailService
         var plainTextBody = $$"""
             Salam, {{userName}}.
 
-            Ludora qeydiyyatını tamamlamaq üçün bu linkə keç:
+            WellPlayd qeydiyyatını tamamlamaq üçün bu linkə keç:
             {{confirmationLink}}
 
             Link 24 saat etibarlıdır. Qeydiyyatı sən etməmisənsə, bu məktubu nəzərə alma.
@@ -72,7 +72,7 @@ public sealed class SmtpEmailService : IEmailService
 
         return SendAsync(
             email,
-            "Ludora email təsdiqi",
+            "WellPlayd email təsdiqi",
             plainTextBody,
             htmlBody,
             cancellationToken);
@@ -95,7 +95,7 @@ public sealed class SmtpEmailService : IEmailService
                     <div style="background:#ffffff;border:1px solid #e4e4e7;border-radius:16px;padding:30px">
                         <h2 style="margin-top:0">Email dəyişiklik təsdiqi</h2>
                         <p>Salam, <strong>{{safeUserName}}</strong>.</p>
-                        <p>Ludora hesabının email ünvanını bu ünvana dəyişmək üçün aşağıdakı düyməyə kliklə:</p>
+                        <p>WellPlayd hesabının email ünvanını bu ünvana dəyişmək üçün aşağıdakı düyməyə kliklə:</p>
                         <p style="margin:26px 0">
                             <a href="{{safeLink}}"
                                style="display:inline-block;padding:12px 18px;background:#6d28d9;color:#ffffff;text-decoration:none;border-radius:9px;font-weight:700">
@@ -118,7 +118,7 @@ public sealed class SmtpEmailService : IEmailService
         var plainTextBody = $$"""
             Salam, {{userName}}.
 
-            Ludora hesabının email ünvanını dəyişmək üçün bu linkə keç:
+            WellPlayd hesabının email ünvanını dəyişmək üçün bu linkə keç:
             {{confirmationLink}}
 
             Bu əməliyyatı sən başlamamısansa, linkə klikləmə və hesab şifrəni dəyiş.
@@ -126,7 +126,7 @@ public sealed class SmtpEmailService : IEmailService
 
         return SendAsync(
             newEmail,
-            "Ludora email dəyişikliyini təsdiqlə",
+            "WellPlayd email dəyişikliyini təsdiqlə",
             plainTextBody,
             htmlBody,
             cancellationToken);

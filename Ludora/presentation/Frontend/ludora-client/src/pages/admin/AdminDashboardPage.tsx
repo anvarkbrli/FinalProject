@@ -13,12 +13,14 @@ import {
   UsersRound,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
 import { hasAuthRole } from "../../lib/authRoles";
 import { getAdminDashboard } from "../../services/adminService";
 import { useAuthStore } from "../../stores/authStore";
 
 export function AdminDashboardPage() {
+  const { language } = useI18n();
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
   const panelRole = hasAuthRole(
@@ -100,11 +102,19 @@ export function AdminDashboardPage() {
       detail: "Sistemdəki oyunlar",
       icon: Gamepad2,
       accent: "emerald",
-      to: "/games",
+      to: "/admin/catalog",
     },
   ] as const;
 
   const moderationItems = [
+    {
+      label: "Şikayətlər",
+      value: data.totalReports,
+      subValue: data.pendingReports,
+      subLabel: "gözləyir",
+      icon: ShieldAlert,
+      to: "/admin/reports?status=Pending",
+    },
     {
       label: "Xəbərdarlıqlar",
       value: data.totalWarnings,
@@ -119,7 +129,7 @@ export function AdminDashboardPage() {
       subValue: data.deletedDiscussions,
       subLabel: "silinmiş",
       icon: MessageSquareText,
-      to: "/forum",
+      to: "/admin/forum",
     },
     {
       label: "Cavablar",
@@ -127,7 +137,7 @@ export function AdminDashboardPage() {
       subValue: data.deletedReplies,
       subLabel: "silinmiş",
       icon: MessageSquareText,
-      to: "/forum",
+      to: "/admin/forum",
     },
     {
       label: "Elanlar",
@@ -135,7 +145,15 @@ export function AdminDashboardPage() {
       subValue: data.publishedAnnouncements,
       subLabel: "yayımlanmış",
       icon: BellRing,
-      to: "/",
+      to: "/admin/announcements",
+    },
+    {
+      label: "Audit əməliyyatları",
+      value: data.moderationActionsLast30Days,
+      subValue: data.activeBadges,
+      subLabel: "aktiv nişan",
+      icon: ShieldAlert,
+      to: "/admin/audit",
     },
   ];
 
@@ -147,7 +165,7 @@ export function AdminDashboardPage() {
             Sistemin ümumi vəziyyəti
           </p>
           <h2 className="mt-2 text-3xl font-bold tracking-tight text-white">
-            Xoş gəldin, {panelRole}
+            {language === "en" ? `Welcome, ${panelRole}` : `Xoş gəldin, ${panelRole}`}
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-500">
             Burada istifadəçi fəaliyyəti və moderasiya göstəricilərinin
@@ -189,7 +207,7 @@ export function AdminDashboardPage() {
                 </span>
               </div>
               <p className="mt-5 text-3xl font-bold tracking-tight text-white">
-                {metric.value.toLocaleString("az-AZ")}
+                {metric.value.toLocaleString(language === "en" ? "en-US" : "az-AZ")}
               </p>
               <p className="mt-1 text-sm font-medium text-zinc-300">
                 {metric.label}
@@ -210,17 +228,17 @@ export function AdminDashboardPage() {
               Kontent və xəbərdarlıq göstəriciləri
             </p>
           </div>
-          <div className="grid gap-px bg-white/[0.05] sm:grid-cols-2">
+          <div className="admin-moderation-grid grid gap-px sm:grid-cols-2">
             {moderationItems.map((item) => {
               const Icon = item.icon;
               return (
                 <Link
                   key={item.label}
                   to={item.to}
-                  className="group bg-[#0b0b0f] p-5 transition hover:bg-white/[0.025] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500/50"
+                  className="admin-moderation-item group p-5 transition duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-500/50"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.05] text-zinc-400">
+                    <span className="admin-moderation-icon flex h-9 w-9 items-center justify-center rounded-lg">
                       <Icon size={17} />
                     </span>
                     <p className="text-sm font-medium text-zinc-400">
@@ -233,7 +251,7 @@ export function AdminDashboardPage() {
                   </div>
                   <div className="mt-5 flex items-end justify-between">
                     <p className="text-2xl font-bold text-white">
-                      {item.value.toLocaleString("az-AZ")}
+                      {item.value.toLocaleString(language === "en" ? "en-US" : "az-AZ")}
                     </p>
                     <p className="text-xs text-zinc-600">
                       <span className="font-semibold text-amber-300">
@@ -259,7 +277,7 @@ export function AdminDashboardPage() {
             </div>
           </div>
           <p className="mt-8 text-4xl font-bold tracking-tight text-white">
-            +{data.newUsersLast30Days.toLocaleString("az-AZ")}
+            +{data.newUsersLast30Days.toLocaleString(language === "en" ? "en-US" : "az-AZ")}
           </p>
           <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/[0.05]">
             <div
@@ -273,9 +291,9 @@ export function AdminDashboardPage() {
             />
           </div>
           <p className="mt-3 text-xs leading-5 text-zinc-600">
-            Ümumi istifadəçilərin{" "}
-            {ratio(data.newUsersLast30Days, data.totalUsers)}%-i son 30 gündə
-            qeydiyyatdan keçib.
+            {language === "en"
+              ? `${ratio(data.newUsersLast30Days, data.totalUsers)}% of all users registered in the last 30 days.`
+              : `Ümumi istifadəçilərin ${ratio(data.newUsersLast30Days, data.totalUsers)}%-i son 30 gündə qeydiyyatdan keçib.`}
           </p>
 
           <div className="mt-8 flex items-center justify-between rounded-xl border border-red-400/10 bg-red-500/[0.04] p-4">
@@ -289,7 +307,7 @@ export function AdminDashboardPage() {
                 data.deletedDiscussions +
                 data.deletedReplies +
                 data.deletedAnnouncements
-              ).toLocaleString("az-AZ")}
+              ).toLocaleString(language === "en" ? "en-US" : "az-AZ")}
             </strong>
           </div>
         </section>

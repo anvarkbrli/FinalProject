@@ -18,6 +18,7 @@ public sealed class BadgeDefinitionConfiguration
         builder.Property(x => x.Name).IsRequired().HasMaxLength(120);
         builder.Property(x => x.Description).IsRequired().HasMaxLength(500);
         builder.Property(x => x.Icon).IsRequired().HasMaxLength(60);
+        builder.Property(x => x.IconUrl).HasMaxLength(500);
         builder.Property(x => x.Color).IsRequired().HasMaxLength(20);
         builder.Property(x => x.Metric).IsRequired();
         builder.Property(x => x.Threshold).IsRequired();
@@ -64,9 +65,9 @@ public sealed class BadgeDefinitionConfiguration
         Badge(25, "playtime-1000", "Zaman Ustası", "1000 saat oyun vaxtı topla.", BadgeMetric.TotalPlaytimeHours, 1000, "Hourglass", "#ea580c"),
         Badge(26, "forum-1", "Müzakirəçi", "İlk forum mövzusunu aç.", BadgeMetric.ForumDiscussions, 1, "MessagesSquare", "#0ea5e9"),
         Badge(27, "forum-replies-50", "İcma Səsi", "50 forum cavabı yaz.", BadgeMetric.ForumReplies, 50, "Megaphone", "#0284c7"),
-        Badge(28, "steam-linked", "Steam Bağlantısı", "Steam hesabını Ludora-ya bağla.", BadgeMetric.SteamAccountLinked, 1, "Link2", "#64748b"),
+        Badge(28, "steam-linked", "Steam Bağlantısı", "Steam hesabını WellPlayd-ə bağla.", BadgeMetric.SteamAccountLinked, 1, "Link2", "#64748b"),
         Badge(29, "steam-collector-50", "Steam Kolleksiyaçısı", "Steam-dən 50 oyun sinxronlaşdır.", BadgeMetric.SteamGamesImported, 50, "CloudDownload", "#475569"),
-        Badge(30, "veteran-365", "Ludora Veteranı", "365 gün üzv ol.", BadgeMetric.AccountAgeDays, 365, "ShieldCheck", "#84cc16")
+        Badge(30, "veteran-365", "WellPlayd Veteranı", "365 gün üzv ol.", BadgeMetric.AccountAgeDays, 365, "ShieldCheck", "#84cc16")
     ];
 
     private static BadgeDefinition Badge(

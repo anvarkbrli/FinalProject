@@ -1,4 +1,5 @@
 using Ludora.Application.Common;
+using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Badge;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -53,6 +54,35 @@ public sealed class AdminBadgesController : ControllerBase
         return NoContent();
     }
 
+    [HttpPost("{id:int}/restore")]
+    public async Task<ActionResult<BadgeDTO>> Restore(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _badgeService.RestoreAsync(id, cancellationToken));
+    }
+
+    [HttpPut("{id:int}/icon")]
+    public async Task<ActionResult<BadgeDTO>> UpdateIcon(
+        int id,
+        IFormFile image,
+        CancellationToken cancellationToken)
+    {
+        await using var stream = image.OpenReadStream();
+        var upload = new ProfileImageUploadDTO
+        {
+            Stream = stream,
+            FileName = image.FileName,
+            ContentType = image.ContentType,
+            Length = image.Length
+        };
+
+        return Ok(await _badgeService.UpdateIconAsync(
+            id,
+            upload,
+            cancellationToken));
+    }
+
     [HttpPost("evaluate/users/{userId:guid}")]
     public async Task<ActionResult<object>> EvaluateUser(
         Guid userId,
@@ -62,5 +92,32 @@ public sealed class AdminBadgesController : ControllerBase
             userId,
             cancellationToken);
         return Ok(new { awardedCount });
+    }
+
+    [HttpPost("{badgeId:int}/users/{userId:guid}")]
+    [Authorize(Roles = RoleNames.Admin)]
+    public async Task<ActionResult<UserBadgeDTO>> AssignToUser(
+        int badgeId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _badgeService.AssignToUserAsync(
+            userId,
+            badgeId,
+            cancellationToken));
+    }
+
+    [HttpDelete("{badgeId:int}/users/{userId:guid}")]
+    [Authorize(Roles = RoleNames.Admin)]
+    public async Task<IActionResult> RevokeFromUser(
+        int badgeId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        await _badgeService.RevokeFromUserAsync(
+            userId,
+            badgeId,
+            cancellationToken);
+        return NoContent();
     }
 }

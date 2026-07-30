@@ -204,7 +204,7 @@ namespace Ludora.Persistence.Migrations
                     b.HasIndex("DiscussionId")
                         .IsUnique();
 
-                    b.ToTable("DiscussionPoll");
+                    b.ToTable("DiscussionPoll", (string)null);
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.Forum.DiscussionPollOption", b =>
@@ -240,7 +240,7 @@ namespace Ludora.Persistence.Migrations
                     b.HasIndex("PollId", "DisplayOrder")
                         .IsUnique();
 
-                    b.ToTable("DiscussionPollOption");
+                    b.ToTable("DiscussionPollOption", (string)null);
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.Forum.DiscussionPollVote", b =>
@@ -278,7 +278,7 @@ namespace Ludora.Persistence.Migrations
                     b.HasIndex("PollId", "UserId")
                         .IsUnique();
 
-                    b.ToTable("DiscussionPollVote");
+                    b.ToTable("DiscussionPollVote", (string)null);
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.Forum.DiscussionReply", b =>
@@ -1651,6 +1651,10 @@ namespace Ludora.Persistence.Migrations
                         .HasMaxLength(60)
                         .HasColumnType("nvarchar(60)");
 
+                    b.Property<string>("IconUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("bit");
 
@@ -2065,7 +2069,7 @@ namespace Ludora.Persistence.Migrations
                             Code = "steam-linked",
                             Color = "#64748b",
                             CreatedAtUtc = new DateTime(2026, 7, 23, 0, 0, 0, 0, DateTimeKind.Utc),
-                            Description = "Steam hesabını Ludora-ya bağla.",
+                            Description = "Steam hesabını WellPlayd-ə bağla.",
                             DisplayOrder = 28,
                             Icon = "Link2",
                             IsActive = true,
@@ -2098,7 +2102,7 @@ namespace Ludora.Persistence.Migrations
                             Icon = "ShieldCheck",
                             IsActive = true,
                             Metric = 0,
-                            Name = "Ludora Veteranı",
+                            Name = "WellPlayd Veteranı",
                             Threshold = 365
                         });
                 });
@@ -2429,6 +2433,10 @@ namespace Ludora.Persistence.Migrations
                     b.Property<int?>("NewReportStatus")
                         .HasColumnType("int");
 
+                    b.Property<string>("Operation")
+                        .HasMaxLength(160)
+                        .HasColumnType("nvarchar(160)");
+
                     b.Property<int?>("PreviousReportStatus")
                         .HasColumnType("int");
 
@@ -2436,7 +2444,19 @@ namespace Ludora.Persistence.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
 
-                    b.Property<Guid>("TargetUserId")
+                    b.Property<string>("ResourceId")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ResourceName")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("ResourceType")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid?>("TargetUserId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<int?>("UserBanHistoryId")
@@ -2456,13 +2476,15 @@ namespace Ludora.Persistence.Migrations
 
                     b.HasIndex("AdminUserId", "CreatedAtUtc");
 
+                    b.HasIndex("ResourceType", "CreatedAtUtc");
+
                     b.HasIndex("TargetUserId", "CreatedAtUtc");
 
                     b.HasIndex("UserReportId", "CreatedAtUtc");
 
                     b.ToTable("ModeratorActionLogs", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ModeratorActionLogs_ActionType", "[ActionType] BETWEEN 1 AND 5");
+                            t.HasCheckConstraint("CK_ModeratorActionLogs_ActionType", "[ActionType] BETWEEN 1 AND 7");
                         });
                 });
 
@@ -3974,8 +3996,7 @@ namespace Ludora.Persistence.Migrations
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "TargetUser")
                         .WithMany("ReceivedModeratorActions")
                         .HasForeignKey("TargetUserId")
-                        .OnDelete(DeleteBehavior.NoAction)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Ludora.Domain.Entities.User.UserBanHistory", "UserBanHistory")
                         .WithMany()

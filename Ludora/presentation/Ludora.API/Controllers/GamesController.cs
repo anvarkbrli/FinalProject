@@ -36,6 +36,14 @@ public sealed class GamesController : ControllerBase
     }
 
     [Authorize(Roles = RoleNames.AdminOrModerator)]
+    [HttpGet("deleted")]
+    public async Task<ActionResult<IReadOnlyList<GameDetailDTO>>> GetDeleted(
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _gameService.GetDeletedAsync(cancellationToken));
+    }
+
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpPost]
     public async Task<IActionResult> Create(
         [FromBody] GameCreateDTO dto,

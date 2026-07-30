@@ -277,7 +277,7 @@ public class AuthService : IAuthService
 
         await _emailService.SendEmailConfirmationAsync(
             user.Email ?? throw new InvalidOperationException("İstifadəçi emaili tapılmadı."),
-            user.UserName ?? "Ludora istifadəçisi",
+            user.UserName ?? "WellPlayd istifadəçisi",
             confirmationLink,
             cancellationToken);
     }

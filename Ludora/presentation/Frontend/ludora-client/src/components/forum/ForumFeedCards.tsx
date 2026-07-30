@@ -38,7 +38,7 @@ export function DiscussionFeedCard({
 }: FeedCardProps & {
   discussion: DiscussionListItemDTO;
 }) {
-  useI18n();
+  const { language } = useI18n();
   const queryClient = useQueryClient();
   const [isSpoilerRevealed, setIsSpoilerRevealed] = useState(false);
   const currentUserId = useAuthStore((state) => state.user?.id);
@@ -190,7 +190,9 @@ export function DiscussionFeedCard({
               className="flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs text-zinc-600 transition hover:bg-white/[0.045] hover:text-zinc-300"
             >
               <MessageCircle size={14} />
-              {discussion.replyCount} cavab
+              {language === "en"
+                ? `${discussion.replyCount} ${discussion.replyCount === 1 ? "reply" : "replies"}`
+                : `${discussion.replyCount} cavab`}
             </Link>
             <span className="ml-auto flex items-center gap-1 text-[11px] text-zinc-700">
               <Eye size={13} />
@@ -210,7 +212,7 @@ export function ForumPostCard({
 }: FeedCardProps & {
   post: PostDTO;
 }) {
-  useI18n();
+  const { language } = useI18n();
   const queryClient = useQueryClient();
   const [showComments, setShowComments] = useState(false);
   const avatarUrl = resolveAssetUrl(post.profileImageUrl);
@@ -321,7 +323,9 @@ export function ForumPostCard({
             }`}
           >
             <MessageCircle size={14} />
-            {post.commentCount} şərh
+            {language === "en"
+              ? `${post.commentCount} ${post.commentCount === 1 ? "comment" : "comments"}`
+              : `${post.commentCount} şərh`}
           </button>
           <span className="ml-auto flex items-center gap-1.5 text-[11px] text-zinc-700">
             <MessageSquareText size={13} />

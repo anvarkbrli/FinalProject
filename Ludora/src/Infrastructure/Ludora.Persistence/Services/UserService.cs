@@ -372,7 +372,7 @@ public class UserService : IUserService
 
         await _emailService.SendEmailChangeConfirmationAsync(
             newEmail,
-            user.UserName ?? "Ludora istifadəçisi",
+            user.UserName ?? "WellPlayd istifadəçisi",
             confirmationLink,
             cancellationToken);
 
@@ -521,6 +521,7 @@ public class UserService : IUserService
                 Name = x.BadgeDefinition.Name,
                 Description = x.BadgeDefinition.Description,
                 Icon = x.BadgeDefinition.Icon,
+                IconUrl = x.BadgeDefinition.IconUrl,
                 Color = x.BadgeDefinition.Color,
                 MetricValueAtAward = x.MetricValueAtAward,
                 AwardedAtUtc = x.AwardedAtUtc

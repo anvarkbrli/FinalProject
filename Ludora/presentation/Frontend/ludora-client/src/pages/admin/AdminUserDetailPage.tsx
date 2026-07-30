@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-query";
 import {
   ArrowLeft,
+  Award,
   Ban,
   BellRing,
   CalendarDays,
@@ -19,6 +20,7 @@ import {
   Save,
   ShieldCheck,
   TriangleAlert,
+  Trash2,
   UserRound,
   UsersRound,
 } from "lucide-react";
@@ -26,6 +28,7 @@ import type { FormEvent, ReactNode } from "react";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { getApiErrorMessage } from "../../lib/api";
+import { hasAuthRole } from "../../lib/authRoles";
 import { useConfirmation } from "../../lib/confirmation";
 import {
   formatDate,
@@ -33,16 +36,22 @@ import {
   resolveAssetUrl,
 } from "../../lib/helpers";
 import { getModerationActionTitle } from "../../lib/moderationAudit";
+import { useI18n } from "../../i18n/useI18n";
 import {
+  assignAdminBadgeToUser,
   banAdminUser,
   changeAdminUserRole,
+  getAdminBadges,
   getAdminUser,
   getAdminUserBanHistory,
+  getAdminUserBadges,
   getAdminUserWarnings,
   getModerationAuditByUser,
+  revokeAdminBadgeFromUser,
   unbanAdminUser,
   warnAdminUser,
 } from "../../services/adminService";
+import { useAuthStore } from "../../stores/authStore";
 import type { BanType } from "../../types/admin";
 
 interface Notice {
@@ -51,6 +60,7 @@ interface Notice {
 }
 
 export function AdminUserDetailPage() {
+  const { language } = useI18n();
   const { userId } = useParams<{ userId: string }>();
   const queryClient = useQueryClient();
   const requestConfirmation = useConfirmation();
@@ -60,6 +70,14 @@ export function AdminUserDetailPage() {
   const [banDuration, setBanDuration] = useState("1440");
   const [banReason, setBanReason] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
+  const [selectedBadgeId, setSelectedBadgeId] = useState("");
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const currentUser = useAuthStore((state) => state.user);
+  const isCurrentAdmin = hasAuthRole(
+    accessToken,
+    "Admin",
+    currentUser?.roles ?? [],
+  );
 
   const detailQuery = useQuery({
     queryKey: ["admin", "user", userId],
@@ -84,6 +102,18 @@ export function AdminUserDetailPage() {
     queryKey: ["admin", "user", userId, "audit"],
     queryFn: ({ signal }) => getModerationAuditByUser(userId!, signal),
     enabled: Boolean(userId),
+  });
+
+  const userBadgesQuery = useQuery({
+    queryKey: ["admin", "user", userId, "badges"],
+    queryFn: ({ signal }) => getAdminUserBadges(userId!, signal),
+    enabled: Boolean(userId) && isCurrentAdmin,
+  });
+
+  const badgeDefinitionsQuery = useQuery({
+    queryKey: ["admin", "badges"],
+    queryFn: ({ signal }) => getAdminBadges(signal),
+    enabled: isCurrentAdmin,
   });
 
   async function refreshUserData() {
@@ -198,6 +228,51 @@ export function AdminUserDetailPage() {
     }),
   });
 
+  const assignBadgeMutation = useMutation({
+    mutationFn: () =>
+      assignAdminBadgeToUser(userId!, Number(selectedBadgeId)),
+    onSuccess: async (badge) => {
+      setSelectedBadgeId("");
+      setNotice({
+        type: "success",
+        message: `“${badge.name}” nişanı istifadəçiyə verildi.`,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["admin", "user", userId, "badges"],
+      });
+    },
+    onError: (mutationError) =>
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(
+          mutationError,
+          "Nişan istifadəçiyə verilə bilmədi.",
+        ),
+      }),
+  });
+
+  const revokeBadgeMutation = useMutation({
+    mutationFn: (badgeId: number) =>
+      revokeAdminBadgeFromUser(userId!, badgeId),
+    onSuccess: async () => {
+      setNotice({
+        type: "success",
+        message: "Nişan istifadəçidən geri alındı.",
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["admin", "user", userId, "badges"],
+      });
+    },
+    onError: (mutationError) =>
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(
+          mutationError,
+          "Nişan geri alına bilmədi.",
+        ),
+      }),
+  });
+
   if (!userId) {
     return <ErrorState message="İstifadəçi ID-si düzgün deyil." />;
   }
@@ -220,11 +295,20 @@ export function AdminUserDetailPage() {
   const user = detailQuery.data;
   const avatarUrl = resolveAssetUrl(user.profileImageUrl);
   const roleValue = selectedRole || user.role;
+  const userBadges = userBadgesQuery.data ?? [];
+  const assignedBadgeIds = new Set(
+    userBadges.map((badge) => badge.id),
+  );
+  const availableBadges = (badgeDefinitionsQuery.data ?? []).filter(
+    (badge) => badge.isActive && !assignedBadgeIds.has(badge.id),
+  );
   const isBusy =
     warningMutation.isPending ||
     banMutation.isPending ||
     unbanMutation.isPending ||
-    roleMutation.isPending;
+    roleMutation.isPending ||
+    assignBadgeMutation.isPending ||
+    revokeBadgeMutation.isPending;
 
   function submitWarning(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -423,7 +507,8 @@ export function AdminUserDetailPage() {
 
       <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         <div className="space-y-6">
-          <Panel
+          {isCurrentAdmin && (
+            <Panel
             title="Rol idarəetməsi"
             description="İstifadəçinin sistem rolunu dəyiş."
             icon={<ShieldCheck size={18} />}
@@ -479,7 +564,126 @@ export function AdminUserDetailPage() {
                 Yadda saxla
               </button>
             </form>
-          </Panel>
+            </Panel>
+          )}
+
+          {isCurrentAdmin && (
+            <Panel
+              title="Nişanlar"
+              description="İstifadəçiyə nişan ver və ya mövcud nişanı geri al."
+              icon={<Award size={18} />}
+            >
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  <select
+                    value={selectedBadgeId}
+                    disabled={
+                      isBusy ||
+                      badgeDefinitionsQuery.isPending
+                    }
+                    onChange={(event) =>
+                      setSelectedBadgeId(event.target.value)
+                    }
+                    className="h-11 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-[#09090d] px-3 text-sm text-zinc-200 outline-none focus:border-violet-500/50"
+                  >
+                    <option value="">
+                      Veriləcək nişanı seç...
+                    </option>
+                    {availableBadges.map((badge) => (
+                      <option key={badge.id} value={badge.id}>
+                        {badge.name}
+                        {badge.metric === "Manual"
+                          ? " — Xüsusi"
+                          : " — Avtomatik"}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!selectedBadgeId || isBusy}
+                    onClick={() => assignBadgeMutation.mutate()}
+                    className="inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white transition hover:bg-violet-500 disabled:opacity-40"
+                  >
+                    {assignBadgeMutation.isPending ? (
+                      <LoaderCircle
+                        size={16}
+                        className="animate-spin"
+                      />
+                    ) : (
+                      <Award size={16} />
+                    )}
+                    Nişan ver
+                  </button>
+                </div>
+
+                {userBadgesQuery.isPending ? (
+                  <InlineLoader />
+                ) : userBadges.length > 0 ? (
+                  <div className="max-h-[24rem] space-y-2 overflow-y-auto pr-1">
+                    {userBadges.map((badge) => {
+                      const iconUrl = resolveAssetUrl(badge.iconUrl);
+                      return (
+                        <article
+                          key={badge.id}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-black/15 p-3"
+                        >
+                          <div className="flex min-w-0 items-center gap-3">
+                            <span
+                              className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl"
+                              style={{
+                                color: badge.color,
+                                backgroundColor: `${badge.color}18`,
+                              }}
+                            >
+                              {iconUrl ? (
+                                <img
+                                  src={iconUrl}
+                                  alt=""
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <Award size={18} />
+                              )}
+                            </span>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-zinc-200">
+                                {badge.name}
+                              </p>
+                              <p className="truncate text-xs text-zinc-600">
+                                {badge.description}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={isBusy}
+                            title="Nişanı geri al"
+                            aria-label={`${badge.name} nişanını geri al`}
+                            onClick={() => {
+                              if (
+                                window.confirm(
+                                  `“${badge.name}” nişanı istifadəçidən geri alınsın?`,
+                                )
+                              ) {
+                                revokeBadgeMutation.mutate(
+                                  badge.id,
+                                );
+                              }
+                            }}
+                            className="rounded-lg p-2 text-zinc-600 transition hover:bg-red-500/10 hover:text-red-300 disabled:opacity-40"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </article>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <EmptyText text="İstifadəçiyə hələ nişan verilməyib." />
+                )}
+              </div>
+            </Panel>
+          )}
 
           <Panel
             title="Xəbərdarlıq göndər"
@@ -719,7 +923,7 @@ export function AdminUserDetailPage() {
                   >
                     <span className="absolute -left-1 top-1.5 h-2 w-2 rounded-full bg-violet-400" />
                     <p className="text-sm font-semibold text-zinc-300">
-                      {getModerationActionTitle(entry)}
+                      {getModerationActionTitle(entry, language)}
                     </p>
                     {entry.reason && (
                       <p className="mt-1 text-sm leading-6 text-zinc-600">

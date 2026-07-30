@@ -992,6 +992,51 @@ public sealed class GameService : IGameService
         };
     }
 
+    public async Task<IReadOnlyList<GameDetailDTO>> GetDeletedAsync(
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _context.Games
+            .IgnoreQueryFilters()
+            .AsNoTracking()
+            .Where(x => x.IsDeleted)
+            .OrderByDescending(x => x.UpdatedAt)
+            .Select(x => new GameDetailDTO
+            {
+                Source = CatalogSource.Local,
+                Id = x.Id,
+                Title = x.Name,
+                Description = x.Description,
+                ReleaseDate = x.ReleaseDate,
+                CoverImageUrl = x.CoverImageUrl,
+                PlayCount = x.PlayCount,
+                AverageRating = x.AverageRating == 0 ? null : x.AverageRating,
+                IsOverridden = false,
+                GameType = x.GameType
+            })
+            .ToListAsync(cancellationToken);
+
+        var hiddenIgdbGames = await _context.IgdbGameOverrides
+            .AsNoTracking()
+            .Where(x => x.IsHidden)
+            .OrderByDescending(x => x.UpdatedAt ?? x.CreatedAt)
+            .Select(x => new GameDetailDTO
+            {
+                Source = CatalogSource.Igdb,
+                Id = x.IgdbGameId,
+                Title = x.Name ?? $"IGDB #{x.IgdbGameId}",
+                Description = x.Description,
+                ReleaseDate = x.ReleaseDate,
+                CoverImageUrl = x.CoverImageUrl,
+                AverageRating = x.Rating,
+                IsOverridden = true,
+                GameType = x.GameType ?? GameType.MainGame
+            })
+            .ToListAsync(cancellationToken);
+
+        result.AddRange(hiddenIgdbGames);
+        return result;
+    }
+
     public async Task<GameDetailDTO> GetByIdAsync(CatalogSource source, long id, CancellationToken cancellationToken = default)
     {
         id.EnsureValidCatalogReference(source, "Oyun");

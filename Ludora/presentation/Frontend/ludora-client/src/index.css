@@ -631,6 +631,16 @@ select optgroup {
   letter-spacing: 0.04em;
 }
 
+[data-theme="light"] .coming-soon-countdown {
+  color: #ffffff !important;
+  border-color: rgba(255, 255, 255, 0.34) !important;
+  background-color: rgba(61, 43, 155, 0.94) !important;
+  box-shadow:
+    0 5px 18px rgba(25, 20, 65, 0.34),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16) !important;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.32);
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

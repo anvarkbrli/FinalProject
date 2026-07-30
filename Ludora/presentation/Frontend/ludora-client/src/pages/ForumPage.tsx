@@ -27,6 +27,7 @@ import {
   type ForumSection,
 } from "../components/forum/ForumSidebar";
 import { Navbar } from "../components/layout/Navbar";
+import { useI18n } from "../i18n/useI18n";
 import { resolveAssetUrl } from "../lib/helpers";
 import {
   getForumCommunities,
@@ -107,6 +108,7 @@ function CommunityCard({
   community: ForumCommunityDTO;
   compact?: boolean;
 }) {
+  const { language } = useI18n();
   const iconUrl = resolveAssetUrl(community.iconUrl);
   const coverImageUrl = resolveAssetUrl(community.coverImageUrl);
 
@@ -132,7 +134,9 @@ function CommunityCard({
             {community.name}
           </span>
           <span className="mt-1 block text-[11px] text-zinc-600">
-            {community.memberCount} üzv · {community.discussionCount} müzakirə
+            {language === "en"
+              ? `${community.memberCount} ${community.memberCount === 1 ? "member" : "members"} · ${community.discussionCount} ${community.discussionCount === 1 ? "discussion" : "discussions"}`
+              : `${community.memberCount} üzv · ${community.discussionCount} müzakirə`}
           </span>
         </span>
         <ChevronRight
@@ -179,7 +183,9 @@ function CommunityCard({
         </p>
         <div className="mt-auto flex items-center justify-between gap-3 pt-4 text-[11px]">
           <span className="truncate text-zinc-600">
-            {community.memberCount} üzv · {community.discussionCount} müzakirə
+            {language === "en"
+              ? `${community.memberCount} ${community.memberCount === 1 ? "member" : "members"} · ${community.discussionCount} ${community.discussionCount === 1 ? "discussion" : "discussions"}`
+              : `${community.memberCount} üzv · ${community.discussionCount} müzakirə`}
           </span>
           <ChevronRight
             size={15}
