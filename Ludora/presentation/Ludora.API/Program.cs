@@ -3,26 +3,30 @@ using System.Security.Claims;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json.Serialization;
-using System.Threading.RateLimiting;
 using Ludora.API.BackgroundServices;
 using Ludora.API.Filters;
 using Ludora.API.Hubs;
 using Ludora.API.Localization;
 using Ludora.API.Middlewares;
+using Ludora.API.Security;
 using Ludora.Application.Common;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Settings;
 using Ludora.Domain.Entities.User;
 using Ludora.Infrastructure.Email;
+using Ludora.Infrastructure.Caching;
 using Ludora.Infrastructure.FpsResearch;
 using Ludora.Infrastructure.IGDB;
 using Ludora.Infrastructure.Steam;
 using Ludora.Infrastructure.Translation;
+using Ludora.Persistence.Data;
 using Ludora.Persistence.ServiceRegistration;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Localization;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.ResponseCompression;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 
@@ -57,7 +61,28 @@ public class Program
                 options.Filters.AddService<AdminActionAuditFilter>())
             .AddJsonOptions(options =>
                 options.JsonSerializerOptions.Converters.Add(
-                    new JsonStringEnumConverter()));
+                    new JsonStringEnumConverter()))
+            .ConfigureApiBehaviorOptions(options =>
+            {
+                options.InvalidModelStateResponseFactory = context =>
+                {
+                    var errors = context.ModelState
+                        .Where(entry => entry.Value?.Errors.Count > 0)
+                        .ToDictionary(
+                            entry => entry.Key,
+                            entry => entry.Value!.Errors
+                                .Select(GetModelStateErrorMessage)
+                                .ToArray());
+
+                    return new BadRequestObjectResult(new
+                    {
+                        statusCode = StatusCodes.Status400BadRequest,
+                        message = "Göndərilən məlumatlarda səhv var. Zəhmət olmasa sahələri yoxlayın.",
+                        errors,
+                        traceId = context.HttpContext.TraceIdentifier
+                    });
+                };
+            });
         builder.Services.AddResponseCompression(options =>
         {
             options.EnableForHttps = true;
@@ -77,6 +102,7 @@ public class Program
                 options.PayloadSerializerOptions.Converters.Add(
                     new JsonStringEnumConverter()));
         builder.Services.AddHostedService<NotificationOutboxWorker>();
+        builder.Services.AddHostedService<EmailOutboxWorker>();
         builder.Services.AddSingleton<IUserPresenceTracker, UserPresenceTracker>();
         builder.Services.AddSingleton<IBadgeEvaluationQueue, BadgeEvaluationQueue>();
         builder.Services.AddSingleton<ISteamSyncQueue, SteamSyncQueue>();
@@ -113,6 +139,16 @@ public class Program
         var fileStorageSettings = builder.Configuration.GetSection("FileStorageSettings").Get<FileStorageSettings>()
             ?? new FileStorageSettings();
         builder.Services.AddSingleton(fileStorageSettings);
+
+        var malwareSettings = builder.Configuration
+            .GetSection("MalwareScanning")
+            .Get<MalwareScanningSettings>() ?? new MalwareScanningSettings();
+
+        if (!builder.Environment.IsDevelopment() && !malwareSettings.Enabled)
+        {
+            throw new InvalidOperationException(
+                "Production mühitində MalwareScanning:Enabled true olmalıdır.");
+        }
 
         builder.Services.AddAuthentication(options =>
         {
@@ -182,7 +218,34 @@ public class Program
                         return;
                     }
 
+                    var sessionIdValue = context.Principal?
+                        .FindFirstValue("session_id");
+
+                    if (!Guid.TryParse(sessionIdValue, out var sessionId))
+                    {
+                        context.Fail("Token cihaz sessiyasına bağlı deyil. Yenidən daxil olun.");
+                        return;
+                    }
+
                     var now = DateTime.UtcNow;
+                    var dbContext = context.HttpContext.RequestServices
+                        .GetRequiredService<AppDbContext>();
+                    var sessionIsActive = await dbContext.RefreshSessions
+                        .AsNoTracking()
+                        .AnyAsync(session =>
+                            session.Id == sessionId &&
+                            session.UserId == userId &&
+                            session.SecurityStamp == (user.SecurityStamp ?? string.Empty) &&
+                            session.RevokedAtUtc == null &&
+                            session.ExpiresAtUtc > now,
+                            context.HttpContext.RequestAborted);
+
+                    if (!sessionIsActive)
+                    {
+                        context.Fail("Bu cihaz sessiyası ləğv edilib. Yenidən daxil olun.");
+                        return;
+                    }
+
                     var isBanned = user.IsPermanentlyBanned ||
                                    (user.BannedUntilUtc.HasValue &&
                                     user.BannedUntilUtc > now);
@@ -201,118 +264,66 @@ public class Program
 
                     if (isBanned)
                         context.Fail("Hesab admin tərəfindən banlanıb.");
+                },
+                OnChallenge = async context =>
+                {
+                    context.HandleResponse();
+                    if (context.Response.HasStarted)
+                        return;
+
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    context.Response.ContentType = "application/json; charset=utf-8";
+
+                    var failureMessage = context.AuthenticateFailure?.Message;
+                    var message = failureMessage switch
+                    {
+                        "Token artıq etibarlı deyil. Yenidən daxil olun." => failureMessage,
+                        "Bu cihaz sessiyası ləğv edilib. Yenidən daxil olun." => failureMessage,
+                        "Hesabın email ünvanı təsdiqlənməyib." => failureMessage,
+                        "Hesabın silinməsi başladılıb." => failureMessage,
+                        "Hesab admin tərəfindən banlanıb." => failureMessage,
+                        _ when context.AuthenticateFailure is SecurityTokenExpiredException =>
+                            "Sessiyanın vaxtı bitib. Yenidən daxil olun.",
+                        _ => "Sessiya etibarlı deyil. Yenidən daxil olun."
+                    };
+
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        statusCode = StatusCodes.Status401Unauthorized,
+                        message,
+                        traceId = context.HttpContext.TraceIdentifier
+                    });
+                },
+                OnForbidden = async context =>
+                {
+                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                    context.Response.ContentType = "application/json; charset=utf-8";
+                    await context.Response.WriteAsJsonAsync(new
+                    {
+                        statusCode = StatusCodes.Status403Forbidden,
+                        message = "Bu əməliyyat üçün icazəniz yoxdur.",
+                        traceId = context.HttpContext.TraceIdentifier
+                    });
                 }
             };
         });
 
-        builder.Services.AddAuthorization();
-        builder.Services.AddRateLimiter(options =>
+        builder.Services.AddAuthorization(options =>
         {
-            options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-            options.GlobalLimiter =
-                PartitionedRateLimiter.Create<HttpContext, string>(context =>
-                {
-                    if (!context.Request.Path.StartsWithSegments(
-                            "/api/fps-estimator"))
-                    {
-                        return RateLimitPartition.GetNoLimiter(
-                            "non-fps-endpoint");
-                    }
-
-                    var ipAddress =
-                        context.Connection.RemoteIpAddress?.ToString() ??
-                        "unknown";
-
-                    return RateLimitPartition.GetFixedWindowLimiter(
-                        $"fps-ip:{ipAddress}",
-                        _ => new FixedWindowRateLimiterOptions
-                        {
-                            PermitLimit = 20,
-                            Window = TimeSpan.FromMinutes(1),
-                            QueueLimit = 0,
-                            AutoReplenishment = true
-                        });
-                });
-            options.OnRejected = async (context, cancellationToken) =>
+            foreach (var capability in CapabilityNames.All)
             {
-                context.HttpContext.Response.ContentType =
-                    "application/json; charset=utf-8";
-                await context.HttpContext.Response.WriteAsJsonAsync(
-                    new
-                    {
-                        message =
-                            "Çox sayda sorğu göndərmisiniz. Bir qədər sonra yenidən cəhd edin."
-                    },
-                    cancellationToken);
-            };
-            options.AddPolicy("Auth", context => RateLimitPartition.GetFixedWindowLimiter(
-                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = 10,
-                    Window = TimeSpan.FromMinutes(1),
-                    QueueLimit = 0,
-                    AutoReplenishment = true
-                }));
-            options.AddPolicy("UserReports", context =>
-            {
-                var partitionKey =
-                    context.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
-                    context.Connection.RemoteIpAddress?.ToString() ??
-                    "unknown";
+                var allowedRoles = RoleCapabilityMatrix
+                    .GetRolesWithCapability(capability)
+                    .ToArray();
 
-                return RateLimitPartition.GetFixedWindowLimiter(
-                    $"user-report:{partitionKey}",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 20,
-                        Window = TimeSpan.FromHours(1),
-                        QueueLimit = 0,
-                        AutoReplenishment = true
-                    });
-            });
-            options.AddPolicy("FpsEstimator", context =>
-            {
-                var userId =
-                    context.User.FindFirstValue(
-                        ClaimTypes.NameIdentifier) ??
-                    "anonymous";
-
-                return RateLimitPartition.GetFixedWindowLimiter(
-                    $"fps-user:{userId}",
-                    _ => new FixedWindowRateLimiterOptions
-                    {
-                        PermitLimit = 5,
-                        Window = TimeSpan.FromMinutes(1),
-                        QueueLimit = 0,
-                        AutoReplenishment = true
-                    });
-            });
-            options.AddPolicy("SteamSync", context => RateLimitPartition.GetFixedWindowLimiter(
-                context.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
-                context.Connection.RemoteIpAddress?.ToString() ??
-                "unknown",
-                _ => new FixedWindowRateLimiterOptions
-                {
-                    PermitLimit = 10,
-                    Window = TimeSpan.FromMinutes(1),
-                    QueueLimit = 0,
-                    AutoReplenishment = true
-                }));
-            options.AddPolicy("Chat", context => RateLimitPartition.GetTokenBucketLimiter(
-                context.User.FindFirstValue(ClaimTypes.NameIdentifier) ??
-                context.Connection.RemoteIpAddress?.ToString() ??
-                "unknown",
-                _ => new TokenBucketRateLimiterOptions
-                {
-                    TokenLimit = 30,
-                    TokensPerPeriod = 15,
-                    ReplenishmentPeriod = TimeSpan.FromSeconds(10),
-                    QueueLimit = 0,
-                    AutoReplenishment = true
-                }));
+                options.AddPolicy(
+                    capability,
+                    policy => policy.RequireRole(allowedRoles));
+            }
         });
+        builder.Services.AddWellPlaydRateLimiting();
 
+        builder.Services.AddCachingInfrastructure();
         builder.Services.AddPersistenceServices(builder.Configuration);
         builder.Services.AddEmailInfrastructure(builder.Configuration);
         builder.Services.AddIgdbIntegration(builder.Configuration);
@@ -341,8 +352,13 @@ public class Program
         }
 
         app.UseRequestLocalization();
+        app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseMiddleware<GlobalExceptionMiddleware>();
         app.UseResponseCompression();
+
+        if (!app.Environment.IsDevelopment())
+            app.UseHsts();
+
         app.UseHttpsRedirection();
         app.UseStaticFiles();
         app.UseCors("Frontend");
@@ -353,6 +369,26 @@ public class Program
         app.MapHub<NotificationHub>("/hubs/notifications");
         app.MapHub<ChatHub>("/hubs/chat");
         await app.RunAsync();
+    }
+
+
+    private static string GetModelStateErrorMessage(Microsoft.AspNetCore.Mvc.ModelBinding.ModelError error)
+    {
+        var message = error.ErrorMessage?.Trim();
+        if (string.IsNullOrWhiteSpace(message))
+            return "Dəyər düzgün formatda deyil.";
+
+        if (message.StartsWith("The JSON value could not be converted", StringComparison.OrdinalIgnoreCase) ||
+            message.StartsWith("The input was not valid", StringComparison.OrdinalIgnoreCase) ||
+            message.StartsWith("A possible object cycle was detected", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("Path:", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("LineNumber:", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("BytePositionInLine:", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Dəyər düzgün formatda deyil.";
+        }
+
+        return message;
     }
 
     private static async Task EnsureRolesAsync(IServiceProvider services)

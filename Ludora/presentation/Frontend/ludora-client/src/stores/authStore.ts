@@ -1,54 +1,54 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
-import type {
-  AuthResponseDTO,
-  CurrentUserDTO,
-} from "../types/auth";
+import type { AuthResponseDTO, CurrentUserDTO } from "../types/auth";
 
 interface AuthState {
   accessToken: string | null;
   expiresAtUtc: string | null;
   user: CurrentUserDTO | null;
+  isInitialized: boolean;
 
   setSession: (response: AuthResponseDTO) => void;
   setUser: (user: CurrentUserDTO) => void;
   clearSession: () => void;
+  finishInitialization: () => void;
 }
 
-export const useAuthStore = create<AuthState>()(
-  persist(
-    (set) => ({
+if (typeof window !== "undefined") {
+  window.localStorage.removeItem("ludora-auth-session");
+}
+
+export const useAuthStore = create<AuthState>((set) => ({
+  accessToken: null,
+  expiresAtUtc: null,
+  user: null,
+  isInitialized: false,
+
+  setSession: (response) => {
+    set({
+      accessToken: response.accessToken,
+      expiresAtUtc: response.expiresAtUtc,
+      user: response.user,
+      isInitialized: true,
+    });
+  },
+
+  setUser: (user) => {
+    set({ user });
+  },
+
+  clearSession: () => {
+    set({
       accessToken: null,
       expiresAtUtc: null,
       user: null,
+      isInitialized: true,
+    });
+  },
 
-      setSession: (response) => {
-        set({
-          accessToken: response.accessToken,
-          expiresAtUtc: response.expiresAtUtc,
-          user: response.user,
-        });
-      },
-
-      setUser: (user) => {
-        set({
-          user,
-        });
-      },
-
-      clearSession: () => {
-        set({
-          accessToken: null,
-          expiresAtUtc: null,
-          user: null,
-        });
-      },
-    }),
-    {
-      name: "ludora-auth-session",
-    },
-  ),
-);
+  finishInitialization: () => {
+    set({ isInitialized: true });
+  },
+}));
 
 export function isAuthSessionValid(
   accessToken: string | null,
@@ -59,10 +59,5 @@ export function isAuthSessionValid(
   }
 
   const expiresAt = new Date(expiresAtUtc).getTime();
-
-  if (Number.isNaN(expiresAt)) {
-    return false;
-  }
-
-  return expiresAt > Date.now();
+  return !Number.isNaN(expiresAt) && expiresAt > Date.now();
 }

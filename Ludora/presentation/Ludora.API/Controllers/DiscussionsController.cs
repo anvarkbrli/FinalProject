@@ -1,3 +1,4 @@
+using Ludora.API.Security;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -6,6 +7,7 @@ using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers;
 
@@ -28,7 +30,7 @@ public sealed class DiscussionsController : ControllerBase
         var result = await _discussionService.GetAllAsync(
             filter,
             GetOptionalCurrentUserId(),
-            CanModerate(),
+            CanManageContent(),
             cancellationToken);
 
         return Ok(result);
@@ -42,7 +44,7 @@ public sealed class DiscussionsController : ControllerBase
         var result = await _discussionService.GetByIdAsync(
             id,
             GetOptionalCurrentUserId(),
-            CanModerate(),
+            CanManageContent(),
             cancellationToken);
 
         return Ok(result);
@@ -56,13 +58,14 @@ public sealed class DiscussionsController : ControllerBase
         var result = await _discussionService.GetBySlugAsync(
             slug,
             GetOptionalCurrentUserId(),
-            CanModerate(),
+            CanManageContent(),
             cancellationToken);
 
         return Ok(result);
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
     [HttpPost]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(220_000_000)]
@@ -107,6 +110,7 @@ public sealed class DiscussionsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPut("{id:int}")]
     [Consumes("application/json")]
     public async Task<ActionResult<DiscussionDetailDTO>> Update(
@@ -117,7 +121,7 @@ public sealed class DiscussionsController : ControllerBase
         var result = await _discussionService.UpdateAsync(
             id,
             GetCurrentUserId(),
-            CanModerate(),
+            CanManageContent(),
             dto,
             cancellationToken);
 
@@ -125,6 +129,7 @@ public sealed class DiscussionsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
     [HttpPut("{id:int}/media")]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(220_000_000)]
@@ -152,7 +157,7 @@ public sealed class DiscussionsController : ControllerBase
         var result = await _discussionService.UpdateAsync(
             id,
             GetCurrentUserId(),
-            CanModerate(),
+            CanManageContent(),
             new DiscussionUpdateDTO
             {
                 Title = title,
@@ -169,6 +174,7 @@ public sealed class DiscussionsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPost("{id:int}/poll/vote")]
     public async Task<ActionResult<DiscussionPollDTO>> VotePoll(
         int id,
@@ -183,6 +189,7 @@ public sealed class DiscussionsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPost("{id:int}/poll/close")]
     public async Task<ActionResult<DiscussionPollDTO>> ClosePoll(
         int id,
@@ -196,6 +203,7 @@ public sealed class DiscussionsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(
         int id,
@@ -204,13 +212,14 @@ public sealed class DiscussionsController : ControllerBase
         await _discussionService.DeleteAsync(
             id,
             GetCurrentUserId(),
-            CanModerate(),
+            CanManageContent(),
             cancellationToken);
 
         return NoContent();
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPost("{id:int}/like")]
     public async Task<IActionResult> Like(
         int id,
@@ -221,6 +230,7 @@ public sealed class DiscussionsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpDelete("{id:int}/like")]
     public async Task<IActionResult> Unlike(
         int id,
@@ -231,6 +241,7 @@ public sealed class DiscussionsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPut("{id:int}/save")]
     public async Task<IActionResult> Save(
         int id,
@@ -245,6 +256,7 @@ public sealed class DiscussionsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpDelete("{id:int}/save")]
     public async Task<IActionResult> Unsave(
         int id,
@@ -258,10 +270,11 @@ public sealed class DiscussionsController : ControllerBase
         return NoContent();
     }
 
-    private bool CanModerate()
-    {
-        return User.IsInRole("Admin");
-    }
+    private bool CanModerate() =>
+        User.CanModerateForum();
+
+    private bool CanManageContent() =>
+        User.CanDeleteForumContent();
 
     private Guid GetCurrentUserId()
     {

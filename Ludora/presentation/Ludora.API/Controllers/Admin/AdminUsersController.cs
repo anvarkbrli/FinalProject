@@ -1,3 +1,4 @@
+using Ludora.API.Security;
 using Ludora.API.Extensions;
 using Ludora.Application.Common;
 using Ludora.Application.DTOs;
@@ -5,10 +6,12 @@ using Ludora.Application.DTOs.Admin;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers.Admin;
 
-[Authorize(Roles = RoleNames.AdminOrModerator)]
+[Authorize(Policy = CapabilityNames.ViewUsers)]
+[EnableRateLimiting(RateLimitPolicyNames.Moderation)]
 [Route("api/admin/users")]
 [ApiController]
 public sealed class AdminUsersController : ControllerBase
@@ -51,6 +54,7 @@ public sealed class AdminUsersController : ControllerBase
     }
 
     [HttpPost("{userId:guid}/warnings")]
+    [Authorize(Policy = CapabilityNames.WarnUsers)]
     public async Task<ActionResult<UserWarningDTO>> Warn(
         Guid userId,
         [FromBody] CreateUserWarningDTO dto,
@@ -66,6 +70,7 @@ public sealed class AdminUsersController : ControllerBase
     }
 
     [HttpPost("{userId:guid}/ban")]
+    [Authorize(Policy = CapabilityNames.TemporarilyBanUsers)]
     public async Task<ActionResult<AdminUserDetailDTO>> Ban(Guid userId, [FromBody] BanUserDTO dto, CancellationToken cancellationToken)
     {
         var result = await _adminUserService.BanAsync(
@@ -78,6 +83,7 @@ public sealed class AdminUsersController : ControllerBase
     }
 
     [HttpPost("{userId:guid}/unban")]
+    [Authorize(Policy = CapabilityNames.UnbanTemporaryUsers)]
     public async Task<ActionResult<AdminUserDetailDTO>> Unban(Guid userId, CancellationToken cancellationToken)
     {
         var result = await _adminUserService.UnbanAsync(
@@ -89,7 +95,7 @@ public sealed class AdminUsersController : ControllerBase
     }
 
     [HttpPut("{userId:guid}/role")]
-    [Authorize(Roles = RoleNames.Admin)]
+    [Authorize(Policy = CapabilityNames.ManageRoles)]
     public async Task<ActionResult<AdminUserDetailDTO>> ChangeRole(
         Guid userId,
         [FromBody] ChangeUserRoleDTO dto,

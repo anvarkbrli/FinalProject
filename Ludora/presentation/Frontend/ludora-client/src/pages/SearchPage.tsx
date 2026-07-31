@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import {
+  ChevronLeft,
+  ChevronRight,
   Gamepad2,
   ListChecks,
   LoaderCircle,
@@ -18,75 +20,91 @@ import {
   getReleaseYear,
   resolveAssetUrl,
 } from "../lib/helpers";
-import { globalSearch } from "../services/searchService";
+import {
+  searchSection,
+  type SearchSection,
+} from "../services/searchService";
+import type {
+  SearchDiscussionResultDTO,
+  SearchGameListResultDTO,
+  SearchGameResultDTO,
+  SearchReviewResultDTO,
+  SearchUserResultDTO,
+} from "../types/search";
 
-type SearchTab =
-  | "games"
-  | "users"
-  | "discussions"
-  | "reviews"
-  | "lists";
+const PAGE_SIZE = 20;
+
+function parsePage(value: string | null): number {
+  const page = Number(value);
+  return Number.isInteger(page) && page > 0 ? page : 1;
+}
+
+function parseTab(value: string | null): SearchSection {
+  return value === "users" ||
+    value === "discussions" ||
+    value === "reviews" ||
+    value === "lists"
+    ? value
+    : "games";
+}
 
 export function SearchPage() {
   const { language } = useI18n();
-  const [searchParams, setSearchParams] =
-    useSearchParams();
-  const query =
-    searchParams.get("q")?.trim() ?? "";
-  const tabValue = searchParams.get("tab");
-  const activeTab: SearchTab =
-    tabValue === "users" ||
-    tabValue === "discussions" ||
-    tabValue === "reviews" ||
-    tabValue === "lists"
-      ? tabValue
-      : "games";
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams.get("q")?.trim() ?? "";
+  const activeTab = parseTab(searchParams.get("tab"));
+  const page = parsePage(searchParams.get("page"));
 
   const resultQuery = useQuery({
-    queryKey: ["global-search-page", query],
-    queryFn: () => globalSearch(query, 40),
+    queryKey: ["search-page", activeTab, query, page, PAGE_SIZE],
+    queryFn: ({ signal }) =>
+      searchSection(activeTab, query, page, PAGE_SIZE, signal),
     enabled: query.length >= 2,
     staleTime: 30_000,
   });
 
   const data = resultQuery.data;
-  const tabs: Array<{
-    id: SearchTab;
-    label: string;
-    count: number;
-  }> = [
-    {
-      id: "games",
-      label: language === "en" ? "Games" : "Oyunlar",
-      count: data?.counts.games ?? 0,
-    },
-    {
-      id: "users",
-      label: language === "en" ? "Users" : "İstifadəçilər",
-      count: data?.counts.users ?? 0,
-    },
+  const tabs: Array<{ id: SearchSection; label: string }> = [
+    { id: "games", label: language === "en" ? "Games" : "Oyunlar" },
+    { id: "users", label: language === "en" ? "Users" : "İstifadəçilər" },
     {
       id: "discussions",
       label: language === "en" ? "Discussions" : "Müzakirələr",
-      count: data?.counts.discussions ?? 0,
     },
-    {
-      id: "reviews",
-      label: language === "en" ? "Reviews" : "Rəylər",
-      count: data?.counts.reviews ?? 0,
-    },
-    {
-      id: "lists",
-      label: language === "en" ? "Lists" : "Siyahılar",
-      count: data?.counts.lists ?? 0,
-    },
+    { id: "reviews", label: language === "en" ? "Reviews" : "Rəylər" },
+    { id: "lists", label: language === "en" ? "Lists" : "Siyahılar" },
   ];
 
-  function changeTab(tab: SearchTab) {
+  function changeTab(tab: SearchSection) {
     const next = new URLSearchParams(searchParams);
-    next.set("tab", tab);
+    if (tab === "games") next.delete("tab");
+    else next.set("tab", tab);
+    next.delete("page");
     setSearchParams(next);
   }
+
+  function changePage(nextPage: number) {
+    if (
+      nextPage < 1 ||
+      nextPage > (data?.totalPages ?? 1) ||
+      nextPage === page
+    ) {
+      return;
+    }
+
+    const next = new URLSearchParams(searchParams);
+    if (nextPage === 1) next.delete("page");
+    else next.set("page", String(nextPage));
+    setSearchParams(next);
+    window.requestAnimationFrame(() => {
+      document.getElementById("search-results")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }
+
+  const activeLabel = tabs.find((tab) => tab.id === activeTab)?.label;
 
   return (
     <div className="min-h-screen wellplayd-page-bg text-zinc-100">
@@ -103,24 +121,21 @@ export function SearchPage() {
               {language === "en" ? "Search results" : "Axtarış nəticələri"}
             </h1>
             <p className="mt-1 text-sm text-zinc-500">
-              {language === "en" ? `Content found for “${query}”` : `“${query}” üçün tapılan məzmun`}
+              {language === "en"
+                ? `Content found for “${query}”`
+                : `“${query}” üçün tapılan məzmun`}
             </p>
           </div>
         </div>
 
         {query.length < 2 ? (
-          <EmptyState text={language === "en" ? "Enter at least 2 characters to search." : "Axtarış üçün ən azı 2 simvol yaz."} />
-        ) : resultQuery.isLoading ? (
-          <div className="flex min-h-72 items-center justify-center">
-            <LoaderCircle
-              className="animate-spin text-violet-300"
-              size={30}
-            />
-          </div>
-        ) : resultQuery.isError || !data ? (
-          <div className="mt-10 rounded-3xl border border-red-400/15 bg-red-500/[0.05] p-10 text-center text-red-300">
-            {language === "en" ? "Search results could not be loaded." : "Axtarış nəticələri yüklənmədi."}
-          </div>
+          <EmptyState
+            text={
+              language === "en"
+                ? "Enter at least 2 characters to search."
+                : "Axtarış üçün ən azı 2 simvol yaz."
+            }
+          />
         ) : (
           <>
             <div className="mt-8 flex gap-2 overflow-x-auto border-b border-white/[0.07] pb-3">
@@ -135,86 +150,163 @@ export function SearchPage() {
                       : "bg-white/[0.035] text-zinc-400 hover:bg-white/[0.07] hover:text-white"
                   }`}
                 >
-                  {tab.label} ({tab.count})
+                  {tab.label}
+                  {activeTab === tab.id && data
+                    ? ` (${data.totalCount})`
+                    : ""}
                 </button>
               ))}
             </div>
 
-            <div className="mt-6 grid gap-3">
-              {activeTab === "games" &&
-                data.games.map((item) => (
-                  <ResultLink
-                    key={`${item.source}-${item.id}`}
-                    to={`/games/${item.source}/${item.id}`}
-                    imageUrl={item.coverImageUrl}
-                    icon={<Gamepad2 size={20} />}
-                    title={item.title}
-                    description={`${getReleaseYear(
-                      item.releaseDate,
-                    )}${
-                      item.averageRating !== null
-                        ? ` · ${item.averageRating.toFixed(1)} ${language === "en" ? "rating" : "puan"}`
-                        : ""
-                    }`}
+            <div id="search-results" className="scroll-mt-24">
+              {resultQuery.isLoading ? (
+                <div className="flex min-h-72 items-center justify-center">
+                  <LoaderCircle
+                    className="animate-spin text-violet-300"
+                    size={30}
                   />
-                ))}
+                </div>
+              ) : resultQuery.isError || !data ? (
+                <div className="mt-10 rounded-3xl border border-red-400/15 bg-red-500/[0.05] p-10 text-center text-red-300">
+                  {language === "en"
+                    ? "Search results could not be loaded."
+                    : "Axtarış nəticələri yüklənmədi."}
+                </div>
+              ) : (
+                <>
+                  <div className="mt-5 flex items-center justify-between gap-4 text-xs text-zinc-600">
+                    <span>
+                      {activeLabel}: {data.totalCount}
+                    </span>
+                    {resultQuery.isFetching && !resultQuery.isLoading && (
+                      <span className="inline-flex items-center gap-2">
+                        <LoaderCircle size={14} className="animate-spin" />
+                        {language === "en" ? "Updating" : "Yenilənir"}
+                      </span>
+                    )}
+                  </div>
 
-              {activeTab === "users" &&
-                data.users.map((item) => (
-                  <ResultLink
-                    key={item.id}
-                    to={`/users/${item.userName}`}
-                    imageUrl={item.profileImageUrl}
-                    icon={<UserRound size={20} />}
-                    title={item.userName}
-                    description={
-                      item.bio ?? (language === "en" ? "No bio added" : "Bio əlavə edilməyib")
-                    }
-                    rounded
-                  />
-                ))}
+                  <div className="mt-4 grid gap-3">
+                    {activeTab === "games" &&
+                      (data.items as SearchGameResultDTO[]).map((item) => (
+                        <ResultLink
+                          key={`${item.source}-${item.id}`}
+                          to={`/games/${item.source}/${item.id}`}
+                          imageUrl={item.coverImageUrl}
+                          icon={<Gamepad2 size={20} />}
+                          title={item.title}
+                          description={`${getReleaseYear(item.releaseDate)}${
+                            item.averageRating !== null
+                              ? ` · ${item.averageRating.toFixed(1)} ${
+                                  language === "en" ? "rating" : "puan"
+                                }`
+                              : ""
+                          }`}
+                        />
+                      ))}
 
-              {activeTab === "discussions" &&
-                data.discussions.map((item) => (
-                  <ResultLink
-                    key={item.id}
-                    to={`/forum/discussions/${item.slug}`}
-                    icon={<MessageSquareText size={20} />}
-                    title={item.title}
-                    description={`${item.categoryName} · ${item.authorUserName} · ${formatDateTime(item.createdAt)}`}
-                  />
-                ))}
+                    {activeTab === "users" &&
+                      (data.items as SearchUserResultDTO[]).map((item) => (
+                        <ResultLink
+                          key={item.id}
+                          to={`/users/${encodeURIComponent(item.userName)}`}
+                          imageUrl={item.profileImageUrl}
+                          icon={<UserRound size={20} />}
+                          title={item.userName}
+                          description={
+                            item.bio ??
+                            (language === "en"
+                              ? "No bio added"
+                              : "Bio əlavə edilməyib")
+                          }
+                          rounded
+                        />
+                      ))}
 
-              {activeTab === "reviews" &&
-                data.reviews.map((item) => (
-                  <ResultLink
-                    key={item.id}
-                    to={`/games/${item.source}/${item.gameId}`}
-                    imageUrl={item.gameCoverImageUrl}
-                    icon={<Star size={20} />}
-                    title={item.gameName}
-                    eyebrow={language === "en" ? `Review by ${item.userName}` : `${item.userName} tərəfindən rəy`}
-                    description={item.contentPreview}
-                  />
-                ))}
+                    {activeTab === "discussions" &&
+                      (data.items as SearchDiscussionResultDTO[]).map((item) => (
+                        <ResultLink
+                          key={item.id}
+                          to={`/forum/discussions/${encodeURIComponent(item.slug)}`}
+                          icon={<MessageSquareText size={20} />}
+                          title={item.title}
+                          description={`${item.categoryName} · ${item.authorUserName} · ${formatDateTime(item.createdAt)}`}
+                        />
+                      ))}
 
-              {activeTab === "lists" &&
-                data.lists.map((item) => (
-                  <ResultLink
-                    key={item.id}
-                    to={`/lists/${item.id}`}
-                    icon={<ListChecks size={20} />}
-                    title={item.name}
-                    description={language === "en"
-                      ? `${item.ownerUserName} · ${item.gameCount} ${item.gameCount === 1 ? "game" : "games"}${item.isRanked ? " · Ranked" : ""}`
-                      : `${item.ownerUserName} · ${item.gameCount} oyun${item.isRanked ? " · Sıralı" : ""}`}
-                  />
-                ))}
+                    {activeTab === "reviews" &&
+                      (data.items as SearchReviewResultDTO[]).map((item) => (
+                        <ResultLink
+                          key={item.id}
+                          to={`/games/${item.source}/${item.gameId}`}
+                          imageUrl={item.gameCoverImageUrl}
+                          icon={<Star size={20} />}
+                          title={item.gameName}
+                          eyebrow={
+                            language === "en"
+                              ? `Review by ${item.userName}`
+                              : `${item.userName} tərəfindən rəy`
+                          }
+                          description={item.contentPreview}
+                        />
+                      ))}
 
-              {tabs.find(
-                (item) => item.id === activeTab,
-              )?.count === 0 && (
-                <EmptyState text={language === "en" ? "No results were found in this category." : "Bu kateqoriyada nəticə tapılmadı."} />
+                    {activeTab === "lists" &&
+                      (data.items as SearchGameListResultDTO[]).map((item) => (
+                        <ResultLink
+                          key={item.id}
+                          to={`/lists/${item.id}`}
+                          icon={<ListChecks size={20} />}
+                          title={item.name}
+                          description={
+                            language === "en"
+                              ? `${item.ownerUserName} · ${item.gameCount} ${
+                                  item.gameCount === 1 ? "game" : "games"
+                                }${item.isRanked ? " · Ranked" : ""}`
+                              : `${item.ownerUserName} · ${item.gameCount} oyun${
+                                  item.isRanked ? " · Sıralı" : ""
+                                }`
+                          }
+                        />
+                      ))}
+
+                    {data.items.length === 0 && (
+                      <EmptyState
+                        text={
+                          language === "en"
+                            ? "No results were found in this category."
+                            : "Bu kateqoriyada nəticə tapılmadı."
+                        }
+                      />
+                    )}
+                  </div>
+
+                  {data.totalPages > 1 && (
+                    <div className="mt-6 flex items-center justify-between rounded-2xl border border-white/[0.08] bg-white/[0.025] p-2">
+                      <button
+                        type="button"
+                        disabled={page <= 1}
+                        onClick={() => changePage(page - 1)}
+                        className="inline-flex h-10 items-center gap-2 rounded-xl px-3 text-xs font-bold text-zinc-400 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        <ChevronLeft size={16} />
+                        {language === "en" ? "Previous" : "Əvvəlki"}
+                      </button>
+                      <span className="text-xs font-semibold text-zinc-600">
+                        {page} / {data.totalPages}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={page >= data.totalPages}
+                        onClick={() => changePage(page + 1)}
+                        className="inline-flex h-10 items-center gap-2 rounded-xl px-3 text-xs font-bold text-zinc-400 transition hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                      >
+                        {language === "en" ? "Next" : "Növbəti"}
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </>
@@ -287,7 +379,7 @@ function ResultLink({
 
 function EmptyState({ text }: { text: string }) {
   return (
-    <div className="mt-10 rounded-3xl border border-white/[0.08] bg-white/[0.025] p-10 text-center text-zinc-500">
+    <div className="rounded-3xl border border-white/[0.08] bg-white/[0.025] p-10 text-center text-zinc-500">
       {text}
     </div>
   );

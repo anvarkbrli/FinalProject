@@ -1,13 +1,16 @@
+using Ludora.API.Security;
 using Ludora.API.Extensions;
 using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers.Admin;
 
-[Authorize(Roles = RoleNames.AdminOrModerator)]
+[Authorize(Policy = CapabilityNames.ViewReports)]
+[EnableRateLimiting(RateLimitPolicyNames.Moderation)]
 [Route("api/admin/user-reports")]
 [ApiController]
 public sealed class AdminUserReportsController : ControllerBase
@@ -56,6 +59,7 @@ public sealed class AdminUserReportsController : ControllerBase
     }
 
     [HttpPatch("{reportId:long}/status")]
+    [Authorize(Policy = CapabilityNames.ManageReports)]
     public async Task<ActionResult<AdminUserReportItemDTO>> UpdateStatus(
         long reportId,
         [FromBody] AdminUserReportStatusUpdateDTO dto,

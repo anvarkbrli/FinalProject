@@ -14,6 +14,7 @@ import {
 import {
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -142,6 +143,44 @@ function getInitialCatalogReference(
   }
 
   return `${source}:${id}`;
+}
+
+function getInitialPageNumber(
+  searchParams: URLSearchParams,
+): number {
+  const value = Number(searchParams.get("page"));
+  return Number.isInteger(value) && value > 0 ? value : 1;
+}
+
+function getInitialSort(
+  searchParams: URLSearchParams,
+): GameSort {
+  const value = searchParams.get("sortBy") ?? "";
+  return sortOptions.some((option) => option.value === value)
+    ? (value as GameSort)
+    : "";
+}
+
+function setOptionalSearchParam(
+  searchParams: URLSearchParams,
+  key: string,
+  value: string,
+) {
+  if (value.trim()) {
+    searchParams.set(key, value.trim());
+  } else {
+    searchParams.delete(key);
+  }
+}
+
+function getCatalogReferenceFromNavigation(
+  navigationState: CatalogFilterNavigationState | null,
+  kind: "company" | "genre" | "platform",
+): string {
+  const filter = navigationState?.catalogFilter;
+  return filter?.kind === kind
+    ? `${filter.source}:${filter.id}`
+    : "";
 }
 
 function getCatalogDescription(
@@ -290,10 +329,8 @@ export function GamesPage() {
   const navigationState =
     location.state as CatalogFilterNavigationState | null;
 
-  const navigationCompany =
-    navigationState?.catalogFilter?.kind === "company"
-      ? navigationState.catalogFilter
-      : null;
+  const navigationFilter = navigationState?.catalogFilter ?? null;
+  const navigationFilterAppliedRef = useRef(false);
 
   const accessToken = useAuthStore(
     (state) => state.accessToken,
@@ -322,43 +359,36 @@ export function GamesPage() {
         return referenceFromUrl;
       }
 
-      return navigationCompany
-        ? `${navigationCompany.source}:${navigationCompany.id}`
-        : "";
+      return getCatalogReferenceFromNavigation(
+        navigationState,
+        "company",
+      );
     },
   );
 
   const [genreReference, setGenreReference] = useState(
     () =>
-      getInitialCatalogReference(
-        searchParams,
-        "genre",
-      ),
+      getInitialCatalogReference(searchParams, "genre") ||
+      getCatalogReferenceFromNavigation(navigationState, "genre"),
   );
 
   const [platformReference, setPlatformReference] =
     useState(() =>
-      getInitialCatalogReference(
-        searchParams,
-        "platform",
-      ),
+      getInitialCatalogReference(searchParams, "platform") ||
+      getCatalogReferenceFromNavigation(navigationState, "platform"),
     );
 
   const [releaseYear, setReleaseYear] = useState(
     searchParams.get("releaseYear") ?? "",
   );
 
-  const [sortBy, setSortBy] = useState<GameSort>(() => {
-    const value = searchParams.get("sortBy") ?? "";
+  const [sortBy, setSortBy] = useState<GameSort>(() =>
+    getInitialSort(searchParams),
+  );
 
-    return sortOptions.some(
-      (option) => option.value === value,
-    )
-      ? (value as GameSort)
-      : "";
-  });
-
-  const [pageNumber, setPageNumber] = useState(1);
+  const [pageNumber, setPageNumber] = useState(() =>
+    getInitialPageNumber(searchParams),
+  );
 
   const [
     isMobileFiltersOpen,
@@ -376,13 +406,55 @@ export function GamesPage() {
     setDebouncedCompanySearch,
   ] = useState("");
 
+  const serializedSearchParams = searchParams.toString();
+
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      setDebouncedSearch(searchInput.trim());
+      const normalizedSearch = searchInput.trim();
+      setDebouncedSearch(normalizedSearch);
+
+      const currentSearchParams = new URLSearchParams(serializedSearchParams);
+      const currentUrlSearch = currentSearchParams.get("search")?.trim() ?? "";
+      if (normalizedSearch === currentUrlSearch) return;
+
+      setOptionalSearchParam(currentSearchParams, "search", normalizedSearch);
+      currentSearchParams.delete("page");
+      setSearchParams(currentSearchParams, { replace: true });
     }, 350);
 
     return () => window.clearTimeout(timeoutId);
-  }, [searchInput]);
+  }, [searchInput, serializedSearchParams, setSearchParams]);
+
+  useEffect(() => {
+    if (!navigationFilter || navigationFilterAppliedRef.current) return;
+
+    navigationFilterAppliedRef.current = true;
+    const nextSearchParams = new URLSearchParams(searchParams);
+    const prefix = navigationFilter.kind;
+    nextSearchParams.delete(`${prefix}Name`);
+    nextSearchParams.set(`${prefix}Source`, navigationFilter.source);
+    nextSearchParams.set(`${prefix}Id`, String(navigationFilter.id));
+    nextSearchParams.delete("page");
+    setSearchParams(nextSearchParams, { replace: true });
+  }, [navigationFilter, searchParams, setSearchParams]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const currentSearchParams = new URLSearchParams(serializedSearchParams);
+      const nextSearch = currentSearchParams.get("search") ?? "";
+
+      setSearchInput((current) => current === nextSearch ? current : nextSearch);
+      setDebouncedSearch(nextSearch.trim());
+      setCompanyReference(getInitialCatalogReference(currentSearchParams, "company"));
+      setGenreReference(getInitialCatalogReference(currentSearchParams, "genre"));
+      setPlatformReference(getInitialCatalogReference(currentSearchParams, "platform"));
+      setReleaseYear(currentSearchParams.get("releaseYear") ?? "");
+      setSortBy(getInitialSort(currentSearchParams));
+      setPageNumber(getInitialPageNumber(currentSearchParams));
+    }, 0);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [serializedSearchParams]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -469,6 +541,33 @@ export function GamesPage() {
       platformsQuery.data ?? [],
       searchParams.get("platformName"),
     );
+
+  useEffect(() => {
+    const resolvedFilters: Array<{
+      prefix: "company" | "genre" | "platform";
+      item: CatalogFilterItemDTO | null;
+    }> = [
+      { prefix: "company", item: companyFromName },
+      { prefix: "genre", item: genreFromName },
+      { prefix: "platform", item: platformFromName },
+    ];
+
+    const nextSearchParams = new URLSearchParams(searchParams);
+    let changed = false;
+
+    for (const { prefix, item } of resolvedFilters) {
+      if (!item || !nextSearchParams.has(`${prefix}Name`)) continue;
+      nextSearchParams.delete(`${prefix}Name`);
+      nextSearchParams.set(`${prefix}Source`, item.source);
+      nextSearchParams.set(`${prefix}Id`, String(item.id));
+      changed = true;
+    }
+
+    if (changed) {
+      nextSearchParams.delete("page");
+      setSearchParams(nextSearchParams, { replace: true });
+    }
+  }, [companyFromName, genreFromName, platformFromName, searchParams, setSearchParams]);
 
   const effectiveCompanyReference =
     companyReference ||
@@ -670,52 +769,62 @@ export function GamesPage() {
       [],
     );
 
+  function updateCatalogFilter(
+    prefix: "company" | "genre" | "platform",
+    value: string,
+  ) {
+    const parsedReference = parseCatalogReference(value);
+    const nextSearchParams = new URLSearchParams(searchParams);
+
+    nextSearchParams.delete(`${prefix}Name`);
+    if (parsedReference) {
+      nextSearchParams.set(`${prefix}Source`, parsedReference.source);
+      nextSearchParams.set(`${prefix}Id`, String(parsedReference.id));
+    } else {
+      nextSearchParams.delete(`${prefix}Source`);
+      nextSearchParams.delete(`${prefix}Id`);
+    }
+    nextSearchParams.delete("page");
+    setSearchParams(nextSearchParams, { replace: true });
+  }
+
   function handleCompanyChange(value: string) {
-    setPageNumber(1);
     setCompanyReference(value);
-
-    const nextSearchParams =
-      new URLSearchParams(searchParams);
-
-    nextSearchParams.delete("companyName");
-    nextSearchParams.delete("companySource");
-    nextSearchParams.delete("companyId");
-
-    setSearchParams(nextSearchParams, {
-      replace: true,
-    });
+    setPageNumber(1);
+    updateCatalogFilter("company", value);
   }
 
   function handleGenreChange(value: string) {
-    setPageNumber(1);
     setGenreReference(value);
-
-    const nextSearchParams =
-      new URLSearchParams(searchParams);
-
-    nextSearchParams.delete("genreName");
-    nextSearchParams.delete("genreSource");
-    nextSearchParams.delete("genreId");
-
-    setSearchParams(nextSearchParams, {
-      replace: true,
-    });
+    setPageNumber(1);
+    updateCatalogFilter("genre", value);
   }
 
   function handlePlatformChange(value: string) {
-    setPageNumber(1);
     setPlatformReference(value);
+    setPageNumber(1);
+    updateCatalogFilter("platform", value);
+  }
 
-    const nextSearchParams =
-      new URLSearchParams(searchParams);
+  function handleReleaseYearChange(value: string) {
+    setReleaseYear(value);
+    setPageNumber(1);
+    const nextSearchParams = new URLSearchParams(searchParams);
+    setOptionalSearchParam(nextSearchParams, "releaseYear", value);
+    nextSearchParams.delete("page");
+    setSearchParams(nextSearchParams, { replace: true });
+  }
 
-    nextSearchParams.delete("platformName");
-    nextSearchParams.delete("platformSource");
-    nextSearchParams.delete("platformId");
-
-    setSearchParams(nextSearchParams, {
-      replace: true,
-    });
+  function handleSortChange(value: string) {
+    const nextSort = sortOptions.some((option) => option.value === value)
+      ? (value as GameSort)
+      : "";
+    setSortBy(nextSort);
+    setPageNumber(1);
+    const nextSearchParams = new URLSearchParams(searchParams);
+    setOptionalSearchParam(nextSearchParams, "sortBy", nextSort);
+    nextSearchParams.delete("page");
+    setSearchParams(nextSearchParams, { replace: true });
   }
 
   const activeFilterCount = [
@@ -746,6 +855,10 @@ export function GamesPage() {
     setSearchInput("");
     setDebouncedSearch("");
     setPageNumber(1);
+    const nextSearchParams = new URLSearchParams(searchParams);
+    nextSearchParams.delete("search");
+    nextSearchParams.delete("page");
+    setSearchParams(nextSearchParams, { replace: true });
   }
 
   function handlePageChange(
@@ -760,6 +873,10 @@ export function GamesPage() {
     }
 
     setPageNumber(nextPage);
+    const nextSearchParams = new URLSearchParams(searchParams);
+    if (nextPage === 1) nextSearchParams.delete("page");
+    else nextSearchParams.set("page", String(nextPage));
+    setSearchParams(nextSearchParams);
 
     window.requestAnimationFrame(() => {
       document
@@ -969,13 +1086,9 @@ export function GamesPage() {
                   min={1900}
                   max={2200}
                   value={releaseYear}
-                  onChange={(event) => {
-                    setReleaseYear(
-                      event.target.value,
-                    );
-
-                    setPageNumber(1);
-                  }}
+                  onChange={(event) =>
+                    handleReleaseYearChange(event.target.value)
+                  }
                   placeholder="Məsələn: 2026"
                   className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#111116] px-3 text-sm text-zinc-300 outline-none transition placeholder:text-zinc-700 hover:border-white/[0.15] focus:border-violet-400/50 focus:ring-4 focus:ring-violet-500/10"
                 />
@@ -991,13 +1104,7 @@ export function GamesPage() {
                   options={
                     sortSelectOptions
                   }
-                  onChange={(value) => {
-                    setSortBy(
-                      value as GameSort,
-                    );
-
-                    setPageNumber(1);
-                  }}
+                  onChange={handleSortChange}
                   placeholder="Standart sıralama"
                   clearLabel="Standart sıralama"
                   searchable={false}

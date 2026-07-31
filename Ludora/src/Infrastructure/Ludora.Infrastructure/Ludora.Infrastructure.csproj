@@ -9,6 +9,7 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+
   <ItemGroup>
     <ProjectReference Include="..\..\Core\Ludora.Application\Ludora.Application.csproj" />
   </ItemGroup>

@@ -6,7 +6,6 @@ using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Models;
 using Ludora.Domain.Enums;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 
 namespace Ludora.Infrastructure.IGDB;
@@ -45,13 +44,13 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
 
     private readonly IIgdbClient _igdbClient;
     private readonly IGameService _gameService;
-    private readonly IMemoryCache _cache;
+    private readonly IAppCache _cache;
     private readonly ILogger<HomeDiscoveryService> _logger;
 
     public HomeDiscoveryService(
         IIgdbClient igdbClient,
         IGameService gameService,
-        IMemoryCache cache,
+        IAppCache cache,
         ILogger<HomeDiscoveryService> logger)
     {
         _igdbClient = igdbClient;
@@ -63,43 +62,41 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
     public async Task<HomeDiscoveryDTO> GetAsync(
         CancellationToken cancellationToken = default)
     {
-        if (_cache.TryGetValue(
-                FreshCacheKey,
-                out HomeDiscoveryDTO? cachedResult) &&
-            cachedResult is not null)
-        {
+        var cachedResult = await _cache.GetAsync<HomeDiscoveryDTO>(
+            FreshCacheKey,
+            cancellationToken);
+        if (cachedResult is not null)
             return cachedResult;
-        }
 
         await CacheLock.WaitAsync(cancellationToken);
 
         try
         {
-            if (_cache.TryGetValue(
-                    FreshCacheKey,
-                    out cachedResult) &&
-                cachedResult is not null)
-            {
+            cachedResult = await _cache.GetAsync<HomeDiscoveryDTO>(
+                FreshCacheKey,
+                cancellationToken);
+            if (cachedResult is not null)
                 return cachedResult;
-            }
 
-            _cache.TryGetValue(
+            var staleResult = await _cache.GetAsync<HomeDiscoveryDTO>(
                 StaleCacheKey,
-                out HomeDiscoveryDTO? staleResult);
+                cancellationToken);
 
             var result = await LoadDiscoveryAsync(
                 staleResult,
                 cancellationToken);
 
-            _cache.Set(
+            await _cache.SetAsync(
                 FreshCacheKey,
                 result,
-                TimeSpan.FromMinutes(30));
+                TimeSpan.FromMinutes(30),
+                cancellationToken);
 
-            _cache.Set(
+            await _cache.SetAsync(
                 StaleCacheKey,
                 result,
-                TimeSpan.FromHours(24));
+                TimeSpan.FromHours(24),
+                cancellationToken);
 
             return result;
         }

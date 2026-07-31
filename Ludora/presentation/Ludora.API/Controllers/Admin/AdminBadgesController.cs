@@ -1,14 +1,17 @@
+using Ludora.API.Security;
 using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Badge;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers.Admin;
 
 [ApiController]
-[Authorize(Roles = RoleNames.AdminOrModerator)]
+[Authorize(Policy = CapabilityNames.ViewBadges)]
+[EnableRateLimiting(RateLimitPolicyNames.Moderation)]
 [Route("api/admin/badges")]
 public sealed class AdminBadgesController : ControllerBase
 {
@@ -27,6 +30,7 @@ public sealed class AdminBadgesController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = CapabilityNames.ManageBadges)]
     public async Task<ActionResult<BadgeDTO>> Create(
         [FromBody] BadgeUpsertDTO dto,
         CancellationToken cancellationToken)
@@ -36,6 +40,7 @@ public sealed class AdminBadgesController : ControllerBase
     }
 
     [HttpPut("{id:int}")]
+    [Authorize(Policy = CapabilityNames.ManageBadges)]
     public async Task<ActionResult<BadgeDTO>> Update(
         int id,
         [FromBody] BadgeUpsertDTO dto,
@@ -45,7 +50,7 @@ public sealed class AdminBadgesController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = RoleNames.Admin)]
+    [Authorize(Policy = CapabilityNames.ManageBadges)]
     public async Task<IActionResult> Delete(
         int id,
         CancellationToken cancellationToken)
@@ -55,6 +60,7 @@ public sealed class AdminBadgesController : ControllerBase
     }
 
     [HttpPost("{id:int}/restore")]
+    [Authorize(Policy = CapabilityNames.ManageBadges)]
     public async Task<ActionResult<BadgeDTO>> Restore(
         int id,
         CancellationToken cancellationToken)
@@ -63,6 +69,7 @@ public sealed class AdminBadgesController : ControllerBase
     }
 
     [HttpPut("{id:int}/icon")]
+    [Authorize(Policy = CapabilityNames.ManageBadges)]
     public async Task<ActionResult<BadgeDTO>> UpdateIcon(
         int id,
         IFormFile image,
@@ -84,6 +91,7 @@ public sealed class AdminBadgesController : ControllerBase
     }
 
     [HttpPost("evaluate/users/{userId:guid}")]
+    [Authorize(Policy = CapabilityNames.ManageBadges)]
     public async Task<ActionResult<object>> EvaluateUser(
         Guid userId,
         CancellationToken cancellationToken)
@@ -95,7 +103,7 @@ public sealed class AdminBadgesController : ControllerBase
     }
 
     [HttpPost("{badgeId:int}/users/{userId:guid}")]
-    [Authorize(Roles = RoleNames.Admin)]
+    [Authorize(Policy = CapabilityNames.AssignBadges)]
     public async Task<ActionResult<UserBadgeDTO>> AssignToUser(
         int badgeId,
         Guid userId,
@@ -108,7 +116,7 @@ public sealed class AdminBadgesController : ControllerBase
     }
 
     [HttpDelete("{badgeId:int}/users/{userId:guid}")]
-    [Authorize(Roles = RoleNames.Admin)]
+    [Authorize(Policy = CapabilityNames.AssignBadges)]
     public async Task<IActionResult> RevokeFromUser(
         int badgeId,
         Guid userId,

@@ -4,14 +4,14 @@ namespace Ludora.Application.DTOs;
 
 public record ChangePasswordDTO
 {
-    [Required]
+    [Required(ErrorMessage = "Cari şifrəni daxil edin.")]
     public string CurrentPassword { get; init; } = string.Empty;
 
-    [Required]
-    [StringLength(100, MinimumLength = 8)]
+    [Required(ErrorMessage = "Yeni şifrəni daxil edin.")]
+    [StringLength(100, MinimumLength = 8, ErrorMessage = "Yeni şifrə 8-100 simvol aralığında olmalıdır.")]
     public string NewPassword { get; init; } = string.Empty;
 
-    [Required]
-    [Compare(nameof(NewPassword))]
+    [Required(ErrorMessage = "Yeni şifrəni təkrar daxil edin.")]
+    [Compare(nameof(NewPassword), ErrorMessage = "Şifrələr eyni deyil.")]
     public string ConfirmNewPassword { get; init; } = string.Empty;
 }

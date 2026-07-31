@@ -1,9 +1,11 @@
+using Ludora.API.Security;
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers.User;
 
@@ -128,6 +130,7 @@ public class UserGamesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPut("{source}/{gameId:long}/status")]
     public async Task<ActionResult<UserGameDTO>> SetStatus(
         CatalogSource source,
@@ -146,6 +149,7 @@ public class UserGamesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpDelete("{source}/{gameId:long}/status")]
     public async Task<ActionResult<UserGameDTO?>> RemoveStatus(
         CatalogSource source,
@@ -165,6 +169,7 @@ public class UserGamesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPut("{source}/{gameId:long}/favorite")]
     public async Task<ActionResult<UserGameDTO?>> SetFavorite(
         CatalogSource source,
@@ -186,6 +191,7 @@ public class UserGamesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPut("{source}/{gameId:long}/wishlist")]
     public async Task<ActionResult<UserGameDTO?>> SetWishlist(
         CatalogSource source,
@@ -207,6 +213,7 @@ public class UserGamesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPut("{source}/{gameId:long}/rating")]
     public async Task<ActionResult<UserGameDTO?>> SetRating(
         CatalogSource source,

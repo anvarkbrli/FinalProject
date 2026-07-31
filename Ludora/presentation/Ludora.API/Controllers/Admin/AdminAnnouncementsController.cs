@@ -1,3 +1,4 @@
+using Ludora.API.Security;
 using Ludora.API.Extensions;
 using Ludora.Application.Common;
 using Ludora.Application.DTOs;
@@ -5,10 +6,12 @@ using Ludora.Application.DTOs.Admin;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers.Admin;
 
-[Authorize(Roles = RoleNames.AdminOrModerator)]
+[Authorize(Policy = CapabilityNames.ViewAnnouncements)]
+[EnableRateLimiting(RateLimitPolicyNames.Moderation)]
 [Route("api/admin/announcements")]
 [ApiController]
 public sealed class AdminAnnouncementsController : ControllerBase
@@ -41,6 +44,7 @@ public sealed class AdminAnnouncementsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = CapabilityNames.ManageAnnouncements)]
     public async Task<ActionResult<AnnouncementDTO>> Create(
         [FromBody] AnnouncementCreateDTO dto,
         CancellationToken cancellationToken)
@@ -57,6 +61,7 @@ public sealed class AdminAnnouncementsController : ControllerBase
     }
 
     [HttpPut("{announcementId:int}")]
+    [Authorize(Policy = CapabilityNames.ManageAnnouncements)]
     public async Task<ActionResult<AnnouncementDTO>> Update(
         int announcementId,
         [FromBody] AnnouncementUpdateDTO dto,
@@ -69,7 +74,7 @@ public sealed class AdminAnnouncementsController : ControllerBase
     }
 
     [HttpDelete("{announcementId:int}")]
-    [Authorize(Roles = RoleNames.Admin)]
+    [Authorize(Policy = CapabilityNames.ManageAnnouncements)]
     public async Task<IActionResult> Delete(
         int announcementId,
         CancellationToken cancellationToken)
@@ -82,6 +87,7 @@ public sealed class AdminAnnouncementsController : ControllerBase
     }
 
     [HttpPost("{announcementId:int}/restore")]
+    [Authorize(Policy = CapabilityNames.ManageAnnouncements)]
     public async Task<ActionResult<AnnouncementDTO>> Restore(
         int announcementId,
         CancellationToken cancellationToken)

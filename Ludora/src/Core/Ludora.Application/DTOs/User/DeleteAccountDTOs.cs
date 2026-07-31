@@ -4,10 +4,10 @@ namespace Ludora.Application.DTOs;
 
 public sealed class DeleteAccountRequestDTO
 {
-    [Required]
+    [Required(ErrorMessage = "Cari şifrəni daxil edin.")]
     public string CurrentPassword { get; init; } = string.Empty;
 
-    [Required]
+    [Required(ErrorMessage = "Hesab silinməsini təsdiqləmək üçün tələb olunan mətni daxil edin.")]
     public string ConfirmationText { get; init; } = string.Empty;
 }
 

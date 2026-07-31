@@ -6,7 +6,6 @@ using Ludora.Application.Interfaces;
 using Ludora.Application.Models.Steam;
 using Ludora.Application.Settings;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace Ludora.Infrastructure.Steam;
@@ -17,7 +16,7 @@ public sealed class SteamApiClient : ISteamApiClient
     private readonly HttpClient _httpClient;
     private readonly SteamSettings _settings;
     private readonly SteamRequestThrottle _requestThrottle;
-    private readonly IMemoryCache _cache;
+    private readonly IAppCache _cache;
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -27,7 +26,7 @@ public sealed class SteamApiClient : ISteamApiClient
         HttpClient httpClient,
         IOptions<SteamSettings> options,
         SteamRequestThrottle requestThrottle,
-        IMemoryCache cache)
+        IAppCache cache)
     {
         _httpClient = httpClient;
         _settings = options.Value;
@@ -47,10 +46,13 @@ public sealed class SteamApiClient : ISteamApiClient
 
         var cacheKey = $"steam:profile:{steamId}";
 
-        if (!bypassCache &&
-            _cache.TryGetValue(cacheKey, out SteamPlayerProfileModel? cached))
+        if (!bypassCache)
         {
-            return cached;
+            var cached = await _cache.GetAsync<SteamPlayerProfileModel>(
+                cacheKey,
+                cancellationToken);
+            if (cached is not null)
+                return cached;
         }
 
         var profiles = await GetPlayerSummariesCoreAsync([steamId], cancellationToken);
@@ -58,10 +60,11 @@ public sealed class SteamApiClient : ISteamApiClient
 
         if (profile is not null)
         {
-            _cache.Set(
+            await _cache.SetAsync(
                 cacheKey,
                 profile,
-                TimeSpan.FromSeconds(_settings.ProfileCacheSeconds));
+                TimeSpan.FromSeconds(_settings.ProfileCacheSeconds),
+                cancellationToken);
         }
 
         return profile;
@@ -234,12 +237,11 @@ public sealed class SteamApiClient : ISteamApiClient
 
         var cacheKey = $"steam:achievement-schema:{appId}:{_settings.Language}";
 
-        if (_cache.TryGetValue(
-                cacheKey,
-                out IReadOnlyDictionary<string, SteamAchievementSchemaModel>? cached))
-        {
-            return cached!;
-        }
+        var cached = await _cache.GetAsync<Dictionary<string, SteamAchievementSchemaModel>>(
+            cacheKey,
+            cancellationToken);
+        if (cached is not null)
+            return cached;
 
         var url = BuildUrl(
             "ISteamUserStats/GetSchemaForGame/v2/",
@@ -268,10 +270,11 @@ public sealed class SteamApiClient : ISteamApiClient
             .ToDictionary(x => x.ApiName, StringComparer.OrdinalIgnoreCase)
             ?? new Dictionary<string, SteamAchievementSchemaModel>(StringComparer.OrdinalIgnoreCase);
 
-        _cache.Set(
+        await _cache.SetAsync(
             cacheKey,
             result,
-            TimeSpan.FromMinutes(_settings.AchievementSchemaCacheMinutes));
+            TimeSpan.FromMinutes(_settings.AchievementSchemaCacheMinutes),
+            cancellationToken);
 
         return result;
     }

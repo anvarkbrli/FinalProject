@@ -1,6 +1,7 @@
-import { zodResolver } from "@hookform/resolvers/zod";
+﻿import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   Eye,
@@ -191,6 +192,8 @@ export function RegisterPage() {
   if (registerMutation.isSuccess) {
     const registeredEmail =
       registerMutation.variables.email.trim();
+    const emailDeliveryPending =
+      registerMutation.data.emailDeliveryPending;
 
     return (
       <main className="relative flex min-h-screen items-center justify-center overflow-hidden wellplayd-page-bg px-5 py-10 text-zinc-100">
@@ -208,16 +211,36 @@ export function RegisterPage() {
             </span>
           </Link>
 
-          <span className="mt-8 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-300">
-            <MailCheck size={27} />
+          <span
+            className={`mt-8 flex h-14 w-14 items-center justify-center rounded-2xl ${
+              emailDeliveryPending
+                ? "bg-amber-500/10 text-amber-300"
+                : "bg-emerald-500/10 text-emerald-300"
+            }`}
+          >
+            {emailDeliveryPending ? (
+              <AlertTriangle size={27} />
+            ) : (
+              <MailCheck size={27} />
+            )}
           </span>
 
-          <p className="mt-6 text-xs font-bold uppercase tracking-[0.23em] text-emerald-400">
-            Qeydiyyat tamamlandı
+          <p
+            className={`mt-6 text-xs font-bold uppercase tracking-[0.23em] ${
+              emailDeliveryPending
+                ? "text-amber-400"
+                : "text-emerald-400"
+            }`}
+          >
+            {emailDeliveryPending
+              ? "Hesab saxlanıldı"
+              : "Qeydiyyat tamamlandı"}
           </p>
 
           <h1 className="mt-3 text-3xl font-bold tracking-tight text-white">
-            Email ünvanını təsdiqlə
+            {emailDeliveryPending
+              ? "Təsdiq emailini yenidən göndər"
+              : "Email ünvanını təsdiqlə"}
           </h1>
 
           <p className="mt-4 text-sm leading-7 text-zinc-400">
@@ -225,8 +248,9 @@ export function RegisterPage() {
           </p>
 
           <p className="mt-3 text-xs leading-6 text-zinc-500">
-            Məktub bir neçə dəqiqəyə gəlməzsə Spam/Junk qovluğunu yoxla.
-            Sonra aşağıdakı düymə ilə təsdiq emailini yenidən göndərə bilərsən.
+            {emailDeliveryPending
+              ? "Hesab silinməyib. Email xidməti əlçatan olduqda aşağıdakı düymə ilə yeni təsdiq linki istəyə bilərsən."
+              : "Məktub bir neçə dəqiqəyə gəlməzsə Spam/Junk qovluğunu yoxla. Sonra aşağıdakı düymə ilə təsdiq emailini yenidən göndərə bilərsən."}
           </p>
 
           <div className="mt-6 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-4 py-3">

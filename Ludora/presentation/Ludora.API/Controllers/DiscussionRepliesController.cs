@@ -1,8 +1,10 @@
+using Ludora.API.Security;
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers;
 
@@ -25,7 +27,7 @@ public sealed class DiscussionRepliesController : ControllerBase
         var result = await _replyService.GetByIdAsync(
             replyId,
             GetOptionalCurrentUserId(),
-            CanModerate(),
+            CanManageContent(),
             cancellationToken);
 
         return Ok(result);
@@ -43,13 +45,14 @@ public sealed class DiscussionRepliesController : ControllerBase
             pageNumber,
             pageSize,
             GetOptionalCurrentUserId(),
-            CanModerate(),
+            CanManageContent(),
             cancellationToken);
 
         return Ok(result);
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPost("discussions/{discussionId:int}/replies")]
     public async Task<ActionResult<DiscussionReplyDTO>> Create(
         int discussionId,
@@ -69,6 +72,7 @@ public sealed class DiscussionRepliesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPut("discussion-replies/{replyId:int}")]
     public async Task<ActionResult<DiscussionReplyDTO>> Update(
         int replyId,
@@ -78,7 +82,7 @@ public sealed class DiscussionRepliesController : ControllerBase
         var result = await _replyService.UpdateAsync(
             replyId,
             GetCurrentUserId(),
-            CanModerate(),
+            CanManageContent(),
             dto,
             cancellationToken);
 
@@ -86,6 +90,7 @@ public sealed class DiscussionRepliesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpDelete("discussion-replies/{replyId:int}")]
     public async Task<IActionResult> Delete(
         int replyId,
@@ -94,13 +99,14 @@ public sealed class DiscussionRepliesController : ControllerBase
         await _replyService.DeleteAsync(
             replyId,
             GetCurrentUserId(),
-            CanModerate(),
+            CanManageContent(),
             cancellationToken);
 
         return NoContent();
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPost("discussion-replies/{replyId:int}/like")]
     public async Task<IActionResult> Like(
         int replyId,
@@ -111,6 +117,7 @@ public sealed class DiscussionRepliesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpDelete("discussion-replies/{replyId:int}/like")]
     public async Task<IActionResult> Unlike(
         int replyId,
@@ -121,6 +128,7 @@ public sealed class DiscussionRepliesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPut("discussion-replies/{replyId:int}/vote")]
     public async Task<ActionResult<DiscussionReplyDTO>> Vote(
         int replyId,
@@ -131,13 +139,14 @@ public sealed class DiscussionRepliesController : ControllerBase
             replyId,
             GetCurrentUserId(),
             dto.Value,
-            CanModerate(),
+            CanManageContent(),
             cancellationToken);
 
         return Ok(result);
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPut("discussion-replies/{replyId:int}/follow")]
     public async Task<IActionResult> Follow(
         int replyId,
@@ -152,6 +161,7 @@ public sealed class DiscussionRepliesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpDelete("discussion-replies/{replyId:int}/follow")]
     public async Task<IActionResult> Unfollow(
         int replyId,
@@ -165,10 +175,8 @@ public sealed class DiscussionRepliesController : ControllerBase
         return NoContent();
     }
 
-    private bool CanModerate()
-    {
-        return User.IsInRole("Admin");
-    }
+    private bool CanManageContent() =>
+        User.CanDeleteForumContent();
 
     private Guid GetCurrentUserId()
     {

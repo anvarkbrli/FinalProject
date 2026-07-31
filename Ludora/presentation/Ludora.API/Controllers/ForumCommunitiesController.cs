@@ -1,9 +1,11 @@
+using Ludora.API.Security;
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers;
 
@@ -49,6 +51,7 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
     [HttpPost]
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(20_000_000)]
@@ -86,6 +89,7 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPut("{id:int}/join")]
     public async Task<IActionResult> Join(int id, CancellationToken cancellationToken)
     {
@@ -94,6 +98,7 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpDelete("{id:int}/membership")]
     public async Task<ActionResult<ForumCommunityLeaveResultDTO>> Leave(
         int id,
@@ -106,6 +111,7 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPut("{id:int}/follow")]
     public async Task<IActionResult> Follow(int id, CancellationToken cancellationToken)
     {
@@ -114,6 +120,7 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpDelete("{id:int}/follow")]
     public async Task<IActionResult> Unfollow(int id, CancellationToken cancellationToken)
     {
@@ -134,6 +141,7 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPut("{id:int}/membership-requests/{membershipId:int}/approve")]
     public async Task<IActionResult> ApproveMembership(
         int id,
@@ -149,6 +157,7 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpDelete("{id:int}/membership-requests/{membershipId:int}")]
     public async Task<IActionResult> RejectMembership(
         int id,
@@ -190,6 +199,7 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpDelete("{id:int}/members/{membershipId:int}")]
     public async Task<IActionResult> RemoveMember(
         int id,
@@ -206,6 +216,7 @@ public sealed class ForumCommunitiesController : ControllerBase
 
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPut("{id:int}/members/{membershipId:int}/role")]
     public async Task<IActionResult> UpdateMemberRole(
         int id,
@@ -223,6 +234,7 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(
         int id,
@@ -236,6 +248,7 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPost("{id:int}/invitations")]
     public async Task<IActionResult> Invite(
         int id,
@@ -251,6 +264,7 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPut("{id:int}/invitations/accept")]
     public async Task<IActionResult> AcceptInvite(
         int id,
@@ -265,6 +279,7 @@ public sealed class ForumCommunitiesController : ControllerBase
 
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpPut("{id:int}/ownership-offer/accept")]
     public async Task<IActionResult> AcceptOwnershipOffer(
         int id,
@@ -278,6 +293,7 @@ public sealed class ForumCommunitiesController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
     [HttpDelete("{id:int}/ownership-offer")]
     public async Task<IActionResult> DeclineOwnershipOffer(
         int id,

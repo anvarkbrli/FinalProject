@@ -51,3 +51,9 @@ export interface DeleteAccountResultDTO {
   pendingCommunityCount: number;
   message: string;
 }
+
+export interface ConfirmEmailChangeRequestDTO {
+  userId: string;
+  newEmail: string;
+  token: string;
+}

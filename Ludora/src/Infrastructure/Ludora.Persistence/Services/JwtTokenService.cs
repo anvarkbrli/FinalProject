@@ -1,4 +1,4 @@
-﻿namespace Ludora.Persistence.Services;
+namespace Ludora.Persistence.Services;
 
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -19,7 +19,7 @@ public class JwtTokenService : IJwtTokenService
         _settings = options.Value;
     }
 
-    public JwtTokenDTO CreateToken(AppUser user, IEnumerable<string> roles)
+    public JwtTokenDTO CreateToken(AppUser user, IEnumerable<string> roles, Guid sessionId)
     {
         ValidateSettings();
 
@@ -33,6 +33,7 @@ public class JwtTokenService : IJwtTokenService
             new Claim(ClaimTypes.Name, user.UserName ?? string.Empty),
             new Claim(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new Claim("security_stamp", user.SecurityStamp ?? string.Empty),
+            new Claim("session_id", sessionId.ToString()),
             new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 

@@ -58,26 +58,42 @@ public sealed class GlobalExceptionMiddleware
 
             context.Response.Clear();
             context.Response.StatusCode = statusCode;
-            context.Response.ContentType = "application/json";
+            context.Response.ContentType = "application/json; charset=utf-8";
 
             var localizedException = _localizer[exception.Message];
+            var isSafeApplicationException = exception is
+                BadRequestException or
+                UnauthorizedException or
+                ForbiddenException or
+                NotFoundException or
+                ConflictException or
+                ExternalServiceException;
+
             var message = !localizedException.ResourceNotFound
                 ? localizedException.Value
-                : statusCode switch
-                {
-                    StatusCodes.Status400BadRequest => _localizer["BadRequest"],
-                    StatusCodes.Status401Unauthorized => _localizer["Unauthorized"],
-                    StatusCodes.Status403Forbidden => _localizer["Forbidden"],
-                    StatusCodes.Status404NotFound => _localizer["NotFound"],
-                    StatusCodes.Status409Conflict => _localizer["Conflict"],
-                    StatusCodes.Status503ServiceUnavailable => _localizer["ExternalServiceUnavailable"],
-                    _ => _localizer["UnexpectedServerError"]
-                };
+                : isSafeApplicationException &&
+                  !string.IsNullOrWhiteSpace(exception.Message)
+                    ? exception.Message
+                    : exception switch
+                    {
+                        DbUpdateException => _localizer["Errors.DatabaseConflict"],
+                        _ => statusCode switch
+                        {
+                            StatusCodes.Status400BadRequest => _localizer["Errors.BadRequest"],
+                            StatusCodes.Status401Unauthorized => _localizer["Errors.Unauthorized"],
+                            StatusCodes.Status403Forbidden => _localizer["Errors.Forbidden"],
+                            StatusCodes.Status404NotFound => _localizer["Errors.NotFound"],
+                            StatusCodes.Status409Conflict => _localizer["Errors.Conflict"],
+                            StatusCodes.Status503ServiceUnavailable => _localizer["Errors.ExternalService"],
+                            _ => _localizer["Errors.Unexpected"]
+                        }
+                    };
 
             var response = new
             {
                 statusCode,
-                message
+                message = message.ToString(),
+                traceId = context.TraceIdentifier
             };
 
             await context.Response.WriteAsync(

@@ -1,8 +1,10 @@
+using Ludora.API.Security;
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers.User;
 
@@ -18,6 +20,7 @@ public class PostsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
     [HttpPost]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<PostDTO>> Create(
@@ -87,6 +90,7 @@ public class PostsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
     [HttpPut("{postId:long}")]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<PostDTO>> Update(
@@ -115,6 +119,7 @@ public class PostsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpDelete("{postId:long}")]
     public async Task<IActionResult> Delete(
         long postId,

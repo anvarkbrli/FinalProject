@@ -1,4 +1,4 @@
-import {
+﻿import {
   useMutation,
   useQuery,
   useQueryClient,
@@ -61,6 +61,7 @@ import { ProfileOverview } from "../components/profile/ProfileOverview";
 import { ProfileSteamLibrary } from "../components/profile/ProfileSteamLibrary";
 import { UserReportModal } from "../components/profile/UserReportModal";
 import { ContentReportButton } from "../components/reporting/ContentReportButton";
+import { ApiErrorStatusPage } from "../components/status/ApiErrorStatusPage";
 import { SocialPlatformIcon } from "../components/profile/SocialPlatformIcon";
 import { ReviewCommentsPanel } from "../components/reviews/ReviewCommentsPanel";
 import { ReviewHardwareSummary } from "../components/reviews/ReviewHardwareSummary";
@@ -1479,36 +1480,10 @@ export function ProfilePage() {
 
   if (profileQuery.isError || !profile) {
     return (
-      <div className="min-h-screen wellplayd-page-bg text-zinc-100">
-        <Navbar />
-
-        <main className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center px-5 py-16 text-center">
-          <div className="w-full rounded-3xl border border-red-400/15 bg-red-500/[0.05] p-8">
-            <X
-              size={32}
-              className="mx-auto text-red-300"
-            />
-
-            <h1 className="mt-5 text-2xl font-bold text-white">
-              Profil açılmadı
-            </h1>
-
-            <p className="mt-3 text-sm leading-7 text-red-200/80">
-              {getApiErrorMessage(
-                profileQuery.error,
-                "İstifadəçi tapılmadı və ya bu profilə baxmaq mümkün deyil.",
-              )}
-            </p>
-
-            <Link
-              to="/"
-              className="mx-auto mt-6 flex h-11 w-fit items-center justify-center rounded-xl bg-violet-600 px-5 text-sm font-semibold text-white transition hover:bg-violet-500"
-            >
-              Ana səhifəyə qayıt
-            </Link>
-          </div>
-        </main>
-      </div>
+      <ApiErrorStatusPage
+        error={profileQuery.error}
+        entityName="Profil"
+      />
     );
   }
 

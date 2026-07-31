@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+﻿import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Bell,
@@ -7,7 +7,6 @@ import {
   ChevronRight,
   Flag,
   LoaderCircle,
-  LockKeyhole,
   LogOut,
   MoreHorizontal,
   Shield,
@@ -26,6 +25,7 @@ import {
 } from "../components/forum/CommunityOwnerManagementModal";
 import { CommunityOwnershipOfferModal } from "../components/forum/CommunityOwnershipOfferModal";
 import { Navbar } from "../components/layout/Navbar";
+import { ApiErrorStatusPage } from "../components/status/ApiErrorStatusPage";
 import { UserReportModal } from "../components/profile/UserReportModal";
 import { useI18n } from "../i18n/useI18n";
 import { getApiErrorMessage } from "../lib/api";
@@ -170,25 +170,12 @@ export function ForumCommunityPage() {
     );
   }
 
-  if (!community) {
+  if (!community || communityQuery.isError) {
     return (
-      <div className="forum-theme min-h-screen text-zinc-100">
-        <Navbar />
-        <main className="mx-auto max-w-3xl px-5 py-20 text-center">
-          <LockKeyhole size={34} className="mx-auto text-zinc-700" />
-          <h1 className="mt-5 text-2xl font-bold">İcma tapılmadı</h1>
-          <p className="mt-2 text-sm text-zinc-500">
-            İcma mövcud deyil və ya onu görmək icazəniz yoxdur.
-          </p>
-          <Link
-            to="/forum"
-            className="mt-6 inline-flex items-center gap-2 text-sm font-bold text-teal-300"
-          >
-            <ArrowLeft size={16} />
-            Foruma qayıt
-          </Link>
-        </main>
-      </div>
+      <ApiErrorStatusPage
+        error={communityQuery.error}
+        entityName="İcma"
+      />
     );
   }
 

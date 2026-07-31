@@ -1,4 +1,4 @@
-import {
+﻿import {
   useMutation,
   useQuery,
   useQueryClient,
@@ -38,6 +38,7 @@ import {
 } from "../components/lists/GameListEditorModal";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
+import { ApiErrorStatusPage } from "../components/status/ApiErrorStatusPage";
 import { useI18n } from "../i18n/useI18n";
 import { getApiErrorMessage } from "../lib/api";
 import {
@@ -328,29 +329,10 @@ export function GameListDetailPage() {
 
   if (listQuery.isError || !listQuery.data) {
     return (
-      <div className="min-h-screen wellplayd-page-bg text-zinc-100">
-        <Navbar />
-        <main className="mx-auto flex min-h-[70vh] max-w-2xl items-center justify-center px-5 py-12">
-          <div className="w-full rounded-3xl border border-red-400/15 bg-red-500/[0.06] p-8 text-center">
-            <X size={32} className="mx-auto text-red-300" />
-            <h1 className="mt-5 text-2xl font-black text-white">
-              Siyahı açılmadı
-            </h1>
-            <p className="mt-3 text-sm leading-7 text-red-100/70">
-              {getApiErrorMessage(
-                listQuery.error,
-                "Siyahı tapılmadı və ya onu görmək icazən yoxdur.",
-              )}
-            </p>
-            <Link
-              to="/"
-              className="mx-auto mt-6 flex h-11 w-fit items-center rounded-xl bg-violet-600 px-5 text-sm font-bold text-white"
-            >
-              Ana səhifəyə qayıt
-            </Link>
-          </div>
-        </main>
-      </div>
+      <ApiErrorStatusPage
+        error={listQuery.error}
+        entityName="Siyahı"
+      />
     );
   }
 

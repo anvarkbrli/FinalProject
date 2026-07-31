@@ -1,3 +1,4 @@
+using Ludora.Application.Common;
 using System.Text;
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Badge;
@@ -54,6 +55,7 @@ public class UserService : IUserService
             UserName = user.UserName ?? string.Empty,
             Email = user.Email ?? string.Empty,
             Roles = roles.ToArray(),
+            Capabilities = RoleCapabilityMatrix.GetCapabilities(roles),
             EmailConfirmed = user.EmailConfirmed,
             Bio = user.Bio,
             ProfileImageUrl = user.ProfileImageUrl,
@@ -379,7 +381,7 @@ public class UserService : IUserService
         return new EmailOperationResultDTO
         {
             Message =
-                "Yeni email ünvanına təsdiq linki göndərildi. Link təsdiqlənənədək mövcud email dəyişməyəcək."
+                "Yeni email ünvanı üçün təsdiq məktubu göndəriş növbəsinə əlavə edildi. Link təsdiqlənənədək mövcud email dəyişməyəcək."
         };
     }
 
@@ -417,6 +419,21 @@ public class UserService : IUserService
 
         var stampResult = await _userManager.UpdateSecurityStampAsync(user);
         stampResult.ThrowIfFailed();
+
+        var now = DateTime.UtcNow;
+        var activeSessions = await _context.RefreshSessions
+            .Where(session =>
+                session.UserId == user.Id &&
+                session.RevokedAtUtc == null)
+            .ToListAsync(cancellationToken);
+
+        foreach (var session in activeSessions)
+        {
+            session.RevokedAtUtc = now;
+            session.RevocationReason = "Email ünvanı dəyişdirildi.";
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
 
         return new EmailOperationResultDTO
         {
@@ -541,7 +558,7 @@ public class UserService : IUserService
         string token)
     {
         var endpoint =
-            $"{_emailSettings.PublicApiBaseUrl.TrimEnd('/')}/api/users/email-change/confirm";
+            $"{_emailSettings.PublicFrontendBaseUrl.TrimEnd('/')}/confirm-email-change";
 
         return QueryHelpers.AddQueryString(
             endpoint,

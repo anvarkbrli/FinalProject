@@ -27,7 +27,7 @@ internal sealed class EmailConfigurationLogger : IHostedService
         {
             _logger.LogWarning(
                 "Email xidməti deaktivdir. Environment: {Environment}. " +
-                "Qeydiyyat emaili göndərilməyəcək. User-secrets və ya environment variable-ları yoxlayın.",
+                "Outbox-a əlavə edilən emaillər göndərilmədən növbədə qalacaq. User-secrets və ya environment variable-ları yoxlayın.",
                 _environment.EnvironmentName);
 
             return Task.CompletedTask;

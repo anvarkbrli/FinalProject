@@ -1,5 +1,8 @@
 .forum-comment-children {
   --forum-branch-offset: 1.35rem;
+  --forum-branch-gap: 0.75rem;
+  --forum-branch-elbow-y: 2.15rem;
+  --forum-branch-continuation-end: -2.9rem;
   position: relative;
   margin-left: 1.1rem;
   padding-left: var(--forum-branch-offset);
@@ -9,12 +12,20 @@
   position: relative;
 }
 
+/*
+ * Hər cavabın dirsəyini ayrıca çəkirik. Şaquli davam xətti isə yalnız
+ * sonuncu olmayan sibling-dən növbəti sibling-in dirsəyinə qədər uzanır.
+ * Beləliklə eyni şərhə gələn cavablar arasında xətt boşluqda qırılmır.
+ */
 .forum-comment-branch::before {
   position: absolute;
-  top: -0.75rem;
+  z-index: 1;
+  top: calc(var(--forum-branch-gap) * -1);
   left: calc(var(--forum-branch-offset) * -1);
   width: calc(var(--forum-branch-offset) - 0.3rem);
-  height: 2.9rem;
+  height: calc(
+    var(--forum-branch-elbow-y) + var(--forum-branch-gap)
+  );
   border-bottom: 1px solid rgba(94, 234, 212, 0.3);
   border-left: 1px solid rgba(94, 234, 212, 0.3);
   border-bottom-left-radius: 0.75rem;
@@ -24,8 +35,9 @@
 
 .forum-comment-branch:not(:last-child)::after {
   position: absolute;
-  top: 2rem;
-  bottom: -1rem;
+  z-index: 0;
+  top: var(--forum-branch-elbow-y);
+  bottom: var(--forum-branch-continuation-end);
   left: calc(var(--forum-branch-offset) * -1);
   width: 1px;
   background: rgba(94, 234, 212, 0.3);
@@ -309,7 +321,7 @@
   border-color: transparent transparent var(--forum-branch) var(--forum-branch);
 }
 
-.forum-theme .forum-comment-branch:not(:last-child)::after {
+.forum-theme .forum-comment-branch::after {
   background: var(--forum-branch);
 }
 

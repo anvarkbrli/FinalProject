@@ -1,18 +1,12 @@
-﻿using System;
-using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
-namespace Ludora.Application.DTOs.JWT
+namespace Ludora.Application.DTOs.JWT;
+
+public record LoginDTO
 {
-    public record LoginDTO
-    {
-        [Required]
-        public string EmailOrUserName { get; set; } = string.Empty;
+    [Required(ErrorMessage = "Email və ya istifadəçi adını daxil edin.")]
+    public string EmailOrUserName { get; set; } = string.Empty;
 
-        [Required]
-        public string Password { get; set; } = string.Empty;
-    }
+    [Required(ErrorMessage = "Şifrəni daxil edin.")]
+    public string Password { get; set; } = string.Empty;
 }

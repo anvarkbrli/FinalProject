@@ -50,7 +50,7 @@ public static class ServiceRegistration
                 "EmailSettings:SendTimeoutSeconds 5-120 aralığında olmalıdır.")
             .ValidateOnStart();
 
-        services.AddScoped<IEmailService, SmtpEmailService>();
+        services.AddScoped<IEmailTransport, SmtpEmailService>();
         services.AddHostedService<EmailConfigurationLogger>();
 
         return services;

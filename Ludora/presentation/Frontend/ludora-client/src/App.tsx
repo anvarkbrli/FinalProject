@@ -1,5 +1,5 @@
 import { lazy, Suspense } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import { AdminLayout } from "./components/admin/AdminLayout";
 import { AdminRoute } from "./components/admin/AdminRoute";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
@@ -37,6 +37,21 @@ const ConfirmEmailPage = lazy(() =>
 const ResendEmailConfirmationPage = lazy(() =>
   import("./pages/ResendEmailConfirmationPage").then((module) => ({
     default: module.ResendEmailConfirmationPage,
+  })),
+);
+const ForgotPasswordPage = lazy(() =>
+  import("./pages/ForgotPasswordPage").then((module) => ({
+    default: module.ForgotPasswordPage,
+  })),
+);
+const ResetPasswordPage = lazy(() =>
+  import("./pages/ResetPasswordPage").then((module) => ({
+    default: module.ResetPasswordPage,
+  })),
+);
+const ConfirmEmailChangePage = lazy(() =>
+  import("./pages/ConfirmEmailChangePage").then((module) => ({
+    default: module.ConfirmEmailChangePage,
   })),
 );
 const ProfilePage = lazy(() =>
@@ -139,6 +154,21 @@ const AdminCatalogPage = lazy(() =>
     default: module.AdminCatalogPage,
   })),
 );
+const NotFoundPage = lazy(() =>
+  import("./pages/NotFoundPage").then((module) => ({
+    default: module.NotFoundPage,
+  })),
+);
+const ForbiddenPage = lazy(() =>
+  import("./pages/ForbiddenPage").then((module) => ({
+    default: module.ForbiddenPage,
+  })),
+);
+const ContentUnavailablePage = lazy(() =>
+  import("./pages/ContentUnavailablePage").then((module) => ({
+    default: module.ContentUnavailablePage,
+  })),
+);
 
 function RouteFallback() {
   return (
@@ -170,6 +200,12 @@ function App() {
         <Route
           path="/resend-email-confirmation"
           element={<ResendEmailConfirmationPage />}
+        />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route
+          path="/confirm-email-change"
+          element={<ConfirmEmailChangePage />}
         />
         <Route path="/users/:userName" element={<ProfilePage />} />
         <Route path="/games" element={<GamesPage />} />
@@ -244,7 +280,12 @@ function App() {
           <Route path="badges" element={<AdminBadgesPage />} />
           <Route path="catalog" element={<AdminCatalogPage />} />
         </Route>
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/forbidden" element={<ForbiddenPage />} />
+        <Route
+          path="/content-unavailable"
+          element={<ContentUnavailablePage />}
+        />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
   );

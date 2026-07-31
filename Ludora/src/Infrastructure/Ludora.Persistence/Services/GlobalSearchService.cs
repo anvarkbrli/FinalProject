@@ -137,6 +137,344 @@ public sealed class GlobalSearchService : IGlobalSearchService
         };
     }
 
+    public async Task<PagedResultDTO<SearchGameResultDTO>> SearchGamesPageAsync(
+        SearchPageFilterDTO filter,
+        CancellationToken cancellationToken = default)
+    {
+        var query = ValidatePageFilter(filter);
+        var result = await _gameService.GetFilteredGamesAsync(
+            new GameFilterDTO
+            {
+                SearchName = query,
+                IncludeRelatedContent = false,
+                PageNumber = filter.PageNumber,
+                PageSize = filter.PageSize
+            },
+            cancellationToken);
+
+        var items = result.Items
+            .GroupBy(item => NormalizeSearchValue(item.Title))
+            .Select(group => group
+                .OrderByDescending(item => item.ReleaseDate.HasValue)
+                .ThenByDescending(item => !string.IsNullOrWhiteSpace(item.CoverImageUrl))
+                .ThenByDescending(item => item.AverageRating)
+                .ThenByDescending(item => item.Source == CatalogSource.Igdb)
+                .First())
+            .Select(item => new SearchGameResultDTO
+            {
+                Source = item.Source,
+                Id = item.Id,
+                Title = item.Title,
+                CoverImageUrl = item.CoverImageUrl,
+                ReleaseDate = item.ReleaseDate,
+                AverageRating = item.AverageRating,
+                Score = CalculateTitleScore(
+                    item.Title,
+                    query,
+                    exactScore: 1050,
+                    prefixScore: 760,
+                    containsScore: 510) + 100
+            })
+            .OrderByDescending(item => item.Score)
+            .ThenByDescending(item => item.AverageRating)
+            .ThenBy(item => item.Title)
+            .ToList();
+
+        return new PagedResultDTO<SearchGameResultDTO>
+        {
+            Items = items,
+            PageNumber = result.PageNumber,
+            PageSize = result.PageSize,
+            TotalCount = result.TotalCount,
+            TotalPages = result.TotalPages
+        };
+    }
+
+    public async Task<PagedResultDTO<SearchUserResultDTO>> SearchUsersPageAsync(
+        SearchPageFilterDTO filter,
+        Guid? currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var query = ValidatePageFilter(filter);
+        var visibility = CreateVisibilityQueries(currentUserId);
+        var usersQuery = _context.Users
+            .AsNoTracking()
+            .Where(user =>
+                user.UserName != null &&
+                (user.UserName.Contains(query) ||
+                 (user.Bio != null && user.Bio.Contains(query))));
+
+        if (visibility.BlockedUserIds is not null)
+            usersQuery = usersQuery.Where(user => !visibility.BlockedUserIds.Contains(user.Id));
+
+        var totalCount = await usersQuery.CountAsync(cancellationToken);
+        var candidates = await usersQuery
+            .OrderByDescending(user => user.UserName == query)
+            .ThenByDescending(user => user.UserName!.StartsWith(query))
+            .ThenByDescending(user => user.UserName!.Contains(query))
+            .ThenByDescending(user => user.Bio != null && user.Bio.Contains(query))
+            .ThenBy(user => user.UserName)
+            .Skip(GetPageOffset(filter))
+            .Take(filter.PageSize)
+            .Select(user => new
+            {
+                user.Id,
+                UserName = user.UserName!,
+                user.ProfileImageUrl,
+                user.Bio
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = candidates
+            .Select(user => new SearchUserResultDTO
+            {
+                Id = user.Id,
+                UserName = user.UserName,
+                ProfileImageUrl = user.ProfileImageUrl,
+                Bio = user.Bio,
+                Score = CalculateTitleScore(
+                    user.UserName,
+                    query,
+                    exactScore: 1200,
+                    prefixScore: 920,
+                    containsScore: 680) +
+                    CalculateSecondaryScore(user.Bio, query, 180)
+            })
+            .ToList();
+
+        return CreatePage(items, totalCount, filter);
+    }
+
+    public async Task<PagedResultDTO<SearchDiscussionResultDTO>> SearchDiscussionsPageAsync(
+        SearchPageFilterDTO filter,
+        Guid? currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var query = ValidatePageFilter(filter);
+        var visibility = CreateVisibilityQueries(currentUserId);
+        var discussionsQuery = _context.Discussions
+            .AsNoTracking()
+            .Where(discussion =>
+                discussion.Title.Contains(query) ||
+                discussion.Content.Contains(query));
+
+        if (visibility.BlockedUserIds is not null)
+        {
+            discussionsQuery = discussionsQuery.Where(
+                discussion => !visibility.BlockedUserIds.Contains(discussion.UserId));
+        }
+
+        discussionsQuery = currentUserId.HasValue
+            ? discussionsQuery.Where(discussion =>
+                !discussion.User.IsPrivate ||
+                discussion.UserId == currentUserId.Value ||
+                visibility.FollowedUserIds!.Contains(discussion.UserId))
+            : discussionsQuery.Where(discussion => !discussion.User.IsPrivate);
+
+        var totalCount = await discussionsQuery.CountAsync(cancellationToken);
+        var candidates = await discussionsQuery
+            .OrderByDescending(discussion => discussion.Title == query)
+            .ThenByDescending(discussion => discussion.Title.StartsWith(query))
+            .ThenByDescending(discussion => discussion.Title.Contains(query))
+            .ThenByDescending(discussion => discussion.CreatedAt)
+            .Skip(GetPageOffset(filter))
+            .Take(filter.PageSize)
+            .Select(discussion => new
+            {
+                discussion.Id,
+                discussion.Title,
+                discussion.Slug,
+                discussion.Content,
+                CategoryName = discussion.Category.Name,
+                AuthorUserName = discussion.User.UserName ?? string.Empty,
+                discussion.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = candidates
+            .Select(discussion => new SearchDiscussionResultDTO
+            {
+                Id = discussion.Id,
+                Title = discussion.Title,
+                Slug = discussion.Slug,
+                CategoryName = discussion.CategoryName,
+                AuthorUserName = discussion.AuthorUserName,
+                CreatedAt = discussion.CreatedAt,
+                Score = CalculateTitleScore(
+                    discussion.Title,
+                    query,
+                    exactScore: 860,
+                    prefixScore: 670,
+                    containsScore: 430) +
+                    CalculateSecondaryScore(discussion.Content, query, 160)
+            })
+            .ToList();
+
+        return CreatePage(items, totalCount, filter);
+    }
+
+    public async Task<PagedResultDTO<SearchReviewResultDTO>> SearchReviewsPageAsync(
+        SearchPageFilterDTO filter,
+        Guid? currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var query = ValidatePageFilter(filter);
+        var visibility = CreateVisibilityQueries(currentUserId);
+        var reviewsQuery = _context.Reviews
+            .AsNoTracking()
+            .Where(review =>
+                review.Content != string.Empty &&
+                review.Content.Contains(query));
+
+        if (visibility.BlockedUserIds is not null)
+            reviewsQuery = reviewsQuery.Where(review => !visibility.BlockedUserIds.Contains(review.UserId));
+
+        reviewsQuery = currentUserId.HasValue
+            ? reviewsQuery.Where(review =>
+                !review.User.IsPrivate ||
+                review.UserId == currentUserId.Value ||
+                visibility.FollowedUserIds!.Contains(review.UserId))
+            : reviewsQuery.Where(review => !review.User.IsPrivate);
+
+        var totalCount = await reviewsQuery.CountAsync(cancellationToken);
+        var candidates = await reviewsQuery
+            .OrderByDescending(review => review.Content == query)
+            .ThenByDescending(review => review.Content.StartsWith(query))
+            .ThenByDescending(review => review.CreatedAt)
+            .Skip(GetPageOffset(filter))
+            .Take(filter.PageSize)
+            .Select(review => new ReviewCandidate
+            {
+                Id = review.Id,
+                UserId = review.UserId,
+                UserName = review.User.UserName ?? string.Empty,
+                ProfileImageUrl = review.User.ProfileImageUrl,
+                Source = review.Source,
+                GameId = review.GameId,
+                Content = review.Content,
+                ContainsSpoilers = review.ContainsSpoilers,
+                CreatedAt = review.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var references = candidates
+            .Select(candidate => new CatalogReferenceDTO
+            {
+                Source = candidate.Source,
+                Id = candidate.GameId
+            })
+            .DistinctBy(reference => new { reference.Source, reference.Id })
+            .ToList();
+
+        var games = references.Count == 0
+            ? new Dictionary<(CatalogSource Source, long Id), GameDetailDTO>()
+            : (await _gameService.GetByReferencesAsync(references, cancellationToken))
+                .ToDictionary(game => game.Key, game => game.Value);
+
+        var items = candidates
+            .Where(candidate => games.ContainsKey((candidate.Source, candidate.GameId)))
+            .Select(candidate =>
+            {
+                var game = games[(candidate.Source, candidate.GameId)];
+                var isMine = currentUserId.HasValue && currentUserId.Value == candidate.UserId;
+
+                return new SearchReviewResultDTO
+                {
+                    Id = candidate.Id,
+                    UserId = candidate.UserId,
+                    UserName = candidate.UserName,
+                    ProfileImageUrl = candidate.ProfileImageUrl,
+                    Source = candidate.Source,
+                    GameId = candidate.GameId,
+                    GameName = game.Title,
+                    GameCoverImageUrl = game.CoverImageUrl,
+                    ContentPreview = candidate.ContainsSpoilers && !isMine
+                        ? "Spoiler olan rəy"
+                        : CreatePreview(candidate.Content, 180),
+                    ContainsSpoilers = candidate.ContainsSpoilers,
+                    IsMine = isMine,
+                    CreatedAt = candidate.CreatedAt,
+                    Score = CalculateTitleScore(
+                        candidate.Content,
+                        query,
+                        exactScore: 820,
+                        prefixScore: 640,
+                        containsScore: 410)
+                };
+            })
+            .ToList();
+
+        return CreatePage(items, totalCount, filter);
+    }
+
+    public async Task<PagedResultDTO<SearchGameListResultDTO>> SearchListsPageAsync(
+        SearchPageFilterDTO filter,
+        Guid? currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var query = ValidatePageFilter(filter);
+        var visibility = CreateVisibilityQueries(currentUserId);
+        var listsQuery = _context.GameLists
+            .AsNoTracking()
+            .Where(list => list.Visibility != ListVisibility.Private)
+            .Where(list => list.Name.Contains(query));
+
+        if (visibility.BlockedUserIds is not null)
+            listsQuery = listsQuery.Where(list => !visibility.BlockedUserIds.Contains(list.UserId));
+
+        listsQuery = currentUserId.HasValue
+            ? listsQuery.Where(list =>
+                list.UserId == currentUserId.Value ||
+                list.Visibility == ListVisibility.Public ||
+                (list.Visibility == ListVisibility.FollowersOnly &&
+                 visibility.FollowedUserIds!.Contains(list.UserId)))
+            : listsQuery.Where(list => list.Visibility == ListVisibility.Public);
+
+        var totalCount = await listsQuery.CountAsync(cancellationToken);
+        var candidates = await listsQuery
+            .OrderByDescending(list => list.Name == query)
+            .ThenByDescending(list => list.Name.StartsWith(query))
+            .ThenByDescending(list => list.CreatedAt)
+            .Skip(GetPageOffset(filter))
+            .Take(filter.PageSize)
+            .Select(list => new
+            {
+                list.Id,
+                list.Name,
+                list.Description,
+                list.Visibility,
+                list.IsRanked,
+                OwnerId = list.UserId,
+                OwnerUserName = list.User.UserName ?? string.Empty,
+                GameCount = list.GameListItems.Count,
+                list.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var items = candidates
+            .Select(list => new SearchGameListResultDTO
+            {
+                Id = list.Id,
+                Name = list.Name,
+                Description = list.Description,
+                Visibility = list.Visibility,
+                IsRanked = list.IsRanked,
+                OwnerId = list.OwnerId,
+                OwnerUserName = list.OwnerUserName,
+                GameCount = list.GameCount,
+                CreatedAt = list.CreatedAt,
+                Score = CalculateTitleScore(
+                    list.Name,
+                    query,
+                    exactScore: 820,
+                    prefixScore: 640,
+                    containsScore: 410)
+            })
+            .ToList();
+
+        return CreatePage(items, totalCount, filter);
+    }
+
     private async Task<SearchSection<SearchGameResultDTO>> SearchGamesAsync(
         string query,
         int candidateLimit,
@@ -476,6 +814,73 @@ public sealed class GlobalSearchService : IGlobalSearchService
             .ToList();
 
         return new SearchSection<SearchGameListResultDTO>(items, totalCount);
+    }
+
+    private string ValidatePageFilter(SearchPageFilterDTO filter)
+    {
+        ArgumentNullException.ThrowIfNull(filter);
+        var query = filter.Query.Trim();
+
+        if (query.Length < MinQueryLength)
+            throw new BadRequestException($"Axtarış mətni ən azı {MinQueryLength} simvol olmalıdır.");
+        if (query.Length > MaxQueryLength)
+            throw new BadRequestException($"Axtarış mətni {MaxQueryLength} simvoldan uzun ola bilməz.");
+        if (filter.PageNumber is < 1 or > 50)
+            throw new BadRequestException("Səhifə nömrəsi 1-50 aralığında olmalıdır.");
+        if (filter.PageSize is < 1 or > MaxLimit)
+            throw new BadRequestException($"Səhifə ölçüsü 1-{MaxLimit} aralığında olmalıdır.");
+
+        return query;
+    }
+
+    private (IQueryable<Guid>? BlockedUserIds, IQueryable<Guid>? FollowedUserIds)
+        CreateVisibilityQueries(Guid? currentUserId)
+    {
+        if (!currentUserId.HasValue)
+            return (null, null);
+
+        var blockedUserIds = _context.UserBlocks
+            .AsNoTracking()
+            .Where(item =>
+                item.BlockerId == currentUserId.Value ||
+                item.BlockedUserId == currentUserId.Value)
+            .Select(item =>
+                item.BlockerId == currentUserId.Value
+                    ? item.BlockedUserId
+                    : item.BlockerId);
+
+        var followedUserIds = _context.UserFollows
+            .AsNoTracking()
+            .Where(item =>
+                item.FollowerId == currentUserId.Value &&
+                item.Status == FollowStatus.Accepted)
+            .Select(item => item.FollowingId);
+
+        return (blockedUserIds, followedUserIds);
+    }
+
+    private static int GetPageOffset(SearchPageFilterDTO filter) =>
+        checked((filter.PageNumber - 1) * filter.PageSize);
+
+    private static PagedResultDTO<T> CreatePage<T>(
+        IReadOnlyList<T> items,
+        int totalCount,
+        SearchPageFilterDTO filter)
+    {
+        var totalPages = totalCount == 0
+            ? 0
+            : Math.Min(
+                50,
+                (int)Math.Ceiling(totalCount / (double)filter.PageSize));
+
+        return new PagedResultDTO<T>
+        {
+            Items = items,
+            PageNumber = filter.PageNumber,
+            PageSize = filter.PageSize,
+            TotalCount = totalCount,
+            TotalPages = totalPages
+        };
     }
 
     private static int CalculateTitleScore(

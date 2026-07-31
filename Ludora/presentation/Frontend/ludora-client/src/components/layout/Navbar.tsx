@@ -37,6 +37,7 @@ import {
   useAuthStore,
 } from "../../stores/authStore";
 import { BrandLogo } from "../common/BrandLogo";
+import { logout } from "../../services/authService";
 
 const navigationItems = [
   {
@@ -165,9 +166,13 @@ export function Navbar() {
     setIsUserMenuOpen(false);
   }
 
-  function handleLogout() {
-    clearSession();
+  async function handleLogout() {
     closeMenus();
+    try {
+      await logout();
+    } finally {
+      clearSession();
+    }
   }
 
   function isNavigationItemActive(

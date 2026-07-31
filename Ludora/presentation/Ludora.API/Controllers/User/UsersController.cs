@@ -1,3 +1,4 @@
+using Ludora.API.Security;
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
@@ -129,7 +130,7 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
-    [EnableRateLimiting("Auth")]
+    [EnableRateLimiting(RateLimitPolicyNames.AccountSensitive)]
     [HttpPost("me/password-change")]
     public async Task<IActionResult> ChangePassword(
         [FromBody] ChangePasswordDTO dto)
@@ -142,7 +143,7 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
-    [EnableRateLimiting("Auth")]
+    [EnableRateLimiting(RateLimitPolicyNames.AccountSensitive)]
     [HttpPost("me/email-change")]
     public async Task<IActionResult> RequestEmailChange(
         [FromBody] ChangeEmailRequestDTO dto,
@@ -156,7 +157,7 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
-    [EnableRateLimiting("Auth")]
+    [EnableRateLimiting(RateLimitPolicyNames.AccountSensitive)]
     [HttpGet("email-change/confirm")]
     public async Task<IActionResult> ConfirmEmailChange(
         [FromQuery] Guid userId,
@@ -173,7 +174,7 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
-    [EnableRateLimiting("Auth")]
+    [EnableRateLimiting(RateLimitPolicyNames.AccountSensitive)]
     [HttpPost("email-change/confirm")]
     public async Task<IActionResult> ConfirmEmailChange(
         [FromBody] ConfirmEmailChangeDTO dto,
@@ -189,6 +190,7 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
     [HttpPut("me/profile-image")]
     public async Task<IActionResult> UpdateProfileImage(IFormFile image)
     {
@@ -209,7 +211,7 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
-    [EnableRateLimiting("Auth")]
+    [EnableRateLimiting(RateLimitPolicyNames.AccountSensitive)]
     [HttpDelete("me")]
     public async Task<IActionResult> DeleteAccount(
         [FromBody] DeleteAccountRequestDTO dto,
@@ -226,6 +228,7 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPost("{userId:guid}/follow")]
     public async Task<IActionResult> Follow(
         Guid userId,
@@ -239,6 +242,7 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpDelete("{userId:guid}/unfollow")]
     public async Task<IActionResult> Unfollow(
         Guid userId,
@@ -252,6 +256,7 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPost("{userId:guid}/block")]
     public async Task<IActionResult> Block(
         Guid userId,
@@ -265,6 +270,7 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpDelete("{userId:guid}/unblock")]
     public async Task<IActionResult> Unblock(
         Guid userId,
@@ -320,6 +326,7 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPost("me/follow-requests/{requesterId:guid}/accept-follow")]
     public async Task<IActionResult> AcceptFollowRequest(
         Guid requesterId,
@@ -334,6 +341,7 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpDelete("me/follow-requests/{requesterId:guid}/reject-follow")]
     public async Task<IActionResult> RejectFollowRequest(
         Guid requesterId,
@@ -348,6 +356,7 @@ public class UsersController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpDelete("me/followers/{followerId:guid}/remove-follower")]
     public async Task<IActionResult> RemoveFollower(
         Guid followerId,

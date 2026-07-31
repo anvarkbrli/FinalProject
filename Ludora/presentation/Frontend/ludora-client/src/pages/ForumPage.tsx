@@ -12,8 +12,8 @@ import {
   UserPlus,
   UsersRound,
 } from "lucide-react";
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { CreateCommunityModal } from "../components/forum/CreateCommunityModal";
 import { CreateDiscussionModal } from "../components/forum/CreateDiscussionModal";
 import {
@@ -77,6 +77,31 @@ const popularPeriods: Array<{
   { value: "month", label: "30 gün" },
   { value: "all", label: "Bütün zamanlar" },
 ];
+
+const forumSections: ForumSection[] = [
+  "home",
+  "discussions",
+  "popular",
+  "communities",
+  "explore",
+];
+
+function parseForumSection(value: string | null): ForumSection {
+  return forumSections.includes(value as ForumSection)
+    ? (value as ForumSection)
+    : "home";
+}
+
+function parsePopularPeriod(value: string | null): ForumPopularPeriod {
+  return popularPeriods.some((period) => period.value === value)
+    ? (value as ForumPopularPeriod)
+    : "week";
+}
+
+function parsePage(value: string | null): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
+}
 
 interface StoredForumInterests {
   styles?: string[];
@@ -294,6 +319,7 @@ function Pagination({
 
 export function ForumPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
   const expiresAtUtc = useAuthStore((state) => state.expiresAtUtc);
@@ -304,13 +330,12 @@ export function ForumPage() {
     : null;
   const interestProfile = parseStoredForumInterests(storedInterests);
 
-  const [activeSection, setActiveSection] =
-    useState<ForumSection>("home");
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [feedSearch, setFeedSearch] = useState("");
-  const [popularPeriod, setPopularPeriod] =
-    useState<ForumPopularPeriod>("week");
-  const [page, setPage] = useState(1);
+  const activeSection = parseForumSection(searchParams.get("section"));
+  const selectedCategory = searchParams.get("category")?.trim() ?? "";
+  const feedSearch = searchParams.get("q")?.trim() ?? "";
+  const popularPeriod = parsePopularPeriod(searchParams.get("period"));
+  const page = parsePage(searchParams.get("page"));
+  const [searchInput, setSearchInput] = useState(feedSearch);
   const [onboardingCompleted, setOnboardingCompleted] =
     useState(false);
   const [onboardingDismissed, setOnboardingDismissed] =
@@ -321,6 +346,40 @@ export function ForumPage() {
     useState(false);
   const [isCreateCommunityOpen, setIsCreateCommunityOpen] =
     useState(false);
+
+  const serializedSearchParams = searchParams.toString();
+
+  function updateForumUrl(
+    updates: Record<string, string | null>,
+    options: { replace?: boolean } = { replace: true },
+  ) {
+    const nextSearchParams = new URLSearchParams(searchParams);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value?.trim()) nextSearchParams.set(key, value.trim());
+      else nextSearchParams.delete(key);
+    }
+    setSearchParams(nextSearchParams, { replace: options.replace ?? true });
+  }
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => setSearchInput(feedSearch), 0);
+    return () => window.clearTimeout(timeoutId);
+  }, [feedSearch]);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      const normalizedSearch = searchInput.trim();
+      if (normalizedSearch === feedSearch) return;
+
+      const nextSearchParams = new URLSearchParams(serializedSearchParams);
+      if (normalizedSearch) nextSearchParams.set("q", normalizedSearch);
+      else nextSearchParams.delete("q");
+      nextSearchParams.delete("page");
+      setSearchParams(nextSearchParams, { replace: true });
+    }, 350);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [feedSearch, searchInput, serializedSearchParams, setSearchParams]);
 
   const userGamesQuery = useQuery({
     queryKey: ["forum", "user-game-count", user?.id],
@@ -432,10 +491,35 @@ export function ForumPage() {
   function changeSection(section: ForumSection) {
     setIsCreateModalOpen(false);
     setIsCreateCommunityOpen(false);
-    setActiveSection(section);
-    setSelectedCategory("");
-    setFeedSearch("");
-    setPage(1);
+    setSearchInput("");
+    updateForumUrl({
+      section: section === "home" ? null : section,
+      category: null,
+      q: null,
+      page: null,
+      period: section === "popular" ? popularPeriod : null,
+    });
+  }
+
+  function changeCategory(category: string) {
+    updateForumUrl({ category: category || null, page: null });
+  }
+
+  function changePopularPeriod(period: ForumPopularPeriod) {
+    updateForumUrl({ period, page: null });
+  }
+
+  function changePage(nextPage: number) {
+    updateForumUrl(
+      { page: nextPage > 1 ? String(nextPage) : null },
+      { replace: false },
+    );
+    window.requestAnimationFrame(() => {
+      document.querySelector("main")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
   }
 
   const shouldShowOnboarding =
@@ -522,11 +606,8 @@ export function ForumPage() {
                         />
                         <input
                           type="search"
-                          value={feedSearch}
-                          onChange={(event) => {
-                            setFeedSearch(event.target.value);
-                            setPage(1);
-                          }}
+                          value={searchInput}
+                          onChange={(event) => setSearchInput(event.target.value)}
                           placeholder="Bu bölmədə axtar..."
                           className="h-10 w-full rounded-xl border border-white/[0.075] bg-white/[0.025] pl-9 pr-3 text-xs text-white outline-none transition placeholder:text-zinc-700 focus:border-teal-300/25 sm:w-56"
                         />
@@ -563,10 +644,7 @@ export function ForumPage() {
                   <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
                     <button
                       type="button"
-                      onClick={() => {
-                        setSelectedCategory("");
-                        setPage(1);
-                      }}
+                      onClick={() => changeCategory("")}
                       className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
                         selectedCategory === ""
                           ? "border-teal-300/25 bg-teal-300/[0.09] text-teal-200"
@@ -579,10 +657,7 @@ export function ForumPage() {
                       <button
                         key={category.id}
                         type="button"
-                        onClick={() => {
-                          setSelectedCategory(category.slug);
-                          setPage(1);
-                        }}
+                        onClick={() => changeCategory(category.slug)}
                         className={`shrink-0 rounded-xl border px-3 py-2 text-xs font-semibold transition ${
                           selectedCategory === category.slug
                             ? "border-teal-300/25 bg-teal-300/[0.09] text-teal-200"
@@ -601,10 +676,7 @@ export function ForumPage() {
                       <button
                         key={period.value}
                         type="button"
-                        onClick={() => {
-                          setPopularPeriod(period.value);
-                          setPage(1);
-                        }}
+                        onClick={() => changePopularPeriod(period.value)}
                         className={`rounded-xl px-3 py-1.5 text-[11px] font-bold transition ${
                           popularPeriod === period.value
                             ? "bg-amber-300/10 text-amber-200"
@@ -662,7 +734,7 @@ export function ForumPage() {
                     <Pagination
                       page={page}
                       totalPages={discussionsQuery.data?.totalPages ?? 0}
-                      onPageChange={setPage}
+                      onPageChange={changePage}
                     />
                   </div>
                 ) : activeSection === "communities" ? (
@@ -812,7 +884,7 @@ export function ForumPage() {
                     <Pagination
                       page={page}
                       totalPages={activeFeed?.totalPages ?? 0}
-                      onPageChange={setPage}
+                      onPageChange={changePage}
                     />
                   </div>
                 )}

@@ -20,8 +20,8 @@ public sealed record EmailDiagnosticsDTO
 
 public sealed record EmailDeliveryTestDTO
 {
-    [Required]
-    [EmailAddress]
-    [StringLength(128)]
+    [Required(ErrorMessage = "Test email ünvanını daxil edin.")]
+    [EmailAddress(ErrorMessage = "Email ünvanının formatı düzgün deyil.")]
+    [StringLength(128, ErrorMessage = "Email ünvanı maksimum 128 simvol ola bilər.")]
     public string Email { get; init; } = string.Empty;
 }

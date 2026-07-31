@@ -11,7 +11,7 @@ using Microsoft.Extensions.Options;
 
 namespace Ludora.Infrastructure.Email;
 
-public sealed class SmtpEmailService : IEmailService
+public sealed class SmtpEmailService : IEmailTransport
 {
     private readonly EmailSettings _settings;
     private readonly ILogger<SmtpEmailService> _logger;
@@ -132,6 +132,61 @@ public sealed class SmtpEmailService : IEmailService
             cancellationToken);
     }
 
+
+    public Task SendPasswordResetAsync(
+        string email,
+        string userName,
+        string resetLink,
+        CancellationToken cancellationToken = default)
+    {
+        var safeUserName = HtmlEncoder.Default.Encode(userName);
+        var safeLink = HtmlEncoder.Default.Encode(resetLink);
+
+        var htmlBody = $$"""
+            <!doctype html>
+            <html lang="az">
+            <body style="margin:0;background:#f4f4f5;font-family:Arial,sans-serif;line-height:1.6;color:#1f2937">
+                <div style="max-width:600px;margin:0 auto;padding:32px 18px">
+                    <div style="background:#ffffff;border:1px solid #e4e4e7;border-radius:16px;padding:30px">
+                        <h2 style="margin-top:0">WellPlayd şifrə yeniləmə</h2>
+                        <p>Salam, <strong>{{safeUserName}}</strong>.</p>
+                        <p>Hesab şifrəsini yeniləmək üçün aşağıdakı düyməyə kliklə:</p>
+                        <p style="margin:26px 0">
+                            <a href="{{safeLink}}"
+                               style="display:inline-block;padding:12px 18px;background:#6d28d9;color:#ffffff;text-decoration:none;border-radius:9px;font-weight:700">
+                                Şifrəni yenilə
+                            </a>
+                        </p>
+                        <p style="font-size:13px;color:#71717a">
+                            Düymə işləməsə, bu linki brauzerə köçür:<br>
+                            <a href="{{safeLink}}" style="color:#6d28d9;word-break:break-all">{{safeLink}}</a>
+                        </p>
+                        <p style="font-size:13px;color:#71717a">
+                            Bu sorğunu sən göndərməmisənsə, məktubu nəzərə alma. Mövcud şifrən dəyişməyəcək.
+                        </p>
+                    </div>
+                </div>
+            </body>
+            </html>
+            """;
+
+        var plainTextBody = $$"""
+            Salam, {{userName}}.
+
+            WellPlayd şifrəsini yeniləmək üçün bu linkə keç:
+            {{resetLink}}
+
+            Bu sorğunu sən göndərməmisənsə, məktubu nəzərə alma.
+            """;
+
+        return SendAsync(
+            email,
+            "WellPlayd şifrə yeniləmə",
+            plainTextBody,
+            htmlBody,
+            cancellationToken);
+    }
+
     private async Task SendAsync(
         string recipient,
         string subject,
@@ -234,7 +289,7 @@ public sealed class SmtpEmailService : IEmailService
         }
 
         throw new ExternalServiceException(
-            "Təsdiq emaili SMTP serverinə göndərilə bilmədi. Bir müddət sonra yenidən yoxlayın.",
+            "Email SMTP serverinə göndərilə bilmədi. Bir müddət sonra yenidən yoxlayın.",
             lastException ?? new SmtpException("Naməlum SMTP xətası."));
     }
 

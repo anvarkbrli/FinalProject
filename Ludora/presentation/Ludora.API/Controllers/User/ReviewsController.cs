@@ -1,9 +1,11 @@
+using Ludora.API.Security;
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers.User;
 
@@ -19,6 +21,7 @@ public class ReviewsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPost("{source}/{gameId:long}")]
     public async Task<ActionResult<ReviewDTO>> Create(
         CatalogSource source,
@@ -117,6 +120,7 @@ public class ReviewsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPut("{reviewId:long}")]
     public async Task<ActionResult<ReviewDTO>> Update(
         long reviewId,
@@ -133,6 +137,7 @@ public class ReviewsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpDelete("{reviewId:long}")]
     public async Task<IActionResult> Delete(
         long reviewId,

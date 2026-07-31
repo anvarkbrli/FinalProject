@@ -23,6 +23,7 @@ import { ForumContentMenu } from "../components/forum/ForumContentMenu";
 import { DiscussionPollCard } from "../components/forum/DiscussionPollCard";
 import "../components/forum/forum.css";
 import { Navbar } from "../components/layout/Navbar";
+import { ApiErrorStatusPage } from "../components/status/ApiErrorStatusPage";
 import { useI18n } from "../i18n/useI18n";
 import { getApiErrorMessage } from "../lib/api";
 import {
@@ -131,53 +132,40 @@ function CommentItem({
           />
         )}
         <div className="flex gap-3">
-          {reply.isDeleted ? (
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-teal-300/10 text-xs font-black text-teal-200">
-              {reply.authorUserName.charAt(0).toUpperCase()}
-            </div>
-          ) : (
-            <Link
-              to={`/users/${encodeURIComponent(reply.authorUserName)}`}
-              aria-label={`${reply.authorUserName} profilinə keç`}
-              className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-teal-300/10 text-xs font-black text-teal-200 transition hover:ring-2 hover:ring-teal-300/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300/50"
-            >
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={`${reply.authorUserName} profil şəkli`}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                reply.authorUserName.charAt(0).toUpperCase()
-              )}
-            </Link>
-          )}
+          <Link
+            to={`/users/${encodeURIComponent(reply.authorUserName)}`}
+            aria-label={`${reply.authorUserName} profilinə keç`}
+            className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-teal-300/10 text-xs font-black text-teal-200 transition hover:ring-2 hover:ring-teal-300/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-300/50"
+          >
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={`${reply.authorUserName} profil şəkli`}
+                className="h-full w-full object-cover"
+              />
+            ) : (
+              reply.authorUserName.charAt(0).toUpperCase()
+            )}
+          </Link>
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2 pr-9 text-xs">
-              {reply.isDeleted ? (
-                <span className="font-bold text-zinc-200">
-                  Silinmiş istifadəçi
-                </span>
-              ) : (
-                <Link
-                  to={`/users/${encodeURIComponent(reply.authorUserName)}`}
-                  className="font-bold text-zinc-200 transition hover:text-teal-200 hover:underline focus-visible:outline-none focus-visible:text-teal-200 focus-visible:underline"
-                >
-                  {reply.authorUserName}
-                </Link>
-              )}
-              {!reply.isDeleted && reply.authorCommunityRole === "Owner" && (
+              <Link
+                to={`/users/${encodeURIComponent(reply.authorUserName)}`}
+                className="font-bold text-zinc-200 transition hover:text-teal-200 hover:underline focus-visible:outline-none focus-visible:text-teal-200 focus-visible:underline"
+              >
+                {reply.authorUserName}
+              </Link>
+              {reply.authorCommunityRole === "Owner" && (
                 <span className="rounded-full border border-amber-400/20 bg-amber-400/[0.08] px-1.5 py-0.5 text-[9px] font-bold text-amber-300">
                   Sahib
                 </span>
               )}
-              {!reply.isDeleted &&
-                reply.authorCommunityRole === "Moderator" && (
-                  <span className="rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-1.5 py-0.5 text-[9px] font-bold text-violet-300">
-                    Moderator
-                  </span>
-                )}
+              {reply.authorCommunityRole === "Moderator" && (
+                <span className="rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-1.5 py-0.5 text-[9px] font-bold text-violet-300">
+                  Moderator
+                </span>
+              )}
               <span className="text-zinc-700">•</span>
               <time className="text-zinc-600">
                 {formatRelativeDate(reply.createdAt)}
@@ -718,21 +706,10 @@ export function ForumDiscussionPage() {
 
   if (!discussion || discussionQuery.isError) {
     return (
-      <div className="forum-theme min-h-screen">
-        <Navbar />
-        <main className="mx-auto max-w-3xl px-5 py-20 text-center">
-          <h1 className="text-xl font-bold text-white">
-            Müzakirə tapılmadı
-          </h1>
-          <Link
-            to="/forum"
-            className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-teal-300"
-          >
-            <ArrowLeft size={16} />
-            Foruma qayıt
-          </Link>
-        </main>
-      </div>
+      <ApiErrorStatusPage
+        error={discussionQuery.error}
+        entityName="Müzakirə"
+      />
     );
   }
 

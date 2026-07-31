@@ -1,8 +1,10 @@
+using Ludora.API.Security;
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers.User;
 
@@ -15,6 +17,7 @@ public sealed class PostInteractionsController : ControllerBase
     public PostInteractionsController(IPostInteractionService service) => _service = service;
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPost("{postId:long}/likes")]
     public async Task<IActionResult> Like(long postId, CancellationToken cancellationToken)
     {
@@ -23,6 +26,7 @@ public sealed class PostInteractionsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpDelete("{postId:long}/likes")]
     public async Task<IActionResult> Unlike(long postId, CancellationToken cancellationToken)
     {
@@ -46,6 +50,7 @@ public sealed class PostInteractionsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPost("{postId:long}/comments")]
     public async Task<ActionResult<PostCommentDTO>> CreateComment(
         long postId,
@@ -70,6 +75,7 @@ public sealed class PostInteractionsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPut("comments/{commentId:long}")]
     public async Task<ActionResult<PostCommentDTO>> UpdateComment(
         long commentId,
@@ -80,6 +86,7 @@ public sealed class PostInteractionsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpDelete("comments/{commentId:long}")]
     public async Task<IActionResult> DeleteComment(long commentId, CancellationToken cancellationToken)
     {

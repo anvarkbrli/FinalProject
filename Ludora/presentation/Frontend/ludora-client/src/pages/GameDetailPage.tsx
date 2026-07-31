@@ -1,4 +1,4 @@
-import {
+﻿import {
   useMutation,
   useQuery,
   useQueryClient,
@@ -40,6 +40,7 @@ import { GameReviewsSection } from "../components/reviews/GameReviewsSection";
 import { LogGameModal } from "../components/reviews/LogGameModal";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
+import { ApiErrorStatusPage } from "../components/status/ApiErrorStatusPage";
 import { getApiErrorMessage } from "../lib/api";
 import { canViewCatalogSources } from "../lib/authRoles";
 import {
@@ -177,10 +178,12 @@ type CatalogFilterKind =
 
 function buildCatalogFilterUrl(
   kind: CatalogFilterKind,
-  name: string,
+  source: CatalogSource,
+  id: number,
 ): string {
   const searchParams = new URLSearchParams({
-    [`${kind}Name`]: name,
+    [`${kind}Source`]: source,
+    [`${kind}Id`]: String(id),
   });
 
   return `/games?${searchParams.toString()}`;
@@ -1125,7 +1128,8 @@ function GameDetailContent({
                                 <Link
                                   to={buildCatalogFilterUrl(
                                     "company",
-                                    company.name,
+                                    company.source,
+                                    company.id,
                                   )}
                                   state={buildCatalogFilterState(
                                     "company",
@@ -1159,7 +1163,8 @@ function GameDetailContent({
                                 <Link
                                   to={buildCatalogFilterUrl(
                                     "company",
-                                    company.name,
+                                    company.source,
+                                    company.id,
                                   )}
                                   state={buildCatalogFilterState(
                                     "company",
@@ -1300,7 +1305,8 @@ function GameDetailContent({
                           key={`${genre.source}-${genre.id}`}
                           to={buildCatalogFilterUrl(
                             "genre",
-                            genre.name,
+                            genre.source,
+                            genre.id,
                           )}
                           className="border-b border-zinc-500 pb-1 text-sm font-medium text-zinc-300 transition hover:border-violet-300 hover:text-violet-200"
                         >
@@ -1336,7 +1342,8 @@ function GameDetailContent({
                             key={`${platform.source}-${platform.id}`}
                             to={buildCatalogFilterUrl(
                               "platform",
-                              platform.name,
+                              platform.source,
+                              platform.id,
                             )}
                             className="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/[0.04] px-3 py-2 text-sm font-semibold text-zinc-300 transition hover:border-violet-400/40 hover:bg-violet-500/10 hover:text-violet-100"
                           >
@@ -1374,7 +1381,8 @@ function GameDetailContent({
                           key={`${company.source}-${company.id}-${company.role}`}
                           to={buildCatalogFilterUrl(
                             "company",
-                            company.name,
+                            company.source,
+                            company.id,
                           )}
                           state={buildCatalogFilterState(
                             "company",
@@ -1648,28 +1656,10 @@ export function GameDetailPage() {
             </div>
           </div>
         ) : errorMessage ? (
-          <div className="mx-auto max-w-3xl px-5 py-24 text-center">
-            <Gamepad2
-              size={36}
-              className="mx-auto text-red-300"
-            />
-
-            <h1 className="mt-5 text-2xl font-bold text-white">
-              Oyun yüklənmədi
-            </h1>
-
-            <p className="mt-3 text-sm text-zinc-500">
-              {errorMessage}
-            </p>
-
-            <Link
-              to="/games"
-              className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-violet-300 transition hover:text-violet-200"
-            >
-              <ArrowLeft size={17} />
-              Kataloqa qayıt
-            </Link>
-          </div>
+          <ApiErrorStatusPage
+            error={gameQuery.error}
+            entityName="Oyun"
+          />
         ) : gameQuery.data ? (
           <GameDetailContent
             game={gameQuery.data}

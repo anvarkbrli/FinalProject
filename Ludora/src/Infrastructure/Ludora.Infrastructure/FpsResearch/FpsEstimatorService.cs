@@ -7,7 +7,6 @@ using Ludora.Application.DTOs.FpsEstimator;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Settings;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
@@ -176,14 +175,14 @@ public sealed class FpsEstimatorService : IFpsEstimatorService
 
     private readonly IFpsResearchClient _researchClient;
     private readonly IUserService _userService;
-    private readonly IMemoryCache _cache;
+    private readonly IAppCache _cache;
     private readonly FpsResearchSettings _settings;
     private readonly ILogger<FpsEstimatorService> _logger;
 
     public FpsEstimatorService(
         IFpsResearchClient researchClient,
         IUserService userService,
-        IMemoryCache cache,
+        IAppCache cache,
         IOptions<FpsResearchSettings> options,
         ILogger<FpsEstimatorService> logger)
     {
@@ -221,10 +220,10 @@ public sealed class FpsEstimatorService : IFpsEstimatorService
         var cacheKey = CreateCacheKey(normalized);
         var correlationId = Activity.Current?.TraceId.ToString() ?? "none";
 
-        if (_cache.TryGetValue<FpsEstimateResponseDTO>(
-                cacheKey,
-                out var cachedResponse) &&
-            cachedResponse is not null)
+        var cachedResponse = await _cache.GetAsync<FpsEstimateResponseDTO>(
+            cacheKey,
+            cancellationToken);
+        if (cachedResponse is not null)
         {
             _logger.LogInformation(
                 "FPS estimator cache hit. CorrelationId {CorrelationId}.",
@@ -253,10 +252,11 @@ public sealed class FpsEstimatorService : IFpsEstimatorService
             normalized,
             research.Sources);
 
-        _cache.Set(
+        await _cache.SetAsync(
             cacheKey,
             response,
-            TimeSpan.FromHours(_settings.CacheDurationHours));
+            TimeSpan.FromHours(_settings.CacheDurationHours),
+            cancellationToken);
 
         return response;
     }

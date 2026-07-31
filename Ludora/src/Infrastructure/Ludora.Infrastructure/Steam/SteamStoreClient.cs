@@ -8,7 +8,6 @@ using Ludora.Application.Interfaces;
 using Ludora.Application.Models.Steam;
 using Ludora.Application.Settings;
 using Microsoft.AspNetCore.WebUtilities;
-using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 
 namespace Ludora.Infrastructure.Steam;
@@ -61,7 +60,7 @@ public sealed class SteamStoreClient : ISteamStoreClient
     private readonly HttpClient _httpClient;
     private readonly SteamSettings _settings;
     private readonly SteamRequestThrottle _requestThrottle;
-    private readonly IMemoryCache _cache;
+    private readonly IAppCache _cache;
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         PropertyNameCaseInsensitive = true
@@ -71,7 +70,7 @@ public sealed class SteamStoreClient : ISteamStoreClient
         HttpClient httpClient,
         IOptions<SteamSettings> options,
         SteamRequestThrottle requestThrottle,
-        IMemoryCache cache)
+        IAppCache cache)
     {
         _httpClient = httpClient;
         _settings = options.Value;
@@ -89,18 +88,20 @@ public sealed class SteamStoreClient : ISteamStoreClient
         var cacheKey =
             $"steam:store:top-wishlists:v3:{_settings.CountryCode}:{_settings.Language}";
 
-        if (!_cache.TryGetValue(
-                cacheKey,
-                out IReadOnlyList<SteamComingSoonGameModel>? cached))
+        var cached = await _cache.GetAsync<List<SteamComingSoonGameModel>>(
+            cacheKey,
+            cancellationToken);
+        if (cached is null)
         {
-            cached = await LoadTopWishlistedUpcomingAsync(cancellationToken);
-            _cache.Set(
+            cached = (await LoadTopWishlistedUpcomingAsync(cancellationToken)).ToList();
+            await _cache.SetAsync(
                 cacheKey,
                 cached,
-                TimeSpan.FromMinutes(_settings.ComingSoonCacheMinutes));
+                TimeSpan.FromMinutes(_settings.ComingSoonCacheMinutes),
+                cancellationToken);
         }
 
-        return cached!.Take(limit).ToList();
+        return cached.Take(limit).ToList();
     }
 
     private async Task<IReadOnlyList<SteamComingSoonGameModel>>

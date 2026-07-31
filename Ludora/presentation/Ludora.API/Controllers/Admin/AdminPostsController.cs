@@ -1,13 +1,16 @@
+using Ludora.API.Security;
 using Ludora.API.Extensions;
 using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers.Admin;
 
-[Authorize(Roles = RoleNames.AdminOrModerator)]
+[Authorize(Policy = CapabilityNames.ViewPosts)]
+[EnableRateLimiting(RateLimitPolicyNames.Moderation)]
 [Route("api/admin/posts")]
 [ApiController]
 public sealed class AdminPostsController : ControllerBase
@@ -36,7 +39,7 @@ public sealed class AdminPostsController : ControllerBase
     }
 
     [HttpDelete("{postId:long}")]
-    [Authorize(Roles = RoleNames.Admin)]
+    [Authorize(Policy = CapabilityNames.DeletePosts)]
     public async Task<IActionResult> Delete(
         long postId,
         [FromBody] ModeratePostDTO dto,
@@ -52,6 +55,7 @@ public sealed class AdminPostsController : ControllerBase
     }
 
     [HttpPost("{postId:long}/restore")]
+    [Authorize(Policy = CapabilityNames.RestorePosts)]
     public async Task<ActionResult<AdminPostDTO>> Restore(
         long postId,
         CancellationToken cancellationToken)

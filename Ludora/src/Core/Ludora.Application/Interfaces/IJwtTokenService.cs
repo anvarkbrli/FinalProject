@@ -1,4 +1,4 @@
-﻿using Ludora.Application.DTOs.JWT;
+using Ludora.Application.DTOs.JWT;
 using Ludora.Domain.Entities.User;
 using System;
 using System.Collections.Generic;
@@ -10,6 +10,6 @@ namespace Ludora.Application.Interfaces
 {
     public interface IJwtTokenService
     {
-        JwtTokenDTO CreateToken(AppUser user,IEnumerable<string> roles);
+        JwtTokenDTO CreateToken(AppUser user, IEnumerable<string> roles, Guid sessionId);
     }
 }

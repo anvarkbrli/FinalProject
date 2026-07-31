@@ -1,3 +1,4 @@
+using Ludora.API.Security;
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
@@ -54,7 +55,7 @@ public sealed class ForumFeedController : ControllerBase
             cancellationToken));
     }
 
-    private bool CanModerate() => User.IsInRole("Admin");
+    private bool CanModerate() => User.CanModerateForum();
 
     private Guid GetCurrentUserId()
     {

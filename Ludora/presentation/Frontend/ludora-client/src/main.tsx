@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App";
+import { SessionBootstrap } from "./components/auth/SessionBootstrap";
 import { ConfirmationDialogProvider } from "./components/common/ConfirmationDialogProvider";
 import { I18nProvider } from "./i18n/I18nProvider";
 import "./index.css";
@@ -32,9 +33,11 @@ createRoot(rootElement).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <I18nProvider>
-          <ConfirmationDialogProvider>
-            <App />
-          </ConfirmationDialogProvider>
+          <SessionBootstrap>
+            <ConfirmationDialogProvider>
+              <App />
+            </ConfirmationDialogProvider>
+          </SessionBootstrap>
         </I18nProvider>
       </BrowserRouter>
     </QueryClientProvider>

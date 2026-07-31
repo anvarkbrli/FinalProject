@@ -74,4 +74,5 @@ public class AppUser : IdentityUser<Guid>
     public ICollection<ChatMessage> SentChatMessages { get; set; } = [];
     public ICollection<ChatMessageUserState> ChatMessageStates { get; set; } = [];
     public ICollection<UserBadge> Badges { get; set; } = [];
+    public ICollection<RefreshSession> RefreshSessions { get; set; } = [];
 }

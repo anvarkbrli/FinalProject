@@ -1,8 +1,10 @@
 using Ludora.Application.Interfaces;
+using Ludora.Application.Settings;
 using Ludora.Domain.Entities.User;
 using Ludora.Persistence.Data;
 using Ludora.Persistence.Services;
 using Ludora.Persistence.Services.Admin;
+using Ludora.Persistence.Services.Security;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -27,7 +29,7 @@ public static class ServiceRegistration
         {
             options.User.RequireUniqueEmail = true;
             options.SignIn.RequireConfirmedEmail = true;
-            options.Password.RequiredLength = 6;
+            options.Password.RequiredLength = 8;
             options.Password.RequireDigit = true;
             options.Password.RequireUppercase = true;
             options.Password.RequireLowercase = true;
@@ -45,6 +47,27 @@ public static class ServiceRegistration
         services.Configure<DataProtectionTokenProviderOptions>(options =>
             options.TokenLifespan = TimeSpan.FromHours(24));
 
+        services
+            .AddOptions<AuthSessionSettings>()
+            .Bind(configuration.GetSection(AuthSessionSettings.SectionName))
+            .Validate(
+                settings => !string.IsNullOrWhiteSpace(settings.RefreshCookieName),
+                "AuthSession:RefreshCookieName boş ola bilməz.")
+            .Validate(
+                settings => settings.RefreshTokenLifetimeDays is >= 1 and <= 365,
+                "AuthSession:RefreshTokenLifetimeDays 1-365 aralığında olmalıdır.")
+            .Validate(
+                settings => settings.MaxActiveSessionsPerUser is >= 1 and <= 100,
+                "AuthSession:MaxActiveSessionsPerUser 1-100 aralığında olmalıdır.")
+            .ValidateOnStart();
+
+        var malwareSettings = configuration
+            .GetSection("MalwareScanning")
+            .Get<MalwareScanningSettings>() ?? new MalwareScanningSettings();
+        services.AddSingleton(malwareSettings);
+        services.AddScoped<IMalwareScanner, ClamAvMalwareScanner>();
+
+        services.AddScoped<IEmailService, EmailOutboxService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAccountDeletionService, AccountDeletionService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();

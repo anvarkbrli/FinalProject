@@ -15,19 +15,30 @@ export function AdminRoute({ children }: AdminRouteProps) {
   const accessToken = useAuthStore((state) => state.accessToken);
   const expiresAtUtc = useAuthStore((state) => state.expiresAtUtc);
   const user = useAuthStore((state) => state.user);
+  const isInitialized = useAuthStore((state) => state.isInitialized);
+
+  if (!isInitialized) {
+    return (
+      <main className="grid min-h-screen place-items-center bg-[#09090d] text-zinc-300">
+        Sessiya yoxlanılır...
+      </main>
+    );
+  }
 
   if (!isAuthSessionValid(accessToken, expiresAtUtc) || !user) {
     return (
       <Navigate
         to="/login"
         replace
-        state={{ from: location.pathname }}
+        state={{
+          from: `${location.pathname}${location.search}${location.hash}`,
+        }}
       />
     );
   }
 
   if (!canAccessAdminPanel(accessToken, user.roles ?? [])) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/forbidden" replace />;
   }
 
   return children;

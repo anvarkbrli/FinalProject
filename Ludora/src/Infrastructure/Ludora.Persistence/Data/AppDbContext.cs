@@ -61,6 +61,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<NotificationPreference> NotificationPreferences { get; set; }
     public DbSet<NotificationOutboxMessage> NotificationOutboxMessages { get; set; }
+    public DbSet<EmailOutboxMessage> EmailOutboxMessages { get; set; }
     public DbSet<SteamLinkChallenge> SteamLinkChallenges { get; set; }
     public DbSet<SteamOwnedGame> SteamOwnedGames { get; set; }
     public DbSet<UserGamePlayLog> UserGamePlayLogs { get; set; }
@@ -71,6 +72,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<ChatMessageUserState> ChatMessageUserStates { get; set; }
     public DbSet<BadgeDefinition> BadgeDefinitions { get; set; }
     public DbSet<UserBadge> UserBadges { get; set; }
+    public DbSet<RefreshSession> RefreshSessions { get; set; }
 
     public DbSet<IgdbGameOverride> IgdbGameOverrides { get; set; }
     public DbSet<GameTranslation> GameTranslations { get; set; }
@@ -87,6 +89,24 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
+
+        modelBuilder.Entity<RefreshSession>(builder =>
+        {
+            builder.HasKey(x => x.Id);
+            builder.Property(x => x.TokenHash).IsRequired().HasMaxLength(64);
+            builder.Property(x => x.SecurityStamp).IsRequired().HasMaxLength(128);
+            builder.Property(x => x.CreatedByIp).HasMaxLength(64);
+            builder.Property(x => x.RevokedByIp).HasMaxLength(64);
+            builder.Property(x => x.UserAgent).HasMaxLength(512);
+            builder.Property(x => x.RevocationReason).HasMaxLength(200);
+            builder.Property(x => x.RowVersion).IsRowVersion();
+            builder.HasIndex(x => x.TokenHash).IsUnique();
+            builder.HasIndex(x => new { x.UserId, x.ExpiresAtUtc });
+            builder.HasOne(x => x.User)
+                .WithMany(x => x.RefreshSessions)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
 
         modelBuilder.Entity<Game>(builder =>
         {

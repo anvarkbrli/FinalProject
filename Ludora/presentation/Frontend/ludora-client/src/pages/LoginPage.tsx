@@ -149,6 +149,14 @@ export function LoginPage() {
       ? location.state.accountDeletionMessage
       : null;
 
+  const sessionMessage =
+    typeof location.state === "object" &&
+    location.state !== null &&
+    "sessionMessage" in location.state &&
+    typeof location.state.sessionMessage === "string"
+      ? location.state.sessionMessage
+      : null;
+
   return (
     <main className="relative min-h-screen overflow-hidden wellplayd-page-bg text-zinc-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,0.20),transparent_30%),radial-gradient(circle_at_90%_80%,rgba(217,70,239,0.10),transparent_28%)]" />
@@ -268,6 +276,12 @@ export function LoginPage() {
               </div>
             )}
 
+            {sessionMessage && (
+              <div className="mt-6 rounded-2xl border border-violet-400/15 bg-violet-500/[0.06] px-4 py-3 text-sm leading-6 text-violet-200">
+                {sessionMessage}
+              </div>
+            )}
+
             <form
               onSubmit={form.handleSubmit(handleLogin)}
               className="mt-8 space-y-5"
@@ -319,9 +333,12 @@ export function LoginPage() {
                     Şifrə
                   </label>
 
-                  <span className="text-xs text-zinc-600">
-                    Minimum 8 simvol
-                  </span>
+                  <Link
+                    to="/forgot-password"
+                    className="text-xs font-semibold text-violet-300 transition hover:text-violet-200"
+                  >
+                    Şifrəni unutdum
+                  </Link>
                 </div>
 
                 <div className="relative">

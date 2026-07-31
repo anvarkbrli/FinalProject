@@ -25,6 +25,7 @@ import {
 } from "lucide-react";
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -387,17 +388,27 @@ export function MessagesPage() {
   const [deleteChoiceTarget, setDeleteChoiceTarget] =
     useState<ChatMessageDTO | null>(null);
   const [pinnedMessageIndex, setPinnedMessageIndex] = useState(0);
+  const [focusedPinnedMessageId, setFocusedPinnedMessageId] =
+    useState<number | null>(null);
+  const [revealedPinnedMessageIds, setRevealedPinnedMessageIds] =
+    useState<number[]>([]);
 
   const selectConversation = (conversationId: number | null) => {
     setOpenMessageMenuId(null);
     setDeleteTarget(null);
     setDeleteChoiceTarget(null);
     setPinnedMessageIndex(0);
+    setFocusedPinnedMessageId(null);
+    setRevealedPinnedMessageIds([]);
     setSelectedConversationId(conversationId);
   };
 
   const messageListRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingPrependHeightRef = useRef<number | null>(null);
+  const initialScrolledConversationRef = useRef<number | null>(null);
+  const wasNearBottomRef = useRef(true);
+  const lastMarkedReadRef = useRef<string | null>(null);
 
   useChatRealtime(Boolean(currentUser));
 
@@ -452,7 +463,7 @@ export function MessagesPage() {
     initialPageParam: undefined as number | undefined,
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? lastPage.nextBeforeMessageId ?? undefined : undefined,
-    enabled: selectedConversationId !== null,
+    enabled: typeof selectedConversationId === "number",
   });
   const messages = useMemo(
     () =>
@@ -468,63 +479,135 @@ export function MessagesPage() {
       ? chatQueryKeys.pinnedMessages(selectedConversationId)
       : ["chat", "pinned-messages", "none"],
     queryFn: () => getPinnedChatMessages(selectedConversationId!),
-    enabled: selectedConversationId !== null,
+    enabled: typeof selectedConversationId === "number",
   });
-  const pinnedMessages = pinnedMessagesQuery.data ?? [];
+  const pinnedMessages = useMemo(
+    () => pinnedMessagesQuery.data ?? [],
+    [pinnedMessagesQuery.data],
+  );
   const pinnedMessageToOpen =
     pinnedMessages[pinnedMessageIndex % Math.max(pinnedMessages.length, 1)] ??
     null;
-  const pinnedMessageIds = pinnedMessages
-    .map((message) => message.id)
-    .join(",");
 
-  useEffect(() => {
-    setPinnedMessageIndex(0);
-  }, [pinnedMessageIds, selectedConversationId]);
+  const displayedMessages = useMemo(() => {
+    const loadedMessageIds = new Set(messages.map((message) => message.id));
+    const revealedMessages = pinnedMessages.filter(
+      (message) =>
+        revealedPinnedMessageIds.includes(message.id) &&
+        !loadedMessageIds.has(message.id),
+    );
 
-  const scrollToPinnedMessage = async () => {
-    if (!pinnedMessageToOpen || pinnedMessages.length === 0) {
-      return;
-    }
+    if (revealedMessages.length === 0) return messages;
+
+    return [...messages, ...revealedMessages].sort((first, second) => {
+      const dateDifference =
+        new Date(first.sentAtUtc).getTime() -
+        new Date(second.sentAtUtc).getTime();
+      return dateDifference !== 0 ? dateDifference : first.id - second.id;
+    });
+  }, [messages, pinnedMessages, revealedPinnedMessageIds]);
+
+  const latestIncomingMessageId = useMemo(
+    () =>
+      [...messages]
+        .reverse()
+        .find((message) => message.senderUserId !== currentUser?.id)?.id ?? null,
+    [currentUser?.id, messages],
+  );
+
+  const scrollToPinnedMessage = () => {
+    if (!pinnedMessageToOpen || pinnedMessages.length === 0) return;
 
     const messageId = pinnedMessageToOpen.id;
-    let messageElement = document.getElementById(`chat-message-${messageId}`);
-    let hasMoreMessages = messagesQuery.hasNextPage === true;
-
-    while (!messageElement && hasMoreMessages) {
-      const result = await messagesQuery.fetchNextPage();
-      await new Promise<void>((resolve) => {
-        window.requestAnimationFrame(() => resolve());
-      });
-
-      messageElement = document.getElementById(`chat-message-${messageId}`);
-      const pages = result.data?.pages ?? [];
-      hasMoreMessages = pages.at(-1)?.hasMore === true;
-    }
-
-    window.setTimeout(() => {
-      document
-        .getElementById(`chat-message-${messageId}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }, 50);
-
+    setRevealedPinnedMessageIds((current) =>
+      current.includes(messageId) ? current : [...current, messageId],
+    );
+    setFocusedPinnedMessageId(messageId);
     setPinnedMessageIndex(
       (current) => (current + 1) % pinnedMessages.length,
     );
+
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        document
+          .getElementById(`chat-message-${messageId}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
   };
 
   useEffect(() => {
-    if (!selectedConversationId) return;
-    void markConversationRead(selectedConversationId).then(() => {
-      void queryClient.invalidateQueries({ queryKey: chatQueryKeys.conversations });
-    });
-  }, [messages.length, queryClient, selectedConversationId]);
+    if (!focusedPinnedMessageId) return;
+    const timeoutId = window.setTimeout(
+      () => setFocusedPinnedMessageId(null),
+      2_500,
+    );
+    return () => window.clearTimeout(timeoutId);
+  }, [focusedPinnedMessageId]);
 
   useEffect(() => {
-    if (messagesQuery.isFetchingNextPage) return;
+    if (
+      !selectedConversationId ||
+      !latestIncomingMessageId ||
+      (selectedConversation?.unreadCount ?? 0) <= 0
+    ) {
+      return;
+    }
+
+    const marker = `${selectedConversationId}:${latestIncomingMessageId}`;
+    if (lastMarkedReadRef.current === marker) return;
+    lastMarkedReadRef.current = marker;
+
+    void markConversationRead(selectedConversationId)
+      .then(() => {
+        queryClient.setQueryData<ChatConversationDTO[]>(
+          chatQueryKeys.conversations,
+          (current) =>
+            current?.map((conversation) =>
+              conversation.id === selectedConversationId
+                ? { ...conversation, unreadCount: 0 }
+                : conversation,
+            ) ?? [],
+        );
+      })
+      .catch(() => {
+        if (lastMarkedReadRef.current === marker) {
+          lastMarkedReadRef.current = null;
+        }
+      });
+  }, [
+    latestIncomingMessageId,
+    queryClient,
+    selectedConversation?.unreadCount,
+    selectedConversationId,
+  ]);
+
+  useLayoutEffect(() => {
     const element = messageListRef.current;
-    if (element) element.scrollTop = element.scrollHeight;
-  }, [messages.length, messagesQuery.isFetchingNextPage, selectedConversationId]);
+    if (!element || messagesQuery.isFetchingNextPage) return;
+
+    if (pendingPrependHeightRef.current !== null) {
+      const previousHeight = pendingPrependHeightRef.current;
+      pendingPrependHeightRef.current = null;
+      element.scrollTop += element.scrollHeight - previousHeight;
+      return;
+    }
+
+    if (initialScrolledConversationRef.current !== selectedConversationId) {
+      initialScrolledConversationRef.current = selectedConversationId;
+      element.scrollTop = element.scrollHeight;
+      wasNearBottomRef.current = true;
+      return;
+    }
+
+    if (wasNearBottomRef.current) {
+      element.scrollTop = element.scrollHeight;
+    }
+  }, [
+    displayedMessages.length,
+    messagesQuery.isFetchingNextPage,
+    selectedConversationId,
+  ]);
 
   const gameSearchQuery = useQuery({
     queryKey: ["chat", "game-search", gameSearch.trim()],
@@ -543,6 +626,7 @@ export function MessagesPage() {
   const sendMutation = useMutation({
     mutationFn: sendChatMessage,
     onSuccess: async (message) => {
+      wasNearBottomRef.current = true;
       setMessageText("");
       setMediaFile(null);
       setValidationMessage(null);
@@ -733,7 +817,7 @@ export function MessagesPage() {
                 {pinnedMessageToOpen && (
                   <button
                     type="button"
-                    onClick={() => void scrollToPinnedMessage()}
+                    onClick={scrollToPinnedMessage}
                     className="flex shrink-0 items-center gap-3 border-b border-white/[0.07] bg-violet-500/[0.06] px-4 py-2.5 text-left transition hover:bg-violet-500/[0.1] sm:px-5"
                     aria-label={
                       language === "en"
@@ -764,12 +848,22 @@ export function MessagesPage() {
                 <div
                   ref={messageListRef}
                   onScroll={(event) => {
+                    const element = event.currentTarget;
+                    wasNearBottomRef.current =
+                      element.scrollHeight -
+                        element.scrollTop -
+                        element.clientHeight <
+                      120;
+
                     if (
-                      event.currentTarget.scrollTop < 80 &&
+                      element.scrollTop < 80 &&
                       messagesQuery.hasNextPage &&
                       !messagesQuery.isFetchingNextPage
                     ) {
-                      void messagesQuery.fetchNextPage();
+                      pendingPrependHeightRef.current = element.scrollHeight;
+                      void messagesQuery.fetchNextPage().catch(() => {
+                        pendingPrependHeightRef.current = null;
+                      });
                     }
                   }}
                   className="min-h-0 flex-1 space-y-2 overflow-y-auto bg-[radial-gradient(circle_at_top,_rgba(124,58,237,0.07),_transparent_45%)] px-4 py-5 sm:px-6"
@@ -777,8 +871,8 @@ export function MessagesPage() {
                   {messagesQuery.isFetchingNextPage && (
                     <LoaderCircle size={18} className="mx-auto animate-spin text-zinc-600" />
                   )}
-                  {messages.map((message, index) => {
-                    const previous = messages[index - 1];
+                  {displayedMessages.map((message, index) => {
+                    const previous = displayedMessages[index - 1];
                     const showDate =
                       !previous ||
                       new Date(previous.sentAtUtc).toDateString() !==
@@ -874,7 +968,15 @@ export function MessagesPage() {
                     );
 
                     return (
-                      <div key={message.id} id={`chat-message-${message.id}`}>
+                      <div
+                        key={message.id}
+                        id={`chat-message-${message.id}`}
+                        className={`scroll-mt-28 rounded-2xl transition ${
+                          focusedPinnedMessageId === message.id
+                            ? "bg-violet-500/[0.08] ring-2 ring-violet-400/30"
+                            : ""
+                        }`}
+                      >
                         {showDate && (
                           <div className="my-5 flex items-center gap-3">
                             <span className="h-px flex-1 bg-white/[0.06]" />

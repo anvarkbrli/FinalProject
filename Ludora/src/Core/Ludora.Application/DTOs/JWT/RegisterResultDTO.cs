@@ -4,4 +4,5 @@ public record RegisterResultDTO
 {
     public string Message { get; init; } = string.Empty;
     public bool EmailVerificationRequired { get; init; }
+    public bool EmailDeliveryPending { get; init; }
 }

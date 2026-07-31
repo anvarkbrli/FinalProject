@@ -8,6 +8,14 @@ public sealed record GlobalSearchFilterDTO
     public int Limit { get; init; } = 20;
 }
 
+
+public sealed record SearchPageFilterDTO
+{
+    public string Query { get; init; } = string.Empty;
+    public int PageNumber { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+}
+
 public sealed record GlobalSearchCountsDTO
 {
     public int Games { get; init; }

@@ -9,8 +9,21 @@ public interface IAuthService
         RegisterDTO dto,
         CancellationToken cancellationToken = default);
 
-    Task<AuthResponseDTO> LoginAsync(
+    Task<AuthSessionResultDTO> LoginAsync(
         LoginDTO dto,
+        string? ipAddress,
+        string? userAgent,
+        CancellationToken cancellationToken = default);
+
+    Task<AuthSessionResultDTO> RefreshAsync(
+        string refreshToken,
+        string? ipAddress,
+        string? userAgent,
+        CancellationToken cancellationToken = default);
+
+    Task LogoutAsync(
+        string? refreshToken,
+        string? ipAddress,
         CancellationToken cancellationToken = default);
 
     Task<EmailOperationResultDTO> ConfirmEmailAsync(
@@ -20,5 +33,25 @@ public interface IAuthService
 
     Task<EmailOperationResultDTO> ResendEmailConfirmationAsync(
         ResendEmailConfirmationDTO dto,
+        CancellationToken cancellationToken = default);
+
+    Task<EmailOperationResultDTO> ForgotPasswordAsync(
+        ForgotPasswordDTO dto,
+        CancellationToken cancellationToken = default);
+
+    Task<EmailOperationResultDTO> ResetPasswordAsync(
+        ResetPasswordDTO dto,
+        CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<AuthDeviceSessionDTO>> GetActiveSessionsAsync(
+        Guid userId,
+        string? currentRefreshToken,
+        CancellationToken cancellationToken = default);
+
+    Task<RevokeAuthDeviceSessionResultDTO> RevokeSessionAsync(
+        Guid userId,
+        Guid sessionId,
+        string? currentRefreshToken,
+        string? ipAddress,
         CancellationToken cancellationToken = default);
 }

@@ -10,6 +10,7 @@ import {
   LoaderCircle,
   LockKeyhole,
   Mail,
+  MonitorSmartphone,
   Moon,
   RefreshCw,
   ShieldCheck,
@@ -31,6 +32,11 @@ import { NotificationSettingsPanel } from "../components/notifications/Notificat
 import { EditProfilePage } from "./EditProfilePage";
 import { getApiErrorMessage, getApiFieldErrors } from "../lib/api";
 import { useConfirmation } from "../lib/confirmation";
+import {
+  getAuthDeviceSessions,
+  logout,
+  revokeAuthDeviceSession,
+} from "../services/authService";
 import { applyTheme, getActiveTheme, type WellPlaydTheme } from "../lib/theme";
 import {
   changePassword,
@@ -56,6 +62,7 @@ type SettingsSection =
   | "account"
   | "notifications"
   | "integrations"
+  | "sessions"
   | "blocked";
 
 const settingsSections: Array<{
@@ -96,6 +103,17 @@ const settingsSections: Array<{
   },
 ];
 
+function formatSessionDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+
+  const pad = (number: number) => String(number).padStart(2, "0");
+
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()}, ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
 function parseSettingsSection(
   value: string | null,
   hasSteamResult: boolean,
@@ -121,6 +139,7 @@ type NoticeArea =
   | "password"
   | "delete"
   | "integrations"
+  | "sessions"
   | "blocked";
 
 type SettingsField =
@@ -432,6 +451,12 @@ export function SettingsPage() {
     enabled: activeSection === "blocked",
   });
 
+  const deviceSessionsQuery = useQuery({
+    queryKey: ["auth-device-sessions"],
+    queryFn: ({ signal }) => getAuthDeviceSessions(signal),
+    enabled: activeSection === "account",
+  });
+
   const steamConnectionQuery = useQuery({
     queryKey: ["steam-connection"],
     queryFn: getSteamConnectionStatus,
@@ -521,10 +546,11 @@ export function SettingsPage() {
 
   const deleteAccountMutation = useMutation({
     mutationFn: deleteAccount,
-    onSuccess: (result) => {
+    onSuccess: async (result) => {
       setIsDeleteModalOpen(false);
       setDeletePassword("");
       setDeleteConfirmation("");
+      await logout();
       clearSession();
       queryClient.clear();
       navigate("/login", {
@@ -535,6 +561,33 @@ export function SettingsPage() {
       });
     },
     onError: applyDeleteAccountError,
+  });
+
+  const revokeDeviceSessionMutation = useMutation({
+    mutationFn: revokeAuthDeviceSession,
+    onSuccess: async (result) => {
+      if (result.currentSessionRevoked) {
+        clearSession();
+        queryClient.clear();
+        navigate("/login", {
+          replace: true,
+          state: { sessionMessage: result.message },
+        });
+        return;
+      }
+
+      setAreaNotice("sessions", {
+        type: "success",
+        message: result.message,
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["auth-device-sessions"],
+      });
+    },
+    onError: (error) => setAreaNotice("sessions", {
+      type: "error",
+      message: getApiErrorMessage(error, "Cihaz hesabdan çıxarıla bilmədi."),
+    }),
   });
 
   const unblockMutation = useMutation({
@@ -915,6 +968,119 @@ export function SettingsPage() {
               </button>
             </div>
             <LocalNotice notice={notices.appearance} />
+          </section>
+          )}
+
+          {activeSection === "account" && (
+          <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <MonitorSmartphone size={20} />
+              </span>
+              <div>
+                <h2 className="font-semibold text-white">Aktiv cihazlar</h2>
+                <p className="mt-1 text-xs leading-5 text-zinc-600">
+                  Hesabının açıq olduğu cihazları və son aktivlik vaxtını gör. Tanımadığın cihazı dərhal hesabdan çıxara bilərsən.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {deviceSessionsQuery.isLoading ? (
+                <div className="flex items-center gap-2 rounded-2xl border border-white/[0.06] bg-white/[0.02] px-4 py-5 text-sm text-zinc-500">
+                  <LoaderCircle size={17} className="animate-spin" /> Aktiv cihazlar yüklənir...
+                </div>
+              ) : deviceSessionsQuery.isError ? (
+                <div role="alert" className="rounded-xl border border-red-400/15 bg-red-500/[0.06] px-4 py-3 text-sm text-red-200">
+                  {getApiErrorMessage(
+                    deviceSessionsQuery.error,
+                    "Aktiv cihazlar yüklənmədi.",
+                  )}
+                </div>
+              ) : (deviceSessionsQuery.data?.length ?? 0) === 0 ? (
+                <p className="rounded-2xl border border-dashed border-white/[0.07] p-5 text-sm text-zinc-600">
+                  Aktiv cihaz tapılmadı.
+                </p>
+              ) : deviceSessionsQuery.data?.map((session) => {
+                const isRevoking =
+                  revokeDeviceSessionMutation.isPending &&
+                  revokeDeviceSessionMutation.variables === session.id;
+                const signedInAt = formatSessionDateTime(session.signedInAtUtc);
+                const lastActive = formatSessionDateTime(session.lastActiveAtUtc);
+
+                return (
+                  <div
+                    key={session.id}
+                    className={`rounded-2xl border p-4 ${
+                      session.isCurrent
+                        ? "border-violet-400/20 bg-violet-500/[0.045]"
+                        : "border-white/[0.06] bg-white/[0.02]"
+                    }`}
+                  >
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-zinc-400">
+                          <MonitorSmartphone size={20} />
+                        </span>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold text-zinc-200">
+                              {session.deviceName}
+                            </p>
+                            {session.isCurrent && (
+                              <span className="rounded-full border border-emerald-400/15 bg-emerald-500/[0.07] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+                                Bu cihaz
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {session.browser} · {session.operatingSystem}
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-zinc-600">
+                            Son giriş: {signedInAt} · Son aktivlik: {lastActive}
+                          </p>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        disabled={isRevoking}
+                        onClick={async () => {
+                          setAreaNotice("sessions", null);
+                          const confirmed = await requestConfirmation({
+                            title: session.isCurrent
+                              ? "Cari cihazdan çıxış edilsin?"
+                              : "Bu cihaz hesabdan çıxarılsın?",
+                            description: session.isCurrent
+                              ? "Bu brauzerdə sessiyan bağlanacaq və login səhifəsinə yönləndiriləcəksən."
+                              : `${session.deviceName} cihazındakı aktiv sessiya ləğv ediləcək.`,
+                            confirmLabel: session.isCurrent
+                              ? "Çıxış et"
+                              : "Cihazı çıxar",
+                            kind: "disconnect",
+                            tone: "warning",
+                          });
+
+                          if (confirmed) {
+                            revokeDeviceSessionMutation.mutate(session.id);
+                          }
+                        }}
+                        aria-label={session.isCurrent ? "Cari cihazdan çıxış et" : "Cihazı hesabdan çıxar"}
+                        title={session.isCurrent ? "Cari cihazdan çıxış et" : "Cihazı hesabdan çıxar"}
+                        className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-red-400/10 bg-red-500/[0.04] text-red-300 transition hover:bg-red-500/[0.08] disabled:opacity-50"
+                      >
+                        {isRevoking ? (
+                          <LoaderCircle size={15} className="animate-spin" />
+                        ) : (
+                          <X size={16} />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <LocalNotice notice={notices.sessions} />
           </section>
           )}
 

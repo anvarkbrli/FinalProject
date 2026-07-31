@@ -1,12 +1,15 @@
+using Ludora.API.Security;
 using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers.Admin;
 
-[Authorize(Roles = RoleNames.AdminOrModerator)]
+[Authorize(Policy = CapabilityNames.ViewDashboard)]
+[EnableRateLimiting(RateLimitPolicyNames.Moderation)]
 [Route("api/admin/dashboard")]
 [ApiController]
 public sealed class AdminDashboardController : ControllerBase

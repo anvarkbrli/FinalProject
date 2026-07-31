@@ -4,6 +4,7 @@ import type { CurrentUserDTO } from "../types/auth";
 import type {
   BlockedUserDTO,
   ChangeEmailRequestDTO,
+  ConfirmEmailChangeRequestDTO,
   ChangePasswordRequestDTO,
   DeleteAccountRequestDTO,
   DeleteAccountResultDTO,
@@ -177,5 +178,15 @@ export async function deleteAccount(
     { data: request },
   );
 
+  return response.data;
+}
+
+export async function confirmEmailChange(
+  request: ConfirmEmailChangeRequestDTO,
+): Promise<EmailOperationResultDTO> {
+  const response = await api.post<EmailOperationResultDTO>(
+    "/users/email-change/confirm",
+    request,
+  );
   return response.data;
 }

@@ -49,8 +49,37 @@ export interface AuthResponseDTO {
 export interface RegisterResultDTO {
   message: string;
   emailVerificationRequired: boolean;
+  emailDeliveryPending: boolean;
 }
 
 export interface EmailOperationResultDTO {
+  message: string;
+}
+
+export interface ForgotPasswordRequestDTO {
+  email: string;
+}
+
+export interface ResetPasswordRequestDTO {
+  email: string;
+  token: string;
+  newPassword: string;
+  confirmNewPassword: string;
+}
+
+export interface AuthDeviceSessionDTO {
+  id: string;
+  deviceName: string;
+  browser: string;
+  operatingSystem: string;
+  ipAddress: string | null;
+  signedInAtUtc: string;
+  lastActiveAtUtc: string;
+  expiresAtUtc: string;
+  isCurrent: boolean;
+}
+
+export interface RevokeAuthDeviceSessionResultDTO {
+  currentSessionRevoked: boolean;
   message: string;
 }

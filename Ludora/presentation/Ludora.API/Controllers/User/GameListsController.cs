@@ -1,9 +1,11 @@
+using Ludora.API.Security;
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace Ludora.API.Controllers.User;
 
@@ -43,6 +45,7 @@ public sealed class GameListsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPost]
     public async Task<IActionResult> Create(
         [FromBody] GameListCreateDTO dto,
@@ -56,6 +59,7 @@ public sealed class GameListsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPatch("{id:int:min(1)}")]
     public async Task<IActionResult> Update(
         int id,
@@ -71,6 +75,7 @@ public sealed class GameListsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpDelete("{id:int:min(1)}")]
     public async Task<IActionResult> Delete(
         int id,
@@ -81,6 +86,7 @@ public sealed class GameListsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPatch("{id:int:min(1)}/restore")]
     public async Task<IActionResult> Restore(int id, CancellationToken cancellationToken)
     {
@@ -89,6 +95,7 @@ public sealed class GameListsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPost("{listId:int:min(1)}/games/{source}/{gameId:long:min(1)}")]
     public async Task<IActionResult> AddGame(
         int listId,
@@ -106,6 +113,7 @@ public sealed class GameListsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpDelete("{listId:int:min(1)}/games/{source}/{gameId:long:min(1)}")]
     public async Task<IActionResult> RemoveGame(
         int listId,
@@ -123,6 +131,7 @@ public sealed class GameListsController : ControllerBase
     }
 
     [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPatch("{listId:int:min(1)}/games/{source}/{gameId:long:min(1)}/position")]
     public async Task<IActionResult> UpdateGamePosition(
         int listId,
