@@ -1,8 +1,1 @@
-{
-  "required": "Bu sahə mütləqdir.",
-  "email": "Düzgün email ünvanı daxil edin.",
-  "passwordMismatch": "Şifrələr eyni deyil.",
-  "requestFailed": "Sorğu yerinə yetirilərkən xəta baş verdi.",
-  "unauthorized": "Bu əməliyyat üçün daxil olmalısınız.",
-  "notFound": "Məlumat tapılmadı."
-}
+{}

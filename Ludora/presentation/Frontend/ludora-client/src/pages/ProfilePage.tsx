@@ -97,6 +97,7 @@ import {
   getFollowers,
   getFollowing,
   getFollowStatus,
+  getMyCollaboratingGameLists,
   getMyFeed,
   getUserGameLists,
   getUserGames,
@@ -343,12 +344,6 @@ function formatReviewRating(value: number): string {
     : value.toFixed(1);
 }
 
-const visibilityLabels = {
-  Public: "Hamı üçün",
-  Private: "Gizli",
-  FollowersOnly: "Yalnız izləyicilər",
-} as const;
-
 function useObjectUrl(file: File | null): string | null {
   const objectUrl = useMemo(
     () => (file ? URL.createObjectURL(file) : null),
@@ -421,7 +416,7 @@ function ProfileLoadingState() {
 }
 
 export function ProfilePage() {
-  const { language } = useI18n();
+  const { language, t } = useI18n();
   const { userName = "" } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -626,6 +621,15 @@ export function ProfilePage() {
       getUserGameLists(profile!.id),
     enabled:
       profile !== undefined &&
+      visibleActiveTab === "lists",
+  });
+
+  const collaboratingListsQuery = useQuery({
+    queryKey: ["my-collaborating-game-lists"],
+    queryFn: getMyCollaboratingGameLists,
+    enabled:
+      isAuthenticated &&
+      isOwnProfile &&
       visibleActiveTab === "lists",
   });
 
@@ -1402,6 +1406,7 @@ export function ProfilePage() {
 
   const posts = postsQuery.data ?? [];
   const gameLists = listsQuery.data ?? [];
+  const collaboratingGameLists = collaboratingListsQuery.data ?? [];
   const reviews = reviewsQuery.data?.items ?? [];
   const profileGames = profileGamesQuery.data?.items ?? [];
 
@@ -1657,7 +1662,7 @@ export function ProfilePage() {
 
                   </div>
 
-                  <p className="mt-4 max-w-2xl whitespace-pre-wrap text-sm leading-7 text-zinc-400">
+                  <p data-user-content className="mt-4 max-w-2xl whitespace-pre-wrap text-sm leading-7 text-zinc-400">
                     {profile.bio ??
                       "Bu istifadəçi hələ bio əlavə etməyib."}
                   </p>
@@ -2355,7 +2360,7 @@ export function ProfilePage() {
                       ) : (
                         <div className="mt-5 space-y-4">
                           {post.content && (
-                            <p className="whitespace-pre-wrap break-words text-sm leading-7 text-zinc-300">
+                            <p data-user-content className="whitespace-pre-wrap break-words text-sm leading-7 text-zinc-300">
                               {post.content}
                             </p>
                           )}
@@ -2533,63 +2538,168 @@ export function ProfilePage() {
                   </div>
                 ) : (
                   <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    {gameLists.map((list) => (
-                      <Link
-                        key={list.id}
-                        to={`/lists/${list.id}`}
-                        className="group rounded-3xl border border-white/[0.07] bg-[#101015] p-6 transition hover:-translate-y-0.5 hover:border-violet-300/20 hover:bg-[#13131a]"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
-                            {list.isRanked ? (
-                              <ListOrdered size={20} />
-                            ) : (
-                              <ListChecks size={20} />
-                            )}
-                          </span>
+                    {gameLists.map((list) => {
+                      const backgroundUrl = resolveAssetUrl(
+                        list.backgroundCoverImageUrl,
+                      );
 
-                          <span className="rounded-full border border-white/[0.07] bg-white/[0.03] px-3 py-1 text-[11px] font-semibold text-zinc-500">
-                            {visibilityLabels[list.visibility]}
-                          </span>
-                        </div>
+                      return (
+                        <Link
+                          key={list.id}
+                          to={`/lists/${list.id}`}
+                          className="group relative min-h-[22rem] overflow-hidden rounded-[1.75rem] border border-white/[0.08] bg-[#101015] shadow-xl shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-violet-300/25 hover:shadow-2xl hover:shadow-violet-950/20"
+                        >
+                          {backgroundUrl && (
+                            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                              <img
+                                src={backgroundUrl}
+                                alt=""
+                                className="h-full w-full scale-110 object-cover opacity-35 blur-xl transition duration-500 group-hover:scale-[1.16] group-hover:opacity-45"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-[#0c0c12] via-[#0c0c12]/88 to-[#0c0c12]/45" />
+                              <div className="absolute inset-0 bg-gradient-to-r from-violet-950/20 to-transparent" />
+                            </div>
+                          )}
 
-                        <div className="mt-4 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-violet-300/80">
-                          {list.isRanked
-                            ? "Ranklanmış"
-                            : "Sırasız"}
-                        </div>
+                          <div className="relative flex h-full min-h-[22rem] flex-col p-6">
+                            <div className="flex items-start justify-between gap-4">
+                              <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-300/15 bg-violet-500/15 text-violet-200 backdrop-blur-md">
+                                {list.isRanked ? (
+                                  <ListOrdered size={21} />
+                                ) : (
+                                  <ListChecks size={21} />
+                                )}
+                              </span>
 
-                        <h2 className="mt-2 text-lg font-semibold text-white transition group-hover:text-violet-200">
-                          {list.name}
-                        </h2>
+                              <span className="rounded-full border border-white/[0.1] bg-black/25 px-3 py-1 text-[11px] font-semibold text-zinc-300 backdrop-blur-md">
+                                {t(`lists:visibility.${list.visibility}`)}
+                              </span>
+                            </div>
 
-                        <p className="mt-2 line-clamp-3 min-h-[4.5rem] text-sm leading-6 text-zinc-500">
-                          {list.description ??
-                            "Açıqlama əlavə edilməyib."}
-                        </p>
+                            <div className="mt-8 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-violet-200/90">
+                              {list.isRanked
+                                ? t("lists:profile.ranked")
+                                : t("lists:profile.unranked")}
+                            </div>
 
-                        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] pt-4 text-xs text-zinc-600">
-                          <div className="flex flex-wrap items-center gap-4">
-                            <span className="inline-flex items-center gap-2">
-                              <Gamepad2 size={15} />
-                              {list.gameCount} oyun
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                              <Heart size={14} />
-                              {list.likeCount}
-                            </span>
-                            <span className="inline-flex items-center gap-1.5">
-                              <MessageCircle size={14} />
-                              {list.commentCount}
-                            </span>
+                            <h2 className="mt-2 line-clamp-2 text-xl font-black text-white drop-shadow-md transition group-hover:text-violet-100">
+                              {list.name}
+                            </h2>
+
+                            <p data-user-content className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-300/70">
+                              {list.description ??
+                                t("lists:profile.noDescription")}
+                            </p>
+
+                            <div className="mt-auto pt-8">
+                              {list.collaboratorCount > 0 && (
+                                <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/10 bg-emerald-500/[0.08] px-3 py-1 text-[11px] font-bold text-emerald-200/80">
+                                  <Users size={13} />
+                                  {t("lists:profile.collaborators", {
+                                    count: list.collaboratorCount,
+                                  })}
+                                </span>
+                              )}
+
+                              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] pt-4 text-xs text-zinc-400">
+                                <div className="flex flex-wrap items-center gap-4">
+                                  <span className="inline-flex items-center gap-2">
+                                    <Gamepad2 size={15} />
+                                    {list.gameCount}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <Heart size={14} />
+                                    {list.likeCount}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1.5">
+                                    <MessageCircle size={14} />
+                                    {list.commentCount}
+                                  </span>
+                                </div>
+                                <span>{formatRelativeDate(list.createdAt)}</span>
+                              </div>
+                            </div>
                           </div>
-                          <span>
-                            {formatRelativeDate(list.createdAt)}
-                          </span>
-                        </div>
-                      </Link>
-                    ))}
+                        </Link>
+                      );
+                    })}
                   </div>
+                )}
+
+                {isOwnProfile && collaboratingGameLists.length > 0 && (
+                  <section className="mt-10 border-t border-white/[0.07] pt-8">
+                    <div className="mb-5">
+                      <h3 className="text-lg font-black text-white">
+                        {t("lists:profile.sharedWithMe")}
+                      </h3>
+                      <p className="mt-1 text-sm text-zinc-600">
+                        {t("lists:profile.sharedWithMeDescription")}
+                      </p>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {collaboratingGameLists.map((list) => {
+                        const backgroundUrl = resolveAssetUrl(
+                          list.backgroundCoverImageUrl,
+                        );
+                        const isPending =
+                          list.currentUserCollaborationStatus === "Pending";
+
+                        return (
+                          <Link
+                            key={`collaboration-${list.id}`}
+                            to={`/lists/${list.id}`}
+                            className="group relative min-h-[18rem] overflow-hidden rounded-[1.75rem] border border-white/[0.08] bg-[#101015] transition duration-300 hover:-translate-y-1 hover:border-violet-300/25"
+                          >
+                            {backgroundUrl && (
+                              <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                                <img
+                                  src={backgroundUrl}
+                                  alt=""
+                                  className="h-full w-full scale-110 object-cover opacity-30 blur-xl transition duration-500 group-hover:scale-[1.16]"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-[#0c0c12] via-[#0c0c12]/88 to-[#0c0c12]/50" />
+                              </div>
+                            )}
+                            <div className="relative flex h-full min-h-[18rem] flex-col p-6">
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-violet-300/15 bg-violet-500/15 text-violet-200">
+                                  <Users size={20} />
+                                </span>
+                                <span className={`rounded-full border px-3 py-1 text-[11px] font-bold ${
+                                  isPending
+                                    ? "border-amber-300/15 bg-amber-500/[0.1] text-amber-200"
+                                    : "border-emerald-300/15 bg-emerald-500/[0.1] text-emerald-200"
+                                }`}>
+                                  {isPending
+                                    ? t("lists:profile.invitationPending")
+                                    : t("lists:profile.collaborating")}
+                                </span>
+                              </div>
+                              <p className="mt-7 text-xs font-bold text-violet-200/80">
+                                @{list.ownerUserName}
+                              </p>
+                              <h4 className="mt-2 line-clamp-2 text-xl font-black text-white">
+                                {list.name}
+                              </h4>
+                              <p data-user-content className="mt-3 line-clamp-2 text-sm leading-6 text-zinc-400">
+                                {list.description ?? t("lists:profile.noDescription")}
+                              </p>
+                              <div className="mt-auto flex items-center gap-4 border-t border-white/[0.08] pt-4 text-xs text-zinc-500">
+                                <span className="inline-flex items-center gap-2">
+                                  <Gamepad2 size={14} />
+                                  {list.gameCount}
+                                </span>
+                                <span className="inline-flex items-center gap-2">
+                                  <Users size={14} />
+                                  {list.collaboratorCount}
+                                </span>
+                              </div>
+                            </div>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </section>
                 )}
               </div>
             )}
@@ -2903,7 +3013,7 @@ export function ProfilePage() {
                               </span>
                             </button>
                           ) : (
-                            <p className="whitespace-pre-wrap text-sm leading-7 text-zinc-300">
+                            <p data-user-content className="whitespace-pre-wrap text-sm leading-7 text-zinc-300">
                               {review.content}
                             </p>
                           )}

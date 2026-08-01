@@ -28,12 +28,14 @@ import {
   getGames,
   getIgdbGameGenres,
 } from "../../services/gamesService";
+import { getApiErrorMessage } from "../../lib/api";
+import { updateForumInterests } from "../../services/forumInterestsService";
+import type { ForumInterestProfileDTO } from "../../types/forumInterests";
 import type { GameCatalogItemDTO } from "../../types/games";
 
 interface ForumInterestOnboardingProps {
   open: boolean;
-  userId: string;
-  onComplete: () => void;
+  onComplete: (profile: ForumInterestProfileDTO) => void;
   onDismiss: () => void;
 }
 
@@ -249,7 +251,6 @@ function toggleValue(values: string[], value: string) {
 
 export function ForumInterestOnboarding({
   open,
-  userId,
   onComplete,
   onDismiss,
 }: ForumInterestOnboardingProps) {
@@ -265,6 +266,8 @@ export function ForumInterestOnboarding({
   const [searchValue, setSearchValue] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [genresExpanded, setGenresExpanded] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const firstAdditionalGenreRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
@@ -378,10 +381,14 @@ export function ForumInterestOnboarding({
     });
   }
 
-  function finishOnboarding() {
-    localStorage.setItem(
-      `ludora-forum-interests:${userId}`,
-      JSON.stringify({
+  async function finishOnboarding() {
+    if (isSaving) return;
+
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      const profile = await updateForumInterests({
         styles,
         games: selectedGames.map((game) => ({
           key: game.key,
@@ -389,20 +396,29 @@ export function ForumInterestOnboarding({
         })),
         genres: selectedGenres,
         platform,
-        completedAt: new Date().toISOString(),
-      }),
-    );
-    onComplete();
+      });
+      onComplete(profile);
+    } catch (error) {
+      setSaveError(
+        getApiErrorMessage(
+          error,
+          "Maraqları yadda saxlamaq mümkün olmadı. Yenidən cəhd edin.",
+        ),
+      );
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   function goForward() {
-    if (!currentIsValid) {
+    if (!currentIsValid || isSaving) {
       return;
     }
     if (step === stepMeta.length - 1) {
-      finishOnboarding();
+      void finishOnboarding();
       return;
     }
+    setSaveError(null);
     setStep((current) => current + 1);
   }
 
@@ -858,6 +874,11 @@ export function ForumInterestOnboarding({
             </div>
 
             <footer className="relative border-t border-white/[0.07] bg-[#0a1212]/95 px-5 py-4 sm:px-8">
+              {saveError && (
+                <p role="alert" className="mx-auto mb-3 max-w-2xl text-center text-xs font-semibold text-rose-300">
+                  {saveError}
+                </p>
+              )}
               <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
                 <button
                   type="button"
@@ -866,7 +887,8 @@ export function ForumInterestOnboarding({
                       ? onDismiss()
                       : setStep((current) => current - 1)
                   }
-                  className="flex h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-zinc-500 transition hover:bg-white/[0.04] hover:text-zinc-200"
+                  disabled={isSaving}
+                  className="flex h-11 items-center gap-2 rounded-xl px-3 text-sm font-semibold text-zinc-500 transition hover:bg-white/[0.04] hover:text-zinc-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <ArrowLeft size={17} />
                   {step === 0 ? "Sonra" : "Geri"}
@@ -875,16 +897,25 @@ export function ForumInterestOnboarding({
                 <button
                   type="button"
                   onClick={goForward}
-                  disabled={!currentIsValid}
+                  disabled={!currentIsValid || isSaving}
                   className="flex h-11 items-center gap-2 rounded-xl bg-teal-300 px-5 text-sm font-black text-[#07100f] shadow-lg shadow-teal-950/30 transition hover:bg-teal-200 disabled:cursor-not-allowed disabled:bg-white/[0.07] disabled:text-zinc-600 disabled:shadow-none"
                 >
-                  {step === stepMeta.length - 1
-                    ? "Lentimi hazırla"
-                    : "Davam et"}
-                  {step === stepMeta.length - 1 ? (
-                    <Sparkles size={16} />
+                  {isSaving ? (
+                    <>
+                      <LoaderCircle size={16} className="animate-spin" />
+                      Yadda saxlanılır...
+                    </>
                   ) : (
-                    <ArrowRight size={17} />
+                    <>
+                      {step === stepMeta.length - 1
+                        ? "Lentimi hazırla"
+                        : "Davam et"}
+                      {step === stepMeta.length - 1 ? (
+                        <Sparkles size={16} />
+                      ) : (
+                        <ArrowRight size={17} />
+                      )}
+                    </>
                   )}
                 </button>
               </div>

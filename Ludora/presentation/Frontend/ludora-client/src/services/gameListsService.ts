@@ -1,8 +1,10 @@
 import { api } from "../lib/api";
 import type { CatalogSource } from "../types/home";
 import type {
+  GameListCloneDTO,
   GameListCreateDTO,
   GameListDetailDTO,
+  GameListReorderItemDTO,
   GameListUpdateDTO,
 } from "../types/gameLists";
 
@@ -70,4 +72,49 @@ export async function updateGameListPosition(
     `/game-lists/${listId}/games/${source}/${gameId}/position`,
     { position },
   );
+}
+
+
+export async function reorderGameList(
+  listId: number,
+  items: GameListReorderItemDTO[],
+): Promise<void> {
+  await api.put(`/game-lists/${listId}/games/order`, { items });
+}
+
+export async function cloneGameList(
+  listId: number,
+  request: GameListCloneDTO,
+): Promise<number> {
+  const response = await api.post<{ id: number }>(
+    `/game-lists/${listId}/clone`,
+    request,
+  );
+  return response.data.id;
+}
+
+export async function inviteGameListCollaborator(
+  listId: number,
+  userName: string,
+): Promise<void> {
+  await api.post(`/game-lists/${listId}/collaborators`, { userName });
+}
+
+export async function acceptGameListCollaboration(
+  listId: number,
+): Promise<void> {
+  await api.post(`/game-lists/${listId}/collaboration/accept`);
+}
+
+export async function declineGameListCollaboration(
+  listId: number,
+): Promise<void> {
+  await api.delete(`/game-lists/${listId}/collaboration/decline`);
+}
+
+export async function removeGameListCollaborator(
+  listId: number,
+  userId: string,
+): Promise<void> {
+  await api.delete(`/game-lists/${listId}/collaborators/${userId}`);
 }

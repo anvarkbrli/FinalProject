@@ -1499,6 +1499,9 @@ namespace Ludora.Persistence.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
 
+                    b.Property<string>("ForumInterestsJson")
+                        .HasColumnType("nvarchar(max)");
+
                     b.Property<string>("FpsGpuName")
                         .HasMaxLength(150)
                         .HasColumnType("nvarchar(150)");
@@ -2121,8 +2124,21 @@ namespace Ludora.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("CurrentStreak")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<Guid>("InitiatedByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateOnly?>("LastCompletedStreakDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("LongestStreak")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
 
                     b.Property<int>("RequestStatus")
                         .ValueGeneratedOnAdd()
@@ -2159,6 +2175,8 @@ namespace Ludora.Persistence.Migrations
                             t.HasCheckConstraint("CK_ChatConversations_DifferentUsers", "[UserOneId] <> [UserTwoId]");
 
                             t.HasCheckConstraint("CK_ChatConversations_RequestStatus", "[RequestStatus] BETWEEN 0 AND 2");
+
+                            t.HasCheckConstraint("CK_ChatConversations_Streaks", "[CurrentStreak] >= 0 AND [LongestStreak] >= [CurrentStreak]");
                         });
                 });
 
@@ -2193,6 +2211,11 @@ namespace Ludora.Persistence.Migrations
                     b.Property<int?>("GameSource")
                         .HasColumnType("int");
 
+                    b.Property<bool>("IsForwarded")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<int>("Kind")
                         .HasColumnType("int");
 
@@ -2210,6 +2233,9 @@ namespace Ludora.Persistence.Migrations
                     b.Property<DateTime?>("ReadAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<long?>("ReplyToMessageId")
+                        .HasColumnType("bigint");
+
                     b.Property<Guid>("SenderUserId")
                         .HasColumnType("uniqueidentifier");
 
@@ -2222,7 +2248,11 @@ namespace Ludora.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("ReplyToMessageId");
+
                     b.HasIndex("SenderUserId");
+
+                    b.HasIndex("ConversationId", "ReplyToMessageId");
 
                     b.HasIndex("ConversationId", "SentAtUtc", "Id")
                         .IsDescending(false, true, true);
@@ -2234,6 +2264,56 @@ namespace Ludora.Persistence.Migrations
                             t.HasCheckConstraint("CK_ChatMessages_Content", "[DeletedForEveryoneAtUtc] IS NOT NULL OR [Text] IS NOT NULL OR [MediaStorageKey] IS NOT NULL OR [GameId] IS NOT NULL");
 
                             t.HasCheckConstraint("CK_ChatMessages_Kind", "[Kind] BETWEEN 0 AND 3");
+                        });
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.ChatConversationUserState", b =>
+                {
+                    b.Property<long>("ConversationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime?>("ArchivedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
+
+                    b.HasKey("ConversationId", "UserId");
+
+                    b.HasIndex("UserId", "IsArchived", "ArchivedAtUtc");
+
+                    b.ToTable("ChatConversationUserStates");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.ChatMessageReaction", b =>
+                {
+                    b.Property<long>("MessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ReactionType")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("MessageId", "UserId");
+
+                    b.HasIndex("UserId", "UpdatedAtUtc");
+
+                    b.HasIndex("MessageId", "ReactionType");
+
+                    b.ToTable("ChatMessageReactions", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ChatMessageReactions_ReactionType", "[ReactionType] BETWEEN 0 AND 5");
                         });
                 });
 
@@ -2312,6 +2392,36 @@ namespace Ludora.Persistence.Migrations
                     SqlServerIndexBuilderExtensions.IncludeProperties(b.HasIndex("UserId", "CreatedAt", "Id"), new[] { "Visibility", "IsRanked", "Name" });
 
                     b.ToTable("GameLists");
+                });
+
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.GameListCollaborator", b =>
+                {
+                    b.Property<int>("GameListId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("InvitedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("InvitedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("RespondedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("int");
+
+                    b.HasKey("GameListId", "UserId");
+
+                    b.HasIndex("InvitedByUserId");
+
+                    b.HasIndex("UserId", "Status", "InvitedAtUtc");
+
+                    b.ToTable("GameListCollaborators");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.GameListComment", b =>
@@ -3584,7 +3694,7 @@ namespace Ludora.Persistence.Migrations
                     b.HasOne("Ludora.Domain.Entities.Forum.ForumCommunity", "Community")
                         .WithMany("Discussions")
                         .HasForeignKey("CommunityId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
                         .WithMany("Discussions")
@@ -3942,7 +4052,7 @@ namespace Ludora.Persistence.Migrations
                     b.HasOne("Ludora.Domain.Entities.GameTracking.Game", "LocalGame")
                         .WithMany("SteamOwnedGames")
                         .HasForeignKey("LocalGameId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.NoAction);
 
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
                         .WithMany("SteamOwnedGames")
@@ -3988,6 +4098,44 @@ namespace Ludora.Persistence.Migrations
                     b.Navigation("CreatedByUser");
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.User.ChatConversationUserState", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.ChatConversation", "Conversation")
+                        .WithMany("UserStates")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("ChatConversationStates")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.ChatMessageReaction", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.ChatMessage", "Message")
+                        .WithMany("Reactions")
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("ChatMessageReactions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Message");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.User.ChatConversation", b =>
                 {
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "InitiatedByUser")
@@ -4023,6 +4171,11 @@ namespace Ludora.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Ludora.Domain.Entities.User.ChatMessage", "ReplyToMessage")
+                        .WithMany("Replies")
+                        .HasForeignKey("ReplyToMessageId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "SenderUser")
                         .WithMany("SentChatMessages")
                         .HasForeignKey("SenderUserId")
@@ -4030,6 +4183,8 @@ namespace Ludora.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Conversation");
+
+                    b.Navigation("ReplyToMessage");
 
                     b.Navigation("SenderUser");
                 });
@@ -4060,6 +4215,34 @@ namespace Ludora.Persistence.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.GameListCollaborator", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.GameList", "GameList")
+                        .WithMany("Collaborators")
+                        .HasForeignKey("GameListId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "InvitedByUser")
+                        .WithMany()
+                        .HasForeignKey("InvitedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("GameList");
+
+                    b.Navigation("InvitedByUser");
 
                     b.Navigation("User");
                 });
@@ -4606,6 +4789,10 @@ namespace Ludora.Persistence.Migrations
 
                     b.Navigation("ChatConversationsAsUserTwo");
 
+                    b.Navigation("ChatConversationStates");
+
+                    b.Navigation("ChatMessageReactions");
+
                     b.Navigation("ChatMessageStates");
 
                     b.Navigation("DiscussionLikes");
@@ -4685,15 +4872,23 @@ namespace Ludora.Persistence.Migrations
             modelBuilder.Entity("Ludora.Domain.Entities.User.ChatConversation", b =>
                 {
                     b.Navigation("Messages");
+
+                    b.Navigation("UserStates");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.ChatMessage", b =>
                 {
+                    b.Navigation("Reactions");
+
+                    b.Navigation("Replies");
+
                     b.Navigation("UserStates");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.GameList", b =>
                 {
+                    b.Navigation("Collaborators");
+
                     b.Navigation("Comments");
 
                     b.Navigation("GameListItems");

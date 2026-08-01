@@ -29,19 +29,25 @@ public sealed class ChatController : ControllerBase
 
     [HttpGet("conversations")]
     public async Task<ActionResult<IReadOnlyList<ChatConversationDTO>>> GetConversations(
-        CancellationToken cancellationToken)
+        [FromQuery] bool archived = false,
+        [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default)
     {
         return Ok(await _chatService.GetConversationsAsync(
             GetCurrentUserId(),
+            archived,
+            search,
             cancellationToken));
     }
 
     [HttpGet("requests")]
     public async Task<ActionResult<IReadOnlyList<ChatConversationDTO>>> GetRequests(
-        CancellationToken cancellationToken)
+        [FromQuery] string? search = null,
+        CancellationToken cancellationToken = default)
     {
         return Ok(await _chatService.GetMessageRequestsAsync(
             GetCurrentUserId(),
+            search,
             cancellationToken));
     }
 
@@ -60,15 +66,46 @@ public sealed class ChatController : ControllerBase
             cancellationToken));
     }
 
+    [HttpGet("conversations/{conversationId:long}/messages/{messageId:long}")]
+    public async Task<ActionResult<ChatMessageDTO>> GetMessage(
+        long conversationId,
+        long messageId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _chatService.GetMessageAsync(
+            GetCurrentUserId(),
+            conversationId,
+            messageId,
+            cancellationToken));
+    }
+
+    [HttpGet("conversations/{conversationId:long}/messages/search")]
+    public async Task<ActionResult<ChatMessageSearchPageDTO>> SearchMessages(
+        long conversationId,
+        [FromQuery] string query,
+        [FromQuery] int page = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        return Ok(await _chatService.SearchMessagesAsync(
+            GetCurrentUserId(),
+            conversationId,
+            query,
+            page,
+            pageSize,
+            cancellationToken));
+    }
+
     [HttpPost("messages")]
     [Consumes("multipart/form-data")]
-    public async Task<ActionResult<ChatMessageDTO>> SendMessage(
+    public async Task<ActionResult<ChatSendMessageResultDTO>> SendMessage(
         [FromForm] Guid recipientUserId,
         [FromForm] string? text,
         [FromForm] CatalogSource? gameSource,
         [FromForm] long? gameId,
         [FromForm] string? gameName,
         [FromForm] string? gameCoverUrl,
+        [FromForm] long? replyToMessageId,
         IFormFile? media,
         CancellationToken cancellationToken)
     {
@@ -77,7 +114,7 @@ public sealed class ChatController : ControllerBase
             : null;
 
         var senderUserId = GetCurrentUserId();
-        var message = await _chatService.SendMessageAsync(
+        var result = await _chatService.SendMessageAsync(
             senderUserId,
             new ChatSendMessageDTO
             {
@@ -95,17 +132,73 @@ public sealed class ChatController : ControllerBase
                 GameSource = gameSource,
                 GameId = gameId,
                 GameName = gameName,
-                GameCoverUrl = gameCoverUrl
+                GameCoverUrl = gameCoverUrl,
+                ReplyToMessageId = replyToMessageId
             },
+            cancellationToken);
+
+        var recipientMessage = await _chatService.GetMessageAsync(
+            recipientUserId,
+            result.Message.ConversationId,
+            result.Message.Id,
             cancellationToken);
 
         await Task.WhenAll(
             _hub.Clients.Group(ChatHub.UserGroup(senderUserId))
-                .SendAsync("MessageCreated", message, cancellationToken),
+                .SendAsync("MessageCreated", result.Message, cancellationToken),
             _hub.Clients.Group(ChatHub.UserGroup(recipientUserId))
-                .SendAsync("MessageCreated", message, cancellationToken));
+                .SendAsync("MessageCreated", recipientMessage, cancellationToken));
 
-        return StatusCode(StatusCodes.Status201Created, message);
+        if (result.StreakUpdate is not null)
+        {
+            await Task.WhenAll(
+                _hub.Clients.Group(ChatHub.UserGroup(senderUserId))
+                    .SendAsync("ChatStreakUpdated", result.StreakUpdate, cancellationToken),
+                _hub.Clients.Group(ChatHub.UserGroup(recipientUserId))
+                    .SendAsync("ChatStreakUpdated", result.StreakUpdate, cancellationToken));
+        }
+
+        return StatusCode(StatusCodes.Status201Created, result);
+    }
+
+    [HttpPost("messages/{messageId:long}/forward")]
+    public async Task<ActionResult<ChatForwardMessagesResultDTO>> ForwardMessage(
+        long messageId,
+        [FromBody] ChatForwardMessageRequestDTO request,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _chatService.ForwardMessageAsync(
+            userId,
+            messageId,
+            request.TargetConversationIds,
+            cancellationToken);
+
+        foreach (var item in result.Items)
+        {
+            var recipientMessage = await _chatService.GetMessageAsync(
+                item.RecipientUserId,
+                item.ConversationId,
+                item.Message.Id,
+                cancellationToken);
+
+            await Task.WhenAll(
+                _hub.Clients.Group(ChatHub.UserGroup(userId))
+                    .SendAsync("MessageCreated", item.Message, cancellationToken),
+                _hub.Clients.Group(ChatHub.UserGroup(item.RecipientUserId))
+                    .SendAsync("MessageCreated", recipientMessage, cancellationToken));
+
+            if (item.StreakUpdate is not null)
+            {
+                await Task.WhenAll(
+                    _hub.Clients.Group(ChatHub.UserGroup(userId))
+                        .SendAsync("ChatStreakUpdated", item.StreakUpdate, cancellationToken),
+                    _hub.Clients.Group(ChatHub.UserGroup(item.RecipientUserId))
+                        .SendAsync("ChatStreakUpdated", item.StreakUpdate, cancellationToken));
+            }
+        }
+
+        return StatusCode(StatusCodes.Status201Created, result);
     }
 
     [HttpPost("requests/{conversationId:long}/accept")]
@@ -114,14 +207,20 @@ public sealed class ChatController : ControllerBase
         CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
-        var requests = await _chatService.GetMessageRequestsAsync(userId, cancellationToken);
-        var request = requests.FirstOrDefault(x => x.Id == conversationId);
+        var participants = await _chatService.GetParticipantsAsync(
+            userId,
+            conversationId,
+            cancellationToken);
         var result = await _chatService.AcceptRequestAsync(
             userId,
             conversationId,
             cancellationToken);
 
-        await BroadcastDecisionAsync(result, userId, request?.OtherUser.Id, cancellationToken);
+        await BroadcastDecisionAsync(
+            result,
+            participants.UserOneId,
+            participants.UserTwoId,
+            cancellationToken);
         return Ok(result);
     }
 
@@ -131,14 +230,20 @@ public sealed class ChatController : ControllerBase
         CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
-        var requests = await _chatService.GetMessageRequestsAsync(userId, cancellationToken);
-        var request = requests.FirstOrDefault(x => x.Id == conversationId);
+        var participants = await _chatService.GetParticipantsAsync(
+            userId,
+            conversationId,
+            cancellationToken);
         var result = await _chatService.RejectRequestAsync(
             userId,
             conversationId,
             cancellationToken);
 
-        await BroadcastDecisionAsync(result, userId, request?.OtherUser.Id, cancellationToken);
+        await BroadcastDecisionAsync(
+            result,
+            participants.UserOneId,
+            participants.UserTwoId,
+            cancellationToken);
         return Ok(result);
     }
 
@@ -148,27 +253,44 @@ public sealed class ChatController : ControllerBase
         CancellationToken cancellationToken)
     {
         var userId = GetCurrentUserId();
-        var conversations = await _chatService.GetConversationsAsync(
+        var participants = await _chatService.GetParticipantsAsync(
             userId,
+            conversationId,
             cancellationToken);
-        var otherUserId = conversations
-            .FirstOrDefault(x => x.Id == conversationId)?
-            .OtherUser.Id;
         var receipt = await _chatService.MarkReadAsync(
             userId,
             conversationId,
             cancellationToken);
-        var groups = new List<string>
-        {
-            ChatHub.ConversationGroup(conversationId),
-            ChatHub.UserGroup(userId)
-        };
-        if (otherUserId.HasValue)
-            groups.Add(ChatHub.UserGroup(otherUserId.Value));
 
-        await _hub.Clients.Groups(groups)
+        await _hub.Clients.Groups(new[]
+            {
+                ChatHub.UserGroup(participants.UserOneId),
+                ChatHub.UserGroup(participants.UserTwoId)
+            })
             .SendAsync("MessagesRead", receipt, cancellationToken);
         return Ok(receipt);
+    }
+
+    [HttpPost("conversations/{conversationId:long}/archive")]
+    public async Task<ActionResult<ChatConversationArchiveChangedDTO>> ArchiveConversation(
+        long conversationId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await ChangeArchiveStateAsync(
+            conversationId,
+            isArchived: true,
+            cancellationToken));
+    }
+
+    [HttpDelete("conversations/{conversationId:long}/archive")]
+    public async Task<ActionResult<ChatConversationArchiveChangedDTO>> UnarchiveConversation(
+        long conversationId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await ChangeArchiveStateAsync(
+            conversationId,
+            isArchived: false,
+            cancellationToken));
     }
 
     [HttpGet("conversations/{conversationId:long}/pinned-messages")]
@@ -179,6 +301,29 @@ public sealed class ChatController : ControllerBase
         return Ok(await _chatService.GetPinnedMessagesAsync(
             GetCurrentUserId(),
             conversationId,
+            cancellationToken));
+    }
+
+    [HttpPut("messages/{messageId:long}/reaction")]
+    public async Task<ActionResult<ChatMessageReactionChangedDTO>> SetReaction(
+        long messageId,
+        [FromBody] SetChatReactionRequest request,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await ChangeReactionAsync(
+            messageId,
+            request.ReactionType,
+            cancellationToken));
+    }
+
+    [HttpDelete("messages/{messageId:long}/reaction")]
+    public async Task<ActionResult<ChatMessageReactionChangedDTO>> RemoveReaction(
+        long messageId,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await ChangeReactionAsync(
+            messageId,
+            reactionType: null,
             cancellationToken));
     }
 
@@ -197,19 +342,15 @@ public sealed class ChatController : ControllerBase
 
         if (scope == ChatMessageDeleteScope.ForEveryone)
         {
-            var conversation = (await _chatService.GetConversationsAsync(
-                    userId,
-                    cancellationToken))
-                .FirstOrDefault(x => x.Id == result.ConversationId);
-            var groups = new List<string>
-            {
-                ChatHub.ConversationGroup(result.ConversationId),
-                ChatHub.UserGroup(userId)
-            };
-            if (conversation is not null)
-                groups.Add(ChatHub.UserGroup(conversation.OtherUser.Id));
-
-            await _hub.Clients.Groups(groups.Distinct().ToList())
+            var participants = await _chatService.GetParticipantsAsync(
+                userId,
+                result.ConversationId,
+                cancellationToken);
+            await _hub.Clients.Groups(new[]
+                {
+                    ChatHub.UserGroup(participants.UserOneId),
+                    ChatHub.UserGroup(participants.UserTwoId)
+                })
                 .SendAsync("MessageDeleted", result, cancellationToken);
         }
         else
@@ -229,7 +370,7 @@ public sealed class ChatController : ControllerBase
         return Ok(await ChangeMessagePinAsync(
             messageId,
             isPinned: true,
-            cancellationToken: cancellationToken));
+            cancellationToken));
     }
 
     [HttpDelete("messages/{messageId:long}/pin")]
@@ -240,7 +381,7 @@ public sealed class ChatController : ControllerBase
         return Ok(await ChangeMessagePinAsync(
             messageId,
             isPinned: false,
-            cancellationToken: cancellationToken));
+            cancellationToken));
     }
 
     [HttpGet("messages/{messageId:long}/media")]
@@ -256,6 +397,48 @@ public sealed class ChatController : ControllerBase
             media.Content,
             media.ContentType,
             enableRangeProcessing: true);
+    }
+
+    private async Task<ChatConversationArchiveChangedDTO> ChangeArchiveStateAsync(
+        long conversationId,
+        bool isArchived,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _chatService.SetConversationArchivedAsync(
+            userId,
+            conversationId,
+            isArchived,
+            cancellationToken);
+
+        await _hub.Clients.Group(ChatHub.UserGroup(userId))
+            .SendAsync("ConversationArchiveChanged", result, cancellationToken);
+        return result;
+    }
+
+    private async Task<ChatMessageReactionChangedDTO> ChangeReactionAsync(
+        long messageId,
+        ChatReactionType? reactionType,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _chatService.SetMessageReactionAsync(
+            userId,
+            messageId,
+            reactionType,
+            cancellationToken);
+        var participants = await _chatService.GetParticipantsAsync(
+            userId,
+            result.ConversationId,
+            cancellationToken);
+
+        await _hub.Clients.Groups(new[]
+            {
+                ChatHub.UserGroup(participants.UserOneId),
+                ChatHub.UserGroup(participants.UserTwoId)
+            })
+            .SendAsync("MessageReactionChanged", result, cancellationToken);
+        return result;
     }
 
     private async Task<ChatMessagePinChangedDTO> ChangeMessagePinAsync(
@@ -277,17 +460,15 @@ public sealed class ChatController : ControllerBase
 
     private Task BroadcastDecisionAsync(
         ChatRequestDecisionDTO decision,
-        Guid currentUserId,
-        Guid? otherUserId,
-        CancellationToken cancellationToken)
-    {
-        var groups = new List<string> { ChatHub.UserGroup(currentUserId) };
-        if (otherUserId.HasValue)
-            groups.Add(ChatHub.UserGroup(otherUserId.Value));
-
-        return _hub.Clients.Groups(groups)
+        Guid userOneId,
+        Guid userTwoId,
+        CancellationToken cancellationToken) =>
+        _hub.Clients.Groups(new[]
+            {
+                ChatHub.UserGroup(userOneId),
+                ChatHub.UserGroup(userTwoId)
+            })
             .SendAsync("MessageRequestUpdated", decision, cancellationToken);
-    }
 
     private Guid GetCurrentUserId()
     {
@@ -296,4 +477,6 @@ public sealed class ChatController : ControllerBase
             throw new UnauthorizedAccessException("İstifadəçi müəyyən edilmədi.");
         return userId;
     }
+
+    public sealed record SetChatReactionRequest(ChatReactionType ReactionType);
 }

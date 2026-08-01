@@ -197,6 +197,20 @@ export async function getUserGameLists(
   return response.data.items;
 }
 
+export async function getMyCollaboratingGameLists(): Promise<GameListSummaryDTO[]> {
+  const response = await api.get<PagedResultDTO<GameListSummaryDTO>>(
+    "/game-lists/collaborations/mine",
+    {
+      params: {
+        pageNumber: 1,
+        pageSize: 100,
+      },
+    },
+  );
+
+  return response.data.items;
+}
+
 export async function getUserReviews(
   userId: string,
   filter: {

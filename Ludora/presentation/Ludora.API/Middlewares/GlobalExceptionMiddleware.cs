@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Ludora.API.Localization;
 using Ludora.Application.Exceptions;
@@ -42,7 +43,11 @@ public sealed class GlobalExceptionMiddleware
                 throw;
             }
 
-            var statusCode = GetStatusCode(exception);
+            var hasRefreshSessionSchemaMismatch =
+                IsRefreshSessionSchemaMismatch(exception);
+            var statusCode = hasRefreshSessionSchemaMismatch
+                ? StatusCodes.Status503ServiceUnavailable
+                : GetStatusCode(exception);
 
             if (statusCode >= StatusCodes.Status500InternalServerError)
             {
@@ -69,30 +74,69 @@ public sealed class GlobalExceptionMiddleware
                 ConflictException or
                 ExternalServiceException;
 
-            var message = !localizedException.ResourceNotFound
-                ? localizedException.Value
-                : isSafeApplicationException &&
-                  !string.IsNullOrWhiteSpace(exception.Message)
-                    ? exception.Message
-                    : exception switch
+            string message;
+            if (hasRefreshSessionSchemaMismatch)
+            {
+                message = Localize(
+                    "Errors.RefreshSessionSchemaMissing",
+                    "Hesab sessiyası yaradıla bilmədi, çünki məlumat bazası yenilənməyib. Database migration-larını tətbiq edib yenidən cəhd edin.",
+                    "The account session could not be created because the database is not up to date. Apply the database migrations and try again.");
+            }
+            else if (!localizedException.ResourceNotFound)
+            {
+                message = localizedException.Value;
+            }
+            else if (isSafeApplicationException &&
+                     !string.IsNullOrWhiteSpace(exception.Message))
+            {
+                message = exception.Message;
+            }
+            else
+            {
+                message = exception switch
+                {
+                    DbUpdateException => Localize(
+                        "Errors.DatabaseConflict",
+                        "Məlumat bazasında eyni və ya ziddiyyətli məlumat mövcuddur.",
+                        "The database contains duplicate or conflicting data."),
+                    _ => statusCode switch
                     {
-                        DbUpdateException => _localizer["Errors.DatabaseConflict"],
-                        _ => statusCode switch
-                        {
-                            StatusCodes.Status400BadRequest => _localizer["Errors.BadRequest"],
-                            StatusCodes.Status401Unauthorized => _localizer["Errors.Unauthorized"],
-                            StatusCodes.Status403Forbidden => _localizer["Errors.Forbidden"],
-                            StatusCodes.Status404NotFound => _localizer["Errors.NotFound"],
-                            StatusCodes.Status409Conflict => _localizer["Errors.Conflict"],
-                            StatusCodes.Status503ServiceUnavailable => _localizer["Errors.ExternalService"],
-                            _ => _localizer["Errors.Unexpected"]
-                        }
-                    };
+                        StatusCodes.Status400BadRequest => Localize(
+                            "Errors.BadRequest",
+                            "Sorğu məlumatları düzgün deyil.",
+                            "The request data is invalid."),
+                        StatusCodes.Status401Unauthorized => Localize(
+                            "Errors.Unauthorized",
+                            "Bu əməliyyat üçün sistemə daxil olmalısınız.",
+                            "You must sign in to perform this action."),
+                        StatusCodes.Status403Forbidden => Localize(
+                            "Errors.Forbidden",
+                            "Bu əməliyyat üçün icazəniz yoxdur.",
+                            "You do not have permission to perform this action."),
+                        StatusCodes.Status404NotFound => Localize(
+                            "Errors.NotFound",
+                            "Tələb olunan məlumat tapılmadı.",
+                            "The requested resource was not found."),
+                        StatusCodes.Status409Conflict => Localize(
+                            "Errors.Conflict",
+                            "Əməliyyat mövcud məlumatla ziddiyyət yaratdı.",
+                            "The operation conflicts with existing data."),
+                        StatusCodes.Status503ServiceUnavailable => Localize(
+                            "Errors.ExternalService",
+                            "Xidmət müvəqqəti olaraq əlçatan deyil.",
+                            "The service is temporarily unavailable."),
+                        _ => Localize(
+                            "Errors.Unexpected",
+                            "Gözlənilməz server xətası baş verdi.",
+                            "An unexpected server error occurred.")
+                    }
+                };
+            }
 
             var response = new
             {
                 statusCode,
-                message = message.ToString(),
+                message,
                 traceId = context.TraceIdentifier
             };
 
@@ -100,6 +144,40 @@ public sealed class GlobalExceptionMiddleware
                 JsonSerializer.Serialize(response),
                 context.RequestAborted);
         }
+    }
+
+    private string Localize(string key, string azFallback, string enFallback)
+    {
+        var localized = _localizer[key];
+        if (!localized.ResourceNotFound &&
+            !string.Equals(localized.Value, key, StringComparison.Ordinal))
+        {
+            return localized.Value;
+        }
+
+        return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName
+            .Equals("en", StringComparison.OrdinalIgnoreCase)
+            ? enFallback
+            : azFallback;
+    }
+
+    private static bool IsRefreshSessionSchemaMismatch(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            var message = current.Message;
+            if (!message.Contains("RefreshSessions", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (message.Contains("Invalid object name", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("Invalid column name", StringComparison.OrdinalIgnoreCase) ||
+                message.Contains("Cannot find the object", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static int GetStatusCode(Exception exception)

@@ -17,6 +17,9 @@ public class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         builder.Property(x => x.SocialLinksJson)
             .HasColumnType("nvarchar(max)");
 
+        builder.Property(x => x.ForumInterestsJson)
+            .HasColumnType("nvarchar(max)");
+
         builder.Property(x => x.SteamId)
             .HasMaxLength(20);
 

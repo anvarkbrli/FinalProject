@@ -397,7 +397,7 @@ export function GameReviewsSection({
                         </span>
                       </button>
                     ) : (
-                      <p className="whitespace-pre-wrap text-sm leading-7 text-zinc-300">
+                      <p data-user-content className="whitespace-pre-wrap text-sm leading-7 text-zinc-300">
                         {review.content}
                       </p>
                     )}

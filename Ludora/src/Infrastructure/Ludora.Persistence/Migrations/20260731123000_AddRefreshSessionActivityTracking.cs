@@ -12,32 +12,54 @@ public partial class AddRefreshSessionActivityTracking : Migration
 {
     protected override void Up(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.AddColumn<DateTime>(
-            name: "LastActiveAtUtc",
-            table: "RefreshSessions",
-            type: "datetime2",
-            nullable: false,
-            defaultValue: new DateTime(1, 1, 1, 0, 0, 0, DateTimeKind.Unspecified));
-
-        migrationBuilder.AddColumn<DateTime>(
-            name: "SignedInAtUtc",
-            table: "RefreshSessions",
-            type: "datetime2",
-            nullable: false,
-            defaultValue: new DateTime(1, 1, 1, 0, 0, 0, DateTimeKind.Unspecified));
-
+        // Some development databases had the migration history entry for the
+        // refresh-session table without the actual table. Do not fail here;
+        // the later RepairRefreshSessionSchema migration restores the full schema.
         migrationBuilder.Sql(
-            "UPDATE [RefreshSessions] SET [SignedInAtUtc] = [CreatedAtUtc], [LastActiveAtUtc] = [CreatedAtUtc]");
+            """
+            IF OBJECT_ID(N'[dbo].[RefreshSessions]', N'U') IS NOT NULL
+            BEGIN
+                IF COL_LENGTH(N'dbo.RefreshSessions', N'SignedInAtUtc') IS NULL
+                BEGIN
+                    ALTER TABLE [dbo].[RefreshSessions]
+                    ADD [SignedInAtUtc] datetime2 NULL;
+
+                    UPDATE [dbo].[RefreshSessions]
+                    SET [SignedInAtUtc] = [CreatedAtUtc]
+                    WHERE [SignedInAtUtc] IS NULL;
+
+                    ALTER TABLE [dbo].[RefreshSessions]
+                    ALTER COLUMN [SignedInAtUtc] datetime2 NOT NULL;
+                END;
+
+                IF COL_LENGTH(N'dbo.RefreshSessions', N'LastActiveAtUtc') IS NULL
+                BEGIN
+                    ALTER TABLE [dbo].[RefreshSessions]
+                    ADD [LastActiveAtUtc] datetime2 NULL;
+
+                    UPDATE [dbo].[RefreshSessions]
+                    SET [LastActiveAtUtc] = [CreatedAtUtc]
+                    WHERE [LastActiveAtUtc] IS NULL;
+
+                    ALTER TABLE [dbo].[RefreshSessions]
+                    ALTER COLUMN [LastActiveAtUtc] datetime2 NOT NULL;
+                END;
+            END;
+            """);
     }
 
     protected override void Down(MigrationBuilder migrationBuilder)
     {
-        migrationBuilder.DropColumn(
-            name: "LastActiveAtUtc",
-            table: "RefreshSessions");
+        migrationBuilder.Sql(
+            """
+            IF OBJECT_ID(N'[dbo].[RefreshSessions]', N'U') IS NOT NULL
+            BEGIN
+                IF COL_LENGTH(N'dbo.RefreshSessions', N'LastActiveAtUtc') IS NOT NULL
+                    ALTER TABLE [dbo].[RefreshSessions] DROP COLUMN [LastActiveAtUtc];
 
-        migrationBuilder.DropColumn(
-            name: "SignedInAtUtc",
-            table: "RefreshSessions");
+                IF COL_LENGTH(N'dbo.RefreshSessions', N'SignedInAtUtc') IS NOT NULL
+                    ALTER TABLE [dbo].[RefreshSessions] DROP COLUMN [SignedInAtUtc];
+            END;
+            """);
     }
 }

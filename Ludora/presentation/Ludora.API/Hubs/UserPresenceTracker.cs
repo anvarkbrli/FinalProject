@@ -7,31 +7,37 @@ public sealed class UserPresenceTracker : IUserPresenceTracker
     private readonly object _lock = new();
     private readonly Dictionary<Guid, HashSet<string>> _connections = [];
 
-    public void Connect(Guid userId, string connectionId)
+    public bool Connect(Guid userId, string connectionId)
     {
         lock (_lock)
         {
-            if (!_connections.TryGetValue(userId, out var userConnections))
+            var wasOffline = !_connections.TryGetValue(userId, out var userConnections) ||
+                             userConnections.Count == 0;
+
+            if (userConnections is null)
             {
                 userConnections = [];
                 _connections[userId] = userConnections;
             }
 
             userConnections.Add(connectionId);
+            return wasOffline;
         }
     }
 
-    public void Disconnect(Guid userId, string connectionId)
+    public bool Disconnect(Guid userId, string connectionId)
     {
         lock (_lock)
         {
             if (!_connections.TryGetValue(userId, out var userConnections))
-                return;
+                return false;
 
             userConnections.Remove(connectionId);
+            if (userConnections.Count > 0)
+                return false;
 
-            if (userConnections.Count == 0)
-                _connections.Remove(userId);
+            _connections.Remove(userId);
+            return true;
         }
     }
 

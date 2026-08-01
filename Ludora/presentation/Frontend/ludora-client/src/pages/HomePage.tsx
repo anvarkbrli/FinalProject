@@ -98,28 +98,7 @@ export function HomePage() {
   const discussions = discussionsQuery.data?.items ?? [];
   const categories = categoriesQuery.data ?? [];
 
-  const homeDiscussions = [...discussions]
-    .sort((firstDiscussion, secondDiscussion) => {
-      const createdAtDifference =
-        new Date(secondDiscussion.createdAt).getTime() -
-        new Date(firstDiscussion.createdAt).getTime();
-
-      if (createdAtDifference !== 0) {
-        return createdAtDifference;
-      }
-
-      const likeDifference =
-        secondDiscussion.likeCount - firstDiscussion.likeCount;
-
-      if (likeDifference !== 0) {
-        return likeDifference;
-      }
-
-      return (
-        secondDiscussion.replyCount - firstDiscussion.replyCount
-      );
-    })
-    .slice(0, 4);
+  const homeDiscussions = discussions.slice(0, 4);
 
   const featuredDiscussion = homeDiscussions[0];
 

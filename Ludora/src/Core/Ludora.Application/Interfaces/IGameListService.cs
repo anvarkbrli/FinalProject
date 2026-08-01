@@ -11,6 +11,11 @@ public interface IGameListService
         PaginationFilterDTO pagination,
         CancellationToken cancellationToken = default);
 
+    Task<PagedResultDTO<GameListSummaryDTO>> GetCollaboratingListsAsync(
+        Guid userId,
+        PaginationFilterDTO pagination,
+        CancellationToken cancellationToken = default);
+
     Task<GameListDetailDTO> GetByIdAsync(
         int id,
         Guid? currentUserId,
@@ -57,5 +62,39 @@ public interface IGameListService
         long gameId,
         int position,
         Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task ReorderGamesAsync(
+        int listId,
+        Guid userId,
+        GameListReorderDTO dto,
+        CancellationToken cancellationToken = default);
+
+    Task<int> CloneAsync(
+        int sourceListId,
+        Guid userId,
+        GameListCloneDTO dto,
+        CancellationToken cancellationToken = default);
+
+    Task InviteCollaboratorAsync(
+        int listId,
+        Guid ownerUserId,
+        GameListCollaboratorInviteDTO dto,
+        CancellationToken cancellationToken = default);
+
+    Task AcceptCollaborationAsync(
+        int listId,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task DeclineCollaborationAsync(
+        int listId,
+        Guid userId,
+        CancellationToken cancellationToken = default);
+
+    Task RemoveCollaboratorAsync(
+        int listId,
+        Guid actingUserId,
+        Guid collaboratorUserId,
         CancellationToken cancellationToken = default);
 }

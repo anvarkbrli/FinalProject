@@ -1,0 +1,126 @@
+{
+  "common": {
+    "close": "Bağla",
+    "cancel": "Ləğv et"
+  },
+  "type": {
+    "ranked": "Ranklanmış siyahı",
+    "unranked": "Sırasız siyahı"
+  },
+  "visibility": {
+    "Public": "Hamı üçün",
+    "FollowersOnly": "Yalnız izləyicilər",
+    "Private": "Gizli"
+  },
+  "actions": {
+    "clone": "Siyahını klonla",
+    "collaborators": "Əməkdaşlar",
+    "edit": "Redaktə et",
+    "delete": "Sil",
+    "like": "Siyahını bəyən",
+    "removeGame": "Oyunu siyahıdan çıxar"
+  },
+  "detail": {
+    "loading": "Siyahı yüklənir...",
+    "entityName": "Siyahı",
+    "backToProfile": "{name} profilinə qayıt",
+    "noDescription": "Bu siyahı üçün açıqlama əlavə edilməyib.",
+    "gameCount": "{count} oyun",
+    "collaboratorCount": "{count} əməkdaş",
+    "likeCount": "{count} bəyəni",
+    "commentCount": "{count} şərh",
+    "addedOn": "{date} tarixində əlavə edilib"
+  },
+  "notices": {
+    "updated": "Siyahı yeniləndi.",
+    "gameAdded": "Oyun siyahıya əlavə edildi.",
+    "gameRemoved": "Oyun siyahıdan çıxarıldı."
+  },
+  "errors": {
+    "like": "Siyahını bəyənmə əməliyyatı tamamlanmadı.",
+    "delete": "Siyahını silmək mümkün olmadı.",
+    "addGame": "Oyunu siyahıya əlavə etmək mümkün olmadı.",
+    "removeGame": "Oyunu siyahıdan çıxarmaq mümkün olmadı.",
+    "reorder": "Oyunun sırasını dəyişmək mümkün olmadı.",
+    "update": "Siyahını yeniləmək mümkün olmadı."
+  },
+  "confirm": {
+    "deleteList": "Bu siyahını silmək istədiyinə əminsən?",
+    "removeGame": "{name} oyununu siyahıdan çıxarmaq istədiyinə əminsən?"
+  },
+  "comments": {
+    "placeholder": "Siyahıya şərh yaz...",
+    "empty": "Bu siyahıya hələ şərh yazılmayıb."
+  },
+  "addGame": {
+    "title": "Siyahıya oyun əlavə et",
+    "description": "Oyun adına görə axtar və nəticədən birbaşa siyahıya əlavə et.",
+    "placeholder": "Oyun axtar...",
+    "searching": "Oyunlar axtarılır...",
+    "searchError": "Oyunları axtarmaq mümkün olmadı.",
+    "noResults": "Uyğun oyun tapılmadı.",
+    "add": "Əlavə et",
+    "added": "Əlavə edilib"
+  },
+  "empty": {
+    "title": "Siyahı hələ boşdur",
+    "editor": "Yuxarıdakı axtarışdan ilk oyunu əlavə et.",
+    "viewer": "Siyahıya hələ oyun əlavə edilməyib."
+  },
+  "drag": {
+    "hint": "Ranklanmış siyahını dəyişmək üçün oyunları tutub istədiyin yerə sürüklə.",
+    "handle": "Oyunu sürüklə"
+  },
+  "editor": {
+    "editTitle": "Siyahını redaktə et",
+    "save": "Yadda saxla"
+  },
+  "clone": {
+    "title": "Siyahını klonla",
+    "description": "{name} siyahısının oyunları yeni siyahına köçürüləcək.",
+    "nameLabel": "Yeni siyahının adı",
+    "visibilityLabel": "Görünürlük",
+    "nameRequired": "Siyahının adını daxil et.",
+    "submit": "Klonla",
+    "error": "Siyahını klonlamaq mümkün olmadı."
+  },
+  "collaboration": {
+    "title": "Siyahı əməkdaşları",
+    "description": "Hazırda {count} nəfər bu siyahını birlikdə redaktə edir.",
+    "inviteTitle": "Yeni əməkdaş dəvət et",
+    "inviteDescription": "Dəvəti qəbul edən istifadəçi oyun əlavə edə, silə və ranklanmış siyahını sıralaya bilər.",
+    "userNamePlaceholder": "İstifadəçi adı",
+    "invite": "Dəvət et",
+    "inviteSent": "Əməkdaşlıq dəvəti göndərildi.",
+    "inviteError": "Əməkdaşlıq dəvətini göndərmək mümkün olmadı.",
+    "people": "İştirakçılar",
+    "empty": "Bu siyahıda hələ əməkdaş yoxdur.",
+    "accepted": "Əməkdaş",
+    "pending": "Dəvət gözləyir",
+    "remove": "Əməkdaşı çıxar",
+    "removeConfirm": "{name} istifadəçisini siyahıdan çıxarmaq istədiyinə əminsən?",
+    "removeError": "Əməkdaşı siyahıdan çıxarmaq mümkün olmadı.",
+    "removed": "Əməkdaşlıq yeniləndi.",
+    "leave": "Siyahını tərk et",
+    "leaveConfirm": "Bu siyahının əməkdaşlığından çıxmaq istədiyinə əminsən?",
+    "collaboratorBadge": "Əməkdaş",
+    "invitationTitle": "Siyahını birlikdə hazırlamaq üçün dəvət almısan",
+    "invitationDescription": "{owner} səni bu siyahıya əməkdaş kimi dəvət edib. Qəbul etdikdən sonra oyunları birlikdə idarə edə bilərsiniz.",
+    "accept": "Qəbul et",
+    "decline": "Rədd et",
+    "declineConfirm": "Bu əməkdaşlıq dəvətini rədd etmək istədiyinə əminsən?",
+    "acceptedNotice": "Əməkdaşlıq dəvəti qəbul edildi.",
+    "acceptError": "Əməkdaşlıq dəvətini qəbul etmək mümkün olmadı.",
+    "declineError": "Əməkdaşlıq dəvətini rədd etmək mümkün olmadı."
+  },
+  "profile": {
+    "collaborators": "{count} əməkdaş",
+    "ranked": "Ranklanmış",
+    "unranked": "Sırasız",
+    "noDescription": "Açıqlama əlavə edilməyib.",
+    "sharedWithMe": "Mənimlə paylaşılanlar",
+    "sharedWithMeDescription": "Dəvət aldığın və birlikdə hazırladığın oyun siyahıları.",
+    "invitationPending": "Dəvət gözləyir",
+    "collaborating": "Əməkdaş"
+  }
+}

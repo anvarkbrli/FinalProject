@@ -83,12 +83,67 @@ public sealed class GameListService : IGameListService
                 LikeCount = x.Likes.Count,
                 CommentCount = x.Comments.Count,
                 IsLikedByCurrentUser = currentUserId.HasValue &&
-                    x.Likes.Any(like => like.UserId == currentUserId.Value)
+                    x.Likes.Any(like => like.UserId == currentUserId.Value),
+                BackgroundCoverImageUrl = x.IsRanked
+                    ? x.GameListItems
+                        .OrderBy(item => item.Position ?? int.MaxValue)
+                        .ThenBy(item => item.AddedAt)
+                        .Select(item => item.CoverImageUrl)
+                        .FirstOrDefault()
+                    : x.GameListItems
+                        .OrderBy(item => item.AddedAt)
+                        .Select(item => item.CoverImageUrl)
+                        .FirstOrDefault(),
+                CollaboratorCount = x.Collaborators.Count(collaborator =>
+                    collaborator.Status == GameListCollaborationStatus.Accepted)
             });
 
         return await projectedQuery.ToPagedResultAsync(
             pagination,
             cancellationToken);
+    }
+
+    public async Task<PagedResultDTO<GameListSummaryDTO>> GetCollaboratingListsAsync(
+        Guid userId,
+        PaginationFilterDTO pagination,
+        CancellationToken cancellationToken = default)
+    {
+        var query = _context.GameListCollaborators
+            .AsNoTracking()
+            .Where(x => x.UserId == userId)
+            .OrderByDescending(x => x.Status == GameListCollaborationStatus.Pending)
+            .ThenByDescending(x => x.InvitedAtUtc)
+            .Select(x => new GameListSummaryDTO
+            {
+                Id = x.GameList.Id,
+                Name = x.GameList.Name,
+                Description = x.GameList.Description,
+                Visibility = x.GameList.Visibility,
+                IsRanked = x.GameList.IsRanked,
+                OwnerId = x.GameList.UserId,
+                OwnerUserName = x.GameList.User.UserName ?? string.Empty,
+                GameCount = x.GameList.GameListItems.Count,
+                CreatedAt = x.GameList.CreatedAt,
+                UpdatedAt = x.GameList.UpdatedAt,
+                LikeCount = x.GameList.Likes.Count,
+                CommentCount = x.GameList.Comments.Count,
+                IsLikedByCurrentUser = x.GameList.Likes.Any(like => like.UserId == userId),
+                BackgroundCoverImageUrl = x.GameList.IsRanked
+                    ? x.GameList.GameListItems
+                        .OrderBy(item => item.Position ?? int.MaxValue)
+                        .ThenBy(item => item.AddedAt)
+                        .Select(item => item.CoverImageUrl)
+                        .FirstOrDefault()
+                    : x.GameList.GameListItems
+                        .OrderBy(item => item.AddedAt)
+                        .Select(item => item.CoverImageUrl)
+                        .FirstOrDefault(),
+                CollaboratorCount = x.GameList.Collaborators.Count(collaborator =>
+                    collaborator.Status == GameListCollaborationStatus.Accepted),
+                CurrentUserCollaborationStatus = x.Status
+            });
+
+        return await query.ToPagedResultAsync(pagination, cancellationToken);
     }
 
     public async Task<GameListDetailDTO> GetByIdAsync(
@@ -120,10 +175,19 @@ public sealed class GameListService : IGameListService
             .FirstOrDefaultAsync(x => x.Id == id, cancellationToken)
             ?? throw new NotFoundException("Oyun siyahısı tapılmadı.");
 
+        var currentCollaborationStatus = currentUserId.HasValue
+            ? await _context.GameListCollaborators
+                .AsNoTracking()
+                .Where(x => x.GameListId == id && x.UserId == currentUserId.Value)
+                .Select(x => (GameListCollaborationStatus?)x.Status)
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+
         await CheckListAccessAsync(
             gameList.OwnerId,
             gameList.Visibility,
             currentUserId,
+            currentCollaborationStatus,
             cancellationToken);
 
         var itemQuery = _context.GameListItems
@@ -150,6 +214,28 @@ public sealed class GameListService : IGameListService
             })
             .ToListAsync(cancellationToken);
 
+        var collaborators = await _context.GameListCollaborators
+            .AsNoTracking()
+            .Where(x => x.GameListId == id)
+            .OrderBy(x => x.Status)
+            .ThenBy(x => x.InvitedAtUtc)
+            .Select(x => new GameListCollaboratorDTO
+            {
+                UserId = x.UserId,
+                UserName = x.User.UserName ?? string.Empty,
+                ProfileImageUrl = x.User.ProfileImageUrl,
+                Status = x.Status,
+                InvitedAtUtc = x.InvitedAtUtc,
+                RespondedAtUtc = x.RespondedAtUtc
+            })
+            .ToListAsync(cancellationToken);
+
+        var backgroundCoverImageUrl = gameList.IsRanked
+            ? games.OrderBy(x => x.Position ?? int.MaxValue).ThenBy(x => x.AddedAt)
+                .Select(x => x.CoverImageUrl).FirstOrDefault()
+            : games.OrderBy(x => x.AddedAt)
+                .Select(x => x.CoverImageUrl).FirstOrDefault();
+
         return new GameListDetailDTO
         {
             Id = gameList.Id,
@@ -160,12 +246,18 @@ public sealed class GameListService : IGameListService
             OwnerId = gameList.OwnerId,
             OwnerUserName = gameList.OwnerUserName,
             IsOwner = currentUserId == gameList.OwnerId,
+            CanEditGames = currentUserId == gameList.OwnerId ||
+                currentCollaborationStatus == GameListCollaborationStatus.Accepted,
+            CanManageCollaborators = currentUserId == gameList.OwnerId,
+            CurrentUserCollaborationStatus = currentCollaborationStatus,
             GameCount = gameList.GameCount,
             CreatedAt = gameList.CreatedAt,
             UpdatedAt = gameList.UpdatedAt,
             LikeCount = gameList.LikeCount,
             CommentCount = gameList.CommentCount,
             IsLikedByCurrentUser = gameList.IsLikedByCurrentUser,
+            BackgroundCoverImageUrl = backgroundCoverImageUrl,
+            Collaborators = collaborators,
             Games = games
         };
     }
@@ -371,10 +463,9 @@ public sealed class GameListService : IGameListService
     {
         gameId.EnsureValidCatalogReference(source, "Oyun");
 
-        var gameList = await GetUserGameListAsync(
+        var gameList = await GetEditableGameListAsync(
             listId,
             userId,
-            includeItems: false,
             cancellationToken);
 
         var itemExists = await _context.GameListItems
@@ -442,10 +533,9 @@ public sealed class GameListService : IGameListService
     {
         gameId.EnsureValidCatalogReference(source, "Oyun");
 
-        var gameList = await GetUserGameListAsync(
+        var gameList = await GetEditableGameListAsync(
             listId,
             userId,
-            includeItems: false,
             cancellationToken);
 
         var item = await _context.GameListItems
@@ -499,10 +589,9 @@ public sealed class GameListService : IGameListService
     {
         gameId.EnsureValidCatalogReference(source, "Oyun");
 
-        var gameList = await GetUserGameListAsync(
+        var gameList = await GetEditableGameListAsync(
             listId,
             userId,
-            includeItems: false,
             cancellationToken);
 
         if (!gameList.IsRanked)
@@ -574,6 +663,294 @@ public sealed class GameListService : IGameListService
         await transaction.CommitAsync(cancellationToken);
     }
 
+
+    public async Task ReorderGamesAsync(
+        int listId,
+        Guid userId,
+        GameListReorderDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+        var gameList = await GetEditableGameListAsync(listId, userId, cancellationToken);
+
+        if (!gameList.IsRanked)
+            throw new BadRequestException("Yalnız ranklanmış siyahılarda oyunların sırası dəyişdirilə bilər.");
+
+        var items = await _context.GameListItems
+            .Where(x => x.GameListId == listId)
+            .ToListAsync(cancellationToken);
+
+        if (dto.Items.Count != items.Count)
+            throw new BadRequestException("Göndərilən sıralama siyahıdakı bütün oyunları əhatə etməlidir.");
+
+        var requestedKeys = dto.Items
+            .Select(x => (x.Source, x.GameId))
+            .ToList();
+
+        if (requestedKeys.Distinct().Count() != requestedKeys.Count)
+            throw new BadRequestException("Sıralamada eyni oyun bir neçə dəfə göndərilib.");
+
+        var itemMap = items.ToDictionary(x => (x.GameSource, x.GameSourceId));
+        if (requestedKeys.Any(key => !itemMap.ContainsKey(key)))
+            throw new BadRequestException("Sıralamada siyahıya aid olmayan oyun var.");
+
+        for (var index = 0; index < requestedKeys.Count; index++)
+            itemMap[requestedKeys[index]].Position = index + 1;
+
+        gameList.UpdatedAt = DateTime.UtcNow;
+        _context.AddUserActivity(
+            userId,
+            UserActivityType.GameListGameReordered,
+            gameListId: gameList.Id,
+            subjectTitle: gameList.Name);
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<int> CloneAsync(
+        int sourceListId,
+        Guid userId,
+        GameListCloneDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+        dto.Visibility.EnsureDefined("Siyahının görünmə tipi");
+
+        var source = await _context.GameLists
+            .AsNoTracking()
+            .Include(x => x.GameListItems)
+            .FirstOrDefaultAsync(x => x.Id == sourceListId, cancellationToken)
+            ?? throw new NotFoundException("Oyun siyahısı tapılmadı.");
+
+        var collaborationStatus = await _context.GameListCollaborators
+            .AsNoTracking()
+            .Where(x => x.GameListId == sourceListId && x.UserId == userId)
+            .Select(x => (GameListCollaborationStatus?)x.Status)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        await CheckListAccessAsync(
+            source.UserId,
+            source.Visibility,
+            userId,
+            collaborationStatus,
+            cancellationToken);
+
+        if (source.UserId != userId &&
+            collaborationStatus == GameListCollaborationStatus.Pending)
+        {
+            throw new ForbiddenException(
+                "Siyahını klonlamaq üçün əməkdaşlıq dəvətini əvvəlcə qəbul edin.");
+        }
+
+        var name = dto.Name.NormalizeName(MaxNameLength, "Siyahı");
+        await EnsureListNameIsAvailableAsync(userId, name, null, cancellationToken);
+
+        var clone = new GameList
+        {
+            Name = name,
+            Description = source.Description,
+            Visibility = dto.Visibility,
+            IsRanked = source.IsRanked,
+            UserId = userId,
+            CreatedAt = DateTime.UtcNow
+        };
+
+        foreach (var sourceItem in source.GameListItems
+                     .OrderBy(x => source.IsRanked ? x.Position ?? int.MaxValue : 0)
+                     .ThenBy(x => x.AddedAt))
+        {
+            clone.GameListItems.Add(new GameListItem
+            {
+                GameSource = sourceItem.GameSource,
+                GameSourceId = sourceItem.GameSourceId,
+                GameTitle = sourceItem.GameTitle,
+                CoverImageUrl = sourceItem.CoverImageUrl,
+                ReleaseDate = sourceItem.ReleaseDate,
+                Rating = sourceItem.Rating,
+                Position = source.IsRanked ? sourceItem.Position : null,
+                AddedAt = sourceItem.AddedAt
+            });
+        }
+
+        await _context.GameLists.AddAsync(clone, cancellationToken);
+        await SaveListChangesAsync(cancellationToken);
+
+        _context.AddUserActivity(
+            userId,
+            UserActivityType.GameListCreated,
+            gameListId: clone.Id,
+            subjectTitle: clone.Name);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return clone.Id;
+    }
+
+    public async Task InviteCollaboratorAsync(
+        int listId,
+        Guid ownerUserId,
+        GameListCollaboratorInviteDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+        var gameList = await GetUserGameListAsync(listId, ownerUserId, false, cancellationToken);
+        var userName = dto.UserName?.Trim();
+
+        if (string.IsNullOrWhiteSpace(userName))
+            throw new BadRequestException("Əməkdaşın istifadəçi adını daxil edin.");
+
+        var invitedUser = await _context.Users
+            .AsNoTracking()
+            .Where(x => x.NormalizedUserName == userName.ToUpperInvariant())
+            .Select(x => new { x.Id, x.UserName })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Bu istifadəçi adı ilə hesab tapılmadı.");
+
+        if (invitedUser.Id == ownerUserId)
+            throw new BadRequestException("Siyahı sahibi əməkdaş kimi əlavə edilə bilməz.");
+
+        var hasBlock = await _context.UserBlocks
+            .AsNoTracking()
+            .AnyAsync(x =>
+                (x.BlockerId == ownerUserId && x.BlockedUserId == invitedUser.Id) ||
+                (x.BlockerId == invitedUser.Id && x.BlockedUserId == ownerUserId),
+                cancellationToken);
+
+        if (hasBlock)
+            throw new ForbiddenException("Bu istifadəçini siyahıya əməkdaş kimi əlavə etmək mümkün deyil.");
+
+        var existing = await _context.GameListCollaborators
+            .FirstOrDefaultAsync(x => x.GameListId == listId && x.UserId == invitedUser.Id, cancellationToken);
+
+        if (existing is not null)
+        {
+            throw new ConflictException(existing.Status == GameListCollaborationStatus.Accepted
+                ? "Bu istifadəçi artıq siyahının əməkdaşıdır."
+                : "Bu istifadəçiyə artıq əməkdaşlıq dəvəti göndərilib.");
+        }
+
+        await _context.GameListCollaborators.AddAsync(new GameListCollaborator
+        {
+            GameListId = listId,
+            UserId = invitedUser.Id,
+            InvitedByUserId = ownerUserId,
+            Status = GameListCollaborationStatus.Pending,
+            InvitedAtUtc = DateTime.UtcNow
+        }, cancellationToken);
+
+        await _notificationService.QueueAsync(new NotificationCreateRequest
+        {
+            RecipientUserId = invitedUser.Id,
+            ActorUserId = ownerUserId,
+            Type = NotificationType.GameListCollaborationInvited,
+            EntityType = NotificationEntityType.GameList,
+            EntityId = listId.ToString(),
+            Title = "Siyahı əməkdaşlığı dəvəti",
+            Message = $"{gameList.Name} siyahısına əməkdaş kimi dəvət edildin.",
+            ActionUrl = $"/lists/{listId}",
+            BypassPreferences = true
+        }, cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task AcceptCollaborationAsync(
+        int listId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var collaboration = await _context.GameListCollaborators
+            .Include(x => x.GameList)
+            .FirstOrDefaultAsync(x => x.GameListId == listId && x.UserId == userId, cancellationToken)
+            ?? throw new NotFoundException("Əməkdaşlıq dəvəti tapılmadı.");
+
+        if (collaboration.Status == GameListCollaborationStatus.Accepted)
+            return;
+
+        collaboration.Status = GameListCollaborationStatus.Accepted;
+        collaboration.RespondedAtUtc = DateTime.UtcNow;
+
+        await _notificationService.QueueAsync(new NotificationCreateRequest
+        {
+            RecipientUserId = collaboration.GameList.UserId,
+            ActorUserId = userId,
+            Type = NotificationType.GameListCollaborationAccepted,
+            EntityType = NotificationEntityType.GameList,
+            EntityId = listId.ToString(),
+            Title = "Əməkdaşlıq dəvəti qəbul edildi",
+            Message = $"{collaboration.GameList.Name} siyahısı üçün əməkdaşlıq dəvəti qəbul edildi.",
+            ActionUrl = $"/lists/{listId}",
+            BypassPreferences = true
+        }, cancellationToken);
+
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeclineCollaborationAsync(
+        int listId,
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var collaboration = await _context.GameListCollaborators
+            .FirstOrDefaultAsync(x => x.GameListId == listId && x.UserId == userId, cancellationToken)
+            ?? throw new NotFoundException("Əməkdaşlıq dəvəti tapılmadı.");
+
+        if (collaboration.Status == GameListCollaborationStatus.Accepted)
+            throw new BadRequestException("Qəbul edilmiş əməkdaşlıqdan çıxmaq üçün siyahını tərk et əməliyyatından istifadə edin.");
+
+        _context.GameListCollaborators.Remove(collaboration);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task RemoveCollaboratorAsync(
+        int listId,
+        Guid actingUserId,
+        Guid collaboratorUserId,
+        CancellationToken cancellationToken = default)
+    {
+        var gameList = await _context.GameLists
+            .AsNoTracking()
+            .FirstOrDefaultAsync(x => x.Id == listId, cancellationToken)
+            ?? throw new NotFoundException("Oyun siyahısı tapılmadı.");
+
+        if (actingUserId != gameList.UserId && actingUserId != collaboratorUserId)
+            throw new ForbiddenException("Bu əməkdaşı siyahıdan çıxarmaq icazəniz yoxdur.");
+
+        var collaboration = await _context.GameListCollaborators
+            .FirstOrDefaultAsync(x => x.GameListId == listId && x.UserId == collaboratorUserId, cancellationToken)
+            ?? throw new NotFoundException("Əməkdaş tapılmadı.");
+
+        _context.GameListCollaborators.Remove(collaboration);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<GameList> GetEditableGameListAsync(
+        int listId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        listId.EnsureValidId();
+
+        var gameList = await _context.GameLists
+            .FirstOrDefaultAsync(x => x.Id == listId, cancellationToken)
+            ?? throw new NotFoundException("Oyun siyahısı tapılmadı.");
+
+        if (gameList.UserId == userId)
+            return gameList;
+
+        var isCollaborator = await _context.GameListCollaborators
+            .AsNoTracking()
+            .AnyAsync(x =>
+                x.GameListId == listId &&
+                x.UserId == userId &&
+                x.Status == GameListCollaborationStatus.Accepted,
+                cancellationToken);
+
+        if (!isCollaborator)
+            throw new ForbiddenException("Bu oyun siyahısının oyunlarını dəyişmək icazəniz yoxdur.");
+
+        return gameList;
+    }
+
     private async Task<GameList> GetUserGameListAsync(
         int id,
         Guid userId,
@@ -601,12 +978,14 @@ public sealed class GameListService : IGameListService
         Guid ownerId,
         ListVisibility visibility,
         Guid? currentUserId,
+        GameListCollaborationStatus? collaborationStatus,
         CancellationToken cancellationToken)
     {
         await CheckBlockAccessAsync(ownerId, currentUserId, cancellationToken);
 
         if (ownerId == currentUserId ||
-            visibility == ListVisibility.Public)
+            visibility == ListVisibility.Public ||
+            collaborationStatus is GameListCollaborationStatus.Pending or GameListCollaborationStatus.Accepted)
         {
             return;
         }

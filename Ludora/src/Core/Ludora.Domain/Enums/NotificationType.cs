@@ -27,5 +27,7 @@ public enum NotificationType
     UserFollowed = 31,
     FollowRequestAccepted = 32,
     CommunityOwnershipOffered = 33,
-    CommunityModeratorAssigned = 34
+    CommunityModeratorAssigned = 34,
+    GameListCollaborationInvited = 35,
+    GameListCollaborationAccepted = 36
 }

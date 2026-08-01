@@ -9,6 +9,7 @@ public class AppUser : IdentityUser<Guid>
     public string? Bio { get; set; }
     public string? ProfileImageUrl { get; set; }
     public string? SocialLinksJson { get; set; }
+    public string? ForumInterestsJson { get; set; }
     public bool IsPrivate { get; set; }
     public string PreferredLanguage { get; set; } = "az";
     public DateTime CreatedAt { get; set; }
@@ -73,6 +74,8 @@ public class AppUser : IdentityUser<Guid>
     public ICollection<ChatConversation> InitiatedChatConversations { get; set; } = [];
     public ICollection<ChatMessage> SentChatMessages { get; set; } = [];
     public ICollection<ChatMessageUserState> ChatMessageStates { get; set; } = [];
+    public ICollection<ChatMessageReaction> ChatMessageReactions { get; set; } = [];
+    public ICollection<ChatConversationUserState> ChatConversationStates { get; set; } = [];
     public ICollection<UserBadge> Badges { get; set; } = [];
     public ICollection<RefreshSession> RefreshSessions { get; set; } = [];
 }

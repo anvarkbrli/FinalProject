@@ -21,6 +21,7 @@ const knownSingleWords = new Set([
   "Bəyən",
   "Bəyənilib",
   "Bərkidilib",
+  "Bərkid",
   "Bitirib",
   "Cavab",
   "Daxil",
@@ -126,10 +127,7 @@ const knownSingleWords = new Set([
   "Aktiv et",
   "Sistem avtomatik verir",
   "Aktiv ban",
-  "Pin edilib",
   "cavab ·",
-  "Pini sil",
-  "Pin et",
   "silinsin?",
   "Moderasiya et",
   "Admin qeydi",
@@ -290,7 +288,7 @@ async function resolveEnglishTranslations(
 }
 
 async function translateChunk(values) {
-  const separator = "\n___LUDORA_TRANSLATION_ITEM___\n";
+  const separator = "\n___WELLPLAYD_TRANSLATION_ITEM___\n";
   const body = new URLSearchParams({
     client: "gtx",
     sl: "az",
@@ -311,7 +309,7 @@ async function translateChunk(values) {
   }
   const payload = await response.json();
   const translated = payload[0].map((part) => part[0]).join("");
-  const parts = translated.split(/___LUDORA_TRANSLATION_ITEM___/);
+  const parts = translated.split(/___WELLPLAYD_TRANSLATION_ITEM___/);
   if (parts.length !== values.length) {
     throw new Error(
       `Translation batch split failed: expected ${values.length}, received ${parts.length}`,

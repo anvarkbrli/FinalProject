@@ -10,6 +10,8 @@ public record CurrentUserDTO
 
     public IReadOnlyList<string> Roles { get; set; } = [];
 
+    public IReadOnlyList<string> Capabilities { get; set; } = [];
+
     public bool EmailConfirmed { get; set; }
 
     public string? Bio { get; set; }

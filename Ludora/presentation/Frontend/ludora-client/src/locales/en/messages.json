@@ -1,7 +1,153 @@
 {
   "title": "Messages",
-  "empty": "No messages yet.",
-  "placeholder": "Write a message...",
-  "send": "Send",
-  "loading": "Loading messages..."
+  "preview": {
+    "newConversation": "New conversation",
+    "deleted": "This message was deleted",
+    "gameRecommendation": "Game recommendation",
+    "image": "Image",
+    "video": "Video",
+    "message": "Message"
+  },
+  "media": {
+    "loadFailed": "Media could not be loaded",
+    "retry": "Click to try again",
+    "expandVideo": "Expand video",
+    "expandImage": "Expand image",
+    "messageImageAlt": "Message image",
+    "closePreview": "Close media preview",
+    "expandedImageAlt": "Expanded message image"
+  },
+  "streak": {
+    "celebrationTitle": "{count}-day streak!",
+    "celebrationDescription": "You and {userName} messaged each other again today.",
+    "longestOne": "Longest: {count} day",
+    "longestMany": "Longest: {count} days",
+    "longestTitleOne": "Longest streak: {count} day",
+    "longestTitleMany": "Longest streak: {count} days"
+  },
+  "tabs": {
+    "active": "Active",
+    "archive": "Archive ({count})"
+  },
+  "requests": {
+    "title": "Message requests",
+    "acceptToReply": "Accept the message request to write a reply.",
+    "rejectTitle": "Reject the message request from {userName}?",
+    "rejectDescription": "This conversation request will be closed.",
+    "rejectDetail": "The user can send another message request later.",
+    "rejectConfirm": "Reject request",
+    "reject": "Reject",
+    "accept": "Accept",
+    "sentTitle": "Your message request was sent",
+    "sentDescription": "You cannot send another message until the other person accepts your request.",
+    "status": "Message request"
+  },
+  "empty": {
+    "archive": "You do not have any archived conversations.",
+    "conversations": "You do not have any conversations yet. Open a user profile and select “Message” to start.",
+    "selectTitle": "Select a conversation",
+    "selectDescription": "Your message history will appear on the left. To start a new conversation, open a user profile and select “Message”."
+  },
+  "header": {
+    "backToConversations": "Back to conversations",
+    "typing": "typing...",
+    "typingWithName": "{userName} is typing...",
+    "realtime": "Real-time chat",
+    "searchMessages": "Search messages",
+    "online": "online",
+    "lastSeenJustNow": "last seen just now",
+    "lastSeenMinutes": "last seen {count} minutes ago",
+    "lastSeenHours": "last seen {count} hours ago",
+    "lastSeenDays": "last seen {count} days ago",
+    "lastSeenUnknown": "last seen time is unavailable",
+    "lastSeenMinute": "last seen {count} minute ago",
+    "lastSeenHour": "last seen {count} hour ago",
+    "lastSeenDay": "last seen {count} day ago"
+  },
+  "archive": {
+    "restore": "Remove from archive",
+    "archive": "Archive conversation"
+  },
+  "search": {
+    "placeholder": "Search messages...",
+    "close": "Close search",
+    "minimumCharacters": "Enter at least 2 characters.",
+    "loadFailed": "Search results could not be loaded.",
+    "previous": "Previous",
+    "next": "Next",
+    "resultOne": "{count} result",
+    "resultMany": "{count} results",
+    "empty": "No matching messages found."
+  },
+  "pinned": {
+    "single": "Pinned message",
+    "multiple": "{count} pinned messages",
+    "unpin": "Unpin",
+    "pin": "Pin message"
+  },
+  "actions": {
+    "menu": "Message actions",
+    "reply": "Reply",
+    "deleteForMe": "Delete for me",
+    "deleteForEveryone": "Delete for everyone",
+    "forward": "Forward",
+    "delete": "Delete"
+  },
+  "reply": {
+    "unavailable": "The message you replied to is no longer available.",
+    "self": "Replying to your message",
+    "user": "Replying to {userName}",
+    "cancel": "Cancel reply"
+  },
+  "composer": {
+    "addMedia": "Add a photo or video",
+    "recommendGame": "Recommend a game",
+    "requestPlaceholder": "You can write one message request...",
+    "messagePlaceholder": "Write a message...",
+    "send": "Send message"
+  },
+  "validation": {
+    "unsupportedMedia": "Only images, MP4 and WEBM files can be sent.",
+    "videoTooLarge": "Videos can be up to 50 MB.",
+    "imageTooLarge": "Images can be up to 10 MB.",
+    "sendFailed": "Message could not be sent."
+  },
+  "delete": {
+    "forEveryoneTitle": "Delete the message for everyone?",
+    "forMeTitle": "Delete the message for you?",
+    "forEveryoneDescription": "The message will be deleted from both sides of the conversation.",
+    "forMeDescription": "The message will be deleted only from your conversation history.",
+    "forEveryoneDetail": "This action cannot be undone.",
+    "forMeDetail": "The other person's history will not change.",
+    "choiceTitle": "Delete message",
+    "choiceDescription": "Choose where you want to delete this message from.",
+    "forMeOption": "Delete for me",
+    "forMeOptionDescription": "The message will be deleted only from your conversation history.",
+    "forEveryoneOption": "Delete for everyone",
+    "forEveryoneOptionDescription": "The message will be deleted from both sides of the conversation.",
+    "cancel": "Close"
+  },
+  "deleted": "This message was deleted",
+  "game": {
+    "fallbackName": "Game",
+    "recommend": "Recommend a game",
+    "searchTitle": "Search for a game",
+    "searchPlaceholder": "Enter at least 2 characters..."
+  },
+  "userFallback": "User",
+  "conversationSearch": {
+    "placeholder": "Search conversations...",
+    "clear": "Clear conversation search",
+    "empty": "No matching conversations found."
+  },
+  "forward": {
+    "title": "Forward message",
+    "description": "Select the conversations you want to send this message to.",
+    "searchPlaceholder": "Search conversations...",
+    "empty": "No eligible conversations found.",
+    "confirm": "Forward ({count})",
+    "forwardedLabel": "Forwarded",
+    "close": "Close",
+    "failed": "The message could not be forwarded."
+  }
 }

@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
@@ -39,6 +39,7 @@ import {
   getForumPopularFeed,
 } from "../services/forumFeedService";
 import { getForumDiscussions } from "../services/forumService";
+import { getForumInterests } from "../services/forumInterestsService";
 import { getForumCategories } from "../services/homeService";
 import { getMyUserGames } from "../services/userGamesService";
 import {
@@ -53,6 +54,7 @@ import type {
   ForumFeedItemDTO,
   ForumPopularPeriod,
 } from "../types/forumFeed";
+import type { ForumInterestProfileDTO } from "../types/forumInterests";
 
 const communityCategoryLabels: Record<
   ForumCommunityCategory,
@@ -103,24 +105,6 @@ function parsePage(value: string | null): number {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
 }
 
-interface StoredForumInterests {
-  styles?: string[];
-  games?: Array<{ key: string; title: string }>;
-  genres?: string[];
-  platform?: string;
-}
-
-function parseStoredForumInterests(
-  value: string | null,
-): StoredForumInterests | null {
-  if (!value) return null;
-
-  try {
-    return JSON.parse(value) as StoredForumInterests;
-  } catch {
-    return null;
-  }
-}
 
 function getCommunityPath(slug: string) {
   return `/forum/communities/${encodeURIComponent(slug.trim())}`;
@@ -203,7 +187,7 @@ function CommunityCard({
         <p className="mt-1 text-[10px] font-semibold text-teal-300/70">
           {communityCategoryLabels[community.category]}
         </p>
-        <p className="mt-2 line-clamp-2 min-h-10 text-xs leading-5 text-zinc-600">
+        <p data-user-content className="mt-2 line-clamp-2 min-h-10 text-xs leading-5 text-zinc-600">
           {community.description}
         </p>
         <div className="mt-auto flex items-center justify-between gap-3 pt-4 text-[11px]">
@@ -319,16 +303,13 @@ function Pagination({
 
 export function ForumPage() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
   const expiresAtUtc = useAuthStore((state) => state.expiresAtUtc);
   const isAuthenticated =
     user !== null && isAuthSessionValid(accessToken, expiresAtUtc);
-  const storedInterests = user
-    ? localStorage.getItem(`ludora-forum-interests:${user.id}`)
-    : null;
-  const interestProfile = parseStoredForumInterests(storedInterests);
 
   const activeSection = parseForumSection(searchParams.get("section"));
   const selectedCategory = searchParams.get("category")?.trim() ?? "";
@@ -386,6 +367,13 @@ export function ForumPage() {
     queryFn: ({ signal }) => getMyUserGames(1, 1, signal),
     enabled: isAuthenticated,
   });
+
+  const interestsQuery = useQuery({
+    queryKey: ["forum", "interests", user?.id],
+    queryFn: ({ signal }) => getForumInterests(signal),
+    enabled: isAuthenticated,
+  });
+  const interestProfile = interestsQuery.data ?? null;
 
   const categoriesQuery = useQuery({
     queryKey: ["forum", "categories"],
@@ -447,7 +435,7 @@ export function ForumPage() {
       page,
       feedSearch,
       user?.id,
-      storedInterests,
+      interestProfile,
     ],
     queryFn: ({ signal }) =>
       getForumExploreFeed(
@@ -464,7 +452,9 @@ export function ForumPage() {
         },
         signal,
       ),
-    enabled: activeSection === "explore",
+    enabled:
+      activeSection === "explore" &&
+      (!isAuthenticated || interestsQuery.isSuccess),
   });
 
   const discussionsQuery = useQuery({
@@ -526,7 +516,8 @@ export function ForumPage() {
     isAuthenticated &&
     userGamesQuery.isSuccess &&
     userGamesQuery.data.totalCount < 25 &&
-    !storedInterests &&
+    interestsQuery.isSuccess &&
+    !interestProfile &&
     !onboardingCompleted &&
     !onboardingDismissed;
 
@@ -938,7 +929,7 @@ export function ForumPage() {
                       izləmədiyin yeni məzmun və insanlar.
                     </p>
                   </div>
-                  {isAuthenticated && user && !storedInterests && (
+                  {isAuthenticated && user && interestsQuery.isSuccess && !interestProfile && (
                     <button
                       type="button"
                       onClick={() => {
@@ -963,8 +954,11 @@ export function ForumPage() {
             shouldShowOnboarding ||
             (isAuthenticated && isOnboardingRequested)
           }
-          userId={user.id}
-          onComplete={() => {
+          onComplete={(profile: ForumInterestProfileDTO) => {
+            queryClient.setQueryData(
+              ["forum", "interests", user.id],
+              profile,
+            );
             setOnboardingCompleted(true);
             setIsOnboardingRequested(false);
           }}

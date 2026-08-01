@@ -237,7 +237,7 @@ export function ForumCommunityPage() {
                 <p className="mt-2 text-xs font-semibold text-teal-300/75">
                   {categoryLabels[community.category]}
                 </p>
-                <p className="mt-4 max-w-3xl text-sm leading-7 text-zinc-400">
+                <p data-user-content className="mt-4 max-w-3xl text-sm leading-7 text-zinc-400">
                   {community.description}
                 </p>
                 <div className="mt-4 flex flex-wrap gap-4 text-xs text-zinc-600">

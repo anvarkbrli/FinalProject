@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
+const forumSidebarStorageKey = "wellplayd-forum-sidebar";
+
 export type ForumSection =
   | "home"
   | "discussions"
@@ -63,14 +65,13 @@ export function ForumSidebar({
   onCreateCommunity,
 }: ForumSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(() => {
-    return localStorage.getItem("ludora-forum-sidebar") ===
-      "collapsed";
+    return localStorage.getItem(forumSidebarStorageKey) === "collapsed";
   });
   const [isMobileOpen, setIsMobileOpen] = useState(false);
 
   useEffect(() => {
     localStorage.setItem(
-      "ludora-forum-sidebar",
+      forumSidebarStorageKey,
       isCollapsed ? "collapsed" : "expanded",
     );
   }, [isCollapsed]);

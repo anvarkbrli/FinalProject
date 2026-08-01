@@ -3,6 +3,7 @@ import azCommon from "../locales/az/common.json";
 import azForum from "../locales/az/forum.json";
 import azGames from "../locales/az/games.json";
 import azMessages from "../locales/az/messages.json";
+import azLists from "../locales/az/lists.json";
 import azNotifications from "../locales/az/notifications.json";
 import azProfile from "../locales/az/profile.json";
 import azValidation from "../locales/az/validation.json";
@@ -12,6 +13,7 @@ import enCommon from "../locales/en/common.json";
 import enForum from "../locales/en/forum.json";
 import enGames from "../locales/en/games.json";
 import enMessages from "../locales/en/messages.json";
+import enLists from "../locales/en/lists.json";
 import enNotifications from "../locales/en/notifications.json";
 import enProfile from "../locales/en/profile.json";
 import enValidation from "../locales/en/validation.json";
@@ -37,6 +39,7 @@ const bundles: Record<SupportedLanguage, TranslationBundle> = {
     profile: azProfile,
     forum: azForum,
     messages: azMessages,
+    lists: azLists,
     notifications: azNotifications,
     validation: azValidation,
   },
@@ -48,6 +51,7 @@ const bundles: Record<SupportedLanguage, TranslationBundle> = {
     profile: enProfile,
     forum: enForum,
     messages: enMessages,
+    lists: enLists,
     notifications: enNotifications,
     validation: enValidation,
   },
@@ -219,7 +223,16 @@ export function subscribeToLanguage(listener: () => void) {
 }
 
 export function translatePage(root: ParentNode = document) {
-  root.querySelectorAll<HTMLElement>("[data-i18n]").forEach((element) => {
+  const ignoredContentSelector = "[data-i18n-ignore], [data-user-content]";
+  const elementsMatching = (selector: string) => {
+    const descendants = Array.from(root.querySelectorAll<HTMLElement>(selector));
+    if (root instanceof HTMLElement && root.matches(selector)) {
+      descendants.unshift(root);
+    }
+    return descendants;
+  };
+
+  elementsMatching("[data-i18n]").forEach((element) => {
     const key = element.dataset.i18n;
     if (key) element.textContent = t(key, undefined, element.textContent ?? key);
   });
@@ -230,7 +243,7 @@ export function translatePage(root: ParentNode = document) {
     ["data-i18n-alt", "alt"],
   ] as const;
   for (const [dataAttribute, targetAttribute] of attributes) {
-    root.querySelectorAll<HTMLElement>(`[${dataAttribute}]`).forEach((element) => {
+    elementsMatching(`[${dataAttribute}]`).forEach((element) => {
       const key = element.getAttribute(dataAttribute);
       if (key) {
         element.setAttribute(
@@ -247,7 +260,7 @@ export function translatePage(root: ParentNode = document) {
     {
       acceptNode(node) {
         const parent = node.parentElement;
-        if (!parent || parent.closest("[data-i18n-ignore]")) {
+        if (!parent || parent.closest(ignoredContentSelector)) {
           return NodeFilter.FILTER_REJECT;
         }
         if (
@@ -281,7 +294,7 @@ export function translatePage(root: ParentNode = document) {
       ? [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))]
       : Array.from(root.querySelectorAll<HTMLElement>("*"));
   elements.forEach((element) => {
-    if (element.closest("[data-i18n-ignore]")) return;
+    if (element.closest(ignoredContentSelector)) return;
     automaticAttributes.forEach((attribute) => {
       const value = element.getAttribute(attribute)?.trim();
       const translated = value ? translateAutomaticValue(value) : undefined;

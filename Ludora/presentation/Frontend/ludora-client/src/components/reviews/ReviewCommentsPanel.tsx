@@ -357,7 +357,7 @@ export function ReviewCommentsPanel({
                       </div>
                     </div>
                   ) : (
-                    <p className="mt-3 whitespace-pre-wrap break-words text-xs leading-6 text-zinc-400">
+                    <p data-user-content className="mt-3 whitespace-pre-wrap break-words text-xs leading-6 text-zinc-400">
                       {comment.content}
                     </p>
                   )}

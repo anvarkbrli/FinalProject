@@ -10,6 +10,7 @@ public sealed class ChatMessageConfiguration : IEntityTypeConfiguration<ChatMess
     {
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Kind).IsRequired();
+        builder.Property(x => x.IsForwarded).IsRequired().HasDefaultValue(false);
         builder.Property(x => x.Text).HasMaxLength(4000);
         builder.Property(x => x.MediaStorageKey).HasMaxLength(2048);
         builder.Property(x => x.MediaContentType).HasMaxLength(100);
@@ -38,6 +39,9 @@ public sealed class ChatMessageConfiguration : IEntityTypeConfiguration<ChatMess
             x.SentAtUtc
         });
 
+
+        builder.HasIndex(x => new { x.ConversationId, x.ReplyToMessageId });
+
         builder.HasOne(x => x.Conversation)
             .WithMany(x => x.Messages)
             .HasForeignKey(x => x.ConversationId)
@@ -46,5 +50,10 @@ public sealed class ChatMessageConfiguration : IEntityTypeConfiguration<ChatMess
             .WithMany(x => x.SentChatMessages)
             .HasForeignKey(x => x.SenderUserId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        builder.HasOne(x => x.ReplyToMessage)
+            .WithMany(x => x.Replies)
+            .HasForeignKey(x => x.ReplyToMessageId)
+            .OnDelete(DeleteBehavior.NoAction);
     }
 }

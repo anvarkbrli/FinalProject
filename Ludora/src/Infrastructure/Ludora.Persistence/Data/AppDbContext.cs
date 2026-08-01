@@ -32,6 +32,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<PostComment> PostComments { get; set; }
     public DbSet<GameListLike> GameListLikes { get; set; }
     public DbSet<GameListComment> GameListComments { get; set; }
+    public DbSet<GameListCollaborator> GameListCollaborators { get; set; }
     public DbSet<Review> Reviews { get; set; }
     public DbSet<ReviewLike> ReviewLikes { get; set; }
     public DbSet<ReviewComment> ReviewComments { get; set; }
@@ -70,6 +71,8 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<ChatConversation> ChatConversations { get; set; }
     public DbSet<ChatMessage> ChatMessages { get; set; }
     public DbSet<ChatMessageUserState> ChatMessageUserStates { get; set; }
+    public DbSet<ChatMessageReaction> ChatMessageReactions { get; set; }
+    public DbSet<ChatConversationUserState> ChatConversationUserStates { get; set; }
     public DbSet<BadgeDefinition> BadgeDefinitions { get; set; }
     public DbSet<UserBadge> UserBadges { get; set; }
     public DbSet<RefreshSession> RefreshSessions { get; set; }

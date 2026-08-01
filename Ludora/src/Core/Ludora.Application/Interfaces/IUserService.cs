@@ -11,6 +11,13 @@ public interface IUserService
     Task<CurrentUserDTO> UpdateProfileImageAsync(Guid userId, ProfileImageUploadDTO dto);
     Task<UserSettingsDTO> GetSettingsAsync(Guid userId);
     Task<UserSettingsDTO> UpdateSettingsAsync(Guid userId, UpdateUserSettingsDTO dto);
+    Task<ForumInterestProfileDTO?> GetForumInterestsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+    Task<ForumInterestProfileDTO> UpdateForumInterestsAsync(
+        Guid userId,
+        UpdateForumInterestProfileDTO dto,
+        CancellationToken cancellationToken = default);
     Task<CurrentUserDTO> UpdatePreferredLanguageAsync(
         Guid userId,
         UpdatePreferredLanguageDTO dto,

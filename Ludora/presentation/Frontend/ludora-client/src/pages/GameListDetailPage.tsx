@@ -1,15 +1,15 @@
-﻿import {
+import {
   useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import {
-  ArrowDown,
   ArrowLeft,
-  ArrowUp,
   CalendarDays,
   Check,
+  Copy,
   Gamepad2,
+  GripVertical,
   Heart,
   ListChecks,
   ListOrdered,
@@ -19,19 +19,19 @@ import {
   Pencil,
   Plus,
   Search,
+  Sparkles,
   Star,
   Trash2,
+  UserRoundPlus,
   Users,
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import {
-  Link,
-  useNavigate,
-  useParams,
-} from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { InteractionCommentsPanel } from "../components/interactions/InteractionCommentsPanel";
 import { InteractionLikesModal } from "../components/interactions/InteractionLikesModal";
+import { GameListCloneModal } from "../components/lists/GameListCloneModal";
+import { GameListCollaboratorsModal } from "../components/lists/GameListCollaboratorsModal";
 import {
   GameListEditorModal,
   type GameListEditorValues,
@@ -52,35 +52,23 @@ import {
   unlikeContent,
 } from "../services/contentInteractionsService";
 import {
+  acceptGameListCollaboration,
   addGameToList,
+  cloneGameList,
+  declineGameListCollaboration,
   deleteGameList,
   getGameList,
   removeGameFromList,
+  reorderGameList,
   updateGameList,
-  updateGameListPosition,
 } from "../services/gameListsService";
 import { getGames } from "../services/gamesService";
 import {
   isAuthSessionValid,
   useAuthStore,
 } from "../stores/authStore";
-import type { GameListEntryDTO } from "../types/gameLists";
+import type { GameListDetailDTO, GameListEntryDTO } from "../types/gameLists";
 import type { GameListItemDTO } from "../types/home";
-
-const visibilityPresentation = {
-  Public: {
-    label: "Hamı üçün",
-    icon: Users,
-  },
-  FollowersOnly: {
-    label: "Yalnız izləyicilər",
-    icon: Check,
-  },
-  Private: {
-    label: "Gizli",
-    icon: LockKeyhole,
-  },
-} as const;
 
 interface NoticeState {
   type: "success" | "error";
@@ -97,11 +85,11 @@ function GameCover({
   const imageUrl = resolveAssetUrl(coverImageUrl);
 
   return (
-    <span className="flex h-28 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/[0.08] bg-zinc-900 text-zinc-700">
+    <span className="flex h-28 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/[0.08] bg-zinc-900 text-zinc-700 shadow-lg shadow-black/20">
       {imageUrl ? (
         <img
           src={imageUrl}
-          alt={`${title} örtüyü`}
+          alt={title}
           className="h-full w-full object-cover"
         />
       ) : (
@@ -124,8 +112,12 @@ function getRankBadgeClasses(position: number) {
   }
 }
 
+function gameKey(game: Pick<GameListEntryDTO, "source" | "id">) {
+  return `${game.source}:${game.id}`;
+}
+
 export function GameListDetailPage() {
-  const { language } = useI18n();
+  const { language, t } = useI18n();
   const { id = "" } = useParams();
   const listId = Number(id);
   const navigate = useNavigate();
@@ -134,19 +126,23 @@ export function GameListDetailPage() {
   const expiresAtUtc = useAuthStore((state) => state.expiresAtUtc);
   const storedUser = useAuthStore((state) => state.user);
   const isAuthenticated =
-    isAuthSessionValid(accessToken, expiresAtUtc) &&
-    storedUser !== null;
+    isAuthSessionValid(accessToken, expiresAtUtc) && storedUser !== null;
+
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [isCloneOpen, setIsCloneOpen] = useState(false);
+  const [isCollaboratorsOpen, setIsCollaboratorsOpen] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [notice, setNotice] = useState<NoticeState | null>(null);
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [isLikesOpen, setIsLikesOpen] = useState(false);
+  const [draggedGameKey, setDraggedGameKey] = useState<string | null>(null);
 
   const listQuery = useQuery({
     queryKey: ["game-list", listId],
     queryFn: () => getGameList(listId),
     enabled: Number.isInteger(listId) && listId > 0,
   });
+
 
   const normalizedSearch = searchText.trim();
   const searchQuery = useQuery({
@@ -159,18 +155,13 @@ export function GameListDetailPage() {
         pageSize: 8,
       }),
     enabled:
-      listQuery.data?.isOwner === true &&
-      normalizedSearch.length >= 2,
+      listQuery.data?.canEditGames === true && normalizedSearch.length >= 2,
   });
 
   const invalidateList = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({
-        queryKey: ["game-list", listId],
-      }),
-      queryClient.invalidateQueries({
-        queryKey: ["user-game-lists"],
-      }),
+      queryClient.invalidateQueries({ queryKey: ["game-list", listId] }),
+      queryClient.invalidateQueries({ queryKey: ["user-game-lists"] }),
     ]);
   };
 
@@ -194,10 +185,7 @@ export function GameListDetailPage() {
     onError: (error) => {
       setNotice({
         type: "error",
-        message: getApiErrorMessage(
-          error,
-          "Siyahını bəyənmə əməliyyatı tamamlanmadı.",
-        ),
+        message: getApiErrorMessage(error, t("lists:errors.like")),
       });
     },
   });
@@ -208,10 +196,7 @@ export function GameListDetailPage() {
     onSuccess: async () => {
       setIsEditorOpen(false);
       await invalidateList();
-      setNotice({
-        type: "success",
-        message: "Siyahı yeniləndi.",
-      });
+      setNotice({ type: "success", message: t("lists:notices.updated") });
     },
   });
 
@@ -219,20 +204,14 @@ export function GameListDetailPage() {
     mutationFn: () => deleteGameList(listId),
     onSuccess: () => {
       const ownerUserName = listQuery.data?.ownerUserName;
-      navigate(
-        ownerUserName
-          ? `/users/${ownerUserName}`
-          : "/",
-        { replace: true },
-      );
+      navigate(ownerUserName ? `/users/${ownerUserName}` : "/", {
+        replace: true,
+      });
     },
     onError: (error) => {
       setNotice({
         type: "error",
-        message: getApiErrorMessage(
-          error,
-          "Siyahını silmək mümkün olmadı.",
-        ),
+        message: getApiErrorMessage(error, t("lists:errors.delete")),
       });
     },
   });
@@ -242,18 +221,12 @@ export function GameListDetailPage() {
       addGameToList(listId, game.source, game.id),
     onSuccess: async () => {
       await invalidateList();
-      setNotice({
-        type: "success",
-        message: "Oyun siyahıya əlavə edildi.",
-      });
+      setNotice({ type: "success", message: t("lists:notices.gameAdded") });
     },
     onError: (error) => {
       setNotice({
         type: "error",
-        message: getApiErrorMessage(
-          error,
-          "Oyunu siyahıya əlavə etmək mümkün olmadı.",
-        ),
+        message: getApiErrorMessage(error, t("lists:errors.addGame")),
       });
     },
   });
@@ -263,55 +236,68 @@ export function GameListDetailPage() {
       removeGameFromList(listId, game.source, game.id),
     onSuccess: async () => {
       await invalidateList();
-      setNotice({
-        type: "success",
-        message: "Oyun siyahıdan çıxarıldı.",
-      });
+      setNotice({ type: "success", message: t("lists:notices.gameRemoved") });
     },
     onError: (error) => {
       setNotice({
         type: "error",
-        message: getApiErrorMessage(
-          error,
-          "Oyunu siyahıdan çıxarmaq mümkün olmadı.",
-        ),
+        message: getApiErrorMessage(error, t("lists:errors.removeGame")),
       });
     },
   });
 
-  const positionMutation = useMutation({
-    mutationFn: ({
-      game,
-      position,
-    }: {
-      game: GameListEntryDTO;
-      position: number;
-    }) =>
-      updateGameListPosition(
+  const reorderMutation = useMutation({
+    mutationFn: (games: GameListEntryDTO[]) =>
+      reorderGameList(
         listId,
-        game.source,
-        game.id,
-        position,
+        games.map((game) => ({ source: game.source, gameId: game.id })),
       ),
     onSuccess: invalidateList,
+    onError: async (error) => {
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(error, t("lists:errors.reorder")),
+      });
+      await invalidateList();
+    },
+  });
+
+  const cloneMutation = useMutation({
+    mutationFn: (request: { name: string; visibility: "Public" | "Private" | "FollowersOnly" }) =>
+      cloneGameList(listId, request),
+    onSuccess: (cloneId) => {
+      setIsCloneOpen(false);
+      navigate(`/lists/${cloneId}`);
+    },
+  });
+
+  const acceptMutation = useMutation({
+    mutationFn: () => acceptGameListCollaboration(listId),
+    onSuccess: async () => {
+      await invalidateList();
+      setNotice({ type: "success", message: t("lists:collaboration.acceptedNotice") });
+    },
     onError: (error) => {
       setNotice({
         type: "error",
-        message: getApiErrorMessage(
-          error,
-          "Oyunun sırasını dəyişmək mümkün olmadı.",
-        ),
+        message: getApiErrorMessage(error, t("lists:collaboration.acceptError")),
+      });
+    },
+  });
+
+  const declineMutation = useMutation({
+    mutationFn: () => declineGameListCollaboration(listId),
+    onSuccess: () => navigate(`/users/${listQuery.data?.ownerUserName ?? ""}`),
+    onError: (error) => {
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(error, t("lists:collaboration.declineError")),
       });
     },
   });
 
   const currentGameKeys = useMemo(
-    () =>
-      new Set(
-        (listQuery.data?.games ?? []).map(
-          (game) => `${game.source}:${game.id}`,
-        ),
-      ),
+    () => new Set((listQuery.data?.games ?? []).map((game) => gameKey(game))),
     [listQuery.data?.games],
   );
 
@@ -321,112 +307,183 @@ export function GameListDetailPage() {
         <Navbar />
         <main className="flex min-h-[70vh] items-center justify-center gap-3 text-sm text-zinc-500">
           <LoaderCircle size={20} className="animate-spin" />
-          Siyahı yüklənir...
+          {t("lists:detail.loading")}
         </main>
       </div>
     );
   }
 
   if (listQuery.isError || !listQuery.data) {
-    return (
-      <ApiErrorStatusPage
-        error={listQuery.error}
-        entityName="Siyahı"
-      />
-    );
+    return <ApiErrorStatusPage error={listQuery.error} entityName={t("lists:detail.entityName")} />;
   }
 
   const list = listQuery.data;
-  const visibility = visibilityPresentation[list.visibility];
-  const VisibilityIcon = visibility.icon;
+  const VisibilityIcon =
+    list.visibility === "Public"
+      ? Users
+      : list.visibility === "FollowersOnly"
+        ? Check
+        : LockKeyhole;
   const searchResults = searchQuery.data?.items ?? [];
+  const backgroundUrl = resolveAssetUrl(list.backgroundCoverImageUrl);
+  const isPendingInvite = list.currentUserCollaborationStatus === "Pending";
+  const isAcceptedCollaborator =
+    list.currentUserCollaborationStatus === "Accepted";
+  const cloneName =
+    language === "en" ? `Copy of ${list.name}` : `${list.name} — surəti`;
+
+  function handleDrop(targetIndex: number) {
+    if (!draggedGameKey || !list.isRanked || !list.canEditGames) return;
+    const sourceIndex = list.games.findIndex(
+      (game) => gameKey(game) === draggedGameKey,
+    );
+    if (sourceIndex < 0 || sourceIndex === targetIndex) {
+      setDraggedGameKey(null);
+      return;
+    }
+
+    const nextGames = [...list.games];
+    const [moved] = nextGames.splice(sourceIndex, 1);
+    nextGames.splice(targetIndex, 0, moved);
+    queryClient.setQueryData<GameListDetailDTO>(
+      ["game-list", listId],
+      (current) => current
+        ? {
+            ...current,
+            games: nextGames,
+            backgroundCoverImageUrl:
+              nextGames[0]?.coverImageUrl ?? current.backgroundCoverImageUrl,
+          }
+        : current,
+    );
+    setDraggedGameKey(null);
+    reorderMutation.mutate(nextGames);
+  }
 
   return (
     <div className="min-h-screen wellplayd-page-bg text-zinc-100">
       <Navbar />
 
       <main>
-        <section className="relative overflow-hidden border-b border-white/[0.07] bg-[#0a0a0e]">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(124,58,237,0.18),transparent_32%),radial-gradient(circle_at_85%_25%,rgba(245,158,11,0.07),transparent_25%)]" />
-          <div className="relative mx-auto max-w-7xl px-5 py-10 lg:px-8 lg:py-14">
+        <section className="relative overflow-hidden border-b border-white/[0.07] bg-[#09090d]">
+          {backgroundUrl && (
+            <div className="pointer-events-none absolute inset-0 overflow-hidden">
+              <img
+                src={backgroundUrl}
+                alt=""
+                className="h-full w-full scale-110 object-cover opacity-30 blur-2xl"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-[#09090d] via-[#09090d]/85 to-[#09090d]/65" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#09090d] via-transparent to-[#09090d]/30" />
+            </div>
+          )}
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(124,58,237,0.2),transparent_32%),radial-gradient(circle_at_85%_25%,rgba(245,158,11,0.08),transparent_25%)]" />
+
+          <div className="relative mx-auto max-w-7xl px-5 py-10 lg:px-8 lg:py-16">
             <Link
               to={`/users/${list.ownerUserName}`}
-              className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-500 transition hover:text-violet-300"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-400 transition hover:text-violet-300"
             >
               <ArrowLeft size={16} />
-              {language === "en"
-                ? `Back to ${list.ownerUserName}'s profile`
-                : `${list.ownerUserName} profilinə qayıt`}
+              {t("lists:detail.backToProfile", { name: list.ownerUserName })}
             </Link>
 
-            <div className="mt-8 flex flex-col gap-7 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0">
+            <div className="mt-8 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0 max-w-4xl">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-violet-300/15 bg-violet-500/[0.09] px-3 py-1.5 text-xs font-bold text-violet-200">
-                    {list.isRanked ? (
-                      <ListOrdered size={14} />
-                    ) : (
-                      <ListChecks size={14} />
-                    )}
+                  <span className="inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-500/[0.12] px-3 py-1.5 text-xs font-bold text-violet-100 backdrop-blur-md">
+                    {list.isRanked ? <ListOrdered size={14} /> : <ListChecks size={14} />}
                     {list.isRanked
-                      ? "Ranklanmış siyahı"
-                      : "Sırasız siyahı"}
+                      ? t("lists:type.ranked")
+                      : t("lists:type.unranked")}
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.035] px-3 py-1.5 text-xs font-semibold text-zinc-400">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.1] bg-black/25 px-3 py-1.5 text-xs font-semibold text-zinc-300 backdrop-blur-md">
                     <VisibilityIcon size={14} />
-                    {visibility.label}
+                    {t(`lists:visibility.${list.visibility}`)}
                   </span>
+                  {isAcceptedCollaborator && (
+                    <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-500/[0.1] px-3 py-1.5 text-xs font-bold text-emerald-200">
+                      <Sparkles size={14} />
+                      {t("lists:collaboration.collaboratorBadge")}
+                    </span>
+                  )}
                 </div>
 
-                <h1 className="mt-5 max-w-4xl text-3xl font-black tracking-tight text-white sm:text-5xl">
+                <h1 className="mt-5 text-3xl font-black tracking-tight text-white drop-shadow-lg sm:text-5xl">
                   {list.name}
                 </h1>
-                <p className="mt-4 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-zinc-400">
-                  {list.description ?? "Bu siyahı üçün açıqlama əlavə edilməyib."}
+                <p data-user-content className="mt-4 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-zinc-300/80">
+                  {list.description ?? t("lists:detail.noDescription")}
                 </p>
-                <div className="mt-5 flex flex-wrap items-center gap-5 text-xs text-zinc-600">
+                <div className="mt-6 flex flex-wrap items-center gap-5 text-xs text-zinc-400">
                   <span className="inline-flex items-center gap-2">
                     <Gamepad2 size={15} />
-                    {list.gameCount} oyun
+                    {t("lists:detail.gameCount", { count: list.gameCount })}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <CalendarDays size={15} />
                     {formatDateTime(list.createdAt)}
                   </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsCollaboratorsOpen(true)}
+                    className="inline-flex items-center gap-2 transition hover:text-violet-200"
+                  >
+                    <Users size={15} />
+                    {t("lists:detail.collaboratorCount", {
+                      count: list.collaborators.filter((item) => item.status === "Accepted").length,
+                    })}
+                  </button>
                 </div>
               </div>
 
-              {list.isOwner && (
-                <div className="flex shrink-0 flex-wrap gap-3">
+              <div className="flex shrink-0 flex-wrap gap-3">
+                {isAuthenticated && !isPendingInvite && (
                   <button
                     type="button"
-                    onClick={() => {
-                      setIsEditorOpen(true);
-                    }}
-                    className="flex h-11 items-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-4 text-sm font-bold text-zinc-200 transition hover:bg-white/[0.09]"
+                    onClick={() => setIsCloneOpen(true)}
+                    className="flex h-11 items-center gap-2 rounded-xl border border-white/[0.1] bg-black/25 px-4 text-sm font-bold text-zinc-100 backdrop-blur-md transition hover:bg-white/[0.1]"
                   >
-                    <Pencil size={16} />
-                    Redaktə et
+                    <Copy size={16} />
+                    {t("lists:actions.clone")}
                   </button>
+                )}
+                {(list.canManageCollaborators || isAcceptedCollaborator) && (
                   <button
                     type="button"
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          "Bu siyahını silmək istəyirsən?",
-                        )
-                      ) {
-                        deleteMutation.mutate();
-                      }
-                    }}
-                    disabled={deleteMutation.isPending}
-                    className="flex h-11 items-center gap-2 rounded-xl border border-red-400/15 bg-red-500/[0.06] px-4 text-sm font-bold text-red-300 transition hover:bg-red-500/15 disabled:opacity-50"
+                    onClick={() => setIsCollaboratorsOpen(true)}
+                    className="flex h-11 items-center gap-2 rounded-xl border border-violet-300/15 bg-violet-500/[0.1] px-4 text-sm font-bold text-violet-100 backdrop-blur-md transition hover:bg-violet-500/[0.18]"
                   >
-                    <Trash2 size={16} />
-                    Sil
+                    <UserRoundPlus size={16} />
+                    {t("lists:actions.collaborators")}
                   </button>
-                </div>
-              )}
+                )}
+                {list.isOwner && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setIsEditorOpen(true)}
+                      className="flex h-11 items-center gap-2 rounded-xl border border-white/[0.1] bg-black/25 px-4 text-sm font-bold text-zinc-100 backdrop-blur-md transition hover:bg-white/[0.1]"
+                    >
+                      <Pencil size={16} />
+                      {t("lists:actions.edit")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm(t("lists:confirm.deleteList"))) {
+                          deleteMutation.mutate();
+                        }
+                      }}
+                      disabled={deleteMutation.isPending}
+                      className="flex h-11 items-center gap-2 rounded-xl border border-red-400/15 bg-red-500/[0.08] px-4 text-sm font-bold text-red-200 backdrop-blur-md transition hover:bg-red-500/15 disabled:opacity-50"
+                    >
+                      <Trash2 size={16} />
+                      {t("lists:actions.delete")}
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           </div>
         </section>
@@ -443,35 +500,68 @@ export function GameListDetailPage() {
               <span>{notice.message}</span>
               <button
                 type="button"
-                onClick={() => {
-                  setNotice(null);
-                }}
-                aria-label="Bildirişi bağla"
+                onClick={() => setNotice(null)}
+                aria-label={t("lists:common.close")}
               >
                 <X size={16} />
               </button>
             </div>
           )}
 
-          <section className="mb-8 overflow-hidden rounded-3xl border border-white/[0.07] bg-[#101015]">
+          {isPendingInvite && (
+            <section className="mb-8 overflow-hidden rounded-3xl border border-violet-300/20 bg-gradient-to-r from-violet-500/[0.12] to-fuchsia-500/[0.06] p-5 sm:p-6">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2 text-sm font-black text-violet-100">
+                    <UserRoundPlus size={19} />
+                    {t("lists:collaboration.invitationTitle")}
+                  </div>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
+                    {t("lists:collaboration.invitationDescription", {
+                      owner: list.ownerUserName,
+                    })}
+                  </p>
+                </div>
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    disabled={declineMutation.isPending || acceptMutation.isPending}
+                    onClick={() => {
+                      if (window.confirm(t("lists:collaboration.declineConfirm"))) {
+                        declineMutation.mutate();
+                      }
+                    }}
+                    className="h-11 rounded-xl border border-white/[0.09] px-4 text-sm font-bold text-zinc-300 transition hover:bg-white/[0.05] disabled:opacity-50"
+                  >
+                    {t("lists:collaboration.decline")}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={acceptMutation.isPending || declineMutation.isPending}
+                    onClick={() => acceptMutation.mutate()}
+                    className="inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-5 text-sm font-bold text-white transition hover:bg-violet-500 disabled:opacity-50"
+                  >
+                    {acceptMutation.isPending && (
+                      <LoaderCircle size={16} className="animate-spin" />
+                    )}
+                    {t("lists:collaboration.accept")}
+                  </button>
+                </div>
+              </div>
+            </section>
+          )}
+
+          <section className="mb-8 overflow-hidden rounded-3xl border border-white/[0.07] bg-[#101015] shadow-xl shadow-black/10">
             <div className="flex items-center gap-5 px-5 py-4 text-sm text-zinc-500 sm:px-6">
               <span className="inline-flex items-center gap-2">
                 <button
                   type="button"
-                  disabled={
-                    !isAuthenticated ||
-                    list.isOwner ||
-                    likeMutation.isPending
-                  }
-                  onClick={() => {
-                    likeMutation.mutate();
-                  }}
+                  disabled={!isAuthenticated || list.isOwner || likeMutation.isPending}
+                  onClick={() => likeMutation.mutate()}
                   className={`group inline-flex items-center transition disabled:cursor-not-allowed disabled:opacity-45 ${
-                    list.isLikedByCurrentUser
-                      ? "text-rose-300"
-                      : "hover:text-rose-300"
+                    list.isLikedByCurrentUser ? "text-rose-300" : "hover:text-rose-300"
                   }`}
-                  aria-label="Siyahını bəyən"
+                  aria-label={t("lists:actions.like")}
                 >
                   <Heart
                     size={17}
@@ -484,26 +574,22 @@ export function GameListDetailPage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setIsLikesOpen(true);
-                  }}
+                  onClick={() => setIsLikesOpen(true)}
                   className="font-semibold transition hover:text-rose-300"
                 >
-                  {list.likeCount} bəyəni
+                  {t("lists:detail.likeCount", { count: list.likeCount })}
                 </button>
               </span>
 
               <button
                 type="button"
-                onClick={() => {
-                  setIsCommentsOpen((currentValue) => !currentValue);
-                }}
+                onClick={() => setIsCommentsOpen((current) => !current)}
                 className={`inline-flex items-center gap-2 font-semibold transition hover:text-violet-300 ${
                   isCommentsOpen ? "text-violet-300" : ""
                 }`}
               >
                 <MessageCircle size={17} />
-                {list.commentCount} şərh
+                {t("lists:detail.commentCount", { count: list.commentCount })}
               </button>
             </div>
 
@@ -512,8 +598,8 @@ export function GameListDetailPage() {
                 contentType="game-list"
                 contentId={listId}
                 isAuthenticated={isAuthenticated}
-                placeholder="Siyahıya şərh yaz..."
-                emptyText="Bu siyahıya hələ şərh yazılmayıb."
+                placeholder={t("lists:comments.placeholder")}
+                emptyText={t("lists:comments.empty")}
                 invalidateQueryKeys={[
                   ["game-list", listId],
                   ["user-game-lists"],
@@ -522,16 +608,14 @@ export function GameListDetailPage() {
             )}
           </section>
 
-          {list.isOwner && (
-            <section className="mb-8 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
+          {list.canEditGames && (
+            <section className="mb-8 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 shadow-xl shadow-black/10 sm:p-6">
               <div className="flex items-center gap-2">
                 <Plus size={19} className="text-violet-300" />
-                <h2 className="font-black text-white">
-                  Siyahıya oyun əlavə et
-                </h2>
+                <h2 className="font-black text-white">{t("lists:addGame.title")}</h2>
               </div>
               <p className="mt-2 text-sm leading-6 text-zinc-600">
-                Oyun adına görə axtar və nəticədən birbaşa siyahıya əlavə et.
+                {t("lists:addGame.description")}
               </p>
 
               <div className="relative mt-5">
@@ -543,10 +627,8 @@ export function GameListDetailPage() {
                   type="search"
                   autoComplete="off"
                   value={searchText}
-                  onChange={(event) => {
-                    setSearchText(event.target.value);
-                  }}
-                  placeholder="Oyun axtar..."
+                  onChange={(event) => setSearchText(event.target.value)}
+                  placeholder={t("lists:addGame.placeholder")}
                   className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.035] pl-11 pr-4 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/45 focus:ring-4 focus:ring-violet-500/10"
                 />
               </div>
@@ -556,31 +638,25 @@ export function GameListDetailPage() {
                   {searchQuery.isLoading ? (
                     <div className="col-span-full flex items-center justify-center gap-3 py-8 text-sm text-zinc-600">
                       <LoaderCircle size={17} className="animate-spin" />
-                      Oyunlar axtarılır...
+                      {t("lists:addGame.searching")}
                     </div>
                   ) : searchQuery.isError ? (
                     <p className="col-span-full py-6 text-center text-sm text-red-300">
-                      Oyunları axtarmaq mümkün olmadı.
+                      {t("lists:addGame.searchError")}
                     </p>
                   ) : searchResults.length === 0 ? (
                     <p className="col-span-full py-6 text-center text-sm text-zinc-600">
-                      Uyğun oyun tapılmadı.
+                      {t("lists:addGame.noResults")}
                     </p>
                   ) : (
                     searchResults.map((game) => {
-                      const isAdded = currentGameKeys.has(
-                        `${game.source}:${game.id}`,
-                      );
-
+                      const isAdded = currentGameKeys.has(`${game.source}:${game.id}`);
                       return (
                         <div
                           key={`${game.source}-${game.id}`}
                           className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3"
                         >
-                          <GameCover
-                            title={game.title}
-                            coverImageUrl={game.coverImageUrl}
-                          />
+                          <GameCover title={game.title} coverImageUrl={game.coverImageUrl} />
                           <div className="min-w-0 flex-1">
                             <p className="line-clamp-2 text-sm font-bold text-zinc-100">
                               {game.title}
@@ -591,20 +667,14 @@ export function GameListDetailPage() {
                           </div>
                           <button
                             type="button"
-                            onClick={() => {
-                              addMutation.mutate(game);
-                            }}
-                            disabled={
-                              isAdded || addMutation.isPending
-                            }
+                            onClick={() => addMutation.mutate(game)}
+                            disabled={isAdded || addMutation.isPending}
                             className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-violet-600 px-3 text-xs font-bold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.05] disabled:text-zinc-600"
                           >
-                            {isAdded ? (
-                              <Check size={15} />
-                            ) : (
-                              <Plus size={15} />
-                            )}
-                            {isAdded ? "Əlavə edilib" : "Əlavə et"}
+                            {isAdded ? <Check size={15} /> : <Plus size={15} />}
+                            {isAdded
+                              ? t("lists:addGame.added")
+                              : t("lists:addGame.add")}
                           </button>
                         </div>
                       );
@@ -615,82 +685,91 @@ export function GameListDetailPage() {
             </section>
           )}
 
+          {list.isRanked && list.canEditGames && list.games.length > 1 && (
+            <div className="mb-4 flex items-center gap-2 rounded-2xl border border-violet-300/10 bg-violet-500/[0.05] px-4 py-3 text-xs text-violet-200/75">
+              <GripVertical size={16} />
+              {t("lists:drag.hint")}
+            </div>
+          )}
+
           {list.games.length === 0 ? (
             <div className="rounded-3xl border border-dashed border-white/[0.08] p-14 text-center">
-              <ListChecks
-                size={34}
-                className="mx-auto text-zinc-700"
-              />
+              <ListChecks size={34} className="mx-auto text-zinc-700" />
               <h2 className="mt-4 font-bold text-zinc-300">
-                Siyahı hələ boşdur
+                {t("lists:empty.title")}
               </h2>
               <p className="mt-2 text-sm text-zinc-600">
-                {list.isOwner
-                  ? "Yuxarıdakı axtarışdan ilk oyunu əlavə et."
-                  : "Siyahı sahibi hələ oyun əlavə etməyib."}
+                {list.canEditGames
+                  ? t("lists:empty.editor")
+                  : t("lists:empty.viewer")}
               </p>
             </div>
           ) : (
             <div className="space-y-3">
               {list.games.map((game, index) => {
-                const rankPosition = game.position ?? index + 1;
+                const rankPosition = list.isRanked ? index + 1 : game.position ?? index + 1;
+                const key = gameKey(game);
+                const isDragging = draggedGameKey === key;
 
                 return (
                   <article
-                    key={`${game.source}-${game.id}`}
-                    className="flex items-center gap-4 rounded-3xl border border-white/[0.07] bg-[#101015] p-4 sm:p-5"
+                    key={key}
+                    draggable={list.isRanked && list.canEditGames && !reorderMutation.isPending}
+                    onDragStart={(event) => {
+                      setDraggedGameKey(key);
+                      event.dataTransfer.effectAllowed = "move";
+                      event.dataTransfer.setData("text/plain", key);
+                    }}
+                    onDragOver={(event) => {
+                      if (list.isRanked && list.canEditGames) {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                      }
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      handleDrop(index);
+                    }}
+                    onDragEnd={() => setDraggedGameKey(null)}
+                    className={`group flex items-center gap-4 rounded-3xl border bg-[#101015] p-4 shadow-lg shadow-black/10 transition sm:p-5 ${
+                      isDragging
+                        ? "scale-[0.99] border-violet-400/35 opacity-50"
+                        : "border-white/[0.07] hover:border-white/[0.12]"
+                    }`}
                   >
+                    {list.isRanked && list.canEditGames && (
+                      <span
+                        className="flex h-12 w-8 shrink-0 cursor-grab items-center justify-center rounded-xl text-zinc-700 transition group-hover:bg-white/[0.04] group-hover:text-zinc-400 active:cursor-grabbing"
+                        aria-label={t("lists:drag.handle")}
+                      >
+                        <GripVertical size={20} />
+                      </span>
+                    )}
+
                     {list.isRanked && (
                       <div className="relative flex h-[4.5rem] w-14 shrink-0 items-end justify-center">
                         {rankPosition === 1 && (
-                          <div
-                            className="absolute -top-3 left-1/2 z-10 -translate-x-1/2"
-                            aria-hidden="true"
-                          >
+                          <div className="absolute -top-3 left-1/2 z-10 -translate-x-1/2" aria-hidden="true">
                             <svg
                               viewBox="0 0 72 48"
                               className="h-10 w-14 -rotate-3 overflow-visible drop-shadow-[0_0_10px_rgba(245,158,11,0.55)]"
                             >
                               <defs>
-                                <linearGradient
-                                  id="rank-crown-gold"
-                                  x1="0"
-                                  y1="0"
-                                  x2="0"
-                                  y2="1"
-                                >
+                                <linearGradient id="rank-crown-gold" x1="0" y1="0" x2="0" y2="1">
                                   <stop offset="0%" stopColor="#fff3a3" />
                                   <stop offset="45%" stopColor="#fbbf24" />
                                   <stop offset="100%" stopColor="#b45309" />
                                 </linearGradient>
                               </defs>
-
-                              <path
-                                d="M8 37 4 13l17 11L36 4l15 20 17-11-4 24Z"
-                                fill="url(#rank-crown-gold)"
-                                stroke="#fde68a"
-                                strokeWidth="2"
-                                strokeLinejoin="round"
-                              />
-                              <path
-                                d="M10 37h52l-3 7H13Z"
-                                fill="#d97706"
-                                stroke="#fde68a"
-                                strokeWidth="2"
-                                strokeLinejoin="round"
-                              />
+                              <path d="M8 37 4 13l17 11L36 4l15 20 17-11-4 24Z" fill="url(#rank-crown-gold)" stroke="#fde68a" strokeWidth="2" strokeLinejoin="round" />
+                              <path d="M10 37h52l-3 7H13Z" fill="#d97706" stroke="#fde68a" strokeWidth="2" strokeLinejoin="round" />
                               <circle cx="21" cy="31" r="2.5" fill="#fff7cc" />
                               <circle cx="36" cy="27" r="3" fill="#fff7cc" />
                               <circle cx="51" cy="31" r="2.5" fill="#fff7cc" />
                             </svg>
                           </div>
                         )}
-
-                        <span
-                          className={`flex h-12 w-12 items-center justify-center rounded-2xl border text-lg font-black ${getRankBadgeClasses(
-                            rankPosition,
-                          )}`}
-                        >
+                        <span className={`flex h-12 w-12 items-center justify-center rounded-2xl border text-lg font-black ${getRankBadgeClasses(rankPosition)}`}>
                           {rankPosition}
                         </span>
                       </div>
@@ -700,10 +779,7 @@ export function GameListDetailPage() {
                       to={`/games/${game.source}/${game.id}`}
                       className="flex min-w-0 flex-1 items-center gap-4"
                     >
-                      <GameCover
-                        title={game.title}
-                        coverImageUrl={game.coverImageUrl}
-                      />
+                      <GameCover title={game.title} coverImageUrl={game.coverImageUrl} />
                       <div className="min-w-0">
                         <h2 className="line-clamp-2 text-base font-bold text-white transition hover:text-violet-200">
                           {game.title}
@@ -717,72 +793,32 @@ export function GameListDetailPage() {
                             </span>
                           )}
                           <span>
-                            {language === "en"
-                              ? `Added on ${formatDate(game.addedAt)}`
-                              : `${formatDate(game.addedAt)} tarixində əlavə edilib`}
+                            {t("lists:detail.addedOn", {
+                              date: formatDate(game.addedAt),
+                            })}
                           </span>
                         </div>
                       </div>
                     </Link>
 
-                    {list.isOwner && (
-                      <div className="flex shrink-0 items-center gap-2">
-                        {list.isRanked && (
-                          <div className="flex flex-col gap-1">
-                            <button
-                              type="button"
-                              disabled={
-                                index === 0 || positionMutation.isPending
-                              }
-                              onClick={() => {
-                                positionMutation.mutate({
-                                  game,
-                                  position: index,
-                                });
-                              }}
-                              className="flex h-8 w-9 items-center justify-center rounded-lg border border-white/[0.07] text-zinc-500 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-30"
-                              aria-label="Oyunu yuxarı qaldır"
-                            >
-                              <ArrowUp size={15} />
-                            </button>
-                            <button
-                              type="button"
-                              disabled={
-                                index === list.games.length - 1 ||
-                                positionMutation.isPending
-                              }
-                              onClick={() => {
-                                positionMutation.mutate({
-                                  game,
-                                  position: index + 2,
-                                });
-                              }}
-                              className="flex h-8 w-9 items-center justify-center rounded-lg border border-white/[0.07] text-zinc-500 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-30"
-                              aria-label="Oyunu aşağı endir"
-                            >
-                              <ArrowDown size={15} />
-                            </button>
-                          </div>
-                        )}
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (
-                              window.confirm(
-                                `${game.title} oyununu siyahıdan çıxarmaq istəyirsən?`,
-                              )
-                            ) {
-                              removeMutation.mutate(game);
-                            }
-                          }}
-                          disabled={removeMutation.isPending}
-                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-400/10 text-red-300/65 transition hover:bg-red-500/[0.08] hover:text-red-300 disabled:opacity-50"
-                          aria-label="Oyunu siyahıdan çıxar"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
+                    {list.canEditGames && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (
+                            window.confirm(
+                              t("lists:confirm.removeGame", { name: game.title }),
+                            )
+                          ) {
+                            removeMutation.mutate(game);
+                          }
+                        }}
+                        disabled={removeMutation.isPending}
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-400/10 text-red-300/65 transition hover:bg-red-500/[0.08] hover:text-red-300 disabled:opacity-50"
+                        aria-label={t("lists:actions.removeGame")}
+                      >
+                        <Trash2 size={16} />
+                      </button>
                     )}
                   </article>
                 );
@@ -798,16 +834,14 @@ export function GameListDetailPage() {
         contentType="game-list"
         contentId={isLikesOpen ? listId : null}
         likeCount={list.likeCount}
-        onClose={() => {
-          setIsLikesOpen(false);
-        }}
+        onClose={() => setIsLikesOpen(false)}
       />
 
       {isEditorOpen && (
         <GameListEditorModal
           open
-          title="Siyahını redaktə et"
-          submitLabel="Yadda saxla"
+          title={t("lists:editor.editTitle")}
+          submitLabel={t("lists:editor.save")}
           initialValues={{
             name: list.name,
             description: list.description,
@@ -817,18 +851,39 @@ export function GameListDetailPage() {
           isPending={updateMutation.isPending}
           errorMessage={
             updateMutation.isError
-              ? getApiErrorMessage(
-                  updateMutation.error,
-                  "Siyahını yeniləmək mümkün olmadı.",
-                )
+              ? getApiErrorMessage(updateMutation.error, t("lists:errors.update"))
               : null
           }
-          onClose={() => {
-            setIsEditorOpen(false);
-          }}
-          onSubmit={(values) => {
-            updateMutation.mutate(values);
-          }}
+          onClose={() => setIsEditorOpen(false)}
+          onSubmit={(values) => updateMutation.mutate(values)}
+        />
+      )}
+
+      {isCloneOpen && (
+        <GameListCloneModal
+          open
+          sourceName={list.name}
+          initialName={cloneName}
+          isPending={cloneMutation.isPending}
+          errorMessage={
+            cloneMutation.isError
+              ? getApiErrorMessage(cloneMutation.error, t("lists:clone.error"))
+              : null
+          }
+          onClose={() => setIsCloneOpen(false)}
+          onSubmit={(values) => cloneMutation.mutate(values)}
+        />
+      )}
+
+      {isCollaboratorsOpen && (
+        <GameListCollaboratorsModal
+          open
+          listId={listId}
+          currentUserId={storedUser?.id ?? null}
+          isOwner={list.isOwner}
+          collaborators={list.collaborators}
+          onClose={() => setIsCollaboratorsOpen(false)}
+          onUpdated={invalidateList}
         />
       )}
     </div>

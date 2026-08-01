@@ -1,114 +1,120 @@
 {
-  "title": "Notifications",
-  "empty": "No new notifications.",
-  "markAllRead": "Mark all as read",
-  "settings": "Notification settings",
-  "loading": "Loading notifications...",
-  "unread": "{count} unread notification",
   "allRead": "All notifications have been read",
-  "loadError": "Notifications could not be loaded.",
-  "emptyTitle": "No notifications yet",
-  "emptyDescription": "New activity will appear here.",
-  "loadMore": "Show more",
-  "manageSettings": "Manage notification settings",
-  "bellUnreadAria": "Notifications, {count} unread",
-  "unreadAria": "Unread notification",
-  "officialWarning": "Official warning",
-  "closeWarningAria": "Close warning dialog",
-  "warningReadNotice": "This warning was marked as read when it was opened.",
   "badges": {
-    "warning": "Important warning",
     "announcement": "Admin announcement",
-    "high": "Attention"
+    "high": "Attention",
+    "warning": "Important warning"
   },
+  "bellUnreadAria": "Notifications, {count} unread",
+  "closeWarningAria": "Close warning dialog",
+  "emptyDescription": "New activity will appear here.",
+  "emptyTitle": "No notifications yet",
+  "loadError": "Notifications could not be loaded.",
+  "loadMore": "Show more",
+  "loading": "Loading notifications...",
+  "manageSettings": "Manage notification settings",
+  "markAllRead": "Mark all as read",
+  "officialWarning": "Official warning",
+  "title": "Notifications",
   "types": {
-    "WarningIssued": {
-      "title": "Admin warning",
-      "message": "You received an admin warning."
-    },
-    "FollowingPostCreated": {
-      "title": "New post",
-      "message": "shared a new post."
-    },
-    "FollowingReviewCreated": {
-      "title": "New review",
-      "message": "posted a new game review."
-    },
-    "FollowingGameStatusChanged": {
-      "title": "Game status changed",
-      "message": "updated their game status."
-    },
-    "FollowingPublicListCreated": {
-      "title": "New public list",
-      "message": "created a new public list."
-    },
-    "FollowingDiscussionCreated": {
-      "title": "New discussion",
-      "message": "started a new discussion."
-    },
     "CommunityDiscussionCreated": {
-      "title": "New community discussion",
-      "message": "started a new discussion in the community."
-    },
-    "PostLiked": {
-      "title": "Your post was liked",
-      "message": "liked your post."
-    },
-    "PostCommented": {
-      "title": "New comment on your post",
-      "message": "commented on your post."
-    },
-    "ReviewLiked": {
-      "title": "Your review was liked",
-      "message": "liked your review."
-    },
-    "ReviewCommented": {
-      "title": "New reply to your review",
-      "message": "replied to your review."
-    },
-    "GameListLiked": {
-      "title": "Your list was liked",
-      "message": "liked your list."
-    },
-    "GameListCommented": {
-      "title": "New comment on your list",
-      "message": "commented on your list."
-    },
-    "DiscussionLiked": {
-      "title": "Your discussion was liked",
-      "message": "liked your discussion."
-    },
-    "DiscussionReplied": {
-      "title": "New reply to your discussion",
-      "message": "replied to your discussion."
-    },
-    "DiscussionReplyLiked": {
-      "title": "Your reply was liked",
-      "message": "liked your discussion reply."
-    },
-    "FollowedDiscussionReplyActivity": {
-      "title": "New reply in a followed thread",
-      "message": "added a new reply to a forum thread you follow."
-    },
-    "FollowRequestReceived": {
-      "title": "New follow request",
-      "message": "sent you a follow request."
-    },
-    "UserFollowed": {
-      "title": "New follower",
-      "message": "started following you."
-    },
-    "FollowRequestAccepted": {
-      "title": "Follow request accepted",
-      "message": "accepted your follow request."
-    },
-    "CommunityOwnershipOffered": {
-      "title": "Community ownership update",
-      "message": "sent you an update about community ownership."
+      "message": "started a new discussion in the community.",
+      "title": "New community discussion"
     },
     "CommunityModeratorAssigned": {
-      "title": "Community role updated",
-      "message": "assigned you a community moderator role."
+      "message": "assigned you a community moderator role.",
+      "title": "Community role updated"
+    },
+    "CommunityOwnershipOffered": {
+      "message": "sent you an update about community ownership.",
+      "title": "Community ownership update"
+    },
+    "DiscussionLiked": {
+      "message": "liked your discussion.",
+      "title": "Your discussion was liked"
+    },
+    "DiscussionReplied": {
+      "message": "replied to your discussion.",
+      "title": "New reply to your discussion"
+    },
+    "DiscussionReplyLiked": {
+      "message": "liked your discussion reply.",
+      "title": "Your reply was liked"
+    },
+    "FollowRequestAccepted": {
+      "message": "accepted your follow request.",
+      "title": "Follow request accepted"
+    },
+    "FollowRequestReceived": {
+      "message": "sent you a follow request.",
+      "title": "New follow request"
+    },
+    "FollowedDiscussionReplyActivity": {
+      "message": "added a new reply to a forum thread you follow.",
+      "title": "New reply in a followed thread"
+    },
+    "FollowingDiscussionCreated": {
+      "message": "started a new discussion.",
+      "title": "New discussion"
+    },
+    "FollowingGameStatusChanged": {
+      "message": "updated their game status.",
+      "title": "Game status changed"
+    },
+    "FollowingPostCreated": {
+      "message": "shared a new post.",
+      "title": "New post"
+    },
+    "FollowingPublicListCreated": {
+      "message": "created a new public list.",
+      "title": "New public list"
+    },
+    "FollowingReviewCreated": {
+      "message": "posted a new game review.",
+      "title": "New review"
+    },
+    "GameListCommented": {
+      "message": "commented on your list.",
+      "title": "New comment on your list"
+    },
+    "GameListLiked": {
+      "message": "liked your list.",
+      "title": "Your list was liked"
+    },
+    "PostCommented": {
+      "message": "commented on your post.",
+      "title": "New comment on your post"
+    },
+    "PostLiked": {
+      "message": "liked your post.",
+      "title": "Your post was liked"
+    },
+    "ReviewCommented": {
+      "message": "replied to your review.",
+      "title": "New reply to your review"
+    },
+    "ReviewLiked": {
+      "message": "liked your review.",
+      "title": "Your review was liked"
+    },
+    "UserFollowed": {
+      "message": "started following you.",
+      "title": "New follower"
+    },
+    "WarningIssued": {
+      "message": "You received an admin warning.",
+      "title": "Admin warning"
+    },
+    "GameListCollaborationInvited": {
+      "title": "List collaboration invitation",
+      "message": "Invited you to collaborate on a game list."
+    },
+    "GameListCollaborationAccepted": {
+      "title": "Collaboration invitation accepted",
+      "message": "Accepted the invitation to collaborate on a game list."
     }
-  }
+  },
+  "unread": "{count} unread notification",
+  "unreadAria": "Unread notification",
+  "warningReadNotice": "This warning was marked as read when it was opened."
 }

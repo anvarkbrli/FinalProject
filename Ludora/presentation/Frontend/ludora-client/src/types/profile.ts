@@ -174,6 +174,9 @@ export interface GameListSummaryDTO {
   likeCount: number;
   commentCount: number;
   isLikedByCurrentUser: boolean;
+  backgroundCoverImageUrl: string | null;
+  collaboratorCount: number;
+  currentUserCollaborationStatus: "Pending" | "Accepted" | null;
 }
 
 export interface ReviewDTO {

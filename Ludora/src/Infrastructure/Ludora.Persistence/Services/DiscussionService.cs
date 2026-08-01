@@ -908,6 +908,8 @@ public sealed class DiscussionService : IDiscussionService
             ? "newest"
             : sortBy.Trim().ToLowerInvariant();
 
+        var nowUtc = DateTime.UtcNow;
+
         return normalizedSort switch
         {
             "newest" => query
@@ -917,6 +919,19 @@ public sealed class DiscussionService : IDiscussionService
             "oldest" => query
                 .OrderByDescending(x => x.IsPinned)
                 .ThenBy(x => x.CreatedAt),
+
+            "trending" => query
+                .OrderByDescending(x => x.IsPinned)
+                .ThenByDescending(x =>
+                    x.Likes.Count * 12 +
+                    (ignoreReplyFilters
+                        ? x.Replies.Count(reply => !reply.IsDeleted)
+                        : x.Replies.Count) * 18 +
+                    x.ViewCount / 25 -
+                    EF.Functions.DateDiffHour(
+                        x.UpdatedAt ?? x.CreatedAt,
+                        nowUtc) / 4)
+                .ThenByDescending(x => x.UpdatedAt ?? x.CreatedAt),
 
             "popular" or "most-liked" => query
                 .OrderByDescending(x => x.IsPinned)
@@ -940,7 +955,7 @@ public sealed class DiscussionService : IDiscussionService
                 .ThenByDescending(x => x.UpdatedAt ?? x.CreatedAt),
 
             _ => throw new BadRequestException(
-                "SortBy yalnız newest, oldest, popular, most-liked, most-replied, most-viewed və recently-updated ola bilər.")
+                "SortBy yalnız newest, oldest, trending, popular, most-liked, most-replied, most-viewed və recently-updated ola bilər.")
         };
     }
 

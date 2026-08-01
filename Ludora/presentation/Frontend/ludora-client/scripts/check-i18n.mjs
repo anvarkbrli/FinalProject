@@ -80,6 +80,17 @@ for (const file of await collectSourceFiles(sourceRoot)) {
   }
 }
 
+// These families are selected dynamically at runtime. Treat every concrete
+// member as used so the audit reports only genuinely orphaned keys.
+for (const key of allKeys) {
+  if (
+    key.startsWith("notifications:types.") ||
+    key.startsWith("common:language.")
+  ) {
+    usedKeys.add(key);
+  }
+}
+
 const unusedKeys = [...allKeys].filter((key) => !usedKeys.has(key));
 const meaningfulUnusedKeys = unusedKeys.filter(
   (key) => !key.startsWith("auto-ui:"),

@@ -29,5 +29,11 @@ namespace Ludora.Application.DTOs
         public int CommentCount { get; set; }
 
         public bool IsLikedByCurrentUser { get; set; }
+
+        public string? BackgroundCoverImageUrl { get; set; }
+
+        public int CollaboratorCount { get; set; }
+
+        public GameListCollaborationStatus? CurrentUserCollaborationStatus { get; set; }
     }
 }

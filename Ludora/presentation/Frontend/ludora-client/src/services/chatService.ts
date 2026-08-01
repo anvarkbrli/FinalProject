@@ -1,32 +1,58 @@
 import { api } from "../lib/api";
 import type {
+  ChatConversationArchiveChangedDTO,
   ChatConversationDTO,
+  ChatForwardMessagesResultDTO,
   ChatMessageDTO,
-  ChatMessagePageDTO,
   ChatMessageDeletedDTO,
   ChatMessageDeleteScope,
+  ChatMessagePageDTO,
   ChatMessagePinChangedDTO,
+  ChatMessageReactionChangedDTO,
+  ChatMessageSearchPageDTO,
+  ChatReactionType,
   ChatRequestDecisionDTO,
   ChatSendMessageRequest,
+  ChatSendMessageResultDTO,
 } from "../types/chat";
 
 export const chatQueryKeys = {
   all: ["chat"] as const,
-  conversations: ["chat", "conversations"] as const,
-  requests: ["chat", "requests"] as const,
+  conversationLists: ["chat", "conversations"] as const,
+  conversations: (archived = false, search = "") =>
+    [
+      "chat",
+      "conversations",
+      archived ? "archived" : "active",
+      search.trim().toLocaleLowerCase(),
+    ] as const,
+  requestLists: ["chat", "requests"] as const,
+  requests: (search = "") =>
+    ["chat", "requests", search.trim().toLocaleLowerCase()] as const,
   messages: (conversationId: number) =>
     ["chat", "messages", conversationId] as const,
   pinnedMessages: (conversationId: number) =>
     ["chat", "pinned-messages", conversationId] as const,
+  messageSearch: (conversationId: number, query: string, page: number) =>
+    ["chat", "message-search", conversationId, query, page] as const,
 };
 
-export async function getChatConversations(): Promise<ChatConversationDTO[]> {
-  const response = await api.get<ChatConversationDTO[]>("/chat/conversations");
+export async function getChatConversations(
+  archived = false,
+  search = "",
+): Promise<ChatConversationDTO[]> {
+  const response = await api.get<ChatConversationDTO[]>("/chat/conversations", {
+    params: { archived, search: search.trim() || undefined },
+  });
   return response.data;
 }
 
-export async function getMessageRequests(): Promise<ChatConversationDTO[]> {
-  const response = await api.get<ChatConversationDTO[]>("/chat/requests");
+export async function getMessageRequests(
+  search = "",
+): Promise<ChatConversationDTO[]> {
+  const response = await api.get<ChatConversationDTO[]>("/chat/requests", {
+    params: { search: search.trim() || undefined },
+  });
   return response.data;
 }
 
@@ -46,9 +72,31 @@ export async function getChatMessages(
   return response.data;
 }
 
+export async function getChatMessage(
+  conversationId: number,
+  messageId: number,
+): Promise<ChatMessageDTO> {
+  const response = await api.get<ChatMessageDTO>(
+    `/chat/conversations/${conversationId}/messages/${messageId}`,
+  );
+  return response.data;
+}
+
+export async function searchChatMessages(
+  conversationId: number,
+  query: string,
+  page = 1,
+): Promise<ChatMessageSearchPageDTO> {
+  const response = await api.get<ChatMessageSearchPageDTO>(
+    `/chat/conversations/${conversationId}/messages/search`,
+    { params: { query, page, pageSize: 20 } },
+  );
+  return response.data;
+}
+
 export async function sendChatMessage(
   request: ChatSendMessageRequest,
-): Promise<ChatMessageDTO> {
+): Promise<ChatSendMessageResultDTO> {
   const formData = new FormData();
   formData.append("recipientUserId", request.recipientUserId);
 
@@ -57,6 +105,9 @@ export async function sendChatMessage(
   }
   if (request.media) {
     formData.append("media", request.media);
+  }
+  if (request.replyToMessageId) {
+    formData.append("replyToMessageId", request.replyToMessageId.toString());
   }
   if (request.game) {
     formData.append("gameSource", request.game.source);
@@ -67,13 +118,24 @@ export async function sendChatMessage(
     }
   }
 
-  const response = await api.post<ChatMessageDTO>(
+  const response = await api.post<ChatSendMessageResultDTO>(
     "/chat/messages",
     formData,
     {
       headers: { "Content-Type": "multipart/form-data" },
       timeout: request.media ? 90_000 : 15_000,
     },
+  );
+  return response.data;
+}
+
+export async function forwardChatMessage(
+  messageId: number,
+  targetConversationIds: number[],
+): Promise<ChatForwardMessagesResultDTO> {
+  const response = await api.post<ChatForwardMessagesResultDTO>(
+    `/chat/messages/${messageId}/forward`,
+    { targetConversationIds },
   );
   return response.data;
 }
@@ -100,6 +162,20 @@ export async function markConversationRead(
   conversationId: number,
 ): Promise<void> {
   await api.post(`/chat/conversations/${conversationId}/read`);
+}
+
+export async function setConversationArchived(
+  conversationId: number,
+  isArchived: boolean,
+): Promise<ChatConversationArchiveChangedDTO> {
+  const response = isArchived
+    ? await api.post<ChatConversationArchiveChangedDTO>(
+        `/chat/conversations/${conversationId}/archive`,
+      )
+    : await api.delete<ChatConversationArchiveChangedDTO>(
+        `/chat/conversations/${conversationId}/archive`,
+      );
+  return response.data;
 }
 
 export async function getChatMediaBlob(mediaUrl: string): Promise<Blob> {
@@ -140,5 +216,20 @@ export async function setChatMessagePinned(
   const response = isPinned
     ? await api.post<ChatMessagePinChangedDTO>(`/chat/messages/${messageId}/pin`)
     : await api.delete<ChatMessagePinChangedDTO>(`/chat/messages/${messageId}/pin`);
+  return response.data;
+}
+
+export async function setChatMessageReaction(
+  messageId: number,
+  reactionType: ChatReactionType | null,
+): Promise<ChatMessageReactionChangedDTO> {
+  const response = reactionType
+    ? await api.put<ChatMessageReactionChangedDTO>(
+        `/chat/messages/${messageId}/reaction`,
+        { reactionType },
+      )
+    : await api.delete<ChatMessageReactionChangedDTO>(
+        `/chat/messages/${messageId}/reaction`,
+      );
   return response.data;
 }

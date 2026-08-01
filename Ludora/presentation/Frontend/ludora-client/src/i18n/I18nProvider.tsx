@@ -36,11 +36,44 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let frameId: number | null = null;
-    const observer = new MutationObserver(() => {
+    const pendingRoots = new Set<HTMLElement>();
+
+    const scheduleTranslation = (element: HTMLElement | null) => {
+      if (!element || element.closest("[data-i18n-ignore], [data-user-content]")) {
+        return;
+      }
+
+      pendingRoots.add(element);
       if (frameId !== null) return;
+
       frameId = window.requestAnimationFrame(() => {
         frameId = null;
-        translatePage();
+        const roots = [...pendingRoots];
+        pendingRoots.clear();
+
+        roots.forEach((root) => {
+          const hasQueuedAncestor = roots.some(
+            (candidate) => candidate !== root && candidate.contains(root),
+          );
+          if (!hasQueuedAncestor) translatePage(root);
+        });
+      });
+    };
+
+    const observer = new MutationObserver((records) => {
+      records.forEach((record) => {
+        if (record.type === "characterData") {
+          scheduleTranslation(record.target.parentElement);
+          return;
+        }
+
+        record.addedNodes.forEach((node) => {
+          if (node instanceof HTMLElement) {
+            scheduleTranslation(node);
+          } else if (node.parentElement) {
+            scheduleTranslation(node.parentElement);
+          }
+        });
       });
     });
 
@@ -52,6 +85,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
 
     return () => {
       observer.disconnect();
+      pendingRoots.clear();
       if (frameId !== null) window.cancelAnimationFrame(frameId);
     };
   }, []);

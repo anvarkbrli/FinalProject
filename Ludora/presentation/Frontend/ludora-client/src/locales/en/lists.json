@@ -1,0 +1,126 @@
+{
+  "common": {
+    "close": "Close",
+    "cancel": "Cancel"
+  },
+  "type": {
+    "ranked": "Ranked list",
+    "unranked": "Unranked list"
+  },
+  "visibility": {
+    "Public": "Public",
+    "FollowersOnly": "Followers only",
+    "Private": "Private"
+  },
+  "actions": {
+    "clone": "Clone list",
+    "collaborators": "Collaborators",
+    "edit": "Edit",
+    "delete": "Delete",
+    "like": "Like list",
+    "removeGame": "Remove game from list"
+  },
+  "detail": {
+    "loading": "Loading list...",
+    "entityName": "List",
+    "backToProfile": "Back to {name}'s profile",
+    "noDescription": "No description has been added for this list.",
+    "gameCount": "{count} games",
+    "collaboratorCount": "{count} collaborators",
+    "likeCount": "{count} likes",
+    "commentCount": "{count} comments",
+    "addedOn": "Added on {date}"
+  },
+  "notices": {
+    "updated": "List updated.",
+    "gameAdded": "Game added to the list.",
+    "gameRemoved": "Game removed from the list."
+  },
+  "errors": {
+    "like": "The list like action could not be completed.",
+    "delete": "The list could not be deleted.",
+    "addGame": "The game could not be added to the list.",
+    "removeGame": "The game could not be removed from the list.",
+    "reorder": "The game order could not be updated.",
+    "update": "The list could not be updated."
+  },
+  "confirm": {
+    "deleteList": "Are you sure you want to delete this list?",
+    "removeGame": "Are you sure you want to remove {name} from this list?"
+  },
+  "comments": {
+    "placeholder": "Write a comment on this list...",
+    "empty": "No comments have been posted on this list yet."
+  },
+  "addGame": {
+    "title": "Add a game to the list",
+    "description": "Search by game name and add it directly from the results.",
+    "placeholder": "Search games...",
+    "searching": "Searching games...",
+    "searchError": "Games could not be searched.",
+    "noResults": "No matching games found.",
+    "add": "Add",
+    "added": "Added"
+  },
+  "empty": {
+    "title": "This list is empty",
+    "editor": "Use the search above to add the first game.",
+    "viewer": "No games have been added to this list yet."
+  },
+  "drag": {
+    "hint": "Drag games into place to update the ranked order.",
+    "handle": "Drag game"
+  },
+  "editor": {
+    "editTitle": "Edit list",
+    "save": "Save changes"
+  },
+  "clone": {
+    "title": "Clone list",
+    "description": "The games from {name} will be copied into your new list.",
+    "nameLabel": "New list name",
+    "visibilityLabel": "Visibility",
+    "nameRequired": "Enter a name for the list.",
+    "submit": "Clone",
+    "error": "The list could not be cloned."
+  },
+  "collaboration": {
+    "title": "List collaborators",
+    "description": "{count} people currently edit this list together.",
+    "inviteTitle": "Invite a collaborator",
+    "inviteDescription": "After accepting, they can add or remove games and reorder ranked lists.",
+    "userNamePlaceholder": "Username",
+    "invite": "Invite",
+    "inviteSent": "Collaboration invitation sent.",
+    "inviteError": "The collaboration invitation could not be sent.",
+    "people": "People",
+    "empty": "This list has no collaborators yet.",
+    "accepted": "Collaborator",
+    "pending": "Invitation pending",
+    "remove": "Remove collaborator",
+    "removeConfirm": "Are you sure you want to remove {name} from this list?",
+    "removeError": "The collaborator could not be removed.",
+    "removed": "Collaboration updated.",
+    "leave": "Leave list",
+    "leaveConfirm": "Are you sure you want to leave this collaborative list?",
+    "collaboratorBadge": "Collaborator",
+    "invitationTitle": "You've been invited to build this list together",
+    "invitationDescription": "{owner} invited you as a collaborator. After accepting, you can manage its games together.",
+    "accept": "Accept",
+    "decline": "Decline",
+    "declineConfirm": "Are you sure you want to decline this collaboration invitation?",
+    "acceptedNotice": "Collaboration invitation accepted.",
+    "acceptError": "The collaboration invitation could not be accepted.",
+    "declineError": "The collaboration invitation could not be declined."
+  },
+  "profile": {
+    "collaborators": "{count} collaborators",
+    "ranked": "Ranked",
+    "unranked": "Unranked",
+    "noDescription": "No description added.",
+    "sharedWithMe": "Shared with me",
+    "sharedWithMeDescription": "Game lists you were invited to and build together.",
+    "invitationPending": "Invitation pending",
+    "collaborating": "Collaborator"
+  }
+}

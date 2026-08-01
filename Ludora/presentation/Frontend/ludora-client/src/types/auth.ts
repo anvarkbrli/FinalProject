@@ -27,6 +27,7 @@ export interface CurrentUserDTO {
   userName: string;
   email: string;
   roles?: string[];
+  capabilities?: string[];
   emailConfirmed: boolean;
   bio: string | null;
   profileImageUrl: string | null;

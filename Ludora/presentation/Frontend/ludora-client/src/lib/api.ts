@@ -206,7 +206,7 @@ export function getApiErrorMessage(
 
     const isTechnicalMessage =
       !rawMessage ||
-      /^(?:bad request|unauthorized|forbidden|not found|conflict|internal server error|network error|request failed with status code \d+)\.?$/i.test(
+      /^(?:bad request|unauthorized|forbidden|not found|conflict|internal server error|network error|request failed with status code \d+|errors\.[a-z0-9_.-]+)\.?$/i.test(
         rawMessage,
       );
 

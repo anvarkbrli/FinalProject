@@ -79,8 +79,8 @@ const operationLabels: Record<string, string> = {
     "Re-evaluated the user's badges",
   "İstifadəçiyə nişan verdi": "Awarded a badge to the user",
   "İstifadəçidən nişanı geri aldı": "Revoked a badge from the user",
-  "Forum müzakirəsini pinlədi": "Pinned the forum discussion",
-  "Forum müzakirəsinin pinini ləğv etdi":
+  "Forum müzakirəsini bərkitdi": "Pinned the forum discussion",
+  "Forum müzakirəsinin bərkitməsini ləğv etdi":
     "Unpinned the forum discussion",
   "Forum müzakirəsini kilidlədi": "Locked the forum discussion",
   "Forum müzakirəsinin kilidini açdı":

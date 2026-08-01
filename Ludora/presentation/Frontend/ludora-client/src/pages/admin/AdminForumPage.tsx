@@ -157,7 +157,7 @@ function DiscussionsPanel() {
                 </span>
                 {discussion.isPinned && (
                   <span className="rounded-full bg-amber-500/10 px-2 py-1 text-amber-300">
-                    Pin edilib
+                    Bərkidilib
                   </span>
                 )}
                 {discussion.isLocked && (
@@ -179,7 +179,7 @@ function DiscussionsPanel() {
             </div>
             <div className="flex flex-wrap gap-2">
               <ActionButton
-                label={discussion.isPinned ? "Pini sil" : "Pin et"}
+                label={discussion.isPinned ? "Bərkitməni ləğv et" : "Bərkid"}
                 icon={discussion.isPinned ? <PinOff size={15} /> : <Pin size={15} />}
                 disabled={stateMutation.isPending}
                 onClick={() =>

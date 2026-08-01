@@ -13,9 +13,6 @@ interface AuthState {
   finishInitialization: () => void;
 }
 
-if (typeof window !== "undefined") {
-  window.localStorage.removeItem("ludora-auth-session");
-}
 
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,

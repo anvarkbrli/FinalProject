@@ -1,5 +1,6 @@
 using Ludora.Application.Common;
 using System.Text;
+using System.Text.Json;
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Badge;
 using Ludora.Application.DTOs.FpsEstimator;
@@ -25,21 +26,18 @@ public class UserService : IUserService
     private readonly AppDbContext _context;
     private readonly IEmailService _emailService;
     private readonly EmailSettings _emailSettings;
-    private readonly IBadgeEvaluationQueue _badgeEvaluationQueue;
 
     public UserService(
         UserManager<AppUser> userManager,
         IFileStorageService fileStorageService,
         AppDbContext context,
         IEmailService emailService,
-        IBadgeEvaluationQueue badgeEvaluationQueue,
         IOptions<EmailSettings> emailOptions)
     {
         _userManager = userManager;
         _fileStorageService = fileStorageService;
         _context = context;
         _emailService = emailService;
-        _badgeEvaluationQueue = badgeEvaluationQueue;
         _emailSettings = emailOptions.Value;
     }
 
@@ -99,7 +97,6 @@ public class UserService : IUserService
 
         var summary = await GetProfileSummaryAsync(user.Id);
         var badges = await GetUserBadgesAsync(user.Id);
-        _badgeEvaluationQueue.Enqueue(user.Id);
 
         return new UserProfileDTO
         {
@@ -196,6 +193,77 @@ public class UserService : IUserService
         {
             IsPrivate = user.IsPrivate
         };
+    }
+
+    public async Task<ForumInterestProfileDTO?> GetForumInterestsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        var serialized = await _context.Users
+            .AsNoTracking()
+            .Where(user => user.Id == userId)
+            .Select(user => user.ForumInterestsJson)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (serialized is null)
+        {
+            var exists = await _context.Users
+                .AsNoTracking()
+                .AnyAsync(user => user.Id == userId, cancellationToken);
+
+            if (!exists)
+                throw new NotFoundException("İstifadəçi tapılmadı.");
+
+            return null;
+        }
+
+        return DeserializeForumInterests(serialized);
+    }
+
+    public async Task<ForumInterestProfileDTO> UpdateForumInterestsAsync(
+        Guid userId,
+        UpdateForumInterestProfileDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        var styles = NormalizeInterestValues(dto.Styles, "Oyun tərzi", 6, 40);
+        var genres = NormalizeInterestValues(dto.Genres, "Janr", 12, 100);
+        var platform = NormalizeInterestValue(dto.Platform, "Platforma", 80);
+        var games = (dto.Games ?? [])
+            .Where(game => game is not null)
+            .Select(game => new ForumInterestGameDTO
+            {
+                Key = NormalizeInterestValue(game.Key, "Oyun açarı", 120),
+                Title = NormalizeInterestValue(game.Title, "Oyun adı", 200)
+            })
+            .DistinctBy(game => game.Key, StringComparer.OrdinalIgnoreCase)
+            .Take(12)
+            .ToArray();
+
+        if (styles.Length == 0)
+            throw new BadRequestException("Ən azı bir oyun tərzi seçilməlidir.");
+        if (games.Length < 3)
+            throw new BadRequestException("Ən azı üç oyun seçilməlidir.");
+        if (genres.Length == 0)
+            throw new BadRequestException("Ən azı bir janr seçilməlidir.");
+
+        var profile = new ForumInterestProfileDTO
+        {
+            Styles = styles,
+            Games = games,
+            Genres = genres,
+            Platform = platform,
+            CompletedAtUtc = DateTime.UtcNow
+        };
+
+        var user = await _userManager.FindByIdOrThrowAsync(userId);
+        user.ForumInterestsJson = JsonSerializer.Serialize(profile);
+
+        var result = await _userManager.UpdateAsync(user);
+        result.ThrowIfFailed();
+
+        return profile;
     }
 
     public async Task<CurrentUserDTO> UpdatePreferredLanguageAsync(
@@ -544,6 +612,56 @@ public class UserService : IUserService
                 AwardedAtUtc = x.AwardedAtUtc
             })
             .ToListAsync();
+    }
+
+    private static ForumInterestProfileDTO? DeserializeForumInterests(
+        string serialized)
+    {
+        try
+        {
+            return JsonSerializer.Deserialize<ForumInterestProfileDTO>(serialized);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string[] NormalizeInterestValues(
+        IEnumerable<string>? values,
+        string fieldName,
+        int maxItems,
+        int maxLength)
+    {
+        return (values ?? [])
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => NormalizeInterestValue(value, fieldName, maxLength))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(maxItems)
+            .ToArray();
+    }
+
+    private static string NormalizeInterestValue(
+        string? value,
+        string fieldName,
+        int maxLength)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new BadRequestException($"{fieldName} boş ola bilməz.");
+
+        var normalized = string.Join(
+            " ",
+            value.Trim().Split(
+                (char[]?)null,
+                StringSplitOptions.RemoveEmptyEntries));
+
+        if (normalized.Length > maxLength)
+        {
+            throw new BadRequestException(
+                $"{fieldName} maksimum {maxLength} simvol ola bilər.");
+        }
+
+        return normalized;
     }
 
     private sealed record ProfileSummary(

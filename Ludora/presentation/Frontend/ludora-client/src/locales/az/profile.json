@@ -1,63 +1,6 @@
 {
-  "title": "Profil",
-  "edit": "Profili redaktə et",
-  "followers": "{count} izləyici",
-  "following": "{count} izlənilən",
-  "posts": "{count} paylaşım",
   "private": "Profil gizlidir",
-  "tabs": {
-    "posts": "Postlar",
-    "lists": "Siyahılar",
-    "reviews": "Rəylər",
-    "owned": "Sahib olunanlar",
-    "favorites": "Sevimlilər",
-    "activity": "Axın"
-  },
-  "overview": {
-    "ratingChart": "Puan qrafiki",
-    "ratingDescription": "Rəy yazılıb-yazılmasından asılı olmayaraq verilən bütün puanlar.",
-    "ratings": "{count} puan",
-    "ratingWord": "puan",
-    "recentGames": "Son oynanan oyunlar",
-    "recentGamesDescription": "İstifadəçinin ən son tamamladığı 4 oyun.",
-    "favoriteGames": "Sevimli oyunlar",
-    "favoriteGamesDescription": "Yalnız sənə görünən sevimli oyun kolleksiyası.",
-    "badges": "Nişanlar",
-    "badgesDescription": "Qazanılan nailiyyətlər burada görünəcək.",
-    "earned": "{count} qazanılıb",
-    "earnedWord": "qazanılıb"
-  },
-  "privacy": {
-    "postsHidden": "Postlar göstərilmir"
-  },
-  "badges": {
-    "firstGame": "İlk Oyun",
-    "firstGameDescription": "İlk oyunu log et.",
-    "collector": "Kolleksiyaçı",
-    "collectorDescription": "10 oyun log et.",
-    "greatCollector": "Böyük Kolleksiyaçı",
-    "greatCollectorDescription": "50 oyun log et.",
-    "firstStep": "İlk Addım",
-    "firstStepDescription": "İlk oyunu tamamla.",
-    "player": "Oyunçu",
-    "playerDescription": "25 oyunu oynanmış kimi qeyd et.",
-    "critic": "Tənqidçi",
-    "criticDescription": "İlk rəyini yaz.",
-    "firstPost": "İlk Paylaşım",
-    "firstPostDescription": "İlk postunu paylaş.",
-    "curator": "Kurator",
-    "curatorDescription": "İlk oyun siyahını yarat.",
-    "marathoner": "Marafonçu",
-    "marathonerDescription": "100 saat oyun vaxtı topla.",
-    "discussant": "Müzakirəçi",
-    "steamConnection": "Steam Bağlantısı",
-    "steamCollector": "Steam Kolleksiyaçısı"
-  },
   "settings": {
-    "title": "Ayarlar",
-    "account": "Hesab",
-    "privacy": "Məxfilik",
-    "notifications": "Bildirişlər",
     "language": "Dil",
     "languageDescription": "İnterfeys və server mesajlarının dilini seç."
   }

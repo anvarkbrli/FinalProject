@@ -33,6 +33,18 @@ public sealed class GameListsController : ControllerBase
             cancellationToken));
     }
 
+    [Authorize]
+    [HttpGet("collaborations/mine")]
+    public async Task<IActionResult> GetMyCollaborations(
+        [FromQuery] PaginationFilterDTO pagination,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _gameListService.GetCollaboratingListsAsync(
+            GetCurrentUserId(),
+            pagination,
+            cancellationToken));
+    }
+
     [HttpGet("{id:int:min(1)}")]
     public async Task<IActionResult> GetById(
         int id,
@@ -148,6 +160,99 @@ public sealed class GameListsController : ControllerBase
             GetCurrentUserId(),
             cancellationToken);
 
+        return NoContent();
+    }
+
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
+    [HttpPut("{listId:int:min(1)}/games/order")]
+    public async Task<IActionResult> ReorderGames(
+        int listId,
+        [FromBody] GameListReorderDTO dto,
+        CancellationToken cancellationToken)
+    {
+        await _gameListService.ReorderGamesAsync(
+            listId,
+            GetCurrentUserId(),
+            dto,
+            cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
+    [HttpPost("{id:int:min(1)}/clone")]
+    public async Task<IActionResult> Clone(
+        int id,
+        [FromBody] GameListCloneDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var cloneId = await _gameListService.CloneAsync(
+            id,
+            GetCurrentUserId(),
+            dto,
+            cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id = cloneId }, new { id = cloneId });
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
+    [HttpPost("{id:int:min(1)}/collaborators")]
+    public async Task<IActionResult> InviteCollaborator(
+        int id,
+        [FromBody] GameListCollaboratorInviteDTO dto,
+        CancellationToken cancellationToken)
+    {
+        await _gameListService.InviteCollaboratorAsync(
+            id,
+            GetCurrentUserId(),
+            dto,
+            cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
+    [HttpPost("{id:int:min(1)}/collaboration/accept")]
+    public async Task<IActionResult> AcceptCollaboration(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        await _gameListService.AcceptCollaborationAsync(
+            id,
+            GetCurrentUserId(),
+            cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
+    [HttpDelete("{id:int:min(1)}/collaboration/decline")]
+    public async Task<IActionResult> DeclineCollaboration(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        await _gameListService.DeclineCollaborationAsync(
+            id,
+            GetCurrentUserId(),
+            cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
+    [HttpDelete("{id:int:min(1)}/collaborators/{userId:guid}")]
+    public async Task<IActionResult> RemoveCollaborator(
+        int id,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        await _gameListService.RemoveCollaboratorAsync(
+            id,
+            GetCurrentUserId(),
+            userId,
+            cancellationToken);
         return NoContent();
     }
 

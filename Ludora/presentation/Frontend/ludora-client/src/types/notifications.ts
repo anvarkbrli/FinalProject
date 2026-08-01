@@ -21,7 +21,9 @@ export type NotificationType =
   | "UserFollowed"
   | "FollowRequestAccepted"
   | "CommunityOwnershipOffered"
-  | "CommunityModeratorAssigned";
+  | "CommunityModeratorAssigned"
+  | "GameListCollaborationInvited"
+  | "GameListCollaborationAccepted";
 
 export type NotificationPriority = "Low" | "Normal" | "High" | "Critical";
 export type NotificationAudience = "Everyone" | "ConnectionsOnly" | "Never";

@@ -13,49 +13,220 @@ public sealed class ChatService : IChatService
 {
     private const int MaxMessageLength = 4000;
     private const int MaxPageSize = 100;
+    private const int MaxSearchPageSize = 50;
+    private static readonly TimeZoneInfo BakuTimeZone = ResolveBakuTimeZone();
+
     private readonly AppDbContext _context;
     private readonly IFileStorageService _fileStorage;
     private readonly IBadgeEvaluationQueue _badgeQueue;
+    private readonly IUserPresenceTracker _presenceTracker;
 
     public ChatService(
         AppDbContext context,
         IFileStorageService fileStorage,
-        IBadgeEvaluationQueue badgeQueue)
+        IBadgeEvaluationQueue badgeQueue,
+        IUserPresenceTracker presenceTracker)
     {
         _context = context;
         _fileStorage = fileStorage;
         _badgeQueue = badgeQueue;
+        _presenceTracker = presenceTracker;
     }
 
     public async Task<IReadOnlyList<ChatConversationDTO>> GetConversationsAsync(
         Guid userId,
+        bool archived = false,
+        string? search = null,
         CancellationToken cancellationToken = default)
     {
-        var rows = await BuildConversationQuery(userId)
+        var normalizedSearch = NormalizeConversationSearch(search);
+        var rows = await _context.ChatConversations
+            .AsNoTracking()
             .Where(x =>
-                x.RequestStatus == ChatRequestStatus.Accepted ||
-                (x.RequestStatus == ChatRequestStatus.Pending &&
-                 x.InitiatedByUserId == userId))
-            .OrderByDescending(x => x.UpdatedAtUtc)
+                (x.UserOneId == userId || x.UserTwoId == userId) &&
+                (x.RequestStatus == ChatRequestStatus.Accepted ||
+                 (x.RequestStatus == ChatRequestStatus.Pending &&
+                  x.InitiatedByUserId == userId)) &&
+                (archived
+                    ? x.UserStates.Any(state =>
+                        state.UserId == userId && state.IsArchived)
+                    : !x.UserStates.Any(state =>
+                        state.UserId == userId && state.IsArchived)) &&
+                (normalizedSearch == null ||
+                 (x.UserOneId == userId
+                    ? x.UserTwo.UserName!.Contains(normalizedSearch)
+                    : x.UserOne.UserName!.Contains(normalizedSearch))))
+            .OrderByDescending(x => archived
+                ? x.UserStates
+                    .Where(state => state.UserId == userId)
+                    .Select(state => state.ArchivedAtUtc)
+                    .FirstOrDefault()
+                : x.UpdatedAtUtc)
             .Take(200)
+            .Select(x => new ConversationRow
+            {
+                Id = x.Id,
+                UserOneId = x.UserOneId,
+                UserTwoId = x.UserTwoId,
+                InitiatedByUserId = x.InitiatedByUserId,
+                RequestStatus = x.RequestStatus,
+                UpdatedAtUtc = x.UpdatedAtUtc,
+                CurrentStreak = x.CurrentStreak,
+                LongestStreak = x.LongestStreak,
+                LastCompletedStreakDate = x.LastCompletedStreakDate,
+                IsArchived = x.UserStates.Any(state =>
+                    state.UserId == userId && state.IsArchived),
+                OtherUserId = x.UserOneId == userId ? x.UserTwoId : x.UserOneId,
+                OtherUserName = x.UserOneId == userId
+                    ? x.UserTwo.UserName!
+                    : x.UserOne.UserName!,
+                OtherUserImage = x.UserOneId == userId
+                    ? x.UserTwo.ProfileImageUrl
+                    : x.UserOne.ProfileImageUrl,
+                OtherUserLastSeenAtUtc = x.UserOneId == userId
+                    ? x.UserTwo.RefreshSessions
+                        .OrderByDescending(session => session.LastActiveAtUtc)
+                        .Select(session => (DateTime?)session.LastActiveAtUtc)
+                        .FirstOrDefault()
+                    : x.UserOne.RefreshSessions
+                        .OrderByDescending(session => session.LastActiveAtUtc)
+                        .Select(session => (DateTime?)session.LastActiveAtUtc)
+                        .FirstOrDefault(),
+                UnreadCount = x.Messages.Count(message =>
+                    message.SenderUserId != userId &&
+                    message.ReadAtUtc == null &&
+                    message.DeletedForEveryoneAtUtc == null &&
+                    !message.UserStates.Any(state =>
+                        state.UserId == userId && state.IsDeleted)),
+                MessageCount = x.Messages.Count,
+                LastMessageId = x.Messages
+                    .Where(message => !message.UserStates.Any(state =>
+                        state.UserId == userId && state.IsDeleted))
+                    .OrderByDescending(message => message.Id)
+                    .Select(message => (long?)message.Id)
+                    .FirstOrDefault()
+            })
             .ToListAsync(cancellationToken);
 
-        return rows.Select(x => MapConversation(x, userId)).ToList();
+        var lastMessageIds = rows
+            .Where(x => x.LastMessageId.HasValue)
+            .Select(x => x.LastMessageId!.Value)
+            .Distinct()
+            .ToList();
+        var lastMessages = await LoadMessagesByIdsAsync(
+            userId,
+            lastMessageIds,
+            cancellationToken);
+
+        return rows
+            .Select(row => MapConversation(
+                row,
+                userId,
+                row.LastMessageId.HasValue &&
+                lastMessages.TryGetValue(row.LastMessageId.Value, out var message)
+                    ? message
+                    : null))
+            .ToList();
     }
 
     public async Task<IReadOnlyList<ChatConversationDTO>> GetMessageRequestsAsync(
         Guid userId,
+        string? search = null,
         CancellationToken cancellationToken = default)
     {
-        var rows = await BuildConversationQuery(userId)
+        var normalizedSearch = NormalizeConversationSearch(search);
+        var rows = await _context.ChatConversations
+            .AsNoTracking()
             .Where(x =>
+                (x.UserOneId == userId || x.UserTwoId == userId) &&
                 x.RequestStatus == ChatRequestStatus.Pending &&
-                x.InitiatedByUserId != userId)
+                x.InitiatedByUserId != userId &&
+                (normalizedSearch == null ||
+                 (x.UserOneId == userId
+                    ? x.UserTwo.UserName!.Contains(normalizedSearch)
+                    : x.UserOne.UserName!.Contains(normalizedSearch))))
             .OrderByDescending(x => x.UpdatedAtUtc)
             .Take(100)
+            .Select(x => new ConversationRow
+            {
+                Id = x.Id,
+                UserOneId = x.UserOneId,
+                UserTwoId = x.UserTwoId,
+                InitiatedByUserId = x.InitiatedByUserId,
+                RequestStatus = x.RequestStatus,
+                UpdatedAtUtc = x.UpdatedAtUtc,
+                CurrentStreak = x.CurrentStreak,
+                LongestStreak = x.LongestStreak,
+                LastCompletedStreakDate = x.LastCompletedStreakDate,
+                IsArchived = false,
+                OtherUserId = x.UserOneId == userId ? x.UserTwoId : x.UserOneId,
+                OtherUserName = x.UserOneId == userId
+                    ? x.UserTwo.UserName!
+                    : x.UserOne.UserName!,
+                OtherUserImage = x.UserOneId == userId
+                    ? x.UserTwo.ProfileImageUrl
+                    : x.UserOne.ProfileImageUrl,
+                OtherUserLastSeenAtUtc = x.UserOneId == userId
+                    ? x.UserTwo.RefreshSessions
+                        .OrderByDescending(session => session.LastActiveAtUtc)
+                        .Select(session => (DateTime?)session.LastActiveAtUtc)
+                        .FirstOrDefault()
+                    : x.UserOne.RefreshSessions
+                        .OrderByDescending(session => session.LastActiveAtUtc)
+                        .Select(session => (DateTime?)session.LastActiveAtUtc)
+                        .FirstOrDefault(),
+                UnreadCount = x.Messages.Count(message =>
+                    message.SenderUserId != userId &&
+                    message.ReadAtUtc == null &&
+                    message.DeletedForEveryoneAtUtc == null &&
+                    !message.UserStates.Any(state =>
+                        state.UserId == userId && state.IsDeleted)),
+                MessageCount = x.Messages.Count,
+                LastMessageId = x.Messages
+                    .Where(message => !message.UserStates.Any(state =>
+                        state.UserId == userId && state.IsDeleted))
+                    .OrderByDescending(message => message.Id)
+                    .Select(message => (long?)message.Id)
+                    .FirstOrDefault()
+            })
             .ToListAsync(cancellationToken);
 
-        return rows.Select(x => MapConversation(x, userId)).ToList();
+        var lastMessageIds = rows
+            .Where(x => x.LastMessageId.HasValue)
+            .Select(x => x.LastMessageId!.Value)
+            .Distinct()
+            .ToList();
+        var lastMessages = await LoadMessagesByIdsAsync(
+            userId,
+            lastMessageIds,
+            cancellationToken);
+
+        return rows
+            .Select(row => MapConversation(
+                row,
+                userId,
+                row.LastMessageId.HasValue &&
+                lastMessages.TryGetValue(row.LastMessageId.Value, out var message)
+                    ? message
+                    : null))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<Guid>> GetConversationPartnerIdsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default)
+    {
+        return await _context.ChatConversations
+            .AsNoTracking()
+            .Where(conversation =>
+                (conversation.UserOneId == userId || conversation.UserTwoId == userId) &&
+                conversation.RequestStatus != ChatRequestStatus.Rejected)
+            .Select(conversation =>
+                conversation.UserOneId == userId
+                    ? conversation.UserTwoId
+                    : conversation.UserOneId)
+            .Distinct()
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<ChatMessagePageDTO> GetMessagesAsync(
@@ -70,8 +241,7 @@ public sealed class ChatService : IChatService
 
         await EnsureParticipantAsync(userId, conversationId, cancellationToken);
 
-        var query = _context.ChatMessages
-            .AsNoTracking()
+        var query = MessageGraphQuery(userId)
             .Where(x =>
                 x.ConversationId == conversationId &&
                 !x.UserStates.Any(state =>
@@ -83,33 +253,13 @@ public sealed class ChatService : IChatService
         var rows = await query
             .OrderByDescending(x => x.Id)
             .Take(pageSize + 1)
-            .Select(x => new MessageRow(
-                x.Id,
-                x.ConversationId,
-                x.SenderUserId,
-                x.Kind,
-                x.Text,
-                x.MediaStorageKey,
-                x.MediaContentType,
-                x.GameSource,
-                x.GameId,
-                x.GameName,
-                x.GameCoverUrl,
-                x.SentAtUtc,
-                x.DeliveredAtUtc,
-                x.ReadAtUtc,
-                x.DeletedForEveryoneAtUtc,
-                x.UserStates
-                    .Where(state => state.UserId == userId)
-                    .Select(state => state.PinnedAtUtc)
-                    .FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
         var hasMore = rows.Count > pageSize;
         var items = rows
             .Take(pageSize)
             .Reverse()
-            .Select(MapMessage)
+            .Select(message => MapMessage(message, userId))
             .ToList();
 
         return new ChatMessagePageDTO
@@ -122,7 +272,82 @@ public sealed class ChatService : IChatService
         };
     }
 
-    public async Task<ChatMessageDTO> SendMessageAsync(
+    public async Task<ChatMessageDTO> GetMessageAsync(
+        Guid userId,
+        long conversationId,
+        long messageId,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureParticipantAsync(userId, conversationId, cancellationToken);
+
+        var message = await MessageGraphQuery(userId)
+            .FirstOrDefaultAsync(x =>
+                    x.Id == messageId &&
+                    x.ConversationId == conversationId &&
+                    !x.UserStates.Any(state =>
+                        state.UserId == userId && state.IsDeleted),
+                cancellationToken)
+            ?? throw new NotFoundException("Mesaj tapılmadı.");
+
+        return MapMessage(message, userId);
+    }
+
+    public async Task<ChatMessageSearchPageDTO> SearchMessagesAsync(
+        Guid userId,
+        long conversationId,
+        string query,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        await EnsureParticipantAsync(userId, conversationId, cancellationToken);
+
+        var normalized = query?.Trim() ?? string.Empty;
+        if (normalized.Length < 2)
+            throw new BadRequestException("Axtarış üçün ən azı 2 simvol yazılmalıdır.");
+        if (normalized.Length > 100)
+            throw new BadRequestException("Axtarış mətni maksimum 100 simvol ola bilər.");
+        if (page < 1)
+            throw new BadRequestException("Səhifə nömrəsi 1-dən kiçik ola bilməz.");
+        if (pageSize is < 1 or > MaxSearchPageSize)
+            throw new BadRequestException($"Səhifə ölçüsü 1-{MaxSearchPageSize} aralığında olmalıdır.");
+
+        var pattern = $"%{EscapeLikePattern(normalized)}%";
+        var baseQuery = _context.ChatMessages
+            .AsNoTracking()
+            .Where(x =>
+                x.ConversationId == conversationId &&
+                x.DeletedForEveryoneAtUtc == null &&
+                !x.UserStates.Any(state =>
+                    state.UserId == userId && state.IsDeleted) &&
+                ((x.Text != null && EF.Functions.Like(x.Text, pattern, "\\")) ||
+                 (x.GameName != null && EF.Functions.Like(x.GameName, pattern, "\\"))));
+
+        var totalCount = await baseQuery.CountAsync(cancellationToken);
+        var ids = await baseQuery
+            .OrderByDescending(x => x.Id)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(x => x.Id)
+            .ToListAsync(cancellationToken);
+
+        var messageMap = await LoadMessagesByIdsAsync(userId, ids, cancellationToken);
+        var items = ids
+            .Where(messageMap.ContainsKey)
+            .Select(id => messageMap[id])
+            .ToList();
+
+        return new ChatMessageSearchPageDTO
+        {
+            Items = items,
+            Page = page,
+            PageSize = pageSize,
+            TotalCount = totalCount,
+            HasMore = page * pageSize < totalCount
+        };
+    }
+
+    public async Task<ChatSendMessageResultDTO> SendMessageAsync(
         Guid senderUserId,
         ChatSendMessageDTO dto,
         CancellationToken cancellationToken = default)
@@ -166,7 +391,6 @@ public sealed class ChatService : IChatService
                     (x.BlockerId == dto.RecipientUserId &&
                      x.BlockedUserId == senderUserId),
                 cancellationToken);
-
         if (isBlocked)
             throw new ForbiddenException("Bloklanmış istifadəçi ilə mesajlaşmaq mümkün deyil.");
 
@@ -196,14 +420,19 @@ public sealed class ChatService : IChatService
             await using var transaction = await _context.Database.BeginTransactionAsync(
                 IsolationLevel.Serializable,
                 cancellationToken);
+
             var (userOneId, userTwoId) = NormalizePair(senderUserId, dto.RecipientUserId);
             var conversation = await _context.ChatConversations
+                .Include(x => x.UserStates)
                 .FirstOrDefaultAsync(
                     x => x.UserOneId == userOneId && x.UserTwoId == userTwoId,
                     cancellationToken);
 
             if (conversation is null)
             {
+                if (dto.ReplyToMessageId.HasValue)
+                    throw new BadRequestException("Yeni söhbətdə cavab mesajı seçilə bilməz.");
+
                 var requiresRequest = recipient.IsPrivate && !senderIsFollower;
                 conversation = new ChatConversation
                 {
@@ -239,6 +468,21 @@ public sealed class ChatService : IChatService
                 }
             }
 
+            if (dto.ReplyToMessageId.HasValue)
+            {
+                var replyExists = await _context.ChatMessages
+                    .AsNoTracking()
+                    .AnyAsync(x =>
+                            x.Id == dto.ReplyToMessageId.Value &&
+                            x.ConversationId == conversation.Id &&
+                            x.DeletedForEveryoneAtUtc == null &&
+                            !x.UserStates.Any(state =>
+                                state.UserId == senderUserId && state.IsDeleted),
+                        cancellationToken);
+                if (!replyExists)
+                    throw new NotFoundException("Cavab verilən mesaj tapılmadı.");
+            }
+
             var now = DateTime.UtcNow;
             var kind = hasGame
                 ? ChatMessageKind.GameRecommendation
@@ -252,6 +496,7 @@ public sealed class ChatService : IChatService
             {
                 Conversation = conversation,
                 SenderUserId = senderUserId,
+                ReplyToMessageId = dto.ReplyToMessageId,
                 Kind = kind,
                 Text = text,
                 MediaStorageKey = savedMediaKey,
@@ -265,28 +510,35 @@ public sealed class ChatService : IChatService
             };
 
             conversation.UpdatedAtUtc = now;
+            foreach (var state in conversation.UserStates.Where(x => x.IsArchived))
+            {
+                state.IsArchived = false;
+                state.ArchivedAtUtc = null;
+            }
+
             _context.ChatMessages.Add(message);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            ChatStreakUpdatedDTO? streakUpdate = null;
+            if (conversation.RequestStatus == ChatRequestStatus.Accepted)
+            {
+                streakUpdate = await UpdateStreakAfterMessageAsync(
+                    conversation,
+                    cancellationToken);
+            }
+
             await _context.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
+            var loadedMessage = await MessageGraphQuery(senderUserId)
+                .FirstAsync(x => x.Id == message.Id, cancellationToken);
+
             _badgeQueue.Enqueue(senderUserId);
-            return MapMessage(new MessageRow(
-                message.Id,
-                message.ConversationId,
-                message.SenderUserId,
-                message.Kind,
-                message.Text,
-                message.MediaStorageKey,
-                message.MediaContentType,
-                message.GameSource,
-                message.GameId,
-                message.GameName,
-                message.GameCoverUrl,
-                message.SentAtUtc,
-                message.DeliveredAtUtc,
-                message.ReadAtUtc,
-                message.DeletedForEveryoneAtUtc,
-                null));
+            return new ChatSendMessageResultDTO
+            {
+                Message = MapMessage(loadedMessage, senderUserId),
+                StreakUpdate = streakUpdate
+            };
         }
         catch
         {
@@ -296,17 +548,168 @@ public sealed class ChatService : IChatService
         }
     }
 
+    public async Task<ChatForwardMessagesResultDTO> ForwardMessageAsync(
+        Guid userId,
+        long sourceMessageId,
+        IReadOnlyCollection<long> targetConversationIds,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(targetConversationIds);
+        if (userId == Guid.Empty || sourceMessageId <= 0)
+            throw new BadRequestException("Yönləndiriləcək mesaj düzgün deyil.");
+
+        var targetIds = targetConversationIds
+            .Where(id => id > 0)
+            .Distinct()
+            .ToList();
+        if (targetIds.Count == 0)
+            throw new BadRequestException("Ən azı bir söhbət seçilməlidir.");
+        if (targetIds.Count > 20)
+            throw new BadRequestException("Bir mesaj eyni anda maksimum 20 söhbətə yönləndirilə bilər.");
+
+        var source = await _context.ChatMessages
+            .AsNoTracking()
+            .Include(message => message.Conversation)
+            .Include(message => message.UserStates)
+            .FirstOrDefaultAsync(message => message.Id == sourceMessageId, cancellationToken)
+            ?? throw new NotFoundException("Yönləndiriləcək mesaj tapılmadı.");
+
+        if (source.Conversation.UserOneId != userId &&
+            source.Conversation.UserTwoId != userId)
+        {
+            throw new ForbiddenException("Bu mesaja giriş yoxdur.");
+        }
+        if (source.DeletedForEveryoneAtUtc.HasValue ||
+            source.UserStates.Any(state => state.UserId == userId && state.IsDeleted))
+        {
+            throw new NotFoundException("Yönləndiriləcək mesaj artıq əlçatan deyil.");
+        }
+        if (targetIds.Contains(source.ConversationId))
+            throw new BadRequestException("Mesaj eyni söhbətə yönləndirilə bilməz.");
+
+        var targets = await _context.ChatConversations
+            .Include(conversation => conversation.UserStates)
+            .Where(conversation => targetIds.Contains(conversation.Id))
+            .ToListAsync(cancellationToken);
+
+        if (targets.Count != targetIds.Count)
+            throw new NotFoundException("Seçilmiş söhbətlərdən biri tapılmadı.");
+
+        foreach (var target in targets)
+        {
+            if (target.UserOneId != userId && target.UserTwoId != userId)
+                throw new ForbiddenException("Seçilmiş söhbətlərdən birinə giriş yoxdur.");
+            if (target.RequestStatus != ChatRequestStatus.Accepted)
+                throw new ConflictException("Mesaj yalnız qəbul edilmiş söhbətlərə yönləndirilə bilər.");
+        }
+
+        var recipientIds = targets
+            .Select(target => target.UserOneId == userId
+                ? target.UserTwoId
+                : target.UserOneId)
+            .Distinct()
+            .ToList();
+        var hasBlockedConversation = await _context.UserBlocks
+            .AsNoTracking()
+            .AnyAsync(block =>
+                    (recipientIds.Contains(block.BlockerId) && block.BlockedUserId == userId) ||
+                    (block.BlockerId == userId && recipientIds.Contains(block.BlockedUserId)),
+                cancellationToken);
+        if (hasBlockedConversation)
+            throw new ForbiddenException("Bloklanmış istifadəçi olan söhbətə mesaj yönləndirilə bilməz.");
+
+        await using var transaction = await _context.Database.BeginTransactionAsync(
+            IsolationLevel.Serializable,
+            cancellationToken);
+
+        var now = DateTime.UtcNow;
+        var created = new List<(ChatConversation Conversation, Guid RecipientId, ChatMessage Message)>();
+        foreach (var target in targets)
+        {
+            var recipientId = target.UserOneId == userId
+                ? target.UserTwoId
+                : target.UserOneId;
+            var forwardedMessage = new ChatMessage
+            {
+                Conversation = target,
+                SenderUserId = userId,
+                IsForwarded = true,
+                Kind = source.Kind,
+                Text = source.Text,
+                MediaStorageKey = source.MediaStorageKey,
+                MediaContentType = source.MediaContentType,
+                MediaLength = source.MediaLength,
+                GameSource = source.GameSource,
+                GameId = source.GameId,
+                GameName = source.GameName,
+                GameCoverUrl = source.GameCoverUrl,
+                SentAtUtc = now
+            };
+
+            target.UpdatedAtUtc = now;
+            foreach (var state in target.UserStates.Where(state => state.IsArchived))
+            {
+                state.IsArchived = false;
+                state.ArchivedAtUtc = null;
+            }
+
+            _context.ChatMessages.Add(forwardedMessage);
+            created.Add((target, recipientId, forwardedMessage));
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        var streakUpdates = new Dictionary<long, ChatStreakUpdatedDTO?>();
+        foreach (var entry in created)
+        {
+            streakUpdates[entry.Conversation.Id] = await UpdateStreakAfterMessageAsync(
+                entry.Conversation,
+                cancellationToken);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+
+        var createdIds = created.Select(entry => entry.Message.Id).ToList();
+        var loadedMessages = await MessageGraphQuery(userId)
+            .Where(message => createdIds.Contains(message.Id))
+            .ToDictionaryAsync(message => message.Id, cancellationToken);
+
+        _badgeQueue.Enqueue(userId);
+        return new ChatForwardMessagesResultDTO
+        {
+            Items = created
+                .OrderBy(entry => targetIds.IndexOf(entry.Conversation.Id))
+                .Select(entry => new ChatForwardedMessageDTO
+                {
+                    ConversationId = entry.Conversation.Id,
+                    RecipientUserId = entry.RecipientId,
+                    Message = MapMessage(loadedMessages[entry.Message.Id], userId),
+                    StreakUpdate = streakUpdates[entry.Conversation.Id]
+                })
+                .ToList()
+        };
+    }
+
     public Task<ChatRequestDecisionDTO> AcceptRequestAsync(
         Guid userId,
         long conversationId,
         CancellationToken cancellationToken = default) =>
-        DecideRequestAsync(userId, conversationId, ChatRequestStatus.Accepted, cancellationToken);
+        DecideRequestAsync(
+            userId,
+            conversationId,
+            ChatRequestStatus.Accepted,
+            cancellationToken);
 
     public Task<ChatRequestDecisionDTO> RejectRequestAsync(
         Guid userId,
         long conversationId,
         CancellationToken cancellationToken = default) =>
-        DecideRequestAsync(userId, conversationId, ChatRequestStatus.Rejected, cancellationToken);
+        DecideRequestAsync(
+            userId,
+            conversationId,
+            ChatRequestStatus.Rejected,
+            cancellationToken);
 
     public async Task<ChatReadReceiptDTO> MarkReadAsync(
         Guid userId,
@@ -393,8 +796,7 @@ public sealed class ChatService : IChatService
     {
         await EnsureParticipantAsync(userId, conversationId, cancellationToken);
 
-        var rows = await _context.ChatMessages
-            .AsNoTracking()
+        var rows = await MessageGraphQuery(userId)
             .Where(x =>
                 x.ConversationId == conversationId &&
                 x.DeletedForEveryoneAtUtc == null &&
@@ -407,29 +809,9 @@ public sealed class ChatService : IChatService
                 .Select(state => state.PinnedAtUtc)
                 .FirstOrDefault())
             .Take(100)
-            .Select(x => new MessageRow(
-                x.Id,
-                x.ConversationId,
-                x.SenderUserId,
-                x.Kind,
-                x.Text,
-                x.MediaStorageKey,
-                x.MediaContentType,
-                x.GameSource,
-                x.GameId,
-                x.GameName,
-                x.GameCoverUrl,
-                x.SentAtUtc,
-                x.DeliveredAtUtc,
-                x.ReadAtUtc,
-                x.DeletedForEveryoneAtUtc,
-                x.UserStates
-                    .Where(state => state.UserId == userId)
-                    .Select(state => state.PinnedAtUtc)
-                    .FirstOrDefault()))
             .ToListAsync(cancellationToken);
 
-        return rows.Select(MapMessage).ToList();
+        return rows.Select(message => MapMessage(message, userId)).ToList();
     }
 
     public async Task<ChatMessageDeletedDTO> DeleteMessageAsync(
@@ -447,6 +829,7 @@ public sealed class ChatService : IChatService
         var message = await _context.ChatMessages
             .Include(x => x.Conversation)
             .Include(x => x.UserStates)
+            .Include(x => x.Reactions)
             .FirstOrDefaultAsync(x => x.Id == messageId, cancellationToken)
             ?? throw new NotFoundException("Mesaj tapılmadı.");
 
@@ -480,6 +863,7 @@ public sealed class ChatService : IChatService
 
                 foreach (var state in message.UserStates)
                     state.PinnedAtUtc = null;
+                _context.ChatMessageReactions.RemoveRange(message.Reactions);
 
                 await _context.SaveChangesAsync(cancellationToken);
             }
@@ -495,7 +879,30 @@ public sealed class ChatService : IChatService
             if (otherParticipantAlreadyDeleted)
             {
                 mediaKeyToDelete = message.MediaStorageKey;
-                _context.ChatMessages.Remove(message);
+                var isReplyTarget = await _context.ChatMessages
+                    .AsNoTracking()
+                    .AnyAsync(x => x.ReplyToMessageId == message.Id, cancellationToken);
+
+                if (isReplyTarget)
+                {
+                    message.Kind = ChatMessageKind.Text;
+                    message.Text = null;
+                    message.MediaStorageKey = null;
+                    message.MediaContentType = null;
+                    message.MediaLength = null;
+                    message.GameSource = null;
+                    message.GameId = null;
+                    message.GameName = null;
+                    message.GameCoverUrl = null;
+                    message.DeletedForEveryoneAtUtc = now;
+                    foreach (var state in message.UserStates)
+                        state.PinnedAtUtc = null;
+                    _context.ChatMessageReactions.RemoveRange(message.Reactions);
+                }
+                else
+                {
+                    _context.ChatMessages.Remove(message);
+                }
             }
             else
             {
@@ -523,7 +930,15 @@ public sealed class ChatService : IChatService
         }
 
         if (!string.IsNullOrWhiteSpace(mediaKeyToDelete))
-            await _fileStorage.DeleteChatMediaAsync(mediaKeyToDelete);
+        {
+            var stillReferenced = await _context.ChatMessages
+                .AsNoTracking()
+                .AnyAsync(message =>
+                        message.MediaStorageKey == mediaKeyToDelete,
+                    cancellationToken);
+            if (!stillReferenced)
+                await _fileStorage.DeleteChatMediaAsync(mediaKeyToDelete);
+        }
 
         return new ChatMessageDeletedDTO
         {
@@ -549,12 +964,9 @@ public sealed class ChatService : IChatService
 
         if (message.Conversation.UserOneId != userId &&
             message.Conversation.UserTwoId != userId)
-        {
             throw new ForbiddenException("Bu mesaja giriş yoxdur.");
-        }
-
         if (message.DeletedForEveryoneAtUtc.HasValue)
-            throw new ConflictException("Silinmiş mesaj pinlənə bilməz.");
+            throw new ConflictException("Silinmiş mesaj bərkidilə bilməz.");
 
         var state = message.UserStates.FirstOrDefault(x => x.UserId == userId);
         if (state?.IsDeleted == true)
@@ -595,16 +1007,139 @@ public sealed class ChatService : IChatService
         }
 
         await _context.SaveChangesAsync(cancellationToken);
-        var pinnedAtUtc = isPinned ? state.PinnedAtUtc : null;
-
         return new ChatMessagePinChangedDTO
         {
             MessageId = messageId,
             ConversationId = message.ConversationId,
             UserId = userId,
             IsPinned = isPinned,
-            PinnedAtUtc = pinnedAtUtc
+            PinnedAtUtc = isPinned ? state.PinnedAtUtc : null
         };
+    }
+
+    public async Task<ChatMessageReactionChangedDTO> SetMessageReactionAsync(
+        Guid userId,
+        long messageId,
+        ChatReactionType? reactionType,
+        CancellationToken cancellationToken = default)
+    {
+        if (reactionType.HasValue && !Enum.IsDefined(typeof(ChatReactionType), reactionType.Value))
+            throw new BadRequestException("Reaksiya növü düzgün deyil.");
+
+        var message = await _context.ChatMessages
+            .Include(x => x.Conversation)
+            .Include(x => x.Reactions)
+            .Include(x => x.UserStates)
+            .FirstOrDefaultAsync(x => x.Id == messageId, cancellationToken)
+            ?? throw new NotFoundException("Mesaj tapılmadı.");
+
+        if (message.Conversation.UserOneId != userId &&
+            message.Conversation.UserTwoId != userId)
+            throw new ForbiddenException("Bu mesaja giriş yoxdur.");
+        if (message.DeletedForEveryoneAtUtc.HasValue ||
+            message.UserStates.Any(x => x.UserId == userId && x.IsDeleted))
+            throw new NotFoundException("Mesaj tapılmadı.");
+
+        var existing = message.Reactions.FirstOrDefault(x => x.UserId == userId);
+        var now = DateTime.UtcNow;
+        if (!reactionType.HasValue)
+        {
+            if (existing is not null)
+                _context.ChatMessageReactions.Remove(existing);
+        }
+        else if (existing is null)
+        {
+            message.Reactions.Add(new ChatMessageReaction
+            {
+                MessageId = message.Id,
+                UserId = userId,
+                ReactionType = reactionType.Value,
+                CreatedAtUtc = now,
+                UpdatedAtUtc = now
+            });
+        }
+        else
+        {
+            existing.ReactionType = reactionType.Value;
+            existing.UpdatedAtUtc = now;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        var reactions = await GetReactionSummariesAsync(
+            messageId,
+            userId,
+            cancellationToken);
+
+        return new ChatMessageReactionChangedDTO
+        {
+            MessageId = messageId,
+            ConversationId = message.ConversationId,
+            UserId = userId,
+            ReactionType = reactionType,
+            Reactions = reactions
+        };
+    }
+
+    public async Task<ChatConversationArchiveChangedDTO> SetConversationArchivedAsync(
+        Guid userId,
+        long conversationId,
+        bool isArchived,
+        CancellationToken cancellationToken = default)
+    {
+        var conversation = await _context.ChatConversations
+            .Include(x => x.UserStates)
+            .FirstOrDefaultAsync(x => x.Id == conversationId, cancellationToken)
+            ?? throw new NotFoundException("Söhbət tapılmadı.");
+
+        if (conversation.UserOneId != userId && conversation.UserTwoId != userId)
+            throw new ForbiddenException("Bu söhbətə giriş yoxdur.");
+        if (conversation.RequestStatus != ChatRequestStatus.Accepted)
+            throw new ConflictException("Yalnız aktiv söhbətlər arxivlənə bilər.");
+
+        var state = conversation.UserStates.FirstOrDefault(x => x.UserId == userId);
+        if (state is null)
+        {
+            state = new ChatConversationUserState
+            {
+                ConversationId = conversationId,
+                UserId = userId
+            };
+            _context.ChatConversationUserStates.Add(state);
+        }
+
+        state.IsArchived = isArchived;
+        state.ArchivedAtUtc = isArchived ? DateTime.UtcNow : null;
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return new ChatConversationArchiveChangedDTO
+        {
+            ConversationId = conversationId,
+            UserId = userId,
+            IsArchived = isArchived,
+            ArchivedAtUtc = state.ArchivedAtUtc
+        };
+    }
+
+    public async Task<ChatConversationParticipantsDTO> GetParticipantsAsync(
+        Guid userId,
+        long conversationId,
+        CancellationToken cancellationToken = default)
+    {
+        var participants = await _context.ChatConversations
+            .AsNoTracking()
+            .Where(x =>
+                x.Id == conversationId &&
+                (x.UserOneId == userId || x.UserTwoId == userId) &&
+                x.RequestStatus != ChatRequestStatus.Rejected)
+            .Select(x => new ChatConversationParticipantsDTO
+            {
+                ConversationId = x.Id,
+                UserOneId = x.UserOneId,
+                UserTwoId = x.UserTwoId
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return participants ?? throw new NotFoundException("Söhbət tapılmadı.");
     }
 
     public async Task<StoredChatMediaDTO> OpenMediaAsync(
@@ -661,59 +1196,32 @@ public sealed class ChatService : IChatService
         };
     }
 
-    private IQueryable<ConversationRow> BuildConversationQuery(Guid userId)
-    {
-        return _context.ChatConversations
+    private IQueryable<ChatMessage> MessageGraphQuery(Guid userId) =>
+        _context.ChatMessages
             .AsNoTracking()
-            .Where(x => x.UserOneId == userId || x.UserTwoId == userId)
-            .Select(x => new ConversationRow
-            {
-                Id = x.Id,
-                UserOneId = x.UserOneId,
-                UserTwoId = x.UserTwoId,
-                InitiatedByUserId = x.InitiatedByUserId,
-                RequestStatus = x.RequestStatus,
-                UpdatedAtUtc = x.UpdatedAtUtc,
-                OtherUserId = x.UserOneId == userId ? x.UserTwoId : x.UserOneId,
-                OtherUserName = x.UserOneId == userId
-                    ? x.UserTwo.UserName!
-                    : x.UserOne.UserName!,
-                OtherUserImage = x.UserOneId == userId
-                    ? x.UserTwo.ProfileImageUrl
-                    : x.UserOne.ProfileImageUrl,
-                UnreadCount = x.Messages.Count(m =>
-                    m.SenderUserId != userId &&
-                    m.ReadAtUtc == null &&
-                    m.DeletedForEveryoneAtUtc == null &&
-                    !m.UserStates.Any(state =>
-                        state.UserId == userId && state.IsDeleted)),
-                MessageCount = x.Messages.Count,
-                LastMessage = x.Messages
-                    .Where(m => !m.UserStates.Any(state =>
-                        state.UserId == userId && state.IsDeleted))
-                    .OrderByDescending(m => m.Id)
-                    .Select(m => new MessageRow(
-                        m.Id,
-                        m.ConversationId,
-                        m.SenderUserId,
-                        m.Kind,
-                        m.Text,
-                        m.MediaStorageKey,
-                        m.MediaContentType,
-                        m.GameSource,
-                        m.GameId,
-                        m.GameName,
-                        m.GameCoverUrl,
-                        m.SentAtUtc,
-                        m.DeliveredAtUtc,
-                        m.ReadAtUtc,
-                        m.DeletedForEveryoneAtUtc,
-                        m.UserStates
-                            .Where(state => state.UserId == userId)
-                            .Select(state => state.PinnedAtUtc)
-                            .FirstOrDefault()))
-                    .FirstOrDefault()
-            });
+            .AsSplitQuery()
+            .Include(x => x.UserStates)
+            .Include(x => x.Reactions)
+            .Include(x => x.ReplyToMessage)
+                .ThenInclude(x => x!.SenderUser)
+            .Include(x => x.ReplyToMessage)
+                .ThenInclude(x => x!.UserStates);
+
+    private async Task<Dictionary<long, ChatMessageDTO>> LoadMessagesByIdsAsync(
+        Guid userId,
+        IReadOnlyCollection<long> ids,
+        CancellationToken cancellationToken)
+    {
+        if (ids.Count == 0)
+            return [];
+
+        var messages = await MessageGraphQuery(userId)
+            .Where(x => ids.Contains(x.Id))
+            .ToListAsync(cancellationToken);
+
+        return messages.ToDictionary(
+            x => x.Id,
+            x => MapMessage(x, userId));
     }
 
     private async Task EnsureParticipantAsync(
@@ -733,9 +1241,70 @@ public sealed class ChatService : IChatService
             throw new NotFoundException("Söhbət tapılmadı.");
     }
 
-    private static ChatConversationDTO MapConversation(
+    private async Task<ChatStreakUpdatedDTO?> UpdateStreakAfterMessageAsync(
+        ChatConversation conversation,
+        CancellationToken cancellationToken)
+    {
+        var today = GetBakuDate(DateTime.UtcNow);
+        if (conversation.LastCompletedStreakDate == today)
+            return null;
+
+        var (dayStartUtc, dayEndUtc) = GetUtcDayRange(today);
+        var participantCount = await _context.ChatMessages
+            .AsNoTracking()
+            .Where(x =>
+                x.ConversationId == conversation.Id &&
+                x.SentAtUtc >= dayStartUtc &&
+                x.SentAtUtc < dayEndUtc &&
+                x.DeletedForEveryoneAtUtc == null)
+            .Select(x => x.SenderUserId)
+            .Distinct()
+            .CountAsync(cancellationToken);
+
+        if (participantCount < 2)
+            return null;
+
+        conversation.CurrentStreak = conversation.LastCompletedStreakDate == today.AddDays(-1)
+            ? conversation.CurrentStreak + 1
+            : 1;
+        conversation.LongestStreak = Math.Max(
+            conversation.LongestStreak,
+            conversation.CurrentStreak);
+        conversation.LastCompletedStreakDate = today;
+
+        return new ChatStreakUpdatedDTO
+        {
+            ConversationId = conversation.Id,
+            WasIncremented = true,
+            Streak = MapStreak(conversation)
+        };
+    }
+
+    private async Task<IReadOnlyList<ChatReactionSummaryDTO>> GetReactionSummariesAsync(
+        long messageId,
+        Guid currentUserId,
+        CancellationToken cancellationToken)
+    {
+        var rows = await _context.ChatMessageReactions
+            .AsNoTracking()
+            .Where(x => x.MessageId == messageId)
+            .GroupBy(x => x.ReactionType)
+            .Select(group => new ChatReactionSummaryDTO
+            {
+                ReactionType = group.Key,
+                Count = group.Count(),
+                ReactedByCurrentUser = group.Any(x => x.UserId == currentUserId)
+            })
+            .OrderBy(x => x.ReactionType)
+            .ToListAsync(cancellationToken);
+
+        return rows;
+    }
+
+    private ChatConversationDTO MapConversation(
         ConversationRow row,
-        Guid userId) =>
+        Guid userId,
+        ChatMessageDTO? lastMessage) =>
         new()
         {
             Id = row.Id,
@@ -743,7 +1312,9 @@ public sealed class ChatService : IChatService
             {
                 Id = row.OtherUserId,
                 UserName = row.OtherUserName,
-                ProfileImageUrl = row.OtherUserImage
+                ProfileImageUrl = row.OtherUserImage,
+                IsOnline = _presenceTracker.IsOnline(row.OtherUserId),
+                LastSeenAtUtc = row.OtherUserLastSeenAtUtc
             },
             RequestStatus = row.RequestStatus,
             IsIncomingRequest =
@@ -754,51 +1325,128 @@ public sealed class ChatService : IChatService
                 (row.RequestStatus == ChatRequestStatus.Pending &&
                  row.InitiatedByUserId == userId &&
                  row.MessageCount == 0),
+            IsArchived = row.IsArchived,
             UnreadCount = row.UnreadCount,
-            LastMessage = row.LastMessage is null ? null : MapMessage(row.LastMessage),
+            LastMessage = lastMessage,
+            Streak = MapStreak(
+                row.CurrentStreak,
+                row.LongestStreak,
+                row.LastCompletedStreakDate),
             UpdatedAtUtc = row.UpdatedAtUtc
         };
 
-    private static ChatMessageDTO MapMessage(MessageRow row) =>
-        new()
+    private static ChatMessageDTO MapMessage(ChatMessage message, Guid userId)
+    {
+        var deleted = message.DeletedForEveryoneAtUtc.HasValue;
+        var state = message.UserStates.FirstOrDefault(x => x.UserId == userId);
+        var reactions = message.Reactions
+            .GroupBy(x => x.ReactionType)
+            .OrderBy(group => group.Key)
+            .Select(group => new ChatReactionSummaryDTO
+            {
+                ReactionType = group.Key,
+                Count = group.Count(),
+                ReactedByCurrentUser = group.Any(x => x.UserId == userId)
+            })
+            .ToList();
+
+        ChatReplyPreviewDTO? reply = null;
+        if (message.ReplyToMessage is not null)
         {
-            Id = row.Id,
-            ConversationId = row.ConversationId,
-            SenderUserId = row.SenderUserId,
-            Kind = row.Kind,
-            Text = row.DeletedForEveryoneAtUtc.HasValue ? null : row.Text,
-            MediaUrl = row.DeletedForEveryoneAtUtc.HasValue || row.MediaStorageKey is null
+            var replyDeleted =
+                message.ReplyToMessage.DeletedForEveryoneAtUtc.HasValue ||
+                message.ReplyToMessage.UserStates.Any(x =>
+                    x.UserId == userId && x.DeletedAtUtc.HasValue);
+            reply = new ChatReplyPreviewDTO
+            {
+                MessageId = message.ReplyToMessage.Id,
+                SenderUserId = message.ReplyToMessage.SenderUserId,
+                SenderUserName = message.ReplyToMessage.SenderUser?.UserName ?? "İstifadəçi",
+                Kind = message.ReplyToMessage.Kind,
+                Text = replyDeleted ? null : message.ReplyToMessage.Text,
+                GameName = replyDeleted ? null : message.ReplyToMessage.GameName,
+                IsDeleted = replyDeleted
+            };
+        }
+
+        return new ChatMessageDTO
+        {
+            Id = message.Id,
+            ConversationId = message.ConversationId,
+            SenderUserId = message.SenderUserId,
+            Kind = message.Kind,
+            Text = deleted ? null : message.Text,
+            MediaUrl = deleted || message.MediaStorageKey is null
                 ? null
-                : $"/chat/messages/{row.Id}/media",
-            MediaContentType = row.DeletedForEveryoneAtUtc.HasValue
-                ? null
-                : row.MediaContentType,
-            GameSource = row.DeletedForEveryoneAtUtc.HasValue ? null : row.GameSource,
-            GameId = row.DeletedForEveryoneAtUtc.HasValue ? null : row.GameId,
-            GameName = row.DeletedForEveryoneAtUtc.HasValue ? null : row.GameName,
-            GameCoverUrl = row.DeletedForEveryoneAtUtc.HasValue ? null : row.GameCoverUrl,
-            GameDetailUrl = !row.DeletedForEveryoneAtUtc.HasValue &&
-                            row.GameSource.HasValue && row.GameId.HasValue
-                ? $"/games/{row.GameSource.Value}/{row.GameId.Value}"
+                : $"/chat/messages/{message.Id}/media",
+            MediaContentType = deleted ? null : message.MediaContentType,
+            GameSource = deleted ? null : message.GameSource,
+            GameId = deleted ? null : message.GameId,
+            GameName = deleted ? null : message.GameName,
+            GameCoverUrl = deleted ? null : message.GameCoverUrl,
+            GameDetailUrl = !deleted &&
+                            message.GameSource.HasValue &&
+                            message.GameId.HasValue
+                ? $"/games/{message.GameSource.Value}/{message.GameId.Value}"
                 : null,
-            SentAtUtc = row.SentAtUtc,
-            DeliveredAtUtc = row.DeliveredAtUtc,
-            ReadAtUtc = row.ReadAtUtc,
-            DeliveryStatus = row.ReadAtUtc.HasValue
+            ReplyTo = reply,
+            IsForwarded = message.IsForwarded,
+            Reactions = deleted ? [] : reactions,
+            SentAtUtc = message.SentAtUtc,
+            DeliveredAtUtc = message.DeliveredAtUtc,
+            ReadAtUtc = message.ReadAtUtc,
+            DeliveryStatus = message.ReadAtUtc.HasValue
                 ? ChatMessageDeliveryStatus.Read
-                : row.DeliveredAtUtc.HasValue
+                : message.DeliveredAtUtc.HasValue
                     ? ChatMessageDeliveryStatus.Delivered
                     : ChatMessageDeliveryStatus.Sent,
-            IsDeletedForEveryone = row.DeletedForEveryoneAtUtc.HasValue,
-            DeletedForEveryoneAtUtc = row.DeletedForEveryoneAtUtc,
-            IsPinnedByCurrentUser = row.PinnedAtUtc.HasValue,
-            PinnedAtUtc = row.PinnedAtUtc
+            IsDeletedForEveryone = deleted,
+            DeletedForEveryoneAtUtc = message.DeletedForEveryoneAtUtc,
+            IsPinnedByCurrentUser = state?.PinnedAtUtc.HasValue == true,
+            PinnedAtUtc = state?.PinnedAtUtc
         };
+    }
+
+    private static ChatStreakDTO MapStreak(ChatConversation conversation) =>
+        MapStreak(
+            conversation.CurrentStreak,
+            conversation.LongestStreak,
+            conversation.LastCompletedStreakDate);
+
+    private static ChatStreakDTO MapStreak(
+        int currentStreak,
+        int longestStreak,
+        DateOnly? lastCompletedDate)
+    {
+        var today = GetBakuDate(DateTime.UtcNow);
+        var active = lastCompletedDate.HasValue &&
+                     lastCompletedDate.Value >= today.AddDays(-1);
+        var visibleCurrent = active ? currentStreak : 0;
+        return new ChatStreakDTO
+        {
+            CurrentCount = visibleCurrent,
+            LongestCount = longestStreak,
+            LastCompletedDate = lastCompletedDate,
+            IsCompletedToday = lastCompletedDate == today,
+            IsActive = active && visibleCurrent > 0
+        };
+    }
 
     private static (Guid UserOneId, Guid UserTwoId) NormalizePair(
         Guid left,
         Guid right) =>
         left.CompareTo(right) < 0 ? (left, right) : (right, left);
+
+    private static string? NormalizeConversationSearch(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        var normalized = value.Trim();
+        if (normalized.Length > 100)
+            throw new BadRequestException("Söhbət axtarışı maksimum 100 simvol ola bilər.");
+        return normalized;
+    }
 
     private static string? NormalizeOptional(string? value, int maxLength)
     {
@@ -840,6 +1488,54 @@ public sealed class ChatService : IChatService
         return uri.ToString();
     }
 
+    private static string EscapeLikePattern(string value) =>
+        value
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("%", "\\%", StringComparison.Ordinal)
+            .Replace("_", "\\_", StringComparison.Ordinal)
+            .Replace("[", "\\[", StringComparison.Ordinal);
+
+    private static DateOnly GetBakuDate(DateTime utc) =>
+        DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(
+            DateTime.SpecifyKind(utc, DateTimeKind.Utc),
+            BakuTimeZone));
+
+    private static (DateTime StartUtc, DateTime EndUtc) GetUtcDayRange(DateOnly date)
+    {
+        var localStart = DateTime.SpecifyKind(
+            date.ToDateTime(TimeOnly.MinValue),
+            DateTimeKind.Unspecified);
+        var localEnd = localStart.AddDays(1);
+        return (
+            TimeZoneInfo.ConvertTimeToUtc(localStart, BakuTimeZone),
+            TimeZoneInfo.ConvertTimeToUtc(localEnd, BakuTimeZone));
+    }
+
+    private static TimeZoneInfo ResolveBakuTimeZone()
+    {
+        foreach (var id in new[] { "Asia/Baku", "Azerbaijan Standard Time" })
+        {
+            try
+            {
+                return TimeZoneInfo.FindSystemTimeZoneById(id);
+            }
+            catch (TimeZoneNotFoundException)
+            {
+                // Try the next platform-specific identifier.
+            }
+            catch (InvalidTimeZoneException)
+            {
+                // Try the next platform-specific identifier.
+            }
+        }
+
+        return TimeZoneInfo.CreateCustomTimeZone(
+            "WellPlayd-Baku",
+            TimeSpan.FromHours(4),
+            "Baku",
+            "Baku");
+    }
+
     private sealed class ConversationRow
     {
         public long Id { get; init; }
@@ -848,29 +1544,16 @@ public sealed class ChatService : IChatService
         public Guid InitiatedByUserId { get; init; }
         public ChatRequestStatus RequestStatus { get; init; }
         public DateTime UpdatedAtUtc { get; init; }
+        public int CurrentStreak { get; init; }
+        public int LongestStreak { get; init; }
+        public DateOnly? LastCompletedStreakDate { get; init; }
+        public bool IsArchived { get; init; }
         public Guid OtherUserId { get; init; }
         public string OtherUserName { get; init; } = string.Empty;
         public string? OtherUserImage { get; init; }
+        public DateTime? OtherUserLastSeenAtUtc { get; init; }
         public int UnreadCount { get; init; }
         public int MessageCount { get; init; }
-        public MessageRow? LastMessage { get; init; }
+        public long? LastMessageId { get; init; }
     }
-
-    private sealed record MessageRow(
-        long Id,
-        long ConversationId,
-        Guid SenderUserId,
-        ChatMessageKind Kind,
-        string? Text,
-        string? MediaStorageKey,
-        string? MediaContentType,
-        CatalogSource? GameSource,
-        long? GameId,
-        string? GameName,
-        string? GameCoverUrl,
-        DateTime SentAtUtc,
-        DateTime? DeliveredAtUtc,
-        DateTime? ReadAtUtc,
-        DateTime? DeletedForEveryoneAtUtc,
-        DateTime? PinnedAtUtc);
 }

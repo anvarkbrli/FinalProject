@@ -47,7 +47,7 @@ export async function getTrendingDiscussions(): Promise<
     PagedResultDTO<DiscussionListItemDTO>
   >("/discussions", {
     params: {
-      sortBy: "newest",
+      sortBy: "trending",
       pageNumber: 1,
       pageSize: 20,
     },

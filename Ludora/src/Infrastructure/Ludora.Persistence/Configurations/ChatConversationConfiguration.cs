@@ -16,6 +16,9 @@ public sealed class ChatConversationConfiguration
             .HasDefaultValue(ChatRequestStatus.Pending);
         builder.Property(x => x.CreatedAtUtc).IsRequired();
         builder.Property(x => x.UpdatedAtUtc).IsRequired();
+        builder.Property(x => x.CurrentStreak).IsRequired().HasDefaultValue(0);
+        builder.Property(x => x.LongestStreak).IsRequired().HasDefaultValue(0);
+        builder.Property(x => x.LastCompletedStreakDate).HasColumnType("date");
 
         builder.ToTable("ChatConversations", table =>
         {
@@ -25,6 +28,9 @@ public sealed class ChatConversationConfiguration
             table.HasCheckConstraint(
                 "CK_ChatConversations_RequestStatus",
                 "[RequestStatus] BETWEEN 0 AND 2");
+            table.HasCheckConstraint(
+                "CK_ChatConversations_Streaks",
+                "[CurrentStreak] >= 0 AND [LongestStreak] >= [CurrentStreak]");
         });
 
         builder.HasIndex(x => new { x.UserOneId, x.UserTwoId }).IsUnique();

@@ -12,9 +12,13 @@ public sealed class ChatConversation
     public DateTime CreatedAtUtc { get; set; }
     public DateTime UpdatedAtUtc { get; set; }
     public DateTime? RespondedAtUtc { get; set; }
+    public int CurrentStreak { get; set; }
+    public int LongestStreak { get; set; }
+    public DateOnly? LastCompletedStreakDate { get; set; }
 
     public AppUser UserOne { get; set; } = null!;
     public AppUser UserTwo { get; set; } = null!;
     public AppUser InitiatedByUser { get; set; } = null!;
     public ICollection<ChatMessage> Messages { get; set; } = [];
+    public ICollection<ChatConversationUserState> UserStates { get; set; } = [];
 }

@@ -1,5 +1,4 @@
 using System.Security.Claims;
-using Ludora.Application.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
@@ -8,24 +7,32 @@ namespace Ludora.API.Hubs;
 [Authorize]
 public sealed class NotificationHub : Hub
 {
-    private readonly IUserPresenceTracker _presenceTracker;
+    private readonly UserPresenceCoordinator _presenceCoordinator;
 
-    public NotificationHub(IUserPresenceTracker presenceTracker)
+    public NotificationHub(UserPresenceCoordinator presenceCoordinator)
     {
-        _presenceTracker = presenceTracker;
+        _presenceCoordinator = presenceCoordinator;
     }
 
     public override async Task OnConnectedAsync()
     {
         var userId = GetUserId();
-        _presenceTracker.Connect(userId, PresenceConnectionId());
+        await _presenceCoordinator.ConnectedAsync(
+            userId,
+            PresenceConnectionId(),
+            Context.ConnectionAborted);
         await base.OnConnectedAsync();
     }
 
     public override async Task OnDisconnectedAsync(Exception? exception)
     {
         if (TryGetUserId(out var userId))
-            _presenceTracker.Disconnect(userId, PresenceConnectionId());
+        {
+            await _presenceCoordinator.DisconnectedAsync(
+                userId,
+                GetSessionId(),
+                PresenceConnectionId());
+        }
 
         await base.OnDisconnectedAsync(exception);
     }
@@ -45,5 +52,11 @@ public sealed class NotificationHub : Hub
     {
         var value = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
         return Guid.TryParse(value, out userId);
+    }
+
+    private Guid? GetSessionId()
+    {
+        var value = Context.User?.FindFirstValue("session_id");
+        return Guid.TryParse(value, out var sessionId) ? sessionId : null;
     }
 }

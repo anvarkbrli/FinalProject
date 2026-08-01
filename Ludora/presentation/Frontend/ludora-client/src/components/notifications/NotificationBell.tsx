@@ -70,6 +70,8 @@ function renderNotificationIcon(type: NotificationType) {
     case "FollowingReviewCreated":
       return <Star size={18} />;
     case "FollowingPublicListCreated":
+    case "GameListCollaborationInvited":
+    case "GameListCollaborationAccepted":
       return <ListPlus size={18} />;
     case "FollowRequestReceived":
     case "UserFollowed":

@@ -14,5 +14,6 @@ namespace Ludora.Domain.Entities.User
         public ICollection<GameListItem> GameListItems { get; set; } = new List<GameListItem>();
         public ICollection<GameListLike> Likes { get; set; } = new List<GameListLike>();
         public ICollection<GameListComment> Comments { get; set; } = new List<GameListComment>();
+        public ICollection<GameListCollaborator> Collaborators { get; set; } = new List<GameListCollaborator>();
     }
 }

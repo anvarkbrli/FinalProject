@@ -20,6 +20,12 @@ namespace Ludora.Application.DTOs
 
         public bool IsOwner { get; set; }
 
+        public bool CanEditGames { get; set; }
+
+        public bool CanManageCollaborators { get; set; }
+
+        public GameListCollaborationStatus? CurrentUserCollaborationStatus { get; set; }
+
         public int GameCount { get; set; }
 
         public DateTime CreatedAt { get; set; }
@@ -31,6 +37,10 @@ namespace Ludora.Application.DTOs
         public int CommentCount { get; set; }
 
         public bool IsLikedByCurrentUser { get; set; }
+
+        public string? BackgroundCoverImageUrl { get; set; }
+
+        public List<GameListCollaboratorDTO> Collaborators { get; set; } = new();
 
         public List<GameListEntryDTO> Games { get; set; } = new();
     }

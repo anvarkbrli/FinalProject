@@ -1,23 +1,111 @@
-<?xml version="1.0" encoding="utf-8"?>
+<?xml version='1.0' encoding='utf-8'?>
 <root>
-  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
-  <resheader name="version"><value>2.0</value></resheader>
-  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms</value></resheader>
-  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms</value></resheader>
-  <data name="Errors.Unexpected" xml:space="preserve"><value>An unexpected server error occurred.</value></data>
-  <data name="Errors.DatabaseConflict" xml:space="preserve"><value>Duplicate or conflicting data already exists.</value></data>
-  <data name="Errors.BadRequest" xml:space="preserve"><value>The request data is invalid.</value></data>
-  <data name="Errors.Unauthorized" xml:space="preserve"><value>You must sign in to perform this action.</value></data>
-  <data name="Errors.Forbidden" xml:space="preserve"><value>You do not have permission to perform this action.</value></data>
-  <data name="Errors.NotFound" xml:space="preserve"><value>The requested resource was not found.</value></data>
-  <data name="Errors.Conflict" xml:space="preserve"><value>The operation conflicts with existing data.</value></data>
-  <data name="Errors.ExternalService" xml:space="preserve"><value>An external service is temporarily unavailable.</value></data>
-  <data name="Dil yalnız az və ya en ola bilər." xml:space="preserve"><value>Language must be either az or en.</value></data>
-  <data name="İstifadəçi tapılmadı." xml:space="preserve"><value>User not found.</value></data>
-  <data name="Oyun tapılmadı." xml:space="preserve"><value>Game not found.</value></data>
-  <data name="IGDB oyunu tapılmadı." xml:space="preserve"><value>IGDB game not found.</value></data>
-  <data name="Mövzu tapılmadı." xml:space="preserve"><value>Discussion not found.</value></data>
-  <data name="Bu sorğu bağlanıb." xml:space="preserve"><value>This poll is closed.</value></data>
-  <data name="Bu sorğu artıq bitib." xml:space="preserve"><value>This poll has already ended.</value></data>
-  <data name="Bu sorğuda verilmiş səsi dəyişmək mümkün deyil." xml:space="preserve"><value>Votes cannot be changed in this poll.</value></data>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms</value>
+  </resheader>
+  <data name="Errors.Unexpected" xml:space="preserve">
+    <value>An unexpected server error occurred.</value>
+  </data>
+  <data name="Errors.DatabaseConflict" xml:space="preserve">
+    <value>Duplicate or conflicting data already exists.</value>
+  </data>
+  <data name="Errors.BadRequest" xml:space="preserve">
+    <value>The request data is invalid.</value>
+  </data>
+  <data name="Errors.Unauthorized" xml:space="preserve">
+    <value>You must sign in to perform this action.</value>
+  </data>
+  <data name="Errors.Forbidden" xml:space="preserve">
+    <value>You do not have permission to perform this action.</value>
+  </data>
+  <data name="Errors.NotFound" xml:space="preserve">
+    <value>The requested resource was not found.</value>
+  </data>
+  <data name="Errors.Conflict" xml:space="preserve">
+    <value>The operation conflicts with existing data.</value>
+  </data>
+  <data name="Errors.ExternalService" xml:space="preserve">
+    <value>An external service is temporarily unavailable.</value>
+  </data>
+  <data name="Dil yalnız az və ya en ola bilər." xml:space="preserve">
+    <value>Language must be either az or en.</value>
+  </data>
+  <data name="İstifadəçi tapılmadı." xml:space="preserve">
+    <value>User not found.</value>
+  </data>
+  <data name="Oyun tapılmadı." xml:space="preserve">
+    <value>Game not found.</value>
+  </data>
+  <data name="IGDB oyunu tapılmadı." xml:space="preserve">
+    <value>IGDB game not found.</value>
+  </data>
+  <data name="Mövzu tapılmadı." xml:space="preserve">
+    <value>Discussion not found.</value>
+  </data>
+  <data name="Bu sorğu bağlanıb." xml:space="preserve">
+    <value>This poll is closed.</value>
+  </data>
+  <data name="Bu sorğu artıq bitib." xml:space="preserve">
+    <value>This poll has already ended.</value>
+  </data>
+  <data name="Bu sorğuda verilmiş səsi dəyişmək mümkün deyil." xml:space="preserve">
+    <value>Votes cannot be changed in this poll.</value>
+  </data>
+  <data name="Yalnız ranklanmış siyahılarda oyunların sırası dəyişdirilə bilər." xml:space="preserve">
+    <value>Only ranked lists can be reordered.</value>
+  </data>
+  <data name="Göndərilən sıralama siyahıdakı bütün oyunları əhatə etməlidir." xml:space="preserve">
+    <value>The submitted order must include every game in the list.</value>
+  </data>
+  <data name="Sıralamada eyni oyun bir neçə dəfə göndərilib." xml:space="preserve">
+    <value>The same game was submitted more than once in the order.</value>
+  </data>
+  <data name="Sıralamada siyahıya aid olmayan oyun var." xml:space="preserve">
+    <value>The submitted order contains a game that is not in this list.</value>
+  </data>
+  <data name="Əməkdaşın istifadəçi adını daxil edin." xml:space="preserve">
+    <value>Enter the collaborator username.</value>
+  </data>
+  <data name="Bu istifadəçi adı ilə hesab tapılmadı." xml:space="preserve">
+    <value>No account was found with that username.</value>
+  </data>
+  <data name="Siyahı sahibi əməkdaş kimi əlavə edilə bilməz." xml:space="preserve">
+    <value>The list owner cannot be added as a collaborator.</value>
+  </data>
+  <data name="Bu istifadəçini siyahıya əməkdaş kimi əlavə etmək mümkün deyil." xml:space="preserve">
+    <value>This user cannot be added as a collaborator.</value>
+  </data>
+  <data name="Bu istifadəçi artıq siyahının əməkdaşıdır." xml:space="preserve">
+    <value>This user is already a collaborator on the list.</value>
+  </data>
+  <data name="Bu istifadəçiyə artıq əməkdaşlıq dəvəti göndərilib." xml:space="preserve">
+    <value>A collaboration invitation has already been sent to this user.</value>
+  </data>
+  <data name="Əməkdaşlıq dəvəti tapılmadı." xml:space="preserve">
+    <value>The collaboration invitation was not found.</value>
+  </data>
+  <data name="Qəbul edilmiş əməkdaşlıqdan çıxmaq üçün siyahını tərk et əməliyyatından istifadə edin." xml:space="preserve">
+    <value>Use the leave list action to exit an accepted collaboration.</value>
+  </data>
+  <data name="Bu əməkdaşı siyahıdan çıxarmaq icazəniz yoxdur." xml:space="preserve">
+    <value>You do not have permission to remove this collaborator.</value>
+  </data>
+  <data name="Əməkdaş tapılmadı." xml:space="preserve">
+    <value>Collaborator not found.</value>
+  </data>
+  <data name="Bu oyun siyahısının oyunlarını dəyişmək icazəniz yoxdur." xml:space="preserve">
+    <value>You do not have permission to edit the games in this list.</value>
+  </data>
+  <data name="Siyahını klonlamaq üçün əməkdaşlıq dəvətini əvvəlcə qəbul edin." xml:space="preserve">
+    <value>Accept the collaboration invitation before cloning this list.</value>
+  </data>
 </root>

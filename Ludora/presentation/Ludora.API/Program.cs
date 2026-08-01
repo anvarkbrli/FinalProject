@@ -104,6 +104,7 @@ public class Program
         builder.Services.AddHostedService<NotificationOutboxWorker>();
         builder.Services.AddHostedService<EmailOutboxWorker>();
         builder.Services.AddSingleton<IUserPresenceTracker, UserPresenceTracker>();
+        builder.Services.AddScoped<UserPresenceCoordinator>();
         builder.Services.AddSingleton<IBadgeEvaluationQueue, BadgeEvaluationQueue>();
         builder.Services.AddSingleton<ISteamSyncQueue, SteamSyncQueue>();
         builder.Services.AddHostedService<BadgeEvaluationWorker>();

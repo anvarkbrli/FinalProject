@@ -107,6 +107,32 @@ public class UsersController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize]
+    [HttpGet("me/forum-interests")]
+    public async Task<IActionResult> GetForumInterests(
+        CancellationToken cancellationToken)
+    {
+        var result = await _userService.GetForumInterestsAsync(
+            GetCurrentUserId(),
+            cancellationToken);
+
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpPut("me/forum-interests")]
+    public async Task<IActionResult> UpdateForumInterests(
+        [FromBody] UpdateForumInterestProfileDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var result = await _userService.UpdateForumInterestsAsync(
+            GetCurrentUserId(),
+            dto,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
     [HttpGet("{userName}")]
     public async Task<IActionResult> GetByUserName(string userName)
     {
