@@ -1,4 +1,5 @@
 using Ludora.Domain.Entities.User;
+using Ludora.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -8,7 +9,12 @@ public sealed class AnnouncementConfiguration : IEntityTypeConfiguration<Announc
 {
     public void Configure(EntityTypeBuilder<Announcement> builder)
     {
-        builder.ToTable("Announcements");
+        builder.ToTable("Announcements", tableBuilder =>
+        {
+            tableBuilder.HasCheckConstraint(
+                "CK_Announcements_Audience",
+                "[Audience] BETWEEN 0 AND 7");
+        });
 
         builder.HasKey(x => x.Id);
 
@@ -20,12 +26,17 @@ public sealed class AnnouncementConfiguration : IEntityTypeConfiguration<Announc
             .IsRequired()
             .HasMaxLength(4000);
 
+        builder.Property(x => x.Audience)
+            .IsRequired()
+            .HasDefaultValue(AnnouncementAudience.Everyone);
+
         builder.Property(x => x.IsPublished)
             .HasDefaultValue(false);
 
         builder.HasIndex(x => new
         {
             x.IsPublished,
+            x.Audience,
             x.CreatedAt
         });
 

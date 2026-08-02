@@ -2,9 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import {
   ArrowRight,
   Gamepad2,
+  FileText,
   History,
   ListChecks,
-  MessageSquareText,
   Sparkles,
   Star,
 } from "lucide-react";
@@ -277,11 +277,11 @@ export function UserWelcomePanel() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-xs font-bold uppercase tracking-[0.18em] text-fuchsia-300">
-                    Puanların
+                    Reytinqlərin
                   </p>
 
                   <p className="mt-1 text-sm text-zinc-500">
-                    Verdiyin oyun puanlarının paylanması
+                    Verdiyin oyun reytinqlərinin paylanması
                   </p>
                 </div>
 
@@ -398,7 +398,7 @@ export function UserWelcomePanel() {
                         : dashboardData.recentGame.isFavorite
                           ? "Favorilərdə"
                           : dashboardData.recentGame.rating !== null
-                            ? `${formatRating(dashboardData.recentGame.rating)}★ puan`
+                            ? `${formatRating(dashboardData.recentGame.rating)}★ reytinq`
                             : "Oyun fəaliyyəti"}
                   </p>
                 </Link>
@@ -414,7 +414,7 @@ export function UserWelcomePanel() {
                   </p>
 
                   <p className="mt-1 text-xs leading-5 text-zinc-600">
-                    Status, wishlist və ya puan əlavə etdikdə burada görünəcək.
+                    Status, wishlist və ya reytinq əlavə etdikdə burada görünəcək.
                   </p>
                 </div>
               )}
@@ -424,8 +424,8 @@ export function UserWelcomePanel() {
                   to={`/users/${user.userName}?tab=posts`}
                   className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] px-2 py-3 text-[11px] text-zinc-500 transition hover:border-violet-400/20 hover:text-violet-200"
                 >
-                  <MessageSquareText size={17} />
-                  Postlar
+                  <FileText size={17} />
+                  {language === "en" ? "Posts" : "Postlar"}
                 </Link>
 
                 <Link
@@ -441,7 +441,7 @@ export function UserWelcomePanel() {
                   className="flex flex-col items-center gap-2 rounded-xl border border-white/[0.06] bg-white/[0.025] px-2 py-3 text-[11px] text-zinc-500 transition hover:border-violet-400/20 hover:text-violet-200"
                 >
                   <History size={17} />
-                  Axın
+                  {language === "en" ? "Activity" : "Axın"}
                 </Link>
               </div>
             </div>

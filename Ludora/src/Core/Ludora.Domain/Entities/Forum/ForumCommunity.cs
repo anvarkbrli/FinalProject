@@ -25,4 +25,7 @@ public class ForumCommunity : BaseEntity
     public ICollection<ForumCommunityMember> Members { get; set; } = [];
     public ICollection<ForumCommunityFollow> Followers { get; set; } = [];
     public ICollection<Discussion> Discussions { get; set; } = [];
+    public ICollection<ForumCommunityRule> Rules { get; set; } = [];
+    public ICollection<ForumCommunityFlair> Flairs { get; set; } = [];
+    public ICollection<ForumCommunityEvent> Events { get; set; } = [];
 }

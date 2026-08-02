@@ -21,6 +21,7 @@ public static class UserMappings
             SocialLinks = SocialLinkHelper.Deserialize(user.SocialLinksJson),
             IsPrivate = user.IsPrivate,
             PreferredLanguage = user.PreferredLanguage,
+            PreferredTheme = user.PreferredTheme,
             CreatedAt = user.CreatedAt
         };
     }

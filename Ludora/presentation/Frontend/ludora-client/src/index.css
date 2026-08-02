@@ -836,3 +836,136 @@ select optgroup {
   .chat-streak-fire,
   .chat-typing-dot { animation: none !important; }
 }
+
+
+/* Profile hero: theme-aware light mode treatment. */
+[data-theme="light"] .profile-hero {
+  --wp-utility-white-text: var(--wp-text-strong);
+  --color-zinc-100: #1d2736;
+  --color-zinc-200: #2d3748;
+  --color-zinc-300: #3f4a5c;
+  --color-zinc-400: #536075;
+  --color-zinc-500: #667085;
+  --color-zinc-600: #7f8a9b;
+  --color-zinc-700: #cbd3df;
+  background-color: #f7f8fc !important;
+  background-image:
+    linear-gradient(118deg, rgba(109, 74, 255, 0.09), transparent 39%),
+    linear-gradient(245deg, rgba(20, 115, 230, 0.065), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(244, 246, 252, 0.96)) !important;
+  border-color: var(--wp-border) !important;
+  box-shadow:
+    inset 0 -1px 0 var(--wp-border),
+    0 18px 52px rgba(46, 55, 86, 0.08);
+}
+
+[data-theme="light"] .profile-hero-glow {
+  background-image:
+    radial-gradient(circle at 14% 18%, rgba(109, 74, 255, 0.13), transparent 31%),
+    radial-gradient(circle at 88% 24%, rgba(20, 115, 230, 0.08), transparent 28%) !important;
+}
+
+[data-theme="light"] .profile-hero-avatar {
+  border-color: rgba(109, 74, 255, 0.18) !important;
+  box-shadow:
+    0 16px 36px rgba(52, 45, 92, 0.16),
+    0 0 0 5px rgba(255, 255, 255, 0.7) !important;
+}
+
+[data-theme="light"] .profile-hero-title {
+  color: var(--wp-text-strong) !important;
+}
+
+[data-theme="light"] .profile-hero-bio {
+  color: #536075 !important;
+}
+
+[data-theme="light"] .profile-hero-meta {
+  color: #667085 !important;
+}
+
+[data-theme="light"] .profile-hero-social-link,
+[data-theme="light"] .profile-hero-secondary-action,
+[data-theme="light"] .profile-hero-menu-trigger {
+  border-color: rgba(24, 32, 51, 0.11) !important;
+  background-color: rgba(255, 255, 255, 0.72) !important;
+  color: #344054 !important;
+  box-shadow: 0 8px 24px rgba(35, 45, 72, 0.06);
+}
+
+[data-theme="light"] .profile-hero-social-link:hover,
+[data-theme="light"] .profile-hero-secondary-action:hover,
+[data-theme="light"] .profile-hero-menu-trigger:hover {
+  border-color: rgba(109, 74, 255, 0.28) !important;
+  background-color: rgba(109, 74, 255, 0.09) !important;
+  color: #4a2bc2 !important;
+}
+
+[data-theme="light"] .profile-hero-primary-action {
+  color: #ffffff !important;
+  box-shadow: 0 10px 24px rgba(89, 54, 232, 0.22);
+}
+
+[data-theme="light"] .profile-hero-action-menu {
+  border-color: rgba(24, 32, 51, 0.12) !important;
+  background-color: rgba(250, 251, 254, 0.98) !important;
+  box-shadow: 0 22px 56px rgba(35, 45, 72, 0.2) !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+[data-theme="light"] .profile-hero-menu-item {
+  color: #344054 !important;
+}
+
+[data-theme="light"] .profile-hero-menu-item:hover {
+  background-color: rgba(109, 74, 255, 0.08) !important;
+  color: #4a2bc2 !important;
+}
+
+[data-theme="light"] .profile-hero-menu-item-danger {
+  color: #b42318 !important;
+}
+
+[data-theme="light"] .profile-hero-menu-item-danger:hover {
+  background-color: rgba(240, 68, 56, 0.08) !important;
+  color: #912018 !important;
+}
+
+[data-theme="light"] .profile-hero-menu-item:disabled {
+  color: #98a2b3 !important;
+  opacity: 0.7;
+}
+
+[data-theme="light"] .profile-hero-stats {
+  border-color: rgba(24, 32, 51, 0.09) !important;
+}
+
+[data-theme="light"] .profile-hero-stat-card {
+  border-color: rgba(24, 32, 51, 0.09) !important;
+  background-color: rgba(255, 255, 255, 0.62) !important;
+  box-shadow: 0 8px 26px rgba(35, 45, 72, 0.045);
+}
+
+[data-theme="light"] .profile-hero-stat-card:hover {
+  border-color: rgba(109, 74, 255, 0.24) !important;
+  background-color: rgba(109, 74, 255, 0.065) !important;
+  box-shadow: 0 12px 30px rgba(77, 60, 145, 0.09);
+}
+
+[data-theme="light"] .profile-hero-stat-icon {
+  background-color: rgba(109, 74, 255, 0.11) !important;
+  color: #6545e6 !important;
+}
+
+[data-theme="light"] .profile-hero-stat-value {
+  color: var(--wp-text-strong) !important;
+}
+
+[data-theme="light"] .profile-hero-stat-label {
+  color: #667085 !important;
+}
+
+[data-theme="light"] .profile-hero-stat-card:hover .profile-hero-stat-label {
+  color: #344054 !important;
+}

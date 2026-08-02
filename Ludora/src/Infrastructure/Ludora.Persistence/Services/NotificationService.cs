@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Notification;
 using Ludora.Application.Exceptions;
@@ -439,6 +440,7 @@ FROM @InsertedNotifications;", cancellationToken);
         int announcementId,
         string title,
         string content,
+        AnnouncementAudience audience,
         CancellationToken cancellationToken = default)
     {
         ValidateUserId(adminUserId);
@@ -446,78 +448,92 @@ FROM @InsertedNotifications;", cancellationToken);
         if (announcementId <= 0)
             throw new BadRequestException("Elan ID-si düzgün deyil.");
 
+        if (!Enum.IsDefined(audience))
+            throw new BadRequestException("Elan auditoriyası düzgün deyil.");
+
         var normalizedTitle = NormalizeRequired(title, 200, "Bildiriş başlığı");
         var normalizedMessage = NormalizeRequired(content, 1000, "Bildiriş mətni");
-        var entityId = announcementId.ToString();
         var now = DateTime.UtcNow;
-        var type = (int)NotificationType.AnnouncementPublished;
-        var priority = (int)NotificationPriority.Critical;
-        var entityType = (int)NotificationEntityType.Announcement;
 
-        await _context.Database.ExecuteSqlInterpolatedAsync($@"
-DECLARE @InsertedNotifications TABLE
-(
-    [Id] bigint NOT NULL,
-    [CreatedAtUtc] datetime2 NOT NULL
-);
+        var recipientIds = await GetAnnouncementRecipientIdsAsync(
+            audience,
+            now,
+            cancellationToken);
 
-INSERT INTO [Notifications]
-(
-    [RecipientUserId],
-    [ActorUserId],
-    [Type],
-    [Priority],
-    [EntityType],
-    [EntityId],
-    [Title],
-    [Message],
-    [ActionUrl],
-    [DataJson],
-    [IsRead],
-    [ReadAtUtc],
-    [CreatedAtUtc]
-)
-OUTPUT INSERTED.[Id], INSERTED.[CreatedAtUtc]
-INTO @InsertedNotifications ([Id], [CreatedAtUtc])
-SELECT
-    [Id],
-    CASE WHEN [Id] = {adminUserId} THEN NULL ELSE {adminUserId} END,
-    {type},
-    {priority},
-    {entityType},
-    {entityId},
-    {normalizedTitle},
-    {normalizedMessage},
-    '/',
-    NULL,
-    CAST(0 AS bit),
-    NULL,
-    {now}
-FROM [AspNetUsers];
+        if (recipientIds.Count == 0)
+            return;
 
-INSERT INTO [NotificationOutboxMessages]
-(
-    [NotificationId],
-    [EventName],
-    [CreatedAtUtc],
-    [ProcessedAtUtc],
-    [AttemptCount],
-    [NextAttemptAtUtc],
-    [LastError],
-    [LockToken],
-    [LockedUntilUtc]
-)
-SELECT
-    [Id],
-    'NotificationCreated',
-    [CreatedAtUtc],
-    NULL,
-    0,
-    [CreatedAtUtc],
-    NULL,
-    NULL,
-    NULL
-FROM @InsertedNotifications;", cancellationToken);
+        var entityId = announcementId.ToString();
+        var notifications = recipientIds.Select(recipientUserId =>
+        {
+            var notification = new Notification
+            {
+                RecipientUserId = recipientUserId,
+                ActorUserId = recipientUserId == adminUserId ? null : adminUserId,
+                Type = NotificationType.AnnouncementPublished,
+                Priority = NotificationPriority.Critical,
+                EntityType = NotificationEntityType.Announcement,
+                EntityId = entityId,
+                Title = normalizedTitle,
+                Message = normalizedMessage,
+                ActionUrl = "/",
+                IsRead = false,
+                CreatedAtUtc = now
+            };
+
+            notification.OutboxMessage = new NotificationOutboxMessage
+            {
+                Notification = notification,
+                EventName = "NotificationCreated",
+                CreatedAtUtc = now,
+                NextAttemptAtUtc = now
+            };
+
+            return notification;
+        }).ToArray();
+
+        await _context.Notifications.AddRangeAsync(notifications, cancellationToken);
+        await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private async Task<List<Guid>> GetAnnouncementRecipientIdsAsync(
+        AnnouncementAudience audience,
+        DateTime now,
+        CancellationToken cancellationToken)
+    {
+        var users = _context.Users.AsNoTracking();
+
+        IQueryable<Guid> query = audience switch
+        {
+            AnnouncementAudience.Everyone => users.Select(x => x.Id),
+            AnnouncementAudience.AzerbaijaniUsers => users
+                .Where(x => x.PreferredLanguage != "en")
+                .Select(x => x.Id),
+            AnnouncementAudience.EnglishUsers => users
+                .Where(x => x.PreferredLanguage == "en")
+                .Select(x => x.Id),
+            AnnouncementAudience.SteamLinkedUsers => users
+                .Where(x => x.SteamId != null && x.SteamId != string.Empty)
+                .Select(x => x.Id),
+            AnnouncementAudience.NewUsers => users
+                .Where(x => x.CreatedAt >= now.AddDays(-30))
+                .Select(x => x.Id),
+            AnnouncementAudience.RegularUsers => GetUsersInRoleQuery(RoleNames.User),
+            AnnouncementAudience.Moderators => GetUsersInRoleQuery(RoleNames.Moderator),
+            AnnouncementAudience.Administrators => GetUsersInRoleQuery(RoleNames.Admin),
+            _ => users.Where(_ => false).Select(x => x.Id)
+        };
+
+        return await query.Distinct().ToListAsync(cancellationToken);
+    }
+
+    private IQueryable<Guid> GetUsersInRoleQuery(string roleName)
+    {
+        return from userRole in _context.UserRoles.AsNoTracking()
+               join role in _context.Roles.AsNoTracking()
+                   on userRole.RoleId equals role.Id
+               where role.Name == roleName
+               select userRole.UserId;
     }
 
     private async Task<bool> ShouldDeliverAsync(

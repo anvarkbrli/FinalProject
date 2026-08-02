@@ -29,7 +29,9 @@
     "collaboratorCount": "{count} əməkdaş",
     "likeCount": "{count} bəyəni",
     "commentCount": "{count} şərh",
-    "addedOn": "{date} tarixində əlavə edilib"
+    "addedOn": "{date} tarixində əlavə edilib",
+    "listOwner": "Siyahı sahibi",
+    "lastUpdated": "Son yenilənmə"
   },
   "notices": {
     "updated": "Siyahı yeniləndi.",
@@ -111,7 +113,9 @@
     "declineConfirm": "Bu əməkdaşlıq dəvətini rədd etmək istədiyinə əminsən?",
     "acceptedNotice": "Əməkdaşlıq dəvəti qəbul edildi.",
     "acceptError": "Əməkdaşlıq dəvətini qəbul etmək mümkün olmadı.",
-    "declineError": "Əməkdaşlıq dəvətini rədd etmək mümkün olmadı."
+    "declineError": "Əməkdaşlıq dəvətini rədd etmək mümkün olmadı.",
+    "userNotFound": "İstifadəçi tapılmadı.",
+    "searchError": "İstifadəçiləri axtarmaq mümkün olmadı."
   },
   "profile": {
     "collaborators": "{count} əməkdaş",
@@ -122,5 +126,33 @@
     "sharedWithMeDescription": "Dəvət aldığın və birlikdə hazırladığın oyun siyahıları.",
     "invitationPending": "Dəvət gözləyir",
     "collaborating": "Əməkdaş"
+  },
+  "progress": {
+    "played": "Oynadığın oyunlar",
+    "count": "{played} / {total} oyun",
+    "percentage": "Siyahının {percentage}%-i oynanılıb",
+    "signIn": "Hesabına daxil ol",
+    "signInDescription": "və bu siyahının nə qədərini oynadığını gör.",
+    "showDetails": "Statistikanı göstər",
+    "hideDetails": "Statistikanı gizlət",
+    "averageRating": "Bu siyahıdakı orta qiymətin",
+    "status": {
+      "playing": "Oynayır",
+      "played": "Oynayıb",
+      "planToPlay": "Oynayacaq",
+      "dropped": "Yarım qoyub"
+    }
+  },
+  "pagination": {
+    "label": "Siyahı oyunlarının səhifələri",
+    "previous": "Əvvəlki səhifə",
+    "next": "Növbəti səhifə",
+    "page": "Səhifə {current} / {total}"
+  },
+  "display": {
+    "label": "Görünüş",
+    "grid": "Kartlar",
+    "detail": "Detallı",
+    "fadePlayed": "Oynadığım oyunları solğun göstər"
   }
 }

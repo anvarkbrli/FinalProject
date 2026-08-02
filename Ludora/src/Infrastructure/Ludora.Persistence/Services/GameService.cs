@@ -81,16 +81,6 @@ public sealed class GameService : IGameService
         public int PlayedCount { get; init; }
     }
 
-    private sealed record CompanyFilterMatchContext
-    {
-        public required CatalogSource Source { get; init; }
-        public required long Id { get; init; }
-        public string? FamilyPrefix { get; init; }
-
-        public bool RequiresFamilyMatch =>
-            !string.IsNullOrWhiteSpace(FamilyPrefix);
-    }
-
     private readonly AppDbContext _context;
     private readonly IIgdbClient _igdbClient;
 
@@ -110,21 +100,6 @@ public sealed class GameService : IGameService
         var pageNumber = filter.PageNumber;
         var pageSize = filter.PageSize;
         var skip = checked((pageNumber - 1) * pageSize);
-
-        var companyMatchContext =
-            await ResolveCompanyFilterMatchContextAsync(
-                filter,
-                cancellationToken);
-
-        if (
-            companyMatchContext?.RequiresFamilyMatch == true &&
-            HasAdditionalNarrowingFilter(filter))
-        {
-            return await GetCompanyFamilyFilteredGamesAsync(
-                filter,
-                companyMatchContext,
-                cancellationToken);
-        }
 
         if (
             IsCommunitySort(filter.SortBy) &&
@@ -283,6 +258,7 @@ public sealed class GameService : IGameService
                     igdbGames = await GetIgdbGamesUpToAsync(
                         igdbFilter,
                         fetchCount,
+                        igdbCount,
                         hiddenIgdbGameIds,
                         cancellationToken);
                 }
@@ -298,8 +274,16 @@ public sealed class GameService : IGameService
             }
         }
 
+        var uniqueDetails = details
+            .DistinctBy(game => new
+            {
+                game.Source,
+                game.Id
+            })
+            .ToList();
+
         var itemsForPage = SortGames(
-                details,
+                uniqueDetails,
                 filter.SortBy,
                 filter.SearchName)
             .Skip(skip)
@@ -314,169 +298,6 @@ public sealed class GameService : IGameService
             pageNumber,
             pageSize,
             totalCount);
-    }
-
-    private static bool HasAdditionalNarrowingFilter(
-        GameFilterDTO filter)
-    {
-        return
-            !string.IsNullOrWhiteSpace(filter.SearchName) ||
-            filter.GenreId.HasValue ||
-            filter.PlatformId.HasValue ||
-            filter.ReleaseYear.HasValue ||
-            filter.ReleasedOnly;
-    }
-
-    private async Task<PagedResultDTO<GameListItemDTO>>
-        GetCompanyFamilyFilteredGamesAsync(
-            GameFilterDTO filter,
-            CompanyFilterMatchContext companyContext,
-            CancellationToken cancellationToken)
-    {
-        var candidateFilter = filter with
-        {
-            CompanySource = null,
-            CompanyId = null,
-            PageNumber = 1,
-            PageSize = MaxPageSize
-        };
-
-        var matchedGames = new List<GameDetailDTO>();
-        var seenReferences = new HashSet<(CatalogSource Source, long Id)>();
-        var candidatePageNumber = 1;
-        var scannedCount = 0;
-        var candidateTotalCount = 0;
-
-        do
-        {
-            var candidatePage = await GetFilteredGamesAsync(
-                candidateFilter with
-                {
-                    PageNumber = candidatePageNumber
-                },
-                cancellationToken);
-
-            candidateTotalCount = candidatePage.TotalCount;
-
-            if (candidatePage.Items.Count == 0)
-            {
-                break;
-            }
-
-            var references = candidatePage.Items
-                .Select(item => new CatalogReferenceDTO
-                {
-                    Source = item.Source,
-                    Id = item.Id
-                })
-                .ToList();
-
-            var gameMap = await GetByReferencesAsync(
-                references,
-                cancellationToken);
-
-            foreach (var item in candidatePage.Items)
-            {
-                var key = (item.Source, item.Id);
-
-                if (
-                    !seenReferences.Add(key) ||
-                    !gameMap.TryGetValue(key, out var game) ||
-                    !MatchesCompanyFilter(game, companyContext))
-                {
-                    continue;
-                }
-
-                matchedGames.Add(game);
-            }
-
-            scannedCount += candidatePage.Items.Count;
-            candidatePageNumber++;
-        }
-        while (
-            scannedCount < candidateTotalCount &&
-            scannedCount < MaxCombinedResultWindow);
-
-        var skip = checked(
-            (filter.PageNumber - 1) * filter.PageSize);
-
-        var items = matchedGames
-            .Skip(skip)
-            .Take(filter.PageSize)
-            .Select(ToListItem)
-            .ToList();
-
-        return CreatePagedResult(
-            items,
-            filter.PageNumber,
-            filter.PageSize,
-            matchedGames.Count);
-    }
-
-    private async Task<CompanyFilterMatchContext?>
-        ResolveCompanyFilterMatchContextAsync(
-            GameFilterDTO filter,
-            CancellationToken cancellationToken)
-    {
-        if (
-            !filter.CompanySource.HasValue ||
-            !filter.CompanyId.HasValue)
-        {
-            return null;
-        }
-
-        var reference = new CatalogReferenceDTO
-        {
-            Source = filter.CompanySource.Value,
-            Id = filter.CompanyId.Value
-        };
-
-        var companyMap = await ResolveCompanyLookupsAsync(
-            [reference],
-            cancellationToken,
-            allowIgdbFallback: true);
-
-        if (!companyMap.TryGetValue(
-                (reference.Source, reference.Id),
-                out var company))
-        {
-            return null;
-        }
-
-        var normalizedName = NormalizeSearchText(company.Name);
-
-        return new CompanyFilterMatchContext
-        {
-            Source = reference.Source,
-            Id = reference.Id,
-            FamilyPrefix = normalizedName switch
-            {
-                "rockstargames" => "rockstar",
-                _ => null
-            }
-        };
-    }
-
-    private static bool MatchesCompanyFilter(
-        GameDetailDTO game,
-        CompanyFilterMatchContext context)
-    {
-        if (game.Companies.Any(company =>
-                company.Source == context.Source &&
-                company.Id == context.Id))
-        {
-            return true;
-        }
-
-        if (!context.RequiresFamilyMatch)
-        {
-            return false;
-        }
-
-        return game.Companies.Any(company =>
-            NormalizeSearchText(company.Name).StartsWith(
-                context.FamilyPrefix!,
-                StringComparison.Ordinal));
     }
 
     private static bool IsCommunitySort(string? sortBy)
@@ -930,21 +751,28 @@ public sealed class GameService : IGameService
     private async Task<IReadOnlyList<IgdbGameModel>> GetIgdbGamesUpToAsync(
         GameFilterDTO filter,
         int requestedCount,
+        int totalCount,
         IReadOnlyCollection<long> excludedGameIds,
         CancellationToken cancellationToken)
     {
-        if (requestedCount <= 0)
+        if (requestedCount <= 0 || totalCount <= 0)
             return Array.Empty<IgdbGameModel>();
 
         const int maximumBatchSize = 500;
-        var games = new List<IgdbGameModel>(requestedCount);
+        var targetCount = Math.Min(requestedCount, totalCount);
+        var games = new List<IgdbGameModel>(targetCount);
+        var seenGameIds = new HashSet<long>();
         var offset = 0;
 
-        while (offset < requestedCount)
+        while (offset < totalCount && games.Count < targetCount)
         {
+            var remainingSourceCount = totalCount - offset;
+            var remainingUniqueCount = targetCount - games.Count;
             var limit = Math.Min(
                 maximumBatchSize,
-                requestedCount - offset);
+                Math.Min(
+                    remainingSourceCount,
+                    Math.Max(remainingUniqueCount, filter.PageSize)));
 
             var batch = await _igdbClient.GetGamesSliceAsync(
                 filter,
@@ -953,11 +781,25 @@ public sealed class GameService : IGameService
                 excludedGameIds,
                 cancellationToken);
 
-            games.AddRange(batch);
-
-            if (batch.Count < limit)
+            if (batch.Count == 0)
                 break;
 
+            foreach (var game in batch)
+            {
+                if (seenGameIds.Add(game.Id))
+                {
+                    games.Add(game);
+                }
+
+                if (games.Count == targetCount)
+                {
+                    break;
+                }
+            }
+
+            // Offset must advance by the requested source window, not by the
+            // number of mapped items. Otherwise filtered/invalid IGDB rows can
+            // cause the next request to overlap the previous one.
             offset += limit;
         }
 

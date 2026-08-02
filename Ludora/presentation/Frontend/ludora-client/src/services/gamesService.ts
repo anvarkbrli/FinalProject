@@ -1,5 +1,6 @@
 import { api } from "../lib/api";
 import { deduplicateGames } from "../lib/deduplicateGames";
+import type { CatalogSource } from "../types/home";
 import type {
   CatalogEntityKind,
   CatalogFilterItemDTO,
@@ -169,4 +170,11 @@ export async function getCatalogEntityById(
     );
 
   return response.data;
+}
+
+export async function deleteGame(
+  source: CatalogSource,
+  gameId: number,
+): Promise<void> {
+  await api.delete(`/games/${source}/${gameId}`);
 }

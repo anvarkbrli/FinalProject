@@ -92,3 +92,9 @@ export async function getHomeAnnouncements(
 
   return response.data;
 }
+
+export async function markAnnouncementViewed(
+  announcementId: number,
+): Promise<void> {
+  await api.post(`/announcements/${announcementId}/view`);
+}

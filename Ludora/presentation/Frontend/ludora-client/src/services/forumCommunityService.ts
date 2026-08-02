@@ -196,3 +196,133 @@ export async function inviteToCommunity(
 export async function acceptCommunityInvite(id: number): Promise<void> {
   await api.put(`/forum-communities/${id}/invitations/accept`);
 }
+
+export async function getCommunityRules(
+  communityId: number,
+  signal?: AbortSignal,
+) {
+  const response = await api.get<import("../types/community").ForumCommunityRuleDTO[]>(
+    `/forum-communities/${communityId}/rules`,
+    { signal },
+  );
+  return response.data;
+}
+
+export async function replaceCommunityRules(
+  communityId: number,
+  rules: import("../types/community").ForumCommunityRuleInput[],
+) {
+  const response = await api.put<import("../types/community").ForumCommunityRuleDTO[]>(
+    `/forum-communities/${communityId}/rules`,
+    { rules },
+  );
+  return response.data;
+}
+
+export async function getCommunityModerators(
+  communityId: number,
+  signal?: AbortSignal,
+) {
+  const response = await api.get<import("../types/community").ForumCommunityMemberSearchDTO[]>(
+    `/forum-communities/${communityId}/moderators`,
+    { signal },
+  );
+  return response.data;
+}
+
+export async function getCommunityFlairs(
+  communityId: number,
+  signal?: AbortSignal,
+) {
+  const response = await api.get<import("../types/community").ForumCommunityFlairDTO[]>(
+    `/forum-communities/${communityId}/flairs`,
+    { signal },
+  );
+  return response.data;
+}
+
+export async function replaceCommunityFlairs(
+  communityId: number,
+  flairs: import("../types/community").ForumCommunityFlairInput[],
+) {
+  const response = await api.put<import("../types/community").ForumCommunityFlairDTO[]>(
+    `/forum-communities/${communityId}/flairs`,
+    { flairs },
+  );
+  return response.data;
+}
+
+export async function setMyCommunityFlair(
+  communityId: number,
+  flairId: number | null,
+): Promise<void> {
+  await api.put(`/forum-communities/${communityId}/my-flair`, { flairId });
+}
+
+export async function searchCommunityMembers(
+  communityId: number,
+  query: string,
+  pageNumber: number,
+  pageSize: number,
+  signal?: AbortSignal,
+) {
+  const response = await api.get<import("../types/community").CommunityPagedResult<import("../types/community").ForumCommunityMemberSearchDTO>>(
+    `/forum-communities/${communityId}/member-search`,
+    { params: { query, pageNumber, pageSize }, signal },
+  );
+  return response.data;
+}
+
+export async function getCommunityEvents(
+  communityId: number,
+  past: boolean,
+  pageNumber = 1,
+  pageSize = 12,
+  signal?: AbortSignal,
+) {
+  const response = await api.get<import("../types/community").CommunityPagedResult<import("../types/community").ForumCommunityEventDTO>>(
+    `/forum-communities/${communityId}/events`,
+    { params: { past, pageNumber, pageSize }, signal },
+  );
+  return response.data;
+}
+
+export async function createCommunityEvent(
+  communityId: number,
+  input: import("../types/community").ForumCommunityEventInput,
+) {
+  const response = await api.post<import("../types/community").ForumCommunityEventDTO>(
+    `/forum-communities/${communityId}/events`,
+    input,
+  );
+  return response.data;
+}
+
+export async function updateCommunityEvent(
+  communityId: number,
+  eventId: number,
+  input: import("../types/community").ForumCommunityEventInput,
+) {
+  const response = await api.put<import("../types/community").ForumCommunityEventDTO>(
+    `/forum-communities/${communityId}/events/${eventId}`,
+    input,
+  );
+  return response.data;
+}
+
+export async function cancelCommunityEvent(
+  communityId: number,
+  eventId: number,
+): Promise<void> {
+  await api.delete(`/forum-communities/${communityId}/events/${eventId}`);
+}
+
+export async function setCommunityEventParticipation(
+  communityId: number,
+  eventId: number,
+  joined: boolean,
+): Promise<void> {
+  const url = `/forum-communities/${communityId}/events/${eventId}/participation`;
+  if (joined) await api.put(url);
+  else await api.delete(url);
+}

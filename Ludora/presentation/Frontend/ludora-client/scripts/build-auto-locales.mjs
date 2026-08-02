@@ -87,7 +87,7 @@ const knownSingleWords = new Set([
   "Mobil naviqasiya",
   "Yeni post",
   "25 oyunu statusla qeyd et.",
-  "Puan qrafiki",
+  "Reytinq qrafiki",
   "Steam kataloqu",
   "Oyunu log et",
   "Spoiler yoxdur",

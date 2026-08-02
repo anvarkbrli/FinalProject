@@ -6,12 +6,10 @@ import {
 import {
   ChevronLeft,
   ChevronRight,
-  Clock3,
   Eye,
   Heart,
   LoaderCircle,
   MessageCircle,
-  Monitor,
   Star,
 } from "lucide-react";
 import { useState } from "react";
@@ -54,11 +52,11 @@ const sortOptions: Array<{
   },
   {
     value: "HighestRated",
-    label: "Yüksək puan",
+    label: "Yüksək reytinq",
   },
   {
     value: "LowestRated",
-    label: "Aşağı puan",
+    label: "Aşağı reytinq",
   },
 ];
 
@@ -215,21 +213,21 @@ export function GameReviewsSection({
   const totalPages = result?.totalPages ?? 0;
 
   return (
-    <section id="reviews" className="scroll-mt-24 border-t border-white/[0.07] bg-[#08090d]">
+    <section id="reviews" className="scroll-mt-24 border-t border-[color:var(--wp-border)] bg-transparent">
       <div className="mx-auto max-w-7xl px-5 py-14 lg:px-8 lg:py-18">
-        <div className="flex flex-col gap-5 border-b border-white/[0.09] pb-6 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-5 border-b border-[color:var(--wp-border)] pb-6 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="flex items-center gap-2">
               <MessageCircle
                 size={21}
                 className="text-violet-300"
               />
-              <h2 className="text-2xl font-black tracking-tight text-white">
+              <h2 className="text-2xl font-black tracking-tight text-[var(--wp-text-strong)]">
                 İstifadəçi rəyləri
               </h2>
             </div>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">
-              Oyunu oynayan istifadəçilərin puanları, platformaları, oyun müddətləri və fikirləri.
+            <p className="mt-2 text-sm leading-6 text-[color:var(--wp-text-muted)]">
+              Oyunu oynayan istifadəçilərin reytinqləri, platformaları, oyun müddətləri və fikirləri.
             </p>
           </div>
 
@@ -241,7 +239,7 @@ export function GameReviewsSection({
               );
               setPage(1);
             }}
-            className="h-11 rounded-xl border border-white/[0.09] bg-[#15161c] px-4 text-sm font-semibold text-zinc-300 outline-none transition focus:border-violet-400/40"
+            className="h-11 rounded-xl border border-[color:var(--wp-border)] bg-[color:var(--wp-surface-strong)] px-4 text-sm font-semibold text-[var(--wp-text)] outline-none transition focus:border-violet-400/40"
           >
             {sortOptions.map((option) => (
               <option
@@ -255,7 +253,7 @@ export function GameReviewsSection({
         </div>
 
         <div className="mt-7 flex items-center justify-between gap-4">
-          <p className="text-sm font-semibold text-zinc-500">
+          <p className="text-sm font-semibold text-[color:var(--wp-text-muted)]">
             {totalCount} rəy
           </p>
           {reviewsQuery.isFetching &&
@@ -274,7 +272,7 @@ export function GameReviewsSection({
         )}
 
         {reviewsQuery.isLoading ? (
-          <div className="flex min-h-64 items-center justify-center gap-3 text-sm text-zinc-500">
+          <div className="flex min-h-64 items-center justify-center gap-3 text-sm text-[color:var(--wp-text-muted)]">
             <LoaderCircle
               size={21}
               className="animate-spin"
@@ -289,15 +287,15 @@ export function GameReviewsSection({
             )}
           </div>
         ) : reviews.length === 0 ? (
-          <div className="mt-6 rounded-3xl border border-dashed border-white/[0.09] bg-white/[0.015] px-6 py-14 text-center">
+          <div className="mt-6 rounded-3xl border border-dashed border-[color:var(--wp-border)] bg-[color:var(--wp-surface)] px-6 py-14 text-center">
             <MessageCircle
               size={34}
-              className="mx-auto text-zinc-700"
+              className="mx-auto text-[color:var(--wp-text-muted)]"
             />
-            <p className="mt-4 font-bold text-zinc-300">
+            <p className="mt-4 font-bold text-[var(--wp-text-strong)]">
               Bu oyun üçün hələ rəy yoxdur
             </p>
-            <p className="mt-2 text-sm text-zinc-600">
+            <p className="mt-2 text-sm text-[color:var(--wp-text-muted)]">
               İlk rəyi sən əlavə edə bilərsən.
             </p>
           </div>
@@ -314,9 +312,9 @@ export function GameReviewsSection({
               return (
                 <article
                   key={review.id}
-                  className="flex min-h-[290px] flex-col overflow-hidden rounded-3xl border border-white/[0.08] bg-[#111218]"
+                  className="wp-review-card flex min-h-[320px] flex-col overflow-hidden rounded-3xl"
                 >
-                  <div className="flex items-start justify-between gap-4 border-b border-white/[0.06] p-5">
+                  <div className="flex items-start justify-between gap-4 border-b border-[color:var(--wp-border)] p-5">
                     <Link
                       to={`/users/${review.userName}`}
                       className="flex min-w-0 items-center gap-3"
@@ -325,10 +323,10 @@ export function GameReviewsSection({
                         review={review}
                       />
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-bold text-zinc-100 transition hover:text-violet-200">
+                        <span className="block truncate text-sm font-bold text-[var(--wp-text-strong)] transition hover:text-[var(--wp-accent-strong)]">
                           {review.userName}
                         </span>
-                        <span className="mt-1 block text-xs text-zinc-600">
+                        <span className="mt-1 block text-xs text-[color:var(--wp-text-muted)]">
                           {formatDateTime(
                             review.createdAt,
                           )}
@@ -337,7 +335,7 @@ export function GameReviewsSection({
                     </Link>
 
                     {review.rating !== null && (
-                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/15 bg-amber-400/10 px-3 py-2 text-sm font-black text-amber-300">
+                      <span className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-sm font-black text-amber-300">
                         <Star
                           size={15}
                           fill="currentColor"
@@ -347,72 +345,109 @@ export function GameReviewsSection({
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-2 px-5 pt-4">
-                    {review.platformName && (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-sky-300/10 bg-sky-500/[0.07] px-2.5 py-1.5 text-xs font-semibold text-sky-200/80">
-                        <Monitor size={13} />
-                        {review.platformName}
-                      </span>
-                    )}
-
-                    {playtime && (
-                      <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.07] bg-white/[0.035] px-2.5 py-1.5 text-xs font-semibold text-zinc-400">
-                        <Clock3 size={13} />
-                        {playtime}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex-1 p-5 pt-4">
-                    {review.containsSpoilers &&
-                    !review.isMine &&
-                    !isSpoilerRevealed ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRevealedSpoilers(
-                            (currentValue) => {
-                              const nextValue =
-                                new Set(
-                                  currentValue,
+                  <div className="grid flex-1 gap-4 p-5 lg:grid-cols-[minmax(0,1fr)_240px]">
+                    <div className="flex min-h-[12rem] flex-col">
+                      {review.containsSpoilers &&
+                      !review.isMine &&
+                      !isSpoilerRevealed ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRevealedSpoilers(
+                              (currentValue) => {
+                                const nextValue =
+                                  new Set(
+                                    currentValue,
+                                  );
+                                nextValue.add(
+                                  review.id,
                                 );
-                              nextValue.add(
-                                review.id,
-                              );
-                              return nextValue;
-                            },
-                          );
-                        }}
-                        className="flex min-h-32 w-full flex-col items-center justify-center rounded-2xl border border-amber-300/15 bg-amber-500/[0.055] px-5 text-center transition hover:bg-amber-500/[0.09]"
-                      >
-                        <Eye
-                          size={24}
-                          className="text-amber-300"
-                        />
-                        <span className="mt-3 text-sm font-bold text-amber-200">
-                          {language === "en" ? "This review contains spoilers" : "Bu rəy spoiler ehtiva edir"}
-                        </span>
-                        <span className="mt-1 text-xs text-amber-100/45">
-                          {language === "en" ? "Click once to reveal the review" : "Rəyi açmaq üçün bir dəfə kliklə"}
-                        </span>
-                      </button>
-                    ) : (
-                      <p data-user-content className="whitespace-pre-wrap text-sm leading-7 text-zinc-300">
-                        {review.content}
-                      </p>
-                    )}
+                                return nextValue;
+                              },
+                            );
+                          }}
+                          className="wp-review-content-box flex w-full flex-1 flex-col items-center justify-center rounded-2xl px-5 text-center transition hover:bg-amber-500/[0.08]"
+                        >
+                          <Eye
+                            size={24}
+                            className="text-amber-300"
+                          />
+                          <span className="mt-3 text-sm font-bold text-amber-300">
+                            {language === "en" ? "This review contains spoilers" : "Bu rəy spoiler ehtiva edir"}
+                          </span>
+                          <span className="mt-1 text-xs text-[color:var(--wp-text-muted)]">
+                            {language === "en" ? "Click once to reveal the review" : "Rəyi açmaq üçün bir dəfə kliklə"}
+                          </span>
+                        </button>
+                      ) : (
+                        <div className="wp-review-content-box flex flex-1 rounded-2xl p-4">
+                          <p data-user-content className="whitespace-pre-wrap text-sm leading-7 text-[var(--wp-text)]">
+                            {review.content && review.content.trim().length > 0
+                              ? review.content
+                              : language === "en"
+                                ? "The player logged this game without adding written notes."
+                                : "İstifadəçi bu oyunu yazılı qeyd əlavə etmədən loglayıb."}
+                          </p>
+                        </div>
+                      )}
+                    </div>
 
-                    {review.showHardwareProfile && (
-                      <ReviewHardwareSummary
-                        gpu={review.hardwareGpu}
-                        cpu={review.hardwareCpu}
-                        ramGb={review.hardwareRamGb}
-                        vramGb={review.hardwareVramGb}
-                      />
-                    )}
+                    <aside className="space-y-3">
+                      <div className="wp-review-subcard rounded-2xl p-4">
+                        <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--wp-accent-strong)]">
+                          {language === "en" ? "Review snapshot" : "Rəy xülasəsi"}
+                        </div>
+                        <dl className="mt-3 space-y-3 text-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <dt className="text-[color:var(--wp-text-muted)]">
+                              {language === "en" ? "Platform" : "Platforma"}
+                            </dt>
+                            <dd className="text-right font-semibold text-[var(--wp-text-strong)]">
+                              {review.platformName ?? (language === "en" ? "Not specified" : "Qeyd edilməyib")}
+                            </dd>
+                          </div>
+                          <div className="flex items-start justify-between gap-3">
+                            <dt className="text-[color:var(--wp-text-muted)]">
+                              {language === "en" ? "Playtime" : "Oyun müddəti"}
+                            </dt>
+                            <dd className="text-right font-semibold text-[var(--wp-text-strong)]">
+                              {playtime ?? (language === "en" ? "Not shared" : "Paylaşılmayıb")}
+                            </dd>
+                          </div>
+                          <div className="flex items-start justify-between gap-3">
+                            <dt className="text-[color:var(--wp-text-muted)]">
+                              {language === "en" ? "Comments" : "Şərhlər"}
+                            </dt>
+                            <dd className="text-right font-semibold text-[var(--wp-text-strong)]">
+                              {review.commentCount}
+                            </dd>
+                          </div>
+                        </dl>
+                      </div>
+
+                      {review.showHardwareProfile ? (
+                        <ReviewHardwareSummary
+                          gpu={review.hardwareGpu}
+                          cpu={review.hardwareCpu}
+                          ramGb={review.hardwareRamGb}
+                          vramGb={review.hardwareVramGb}
+                        />
+                      ) : (
+                        <div className="wp-review-subcard rounded-2xl p-4">
+                          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--wp-accent-strong)]">
+                            {language === "en" ? "System details" : "Sistem detalları"}
+                          </div>
+                          <p className="mt-3 text-sm leading-6 text-[color:var(--wp-text-muted)]">
+                            {language === "en"
+                              ? "No hardware details were shared for this review."
+                              : "Bu rəy üçün sistem detalları paylaşılmayıb."}
+                          </p>
+                        </div>
+                      )}
+                    </aside>
                   </div>
 
-                  <div className="flex items-center gap-5 border-t border-white/[0.06] px-5 py-4 text-xs text-zinc-600">
+                  <div className="flex items-center gap-5 border-t border-[color:var(--wp-border)] px-5 py-4 text-xs text-[color:var(--wp-text-muted)]">
                     <span className="inline-flex items-center gap-2">
                       <button
                         type="button"
@@ -426,8 +461,8 @@ export function GameReviewsSection({
                         }}
                         className={`group inline-flex items-center font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${
                           review.isLikedByCurrentUser
-                            ? "text-rose-300"
-                            : "hover:text-rose-300"
+                            ? "text-rose-400"
+                            : "hover:text-rose-400"
                         }`}
                         aria-label="Rəyi bəyən"
                       >
@@ -448,7 +483,7 @@ export function GameReviewsSection({
                             count: review.likeCount,
                           });
                         }}
-                        className="font-semibold transition hover:text-rose-300"
+                        className="font-semibold transition hover:text-rose-400"
                       >
                         {review.likeCount} bəyəni
                       </button>
@@ -467,9 +502,9 @@ export function GameReviewsSection({
                           return nextValue;
                         });
                       }}
-                      className={`inline-flex items-center gap-2 font-semibold transition hover:text-violet-300 ${
+                      className={`inline-flex items-center gap-2 font-semibold transition hover:text-violet-400 ${
                         openCommentReviewIds.has(review.id)
-                          ? "text-violet-300"
+                          ? "text-violet-400"
                           : ""
                       }`}
                     >
@@ -502,13 +537,13 @@ export function GameReviewsSection({
                   Math.max(1, currentPage - 1),
                 );
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.025] text-zinc-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--wp-border)] bg-[color:var(--wp-surface-strong)] text-[color:var(--wp-text-muted)] transition hover:text-[var(--wp-text-strong)] disabled:cursor-not-allowed disabled:opacity-35"
               aria-label="Əvvəlki səhifə"
             >
               <ChevronLeft size={18} />
             </button>
 
-            <span className="min-w-24 text-center text-sm font-semibold text-zinc-500">
+            <span className="min-w-24 text-center text-sm font-semibold text-[color:var(--wp-text-muted)]">
               {page} / {totalPages}
             </span>
 
@@ -523,7 +558,7 @@ export function GameReviewsSection({
                   ),
                 );
               }}
-              className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.025] text-zinc-400 transition hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+              className="flex h-10 w-10 items-center justify-center rounded-xl border border-[color:var(--wp-border)] bg-[color:var(--wp-surface-strong)] text-[color:var(--wp-text-muted)] transition hover:text-[var(--wp-text-strong)] disabled:cursor-not-allowed disabled:opacity-35"
               aria-label="Növbəti səhifə"
             >
               <ChevronRight size={18} />

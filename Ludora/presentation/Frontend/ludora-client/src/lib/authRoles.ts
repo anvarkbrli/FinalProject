@@ -122,3 +122,13 @@ export function canViewCatalogSources(
 ): boolean {
   return canAccessAdminPanel(accessToken);
 }
+
+
+export function hasAuthCapability(
+  capabilities: readonly string[] | undefined,
+  capabilityName: string,
+): boolean {
+  return (capabilities ?? []).some(
+    (capability) => capability === capabilityName,
+  );
+}

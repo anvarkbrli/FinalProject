@@ -4,6 +4,7 @@ import type {
   GameListCloneDTO,
   GameListCreateDTO,
   GameListDetailDTO,
+  GameListPlayedProgressDTO,
   GameListReorderItemDTO,
   GameListUpdateDTO,
 } from "../types/gameLists";
@@ -24,6 +25,16 @@ export async function getGameList(
 ): Promise<GameListDetailDTO> {
   const response = await api.get<GameListDetailDTO>(
     `/game-lists/${listId}`,
+  );
+
+  return response.data;
+}
+
+export async function getGameListPlayedProgress(
+  listId: number,
+): Promise<GameListPlayedProgressDTO> {
+  const response = await api.get<GameListPlayedProgressDTO>(
+    `/game-lists/${listId}/played-progress`,
   );
 
   return response.data;

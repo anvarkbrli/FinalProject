@@ -28,8 +28,8 @@ import {
 import { LogGameModal } from "../reviews/LogGameModal";
 import { GlobalSearchBox } from "../search/GlobalSearchBox";
 import { NotificationBell } from "../notifications/NotificationBell";
-import { LanguageSwitcher } from "./LanguageSwitcher";
 import { resolveAssetUrl } from "../../lib/helpers";
+import { useI18n } from "../../i18n/useI18n";
 import { canAccessAdminPanel } from "../../lib/authRoles";
 import { useNotificationRealtime } from "../../hooks/useNotificationRealtime";
 import {
@@ -55,6 +55,7 @@ const navigationItems = [
 ];
 
 export function Navbar() {
+  const { language } = useI18n();
   const location = useLocation();
 
   const userMenuRef =
@@ -269,7 +270,6 @@ export function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <LanguageSwitcher />
           <GlobalSearchBox />
 
           {hasValidSession && <NotificationBell />}
@@ -414,7 +414,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                     >
                       <Activity size={17} />
-                      Axın
+                      {language === "en" ? "Activity" : "Axın"}
                     </Link>
 
                     <Link
@@ -551,11 +551,8 @@ export function Navbar() {
               );
             })}
 
-            <div className="mt-2 flex items-center justify-between gap-3">
-              <LanguageSwitcher />
-              <div className="min-w-0 flex-1">
-                <GlobalSearchBox mobile />
-              </div>
+            <div className="mt-2">
+              <GlobalSearchBox mobile />
             </div>
 
             {hasValidSession ? (
@@ -620,7 +617,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06]"
                     >
                       <Activity size={17} />
-                      Axın
+                      {language === "en" ? "Activity" : "Axın"}
                     </Link>
                   </>
                 )}

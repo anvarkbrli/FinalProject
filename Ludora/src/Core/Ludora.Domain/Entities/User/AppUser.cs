@@ -12,7 +12,12 @@ public class AppUser : IdentityUser<Guid>
     public string? ForumInterestsJson { get; set; }
     public bool IsPrivate { get; set; }
     public string PreferredLanguage { get; set; } = "az";
+    public string PreferredTheme { get; set; } = "dark";
     public DateTime CreatedAt { get; set; }
+    public DateTime? TermsAcceptedAtUtc { get; set; }
+    public DateTime? PrivacyAcceptedAtUtc { get; set; }
+    public string? TermsVersion { get; set; }
+    public string? PrivacyVersion { get; set; }
     public DateTime? AccountDeletionRequestedAtUtc { get; set; }
 
     public string? SteamId { get; set; }
@@ -62,6 +67,7 @@ public class AppUser : IdentityUser<Guid>
     public ICollection<ModeratorActionLog> PerformedModeratorActions { get; set; } = new List<ModeratorActionLog>();
     public ICollection<ModeratorActionLog> ReceivedModeratorActions { get; set; } = new List<ModeratorActionLog>();
     public ICollection<Announcement> Announcements { get; set; } = new List<Announcement>();
+    public ICollection<AnnouncementView> AnnouncementViews { get; set; } = [];
     public ICollection<Notification> ReceivedNotifications { get; set; } = new List<Notification>();
     public ICollection<Notification> SentNotifications { get; set; } = new List<Notification>();
     public ICollection<NotificationPreference> NotificationPreferences { get; set; } = new List<NotificationPreference>();

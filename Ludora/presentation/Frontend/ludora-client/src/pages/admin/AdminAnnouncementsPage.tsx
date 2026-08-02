@@ -10,9 +10,12 @@ import {
   ChevronLeft,
   ChevronRight,
   CircleAlert,
+  Eye,
   FilePenLine,
   LoaderCircle,
   Plus,
+  Target,
+  Users,
   RotateCcw,
   Send,
   Trash2,
@@ -27,10 +30,11 @@ import {
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
 import { AdminLiveSearch } from "../../components/admin/AdminLiveSearch";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
 import { hasAuthRole } from "../../lib/authRoles";
 import { useConfirmation } from "../../lib/confirmation";
-import { formatDateTime } from "../../lib/helpers";
+import { formatDate } from "../../lib/helpers";
 import {
   createAdminAnnouncement,
   deleteAdminAnnouncement,
@@ -39,9 +43,41 @@ import {
   updateAdminAnnouncement,
 } from "../../services/adminService";
 import { useAuthStore } from "../../stores/authStore";
-import type { Announcement } from "../../types/admin";
+import type {
+  Announcement,
+  AnnouncementAudience,
+} from "../../types/admin";
 
 const pageSize = 12;
+
+const announcementAudienceOptions: AnnouncementAudience[] = [
+  "Everyone",
+  "AzerbaijaniUsers",
+  "EnglishUsers",
+  "SteamLinkedUsers",
+  "NewUsers",
+  "RegularUsers",
+  "Moderators",
+  "Administrators",
+];
+
+function getAudienceLabel(
+  audience: AnnouncementAudience,
+  language: "az" | "en",
+) {
+  const labels: Record<AnnouncementAudience, [string, string]> = {
+    Everyone: ["Bütün istifadəçilər", "All users"],
+    AzerbaijaniUsers: ["Azərbaycan dilini seçənlər", "Azerbaijani-language users"],
+    EnglishUsers: ["İngilis dilini seçənlər", "English-language users"],
+    SteamLinkedUsers: ["Steam hesabı bağlı olanlar", "Steam-linked users"],
+    NewUsers: ["Son 30 gündə qeydiyyatdan keçənlər", "Users registered in the last 30 days"],
+    RegularUsers: ["Adi istifadəçilər", "Regular users"],
+    Moderators: ["Moderatorlar", "Moderators"],
+    Administrators: ["Adminlər", "Administrators"],
+  };
+
+  return labels[audience][language === "en" ? 1 : 0];
+}
 
 interface EditorState {
   announcement: Announcement | null;
@@ -50,6 +86,7 @@ interface EditorState {
 interface AnnouncementFormValues {
   title: string;
   content: string;
+  audience: AnnouncementAudience;
   isPublished: boolean;
 }
 
@@ -59,6 +96,7 @@ interface AnnouncementFieldErrors {
 }
 
 export function AdminAnnouncementsPage() {
+  const { language } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const [editor, setEditor] = useState<EditorState | null>(null);
   const [actionError, setActionError] = useState<{
@@ -316,6 +354,9 @@ export function AdminAnnouncementsPage() {
                               ? "Yayımlanıb"
                               : "Qaralama"}
                         </span>
+                        <span className="rounded-full border border-sky-400/15 bg-sky-500/[0.06] px-2.5 py-1 text-[10px] font-bold text-sky-200">
+                          {getAudienceLabel(announcement.audience, language)}
+                        </span>
                         <span className="text-xs text-zinc-700">
                           #{announcement.id}
                         </span>
@@ -339,14 +380,44 @@ export function AdminAnnouncementsPage() {
                         </strong>
                       </span>
                       <span>
-                        Yaradılıb: {formatDateTime(announcement.createdAt)}
+                        Yaradılıb: {formatDate(announcement.createdAt)}
                       </span>
                       {announcement.publishedAtUtc && (
                         <span>
                           Yayımlanıb:{" "}
-                          {formatDateTime(announcement.publishedAtUtc)}
+                          {formatDate(announcement.publishedAtUtc)}
                         </span>
                       )}
+                    </div>
+
+                    <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                      <div className="rounded-xl border border-white/[0.06] bg-black/15 px-3 py-2.5">
+                        <div className="flex items-center gap-2 text-[11px] text-zinc-600">
+                          <Eye size={13} />
+                          {language === "en" ? "Unique views" : "Unikal baxış"}
+                        </div>
+                        <p className="mt-1 text-sm font-bold text-zinc-200">
+                          {announcement.uniqueViewCount}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/[0.06] bg-black/15 px-3 py-2.5">
+                        <div className="flex items-center gap-2 text-[11px] text-zinc-600">
+                          <Users size={13} />
+                          {language === "en" ? "Target audience" : "Hədəf auditoriya"}
+                        </div>
+                        <p className="mt-1 text-sm font-bold text-zinc-200">
+                          {announcement.targetUserCount}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-white/[0.06] bg-black/15 px-3 py-2.5">
+                        <div className="flex items-center gap-2 text-[11px] text-zinc-600">
+                          <Target size={13} />
+                          {language === "en" ? "View rate" : "Baxış faizi"}
+                        </div>
+                        <p className="mt-1 text-sm font-bold text-zinc-200">
+                          {announcement.viewRatePercent.toFixed(1)}%
+                        </p>
+                      </div>
                     </div>
 
                     <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -429,6 +500,7 @@ export function AdminAnnouncementsPage() {
         createPortal(
           <AnnouncementEditorModal
             announcement={editor.announcement}
+            language={language}
             isPending={saveMutation.isPending}
             apiError={saveMutation.error}
             onClearError={() => saveMutation.reset()}
@@ -447,6 +519,7 @@ export function AdminAnnouncementsPage() {
 
 function AnnouncementEditorModal({
   announcement,
+  language,
   isPending,
   apiError,
   onClearError,
@@ -454,6 +527,7 @@ function AnnouncementEditorModal({
   onSubmit,
 }: {
   announcement: Announcement | null;
+  language: "az" | "en";
   isPending: boolean;
   apiError: unknown;
   onClearError: () => void;
@@ -464,6 +538,7 @@ function AnnouncementEditorModal({
   const [values, setValues] = useState<AnnouncementFormValues>(() => ({
     title: announcement?.title ?? "",
     content: announcement?.content ?? "",
+    audience: announcement?.audience ?? "Everyone",
     isPublished: announcement?.isPublished ?? true,
   }));
   const [fieldErrors, setFieldErrors] =
@@ -536,6 +611,7 @@ function AnnouncementEditorModal({
     onSubmit({
       title,
       content,
+      audience: values.audience,
       isPublished: values.isPublished,
     });
   }
@@ -638,6 +714,39 @@ function AnnouncementEditorModal({
               <span className="mt-1 block text-right text-[11px] text-zinc-700">
                 {values.content.length}/4000
               </span>
+            </label>
+
+            <label className="block">
+              <span className="text-xs font-bold text-zinc-300">
+                {language === "en" ? "Audience" : "Auditoriya"}
+              </span>
+              <select
+                value={values.audience}
+                disabled={isPending || Boolean(announcement?.isPublished)}
+                onChange={(event) => {
+                  onClearError();
+                  setValues((current) => ({
+                    ...current,
+                    audience: event.target.value as AnnouncementAudience,
+                  }));
+                }}
+                className="mt-2 h-12 w-full rounded-xl border border-white/[0.08] bg-[#0a0a0e] px-4 text-sm text-zinc-200 outline-none transition focus:border-violet-400/50 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {announcementAudienceOptions.map((audience) => (
+                  <option key={audience} value={audience}>
+                    {getAudienceLabel(audience, language)}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-2 text-xs leading-5 text-zinc-600">
+                {announcement?.isPublished
+                  ? language === "en"
+                    ? "Unpublish the announcement before changing its audience."
+                    : "Auditoriyanı dəyişmək üçün elanı əvvəlcə qaralama vəziyyətinə keçirin."
+                  : language === "en"
+                    ? "Only users matching this audience will see the announcement and receive its notification."
+                    : "Elanı və bildirişi yalnız bu auditoriyaya uyğun istifadəçilər görəcək."}
+              </p>
             </label>
 
             <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">

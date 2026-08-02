@@ -9,6 +9,7 @@ import {
   Check,
   CheckCheck,
   ChevronLeft,
+  ChevronRight,
   Flame,
   Forward,
   Gamepad2,
@@ -20,13 +21,14 @@ import {
   MoreVertical,
   Pin,
   PinOff,
+  Play,
+  Plus,
   Reply,
   Search,
   Send,
   ShieldQuestion,
   Trash2,
   Undo2,
-  Video,
   X,
 } from "lucide-react";
 import {
@@ -76,6 +78,7 @@ import type {
   ChatConversationDTO,
   ChatMessageDTO,
   ChatMessageDeleteScope,
+  ChatMessageMediaDTO,
   ChatMessageDeliveryStatus,
   ChatReactionType,
   ChatStreakUpdatedDTO,
@@ -95,6 +98,9 @@ const AZERBAIJANI_MONTH_NAMES = [
   "noyabr",
   "dekabr",
 ] as const;
+
+const MAX_CHAT_MEDIA_FILES = 10;
+const MAX_CHAT_MEDIA_TOTAL_BYTES = 150 * 1024 * 1024;
 
 const REACTION_OPTIONS: ReadonlyArray<{
   type: ChatReactionType;
@@ -284,40 +290,124 @@ function UserAvatar({
   );
 }
 
-function AuthenticatedMedia({ message }: { message: ChatMessageDTO }) {
+function getMediaItems(message: ChatMessageDTO): ChatMessageMediaDTO[] {
+  if (message.mediaItems?.length) {
+    return [...message.mediaItems].sort((left, right) => left.sortOrder - right.sortOrder);
+  }
+
+  if (!message.mediaUrl) return [];
+  return [
+    {
+      id: 0,
+      url: message.mediaUrl,
+      contentType: message.mediaContentType ?? "application/octet-stream",
+      fileName: "media",
+      length: 0,
+      sortOrder: 0,
+    },
+  ];
+}
+
+interface ObjectUrlCacheEntry {
+  url: string;
+  subscribers: number;
+  revokeTimer: number | null;
+}
+
+const objectUrlCache = new Map<Blob, ObjectUrlCacheEntry>();
+
+function getOrCreateObjectUrl(source: Blob): string {
+  const cached = objectUrlCache.get(source);
+  if (cached) {
+    return cached.url;
+  }
+
+  const url = URL.createObjectURL(source);
+  objectUrlCache.set(source, {
+    url,
+    subscribers: 0,
+    revokeTimer: null,
+  });
+  return url;
+}
+
+function useStableObjectUrl(source: Blob | File | null | undefined): string | null {
+  const objectUrl = useMemo(
+    () => (source ? getOrCreateObjectUrl(source) : null),
+    [source],
+  );
+
+  useEffect(() => {
+    if (!source || !objectUrl) {
+      return;
+    }
+
+    const entry = objectUrlCache.get(source);
+    if (!entry) {
+      return;
+    }
+
+    if (entry.revokeTimer !== null) {
+      window.clearTimeout(entry.revokeTimer);
+      entry.revokeTimer = null;
+    }
+    entry.subscribers += 1;
+
+    return () => {
+      entry.subscribers = Math.max(0, entry.subscribers - 1);
+      if (entry.subscribers > 0) {
+        return;
+      }
+
+      entry.revokeTimer = window.setTimeout(() => {
+        if (entry.subscribers === 0) {
+          URL.revokeObjectURL(entry.url);
+          objectUrlCache.delete(source);
+        }
+      }, 1_000);
+    };
+  }, [objectUrl, source]);
+
+  return objectUrl;
+}
+
+function ChatMediaTile({
+  messageId,
+  item,
+  className,
+  onClick,
+  remainingCount = 0,
+  fit = "cover",
+}: {
+  messageId: number;
+  item: ChatMessageMediaDTO;
+  className: string;
+  onClick: () => void;
+  remainingCount?: number;
+  fit?: "cover" | "contain";
+}) {
   const { t } = useI18n();
-  const [isOpen, setIsOpen] = useState(false);
   const mediaQuery = useQuery({
-    queryKey: ["chat", "media", message.id],
-    queryFn: () => getChatMediaBlob(message.mediaUrl!),
-    enabled: Boolean(message.mediaUrl),
+    queryKey: ["chat", "media", messageId, item.id, item.url],
+    queryFn: () => getChatMediaBlob(item.url),
     staleTime: Infinity,
   });
-  const objectUrl = useMemo(
-    () => (mediaQuery.data ? URL.createObjectURL(mediaQuery.data) : null),
-    [mediaQuery.data],
-  );
+  const objectUrl = useStableObjectUrl(mediaQuery.data);
 
-  useEffect(
-    () => () => {
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    },
-    [objectUrl],
-  );
-
-  if (mediaQuery.isLoading) {
+  if (mediaQuery.isLoading || (mediaQuery.data && !objectUrl)) {
     return (
-      <div className="flex h-40 w-64 items-center justify-center rounded-xl bg-black/20">
+      <div className={`${className} flex items-center justify-center bg-black/25`}>
         <LoaderCircle size={20} className="animate-spin text-zinc-500" />
       </div>
     );
   }
-  if (mediaQuery.isError) {
+
+  if (mediaQuery.isError || !objectUrl) {
     return (
       <button
         type="button"
         onClick={() => void mediaQuery.refetch()}
-        className="flex min-h-24 w-64 flex-col items-center justify-center rounded-xl border border-red-400/15 bg-red-500/[0.07] px-4 text-center text-xs text-red-200"
+        className={`${className} flex flex-col items-center justify-center border border-red-400/15 bg-red-500/[0.07] px-3 text-center text-xs text-red-200`}
       >
         <span>{t("messages:media.loadFailed", undefined, "Media yüklənmədi")}</span>
         <span className="mt-1 text-red-200/60">
@@ -326,78 +416,474 @@ function AuthenticatedMedia({ message }: { message: ChatMessageDTO }) {
       </button>
     );
   }
-  if (!objectUrl) return null;
 
-  const isVideo = message.kind === "Video";
+  const isVideo = (item.contentType ?? "").startsWith("video/");
   return (
-    <>
+    <button
+      type="button"
+      onClick={onClick}
+      className={`${className} group/media relative overflow-hidden bg-black text-left ${fit === "contain" ? "flex min-h-32 items-center justify-center" : ""}`}
+      aria-label={
+        isVideo
+          ? t("messages:media.expandVideo", undefined, "Videonu böyüt")
+          : t("messages:media.expandImage", undefined, "Şəkli böyüt")
+      }
+    >
+      {isVideo ? (
+        <video
+          src={objectUrl}
+          muted
+          preload="metadata"
+          className={
+            fit === "contain"
+              ? "pointer-events-none block h-auto max-h-[30rem] w-full object-contain"
+              : "pointer-events-none h-full w-full object-cover"
+          }
+        />
+      ) : (
+        <img
+          src={objectUrl}
+          alt={t("messages:media.messageImageAlt", undefined, "Mesaj şəkli")}
+          className={
+            fit === "contain"
+              ? "block h-auto max-h-[30rem] w-full object-contain"
+              : "h-full w-full object-cover transition duration-300 group-hover/media:scale-[1.02]"
+          }
+        />
+      )}
+      {isVideo && (
+        <span className="absolute inset-0 flex items-center justify-center bg-black/10">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-sm">
+            <Play size={18} className="ml-0.5 fill-current" />
+          </span>
+        </span>
+      )}
+      {remainingCount > 0 ? (
+        <span className="absolute inset-0 flex items-center justify-center bg-black/65 text-3xl font-black text-white backdrop-blur-[2px]">
+          +{remainingCount}
+        </span>
+      ) : (
+        <span className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg bg-black/65 text-white opacity-0 transition group-hover/media:opacity-100">
+          <Maximize2 size={16} />
+        </span>
+      )}
+    </button>
+  );
+}
+
+function ChatMediaLightbox({
+  messageId,
+  items,
+  initialIndex,
+  onClose,
+}: {
+  messageId: number;
+  items: ChatMessageMediaDTO[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const { t } = useI18n();
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+  const safeCurrentIndex = Math.min(
+    Math.max(currentIndex, 0),
+    Math.max(items.length - 1, 0),
+  );
+  const currentItem = items[safeCurrentIndex];
+  const mediaQuery = useQuery({
+    queryKey: [
+      "chat",
+      "media",
+      messageId,
+      currentItem?.id ?? 0,
+      currentItem?.url ?? "missing",
+    ],
+    queryFn: () => getChatMediaBlob(currentItem!.url),
+    enabled: Boolean(currentItem?.url),
+    staleTime: Infinity,
+  });
+  const objectUrl = useStableObjectUrl(mediaQuery.data);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+      if (event.key === "ArrowLeft" && items.length > 1) {
+        setCurrentIndex((index) => (index - 1 + items.length) % items.length);
+      }
+      if (event.key === "ArrowRight" && items.length > 1) {
+        setCurrentIndex((index) => (index + 1) % items.length);
+      }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [items.length, onClose]);
+
+  const isVideo = (currentItem?.contentType ?? "").startsWith("video/");
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[400] flex items-center justify-center bg-[#050507]/75 p-4 backdrop-blur-2xl"
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
       <button
         type="button"
-        onClick={() => setIsOpen(true)}
-        className="group/media relative block max-w-md overflow-hidden rounded-xl bg-black text-left"
-        aria-label={
-          isVideo
-            ? t("messages:media.expandVideo", undefined, "Videonu böyüt")
-            : t("messages:media.expandImage", undefined, "Şəkli böyüt")
-        }
+        onClick={onClose}
+        className="absolute right-5 top-5 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/55 text-white transition hover:bg-white/10"
+        aria-label={t("messages:media.closePreview", undefined, "Media önizləməsini bağla")}
       >
-        {isVideo ? (
+        <X size={22} />
+      </button>
+
+      {items.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setCurrentIndex((index) => (index - 1 + items.length) % items.length)}
+            className="absolute left-4 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/10 bg-black/50 text-white transition hover:bg-white/10 sm:left-6"
+            aria-label={t("messages:media.previous", undefined, "Əvvəlki media")}
+          >
+            <ChevronLeft size={24} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentIndex((index) => (index + 1) % items.length)}
+            className="absolute right-4 top-1/2 flex h-12 w-12 -translate-y-1/2 items-center justify-center rounded-2xl border border-white/10 bg-black/50 text-white transition hover:bg-white/10 sm:right-6"
+            aria-label={t("messages:media.next", undefined, "Növbəti media")}
+          >
+            <ChevronRight size={24} />
+          </button>
+        </>
+      )}
+
+      <div className="flex max-h-[92vh] max-w-[92vw] flex-col items-center gap-3" onMouseDown={(event) => event.stopPropagation()}>
+        {mediaQuery.isLoading || (mediaQuery.data && !objectUrl) ? (
+          <div className="flex h-64 w-64 items-center justify-center">
+            <LoaderCircle size={28} className="animate-spin text-zinc-400" />
+          </div>
+        ) : mediaQuery.isError || !objectUrl ? (
+          <button
+            type="button"
+            onClick={() => void mediaQuery.refetch()}
+            className="rounded-2xl border border-red-400/20 bg-red-500/10 px-6 py-5 text-sm text-red-200"
+          >
+            {t("messages:media.retry", undefined, "Yenidən yoxlamaq üçün kliklə")}
+          </button>
+        ) : isVideo ? (
           <video
+            key={objectUrl}
             src={objectUrl}
-            muted
-            preload="metadata"
-            className="pointer-events-none max-h-80 w-full object-contain"
+            controls
+            autoPlay
+            className="max-h-[84vh] max-w-[88vw] rounded-2xl bg-black object-contain shadow-2xl"
           />
         ) : (
           <img
+            key={objectUrl}
             src={objectUrl}
-            alt={t("messages:media.messageImageAlt", undefined, "Mesaj şəkli")}
-            className="max-h-80 w-full object-cover"
+            alt={t("messages:media.expandedImageAlt", undefined, "Böyüdülmüş mesaj şəkli")}
+            className="max-h-[84vh] max-w-[88vw] rounded-2xl object-contain shadow-2xl"
           />
         )}
-        <span className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg bg-black/65 text-white opacity-80">
-          <Maximize2 size={16} />
-        </span>
-      </button>
+        {items.length > 1 && (
+          <span className="rounded-full bg-black/55 px-3 py-1 text-xs font-bold text-zinc-200">
+            {safeCurrentIndex + 1} / {items.length}
+          </span>
+        )}
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
-      {isOpen &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[300] flex items-center justify-center bg-black/80 p-4 backdrop-blur-xl"
-            role="dialog"
-            aria-modal="true"
-            onClick={() => setIsOpen(false)}
-          >
+function AuthenticatedMedia({ message }: { message: ChatMessageDTO }) {
+  const items = getMediaItems(message);
+  const [expanded, setExpanded] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  if (items.length === 0) return null;
+
+  const collapsedItems = items.slice(0, 3);
+  const remainingCount = Math.max(0, items.length - 3);
+
+  return (
+    <>
+      {expanded ? (
+        <div className="w-full max-w-md space-y-2">
+          {items.map((item, index) => (
+            <ChatMediaTile
+              key={item.id || `${message.id}-${index}`}
+              messageId={message.id}
+              item={item}
+              className="block min-h-32 w-full rounded-xl"
+              fit="contain"
+              onClick={() => setLightboxIndex(index)}
+            />
+          ))}
+          {items.length > 3 && (
             <button
               type="button"
-              onClick={() => setIsOpen(false)}
-              className="absolute right-5 top-5 flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/55 text-white"
-              aria-label={t("messages:media.closePreview", undefined, "Media önizləməsini bağla")}
+              onClick={() => setExpanded(false)}
+              className="w-full rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 py-2 text-xs font-bold text-zinc-400 transition hover:bg-white/[0.07] hover:text-white"
             >
-              <X size={22} />
+              {translateText("messages:media.collapse", undefined, "Kolleksiyanı yığ")}
             </button>
-            <div onClick={(event) => event.stopPropagation()}>
-              {isVideo ? (
-                <video
-                  src={objectUrl}
-                  controls
-                  autoPlay
-                  className="max-h-[88vh] max-w-[92vw] rounded-2xl bg-black object-contain shadow-2xl"
-                />
-              ) : (
-                <img
-                  src={objectUrl}
-                  alt={t("messages:media.expandedImageAlt", undefined, "Böyüdülmüş mesaj şəkli")}
-                  className="max-h-[88vh] max-w-[92vw] rounded-2xl object-contain shadow-2xl"
-                />
-              )}
-            </div>
-          </div>,
-          document.body,
-        )}
+          )}
+        </div>
+      ) : items.length === 1 ? (
+        <ChatMediaTile
+          messageId={message.id}
+          item={items[0]}
+          className="block min-h-32 w-full max-w-md rounded-xl"
+          fit="contain"
+          onClick={() => setLightboxIndex(0)}
+        />
+      ) : items.length === 2 ? (
+        <div className="grid h-64 w-full max-w-md grid-cols-2 gap-1 overflow-hidden rounded-xl">
+          {collapsedItems.map((item, index) => (
+            <ChatMediaTile
+              key={item.id || `${message.id}-${index}`}
+              messageId={message.id}
+              item={item}
+              className="h-full min-w-0"
+              onClick={() => setLightboxIndex(index)}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid h-72 w-full max-w-md grid-cols-2 grid-rows-2 gap-1 overflow-hidden rounded-xl">
+          {collapsedItems.map((item, index) => (
+            <ChatMediaTile
+              key={item.id || `${message.id}-${index}`}
+              messageId={message.id}
+              item={item}
+              className={index === 0 ? "row-span-2 h-full min-w-0" : "h-full min-w-0"}
+              remainingCount={index === 2 ? remainingCount : 0}
+              onClick={() => {
+                if (index === 2 && remainingCount > 0) {
+                  setExpanded(true);
+                } else {
+                  setLightboxIndex(index);
+                }
+              }}
+            />
+          ))}
+        </div>
+      )}
+
+      {lightboxIndex !== null && (
+        <ChatMediaLightbox
+          messageId={message.id}
+          items={items}
+          initialIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
     </>
   );
 }
+
+function LocalFilePreview({
+  file,
+  className,
+  loadingClassName,
+  controls = false,
+  muted = false,
+  alt = "",
+}: {
+  file: File;
+  className: string;
+  loadingClassName: string;
+  controls?: boolean;
+  muted?: boolean;
+  alt?: string;
+}) {
+  const previewUrl = useStableObjectUrl(file);
+
+  if (!previewUrl) {
+    return (
+      <span className={`${loadingClassName} flex items-center justify-center`}>
+        <LoaderCircle size={18} className="animate-spin text-zinc-500" />
+      </span>
+    );
+  }
+
+  return (file.type ?? "").startsWith("video/") ? (
+    <video
+      key={previewUrl}
+      src={previewUrl}
+      controls={controls}
+      muted={muted}
+      preload="auto"
+      className={className}
+    />
+  ) : (
+    <img
+      key={previewUrl}
+      src={previewUrl}
+      alt={alt}
+      className={className}
+    />
+  );
+}
+
+function MediaComposerPreviewModal({
+  files,
+  selectedIndex,
+  messageText,
+  isSending,
+  onSelect,
+  onMessageChange,
+  onRemove,
+  onAdd,
+  onClose,
+  onSend,
+}: {
+  files: File[];
+  selectedIndex: number;
+  messageText: string;
+  isSending: boolean;
+  onSelect: (index: number) => void;
+  onMessageChange: (value: string) => void;
+  onRemove: (index: number) => void;
+  onAdd: () => void;
+  onClose: () => void;
+  onSend: () => void;
+}) {
+  const { t } = useI18n();
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  if (files.length === 0) return null;
+  const safeIndex = Math.min(selectedIndex, files.length - 1);
+  const selectedFile = files[safeIndex];
+  const isVideo = (selectedFile.type ?? "").startsWith("video/");
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[350] grid place-items-center bg-[#050507]/75 p-3 text-zinc-100 backdrop-blur-xl sm:p-6"
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <section
+        className="flex max-h-[min(680px,calc(100vh-2rem))] w-full max-w-3xl flex-col overflow-hidden rounded-[24px] border border-white/[0.09] bg-[#0f1015] shadow-[0_30px_100px_rgba(0,0,0,0.72)]"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-white/[0.07] px-3 sm:px-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-400 transition hover:bg-white/[0.06] hover:text-white"
+            aria-label={t("messages:media.closePreview", undefined, "Media önizləməsini bağla")}
+          >
+            <X size={20} />
+          </button>
+          <p className="text-xs font-black text-zinc-300 sm:text-sm">
+            {translateText("messages:composer.selectedMedia", { count: files.length }, `${files.length} media seçilib`)}
+          </p>
+          <button
+            type="button"
+            onClick={() => onRemove(safeIndex)}
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-red-300 transition hover:bg-red-500/10 hover:text-red-200"
+            aria-label={translateText("messages:composer.removeSelected", undefined, "Seçilmiş medianı sil")}
+          >
+            <Trash2 size={18} />
+          </button>
+        </header>
+
+        <main className="flex min-h-0 flex-1 items-center justify-center overflow-hidden bg-black/20 p-3 sm:p-5">
+          <LocalFilePreview
+            file={selectedFile}
+            controls={isVideo}
+            alt={selectedFile.name}
+            className="block h-auto max-h-[46vh] max-w-full rounded-2xl bg-black object-contain shadow-2xl"
+            loadingClassName="h-44 w-44 rounded-2xl border border-white/[0.07] bg-black/20"
+          />
+        </main>
+
+        <div className="shrink-0 border-t border-white/[0.07] bg-[#111218] px-3 py-3 sm:px-4">
+          <div className="flex items-center gap-2">
+            <textarea
+              value={messageText}
+              onChange={(event) => onMessageChange(event.target.value)}
+              rows={1}
+              maxLength={4000}
+              placeholder={t("messages:composer.messagePlaceholder", undefined, "Mesaj yaz...")}
+              className="max-h-24 min-h-11 flex-1 resize-none rounded-2xl border border-white/[0.09] bg-white/[0.045] px-4 py-3 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-violet-400/30"
+            />
+            <button
+              type="button"
+              onClick={onSend}
+              disabled={isSending}
+              className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-violet-600 text-white shadow-lg shadow-violet-950/30 transition hover:bg-violet-500 disabled:opacity-45"
+              aria-label={t("messages:composer.send", undefined, "Mesajı göndər")}
+            >
+              {isSending ? <LoaderCircle size={19} className="animate-spin" /> : <Send size={20} />}
+              <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#111218] bg-white px-1 text-[10px] font-black text-violet-700">
+                {files.length}
+              </span>
+            </button>
+          </div>
+
+          <div className="mt-2.5 flex items-center gap-2 overflow-x-auto pb-0.5">
+            {files.map((file, index) => (
+              <button
+                key={`${file.name}-${file.size}-${file.lastModified}-${index}`}
+                type="button"
+                onClick={() => onSelect(index)}
+                className={`relative flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border-2 bg-black/30 transition ${
+                  index === safeIndex ? "border-violet-400" : "border-transparent opacity-70 hover:opacity-100"
+                }`}
+              >
+                <LocalFilePreview
+                  file={file}
+                  muted
+                  className="h-full w-full object-cover"
+                  loadingClassName="h-full w-full bg-black/30"
+                />
+                {(file.type ?? "").startsWith("video/") && (
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/20 text-white">
+                    <Play size={14} className="fill-current" />
+                  </span>
+                )}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={onAdd}
+              className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-dashed border-white/20 text-zinc-400 transition hover:border-violet-400/50 hover:bg-violet-500/10 hover:text-violet-200"
+              aria-label={t("messages:composer.addMedia", undefined, "Foto və ya video əlavə et")}
+            >
+              <Plus size={22} />
+            </button>
+          </div>
+        </div>
+      </section>
+    </div>,
+    document.body,
+  );
+}
+
 
 function ConversationItem({
   conversation,
@@ -527,7 +1013,9 @@ export function MessagesPage() {
   const [selectedConversationChoice, setSelectedConversationId] =
     useState<number | null | undefined>(undefined);
   const [messageText, setMessageText] = useState("");
-  const [mediaFile, setMediaFile] = useState<File | null>(null);
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
+  const [mediaPreviewOpen, setMediaPreviewOpen] = useState(false);
+  const [mediaPreviewIndex, setMediaPreviewIndex] = useState(0);
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [gamePickerOpen, setGamePickerOpen] = useState(false);
   const [gameSearch, setGameSearch] = useState("");
@@ -861,7 +1349,9 @@ export function MessagesPage() {
       const message = result.message;
       wasNearBottomRef.current = true;
       setMessageText("");
-      setMediaFile(null);
+      setMediaFiles([]);
+      setMediaPreviewOpen(false);
+      setMediaPreviewIndex(0);
       setReplyTarget(null);
       setValidationMessage(null);
       setShowArchived(false);
@@ -1046,51 +1536,101 @@ export function MessagesPage() {
   }
 
   function handleMediaChange(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0] ?? null;
+    const selectedFiles = Array.from(event.target.files ?? []);
     event.target.value = "";
-    if (!file) return;
-    const isImage = file.type.startsWith("image/");
-    const isVideo = file.type === "video/mp4" || file.type === "video/webm";
-    if (!isImage && !isVideo) {
+    if (selectedFiles.length === 0) return;
+
+    const nextFiles = [...mediaFiles, ...selectedFiles];
+    if (nextFiles.length > MAX_CHAT_MEDIA_FILES) {
       setValidationMessage(
         t(
-          "messages:validation.unsupportedMedia",
-          undefined,
-          "Yalnız şəkil, MP4 və WEBM faylları göndərilə bilər.",
+          "messages:validation.tooManyMedia",
+          { count: MAX_CHAT_MEDIA_FILES },
+          `Bir mesajda maksimum ${MAX_CHAT_MEDIA_FILES} media faylı göndərilə bilər.`,
         ),
       );
       return;
     }
-    const maxSize = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
-    if (file.size > maxSize) {
+
+    for (const file of selectedFiles) {
+      const isImage = ["image/jpeg", "image/png", "image/webp"].includes(file.type);
+      const isVideo = file.type === "video/mp4" || file.type === "video/webm";
+      if (!isImage && !isVideo) {
+        setValidationMessage(
+          t(
+            "messages:validation.unsupportedMedia",
+            undefined,
+            "Yalnız şəkil, MP4 və WEBM faylları göndərilə bilər.",
+          ),
+        );
+        return;
+      }
+
+      const maxSize = isVideo ? 50 * 1024 * 1024 : 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        setValidationMessage(
+          isVideo
+            ? t(
+                "messages:validation.videoTooLarge",
+                undefined,
+                "Video maksimum 50 MB ola bilər.",
+              )
+            : t(
+                "messages:validation.imageTooLarge",
+                undefined,
+                "Şəkil maksimum 10 MB ola bilər.",
+              ),
+        );
+        return;
+      }
+    }
+
+    const totalBytes = nextFiles.reduce((sum, file) => sum + file.size, 0);
+    if (totalBytes > MAX_CHAT_MEDIA_TOTAL_BYTES) {
       setValidationMessage(
-        isVideo
-          ? t(
-              "messages:validation.videoTooLarge",
-              undefined,
-              "Video maksimum 50 MB ola bilər.",
-            )
-          : t(
-              "messages:validation.imageTooLarge",
-              undefined,
-              "Şəkil maksimum 10 MB ola bilər.",
-            ),
+        t(
+          "messages:validation.mediaTotalTooLarge",
+          undefined,
+          "Media fayllarının ümumi ölçüsü maksimum 150 MB ola bilər.",
+        ),
       );
       return;
     }
+
     setValidationMessage(null);
-    setMediaFile(file);
+    setMediaFiles(nextFiles);
+    setMediaPreviewIndex(mediaFiles.length);
+    setMediaPreviewOpen(true);
+  }
+
+  function removeMediaFile(index: number) {
+    setMediaFiles((current) => {
+      const next = current.filter((_, itemIndex) => itemIndex !== index);
+      if (next.length === 0) {
+        setMediaPreviewOpen(false);
+        setMediaPreviewIndex(0);
+      } else {
+        setMediaPreviewIndex((currentIndex) =>
+          Math.min(currentIndex > index ? currentIndex - 1 : currentIndex, next.length - 1),
+        );
+      }
+      return next;
+    });
+  }
+
+  function submitCurrentMessage() {
+    if (!recipientId || (!messageText.trim() && mediaFiles.length === 0)) return;
+    sendMutation.mutate({
+      recipientUserId: recipientId,
+      text: messageText,
+      media: mediaFiles,
+      replyToMessageId: replyTarget?.id ?? null,
+    });
   }
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
-    if (!recipientId || (!messageText.trim() && !mediaFile)) return;
-    sendMutation.mutate({
-      recipientUserId: recipientId,
-      text: messageText,
-      media: mediaFile,
-      replyToMessageId: replyTarget?.id ?? null,
-    });
+    submitCurrentMessage();
   }
 
   function openForwardDialog(message: ChatMessageDTO) {
@@ -1808,7 +2348,7 @@ export function MessagesPage() {
                                 </p>
                               ) : (
                                 <>
-                                  {message.mediaUrl && <AuthenticatedMedia message={message} />}
+                                  {getMediaItems(message).length > 0 && <AuthenticatedMedia message={message} />}
                                   {message.kind === "GameRecommendation" && (
                                     <Link
                                       to={gameDetailUrl}
@@ -2015,15 +2555,30 @@ export function MessagesPage() {
                         </button>
                       </div>
                     )}
-                    {mediaFile && (
-                      <div className="mb-2 flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 py-2 text-xs text-zinc-400">
-                        {mediaFile.type.startsWith("video/") ? (
-                          <Video size={15} />
-                        ) : (
-                          <ImagePlus size={15} />
-                        )}
-                        <span className="min-w-0 flex-1 truncate">{mediaFile.name}</span>
-                        <button type="button" onClick={() => setMediaFile(null)}>
+                    {mediaFiles.length > 0 && (
+                      <div className="mb-2 flex items-center gap-2 rounded-xl border border-violet-300/10 bg-violet-500/[0.06] px-3 py-2 text-xs text-zinc-400">
+                        <ImagePlus size={15} className="text-violet-300" />
+                        <button
+                          type="button"
+                          onClick={() => setMediaPreviewOpen(true)}
+                          className="min-w-0 flex-1 truncate text-left font-semibold text-zinc-300 transition hover:text-white"
+                        >
+                          {translateText(
+                            "messages:composer.selectedMedia",
+                            { count: mediaFiles.length },
+                            `${mediaFiles.length} media seçilib`,
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMediaFiles([]);
+                            setMediaPreviewOpen(false);
+                            setMediaPreviewIndex(0);
+                          }}
+                          className="text-zinc-500 transition hover:text-red-300"
+                          aria-label={translateText("messages:composer.clearMedia", undefined, "Bütün mediaları sil")}
+                        >
                           <X size={15} />
                         </button>
                       </div>
@@ -2032,6 +2587,7 @@ export function MessagesPage() {
                       <input
                         ref={fileInputRef}
                         type="file"
+                        multiple
                         accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
                         onChange={handleMediaChange}
                         className="sr-only"
@@ -2095,10 +2651,10 @@ export function MessagesPage() {
                         disabled={
                           sendMutation.isPending ||
                           !recipientId ||
-                          (!messageText.trim() && !mediaFile) ||
+                          (!messageText.trim() && mediaFiles.length === 0) ||
                           selectedConversation?.canSendMessage === false
                         }
-                        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white transition hover:bg-violet-500 disabled:opacity-40"
+                        className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white transition hover:bg-violet-500 disabled:opacity-40"
                         aria-label={t("messages:composer.send", undefined, "Mesajı göndər")}
                       >
                         {sendMutation.isPending ? (
@@ -2106,9 +2662,29 @@ export function MessagesPage() {
                         ) : (
                           <Send size={18} />
                         )}
+                        {mediaFiles.length > 0 && (
+                          <span className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-[#111116] bg-white px-1 text-[10px] font-black text-violet-700">
+                            {mediaFiles.length}
+                          </span>
+                        )}
                       </button>
                     </div>
                   </form>
+                )}
+
+                {mediaPreviewOpen && mediaFiles.length > 0 && (
+                  <MediaComposerPreviewModal
+                    files={mediaFiles}
+                    selectedIndex={mediaPreviewIndex}
+                    messageText={messageText}
+                    isSending={sendMutation.isPending}
+                    onSelect={setMediaPreviewIndex}
+                    onMessageChange={handleTyping}
+                    onRemove={removeMediaFile}
+                    onAdd={() => fileInputRef.current?.click()}
+                    onClose={() => setMediaPreviewOpen(false)}
+                    onSend={submitCurrentMessage}
+                  />
                 )}
 
                 {streakCelebration && (

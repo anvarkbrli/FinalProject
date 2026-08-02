@@ -6,10 +6,14 @@ export interface UpdateProfileRequestDTO {
 
 export interface UserSettingsDTO {
   isPrivate: boolean;
+  preferredLanguage: "az" | "en";
+  preferredTheme: "light" | "dark";
 }
 
 export interface UpdateUserSettingsRequestDTO {
-  isPrivate: boolean;
+  isPrivate?: boolean;
+  preferredLanguage?: "az" | "en";
+  preferredTheme?: "light" | "dark";
 }
 
 export interface BlockedUserDTO {
@@ -38,6 +42,10 @@ export interface FollowRequestDTO {
   userName: string;
   profileImageUrl: string | null;
   requestedAt: string;
+}
+
+export interface FollowRequestBulkResultDTO {
+  processedCount: number;
 }
 
 export interface DeleteAccountRequestDTO {

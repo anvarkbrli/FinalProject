@@ -18,6 +18,8 @@ namespace Ludora.Application.DTOs
 
         public string OwnerUserName { get; set; } = null!;
 
+        public string? OwnerProfileImageUrl { get; set; }
+
         public bool IsOwner { get; set; }
 
         public bool CanEditGames { get; set; }
@@ -27,6 +29,8 @@ namespace Ludora.Application.DTOs
         public GameListCollaborationStatus? CurrentUserCollaborationStatus { get; set; }
 
         public int GameCount { get; set; }
+
+        public int CurrentUserPlayedGameCount { get; set; }
 
         public DateTime CreatedAt { get; set; }
 

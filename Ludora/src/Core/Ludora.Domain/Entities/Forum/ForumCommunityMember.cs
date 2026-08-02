@@ -14,4 +14,7 @@ public class ForumCommunityMember : BaseEntity
 
     public ForumCommunityMemberRole Role { get; set; }
     public ForumCommunityMembershipStatus Status { get; set; }
+
+    public int? FlairId { get; set; }
+    public ForumCommunityFlair? Flair { get; set; }
 }

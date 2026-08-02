@@ -341,14 +341,53 @@ public class UsersController : ControllerBase
     [HttpGet("me/follow-requests")]
     public async Task<IActionResult> GetFollowRequests(
         [FromQuery] PaginationFilterDTO pagination,
+        [FromQuery] string? search,
         CancellationToken cancellationToken)
     {
         var result = await _followService.GetFollowRequestsAsync(
             GetCurrentUserId(),
             pagination,
+            search,
             cancellationToken);
 
         return Ok(result);
+    }
+
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
+    [HttpPost("me/follow-requests/bulk-accept")]
+    public async Task<IActionResult> BulkAcceptFollowRequests(
+        [FromBody] FollowRequestBulkActionDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var processedCount = await _followService.AcceptFollowRequestsAsync(
+            GetCurrentUserId(),
+            dto.RequesterIds,
+            cancellationToken);
+
+        return Ok(new FollowRequestBulkResultDTO
+        {
+            ProcessedCount = processedCount
+        });
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
+    [HttpPost("me/follow-requests/bulk-reject")]
+    public async Task<IActionResult> BulkRejectFollowRequests(
+        [FromBody] FollowRequestBulkActionDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var processedCount = await _followService.RejectFollowRequestsAsync(
+            GetCurrentUserId(),
+            dto.RequesterIds,
+            cancellationToken);
+
+        return Ok(new FollowRequestBulkResultDTO
+        {
+            ProcessedCount = processedCount
+        });
     }
 
     [Authorize]

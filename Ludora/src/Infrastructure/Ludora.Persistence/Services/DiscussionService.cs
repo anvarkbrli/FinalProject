@@ -1003,6 +1003,24 @@ public sealed class DiscussionService : IDiscussionService
                     .Select(member => (ForumCommunityMemberRole?)member.Role)
                     .FirstOrDefault()
                 : null,
+            AuthorCommunityFlairName = x.CommunityId.HasValue
+                ? x.Community!.Members
+                    .Where(member => member.UserId == x.UserId && member.Status == ForumCommunityMembershipStatus.Active)
+                    .Select(member => member.Flair != null ? member.Flair.Name : null)
+                    .FirstOrDefault()
+                : null,
+            AuthorCommunityFlairBackgroundColor = x.CommunityId.HasValue
+                ? x.Community!.Members
+                    .Where(member => member.UserId == x.UserId && member.Status == ForumCommunityMembershipStatus.Active)
+                    .Select(member => member.Flair != null ? member.Flair.BackgroundColor : null)
+                    .FirstOrDefault()
+                : null,
+            AuthorCommunityFlairTextColor = x.CommunityId.HasValue
+                ? x.Community!.Members
+                    .Where(member => member.UserId == x.UserId && member.Status == ForumCommunityMembershipStatus.Active)
+                    .Select(member => member.Flair != null ? member.Flair.TextColor : null)
+                    .FirstOrDefault()
+                : null,
             LikeCount = x.Likes.Count,
             ReplyCount = ignoreReplyFilters
                 ? x.Replies.Count(reply => !reply.IsDeleted)
@@ -1164,6 +1182,24 @@ public sealed class DiscussionService : IDiscussionService
                         member.UserId == x.UserId &&
                         member.Status == ForumCommunityMembershipStatus.Active)
                     .Select(member => (ForumCommunityMemberRole?)member.Role)
+                    .FirstOrDefault()
+                : null,
+            AuthorCommunityFlairName = x.CommunityId.HasValue
+                ? x.Community!.Members
+                    .Where(member => member.UserId == x.UserId && member.Status == ForumCommunityMembershipStatus.Active)
+                    .Select(member => member.Flair != null ? member.Flair.Name : null)
+                    .FirstOrDefault()
+                : null,
+            AuthorCommunityFlairBackgroundColor = x.CommunityId.HasValue
+                ? x.Community!.Members
+                    .Where(member => member.UserId == x.UserId && member.Status == ForumCommunityMembershipStatus.Active)
+                    .Select(member => member.Flair != null ? member.Flair.BackgroundColor : null)
+                    .FirstOrDefault()
+                : null,
+            AuthorCommunityFlairTextColor = x.CommunityId.HasValue
+                ? x.Community!.Members
+                    .Where(member => member.UserId == x.UserId && member.Status == ForumCommunityMembershipStatus.Active)
+                    .Select(member => member.Flair != null ? member.Flair.TextColor : null)
                     .FirstOrDefault()
                 : null,
             LikeCount = x.Likes.Count,

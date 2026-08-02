@@ -56,6 +56,15 @@ export interface ChatStreakUpdatedDTO {
   wasIncremented: boolean;
 }
 
+export interface ChatMessageMediaDTO {
+  id: number;
+  url: string;
+  contentType: string;
+  fileName: string;
+  length: number;
+  sortOrder: number;
+}
+
 export interface ChatMessageDTO {
   id: number;
   conversationId: number;
@@ -64,6 +73,7 @@ export interface ChatMessageDTO {
   text: string | null;
   mediaUrl: string | null;
   mediaContentType: string | null;
+  mediaItems: ChatMessageMediaDTO[];
   gameSource: CatalogSource | null;
   gameId: number | null;
   gameName: string | null;
@@ -128,7 +138,7 @@ export interface ChatMessageSearchPageDTO {
 export interface ChatSendMessageRequest {
   recipientUserId: string;
   text?: string;
-  media?: File | null;
+  media?: File[];
   replyToMessageId?: number | null;
   game?: {
     source: CatalogSource;

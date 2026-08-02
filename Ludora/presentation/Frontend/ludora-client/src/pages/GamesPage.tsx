@@ -626,6 +626,7 @@ export function GamesPage() {
       validReleaseYear,
       sortBy,
       pageNumber,
+      PAGE_SIZE,
     ],
     queryFn: ({ signal }) =>
       getGames({
@@ -643,17 +644,21 @@ export function GamesPage() {
         pageNumber,
         pageSize: PAGE_SIZE,
       }, signal),
-    placeholderData: (previousData) => previousData,
   });
 
+  const currentPageData =
+    gamesQuery.data?.pageNumber === pageNumber
+      ? gamesQuery.data
+      : undefined;
+
   const games: GameCatalogItemDTO[] =
-    gamesQuery.data?.items ?? [];
+    currentPageData?.items ?? [];
 
   const totalCount =
-    gamesQuery.data?.totalCount ?? 0;
+    currentPageData?.totalCount ?? 0;
 
   const totalPages =
-    gamesQuery.data?.totalPages ?? 0;
+    currentPageData?.totalPages ?? 0;
 
   const paginationItems = useMemo(
     () =>

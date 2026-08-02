@@ -1312,7 +1312,7 @@ public sealed class ReviewService : IReviewService
         }
 
         throw new BadRequestException(
-            "Status, puan, platforma, oyun müddəti və ya rəy məlumatlarından ən azı biri əlavə edilməlidir.");
+            "Status, reytinq, platforma, oyun müddəti və ya rəy məlumatlarından ən azı biri əlavə edilməlidir.");
     }
 
     private static void ValidatePlayedOn(DateOnly? playedOn)

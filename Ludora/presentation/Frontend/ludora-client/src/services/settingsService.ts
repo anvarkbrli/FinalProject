@@ -9,6 +9,7 @@ import type {
   DeleteAccountRequestDTO,
   DeleteAccountResultDTO,
   EmailOperationResultDTO,
+  FollowRequestBulkResultDTO,
   FollowRequestDTO,
   UpdateProfileRequestDTO,
   UpdateUserSettingsRequestDTO,
@@ -136,22 +137,30 @@ export async function requestEmailChange(
   return response.data;
 }
 
+export interface GetFollowRequestsOptions {
+  search?: string;
+  pageNumber?: number;
+  pageSize?: number;
+  signal?: AbortSignal;
+}
+
 export async function getFollowRequests(
-  signal?: AbortSignal,
-): Promise<FollowRequestDTO[]> {
+  options: GetFollowRequestsOptions = {},
+): Promise<PagedResultDTO<FollowRequestDTO>> {
   const response =
     await api.get<PagedResultDTO<FollowRequestDTO>>(
       "/users/me/follow-requests",
       {
         params: {
-          pageNumber: 1,
-          pageSize: 100,
+          search: options.search?.trim() || undefined,
+          pageNumber: options.pageNumber ?? 1,
+          pageSize: options.pageSize ?? 100,
         },
-        signal,
+        signal: options.signal,
       },
     );
 
-  return response.data.items;
+  return response.data;
 }
 
 export async function acceptFollowRequest(
@@ -168,6 +177,29 @@ export async function rejectFollowRequest(
   await api.delete(
     `/users/me/follow-requests/${requesterId}/reject-follow`,
   );
+}
+
+
+export async function bulkAcceptFollowRequests(
+  requesterIds: string[],
+): Promise<FollowRequestBulkResultDTO> {
+  const response = await api.post<FollowRequestBulkResultDTO>(
+    "/users/me/follow-requests/bulk-accept",
+    { requesterIds },
+  );
+
+  return response.data;
+}
+
+export async function bulkRejectFollowRequests(
+  requesterIds: string[],
+): Promise<FollowRequestBulkResultDTO> {
+  const response = await api.post<FollowRequestBulkResultDTO>(
+    "/users/me/follow-requests/bulk-reject",
+    { requesterIds },
+  );
+
+  return response.data;
 }
 
 export async function deleteAccount(

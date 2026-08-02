@@ -23,6 +23,9 @@ public record DiscussionListItemDTO
     public string AuthorUserName { get; init; } = string.Empty;
     public string? AuthorProfileImageUrl { get; init; }
     public ForumCommunityMemberRole? AuthorCommunityRole { get; init; }
+    public string? AuthorCommunityFlairName { get; init; }
+    public string? AuthorCommunityFlairBackgroundColor { get; init; }
+    public string? AuthorCommunityFlairTextColor { get; init; }
 
     public int LikeCount { get; init; }
     public int ReplyCount { get; init; }

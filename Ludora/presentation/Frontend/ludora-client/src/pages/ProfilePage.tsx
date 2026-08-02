@@ -1,4 +1,4 @@
-﻿import {
+import {
   useMutation,
   useQuery,
   useQueryClient,
@@ -11,9 +11,11 @@ import {
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronRight,
   Clock3,
   Eye,
   EllipsisVertical,
+  FileText,
   Flag,
   Gamepad2,
   Heart,
@@ -24,7 +26,6 @@ import {
   LoaderCircle,
   LockKeyhole,
   MessageCircle,
-  MessageSquareText,
   Pencil,
   Plus,
   Send,
@@ -38,6 +39,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -49,6 +51,7 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
+import { CopyShareButton } from "../components/common/CopyShareButton";
 import { InteractionCommentsPanel } from "../components/interactions/InteractionCommentsPanel";
 import { InteractionLikesModal } from "../components/interactions/InteractionLikesModal";
 import { Footer } from "../components/layout/Footer";
@@ -56,6 +59,7 @@ import { Navbar } from "../components/layout/Navbar";
 import { useI18n } from "../i18n/useI18n";
 import { GameListEditorModal } from "../components/lists/GameListEditorModal";
 import { ProfileActivityFeed } from "../components/profile/ProfileActivityFeed";
+import { FollowRequestsModal } from "../components/profile/FollowRequestsModal";
 import { ProfileGamesGallery } from "../components/profile/ProfileGamesGallery";
 import { ProfileOverview } from "../components/profile/ProfileOverview";
 import { ProfileSteamLibrary } from "../components/profile/ProfileSteamLibrary";
@@ -69,6 +73,7 @@ import { ReviewLikesModal } from "../components/reviews/ReviewLikesModal";
 import { ProfileGameCollection } from "../components/profile/ProfileGameCollection";
 import { SteamPlaytimeReconciliationModal } from "../components/steam/SteamPlaytimeReconciliationModal";
 import { getApiErrorMessage } from "../lib/api";
+import { hasAuthCapability } from "../lib/authRoles";
 import { useConfirmation } from "../lib/confirmation";
 import { socialPlatformLabels } from "../lib/socialPlatforms";
 import {
@@ -77,6 +82,7 @@ import {
   resolveAssetUrl,
 } from "../lib/helpers";
 import { createGameList } from "../services/gameListsService";
+import { deleteAdminPost } from "../services/adminService";
 import {
   likeContent,
   unlikeContent,
@@ -110,6 +116,7 @@ import {
   unfollowUser,
   updatePost,
 } from "../services/profileService";
+import { getFollowRequests } from "../services/settingsService";
 import {
   isAuthSessionValid,
   useAuthStore,
@@ -144,6 +151,7 @@ type ProfileGameStatus = NonNullable<
 type ConnectionModal =
   | "followers"
   | "following"
+  | "requests"
   | null;
 
 interface NoticeState {
@@ -154,7 +162,7 @@ interface NoticeState {
 const profileTabs: Array<{
   id: ProfileTab;
   label: string;
-  icon: typeof MessageSquareText;
+  icon: typeof FileText;
   ownerOnly?: boolean;
 }> = [
   {
@@ -170,7 +178,7 @@ const profileTabs: Array<{
   {
     id: "posts",
     label: "Postlar",
-    icon: MessageSquareText,
+    icon: FileText,
   },
   {
     id: "lists",
@@ -265,6 +273,15 @@ function parseProfileTab(value: string | null): ProfileTab | null {
     ? (value as ProfileTab)
     : null;
 }
+
+function parseConnectionModal(value: string | null): ConnectionModal {
+  return value === "followers" ||
+    value === "following" ||
+    value === "requests"
+    ? value
+    : null;
+}
+
 
 function parseProfileGameStatus(
   value: string | null,
@@ -426,6 +443,10 @@ export function ProfilePage() {
   const storedUser = useAuthStore(
     (state) => state.user,
   );
+  const canDeleteAnyPost = hasAuthCapability(
+    storedUser?.capabilities,
+    "admin.posts.delete",
+  );
   const accessToken = useAuthStore(
     (state) => state.accessToken,
   );
@@ -456,8 +477,23 @@ export function ProfilePage() {
     reviewRating !== null
       ? "rating"
       : reviewSortState.category;
-  const [connectionModal, setConnectionModal] =
-    useState<ConnectionModal>(null);
+  const connectionModal = parseConnectionModal(
+    searchParams.get("connections"),
+  );
+  const setConnectionModal = useCallback(
+    (value: ConnectionModal) => {
+      const nextParams = new URLSearchParams(searchParams);
+
+      if (value) {
+        nextParams.set("connections", value);
+      } else {
+        nextParams.delete("connections");
+      }
+
+      setSearchParams(nextParams, { replace: true });
+    },
+    [searchParams, setSearchParams],
+  );
   const [notice, setNotice] =
     useState<NoticeState | null>(null);
   const [newPostContent, setNewPostContent] =
@@ -587,6 +623,9 @@ export function ProfilePage() {
   const isOwnProfile =
     profile !== undefined &&
     storedUser?.id === profile.id;
+  const canViewProfileContent =
+    profile !== undefined &&
+    (profile.canViewContent ?? (!profile.isPrivate || isOwnProfile));
   const requestedTab = profileTabs.find((tab) => tab.id === activeTab);
   const visibleActiveTab =
     !isOwnProfile && requestedTab?.ownerOnly
@@ -611,7 +650,7 @@ export function ProfilePage() {
     queryFn: ({ signal }) =>
       getUserPosts(profile!.id, signal),
     enabled:
-      profile !== undefined &&
+      canViewProfileContent &&
       visibleActiveTab === "posts",
   });
 
@@ -620,7 +659,7 @@ export function ProfilePage() {
     queryFn: () =>
       getUserGameLists(profile!.id),
     enabled:
-      profile !== undefined &&
+      canViewProfileContent &&
       visibleActiveTab === "lists",
   });
 
@@ -628,6 +667,7 @@ export function ProfilePage() {
     queryKey: ["my-collaborating-game-lists"],
     queryFn: getMyCollaboratingGameLists,
     enabled:
+      canViewProfileContent &&
       isAuthenticated &&
       isOwnProfile &&
       visibleActiveTab === "lists",
@@ -648,7 +688,7 @@ export function ProfilePage() {
         pageSize: 100,
       }),
     enabled:
-      profile !== undefined &&
+      canViewProfileContent &&
       visibleActiveTab === "reviews",
   });
 
@@ -682,7 +722,7 @@ export function ProfilePage() {
         pageSize: 20,
       }),
     enabled:
-      profile !== undefined &&
+      canViewProfileContent &&
       visibleActiveTab === "games",
   });
 
@@ -696,7 +736,7 @@ export function ProfilePage() {
         pageSize: 4,
       }),
     enabled:
-      profile !== undefined &&
+      canViewProfileContent &&
       visibleActiveTab === "overview",
     staleTime: 2 * 60 * 1000,
   });
@@ -710,7 +750,7 @@ export function ProfilePage() {
         pageSize: 4,
       }),
     enabled:
-      profile !== undefined &&
+      canViewProfileContent &&
       isOwnProfile &&
       visibleActiveTab === "overview",
     staleTime: 2 * 60 * 1000,
@@ -728,7 +768,7 @@ export function ProfilePage() {
         playtimePeriod,
       ),
     enabled:
-      profile !== undefined &&
+      canViewProfileContent &&
       visibleActiveTab === "overview",
     staleTime: 2 * 60 * 1000,
   });
@@ -742,7 +782,7 @@ export function ProfilePage() {
         sortBy: "NameAsc",
       }),
     enabled:
-      profile !== undefined &&
+      canViewProfileContent &&
       visibleActiveTab === "games",
     staleTime: 5 * 60 * 1000,
   });
@@ -761,7 +801,7 @@ export function ProfilePage() {
         pageSize: 12,
       }),
     enabled:
-      profile !== undefined &&
+      canViewProfileContent &&
       isOwnProfile &&
       visibleActiveTab === "wishlist",
   });
@@ -780,7 +820,7 @@ export function ProfilePage() {
         pageSize: 12,
       }),
     enabled:
-      profile !== undefined &&
+      canViewProfileContent &&
       isOwnProfile &&
       (isFavoritesModalOpen ||
         visibleActiveTab === "favorites"),
@@ -790,7 +830,7 @@ export function ProfilePage() {
     queryKey: ["steam-owned-games", profile?.id],
     queryFn: () => getSteamOwnedGames(profile!.id, isOwnProfile),
     enabled:
-      profile !== undefined &&
+      canViewProfileContent &&
       visibleActiveTab === "owned-games",
     staleTime: 2 * 60 * 1000,
   });
@@ -833,7 +873,7 @@ export function ProfilePage() {
     ],
     queryFn: () => getMyFeed(feedCategory, feedScope, feedPage, 20),
     enabled:
-      profile !== undefined &&
+      canViewProfileContent &&
       isOwnProfile &&
       visibleActiveTab === "feed",
   });
@@ -845,7 +885,11 @@ export function ProfilePage() {
       connectionModal,
     ],
     queryFn: ({ signal }) => {
-      if (!profile || !connectionModal) {
+      if (
+        !profile ||
+        (connectionModal !== "followers" &&
+          connectionModal !== "following")
+      ) {
         return Promise.resolve<UserListItemDTO[]>([]);
       }
 
@@ -854,8 +898,21 @@ export function ProfilePage() {
         : getFollowing(profile.id, signal);
     },
     enabled:
-      profile !== undefined &&
-      connectionModal !== null,
+      canViewProfileContent &&
+      (connectionModal === "followers" ||
+        connectionModal === "following"),
+  });
+
+  const followRequestCountQuery = useQuery({
+    queryKey: ["follow-requests", "count"],
+    queryFn: ({ signal }) =>
+      getFollowRequests({
+        pageNumber: 1,
+        pageSize: 1,
+        signal,
+      }),
+    enabled: isOwnProfile && connectionModal === "followers",
+    staleTime: 15_000,
   });
 
   const invalidateProfileData = async () => {
@@ -1048,7 +1105,18 @@ export function ProfilePage() {
   });
 
   const deletePostMutation = useMutation({
-    mutationFn: deletePost,
+    mutationFn: ({
+      postId,
+      isStaffDelete,
+      reason,
+    }: {
+      postId: number;
+      isStaffDelete: boolean;
+      reason?: string;
+    }) =>
+      isStaffDelete
+        ? deleteAdminPost(postId, reason ?? "Profil səhifəsindən staff tərəfindən silindi.")
+        : deletePost(postId),
     onSuccess: async () => {
       await Promise.all([
         queryClient.invalidateQueries({
@@ -1188,7 +1256,7 @@ export function ProfilePage() {
     nextParams.set("tab", "reviews");
 
     if (category === "rating") {
-      // Ulduz kateqoriyası sıralama deyil, dəqiq puan filtridir.
+      // Ulduz kateqoriyası sıralama deyil, dəqiq reytinq filtridir.
       // Buna görə artan/azalan istiqaməti deaktiv edilir və
       // nəticələr standart olaraq ən yeni tarixə görə göstərilir.
       nextParams.delete("sort");
@@ -1404,7 +1472,27 @@ export function ProfilePage() {
     blockMutation.isPending ||
     removeFollowerMutation.isPending;
 
-  const posts = postsQuery.data ?? [];
+  const posts = useMemo(() => postsQuery.data ?? [], [postsQuery.data]);
+  const sharedPostId = searchParams.get("post");
+
+  useEffect(() => {
+    if (
+      visibleActiveTab !== "posts" ||
+      !sharedPostId ||
+      posts.length === 0
+    ) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      document.getElementById(`post-${sharedPostId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [posts, sharedPostId, visibleActiveTab]);
   const gameLists = listsQuery.data ?? [];
   const collaboratingGameLists = collaboratingListsQuery.data ?? [];
   const reviews = reviewsQuery.data?.items ?? [];
@@ -1473,11 +1561,14 @@ export function ProfilePage() {
     return () => window.cancelAnimationFrame(frame);
   }, [visibleActiveTab, reviewsQuery.isLoading, reviews.length]);
 
-  const connectionTitle = useMemo(() => {
-    return connectionModal === "followers"
-      ? "İzləyicilər"
-      : "İzlənilənlər";
-  }, [connectionModal]);
+  const connectionTitle =
+    connectionModal === "followers"
+      ? language === "en"
+        ? "Followers"
+        : "İzləyicilər"
+      : language === "en"
+        ? "Following"
+        : "İzlənilənlər";
 
   if (profileQuery.isLoading) {
     return <ProfileLoadingState />;
@@ -1554,6 +1645,79 @@ export function ProfilePage() {
     }
   }
 
+  if (!canViewProfileContent) {
+    return (
+      <div className="min-h-screen wellplayd-page-bg text-zinc-100">
+        <Navbar />
+
+        <main className="relative flex min-h-[calc(100vh-160px)] items-center justify-center overflow-hidden px-5 py-16">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.18),transparent_32%),radial-gradient(circle_at_80%_70%,rgba(217,70,239,0.09),transparent_28%)]" />
+
+          <section className="relative w-full max-w-xl rounded-[2rem] border border-white/[0.08] bg-[#111118]/95 p-7 text-center shadow-2xl shadow-black/35 sm:p-10">
+            <UserAvatar
+              userName={loadedProfile.userName}
+              profileImageUrl={loadedProfile.profileImageUrl}
+              className="mx-auto h-24 w-24 rounded-3xl border border-white/10 text-2xl shadow-xl shadow-black/30"
+            />
+
+            <h1 className="mt-5 truncate text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              {loadedProfile.userName}
+            </h1>
+
+            <div className="mx-auto mt-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-violet-400/15 bg-violet-500/10 text-violet-300">
+              <LockKeyhole size={28} />
+            </div>
+
+            <h2 className="mt-5 text-xl font-bold text-white">
+              {t("profile:private")}
+            </h2>
+            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-zinc-400">
+              {t("profile:privateDescription")}
+            </p>
+
+            {notice && (
+              <div
+                className={`mt-6 rounded-2xl border px-4 py-3 text-sm ${
+                  notice.type === "success"
+                    ? "border-emerald-400/15 bg-emerald-500/[0.07] text-emerald-200"
+                    : "border-red-400/15 bg-red-500/[0.07] text-red-200"
+                }`}
+              >
+                {notice.message}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={handleFollowAction}
+              disabled={actionIsPending}
+              className={`mx-auto mt-7 flex h-11 min-w-40 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                followStatus?.isPending
+                  ? "border border-white/[0.09] bg-white/[0.05] text-zinc-200 hover:bg-white/[0.09]"
+                  : "bg-violet-600 text-white hover:bg-violet-500"
+              }`}
+            >
+              {actionIsPending ? (
+                <LoaderCircle size={17} className="animate-spin" />
+              ) : followStatus?.isPending ? (
+                <Clock3 size={17} />
+              ) : (
+                <UserPlus size={17} />
+              )}
+              {followStatus?.isPending
+                ? language === "en"
+                  ? "Request sent"
+                  : "Sorğu göndərilib"
+                : t("profile:followToView")}
+            </button>
+          </section>
+        </main>
+
+        <Footer />
+      </div>
+    );
+  }
+
   function handleCreatePost() {
     const normalizedContent = newPostContent.trim();
 
@@ -1611,13 +1775,53 @@ export function ProfilePage() {
     });
   }
 
-  function handlePostDelete(postId: number) {
-    const shouldDelete = window.confirm(
-      "Bu postu silmək istəyirsən?",
-    );
+  async function handlePostDelete(post: PostDTO) {
+    const isStaffDelete = !post.isMine && canDeleteAnyPost;
+    let reason: string | undefined;
+
+    if (isStaffDelete) {
+      const enteredReason = window.prompt(
+        language === "en"
+          ? "Enter the moderation reason for deleting this post:"
+          : "Postun silinmə səbəbini daxil et:",
+      );
+
+      if (enteredReason === null) return;
+      reason = enteredReason.trim();
+
+      if (reason.length < 3) {
+        setNotice({
+          type: "error",
+          message:
+            language === "en"
+              ? "The moderation reason must contain at least 3 characters."
+              : "Moderasiya səbəbi ən azı 3 simvol olmalıdır.",
+        });
+        return;
+      }
+    }
+
+    const shouldDelete = await requestConfirmation({
+      title: language === "en" ? "Delete post?" : "Post silinsin?",
+      description: isStaffDelete
+        ? language === "en"
+          ? `This post by ${post.userName} will be removed from the platform.`
+          : `${post.userName} tərəfindən paylaşılmış post platformadan silinəcək.`
+        : language === "en"
+          ? "Your post will be removed from your profile."
+          : "Post profilindən silinəcək.",
+      detail: reason,
+      confirmLabel: language === "en" ? "Delete" : "Sil",
+      kind: "delete",
+      tone: "danger",
+    });
 
     if (shouldDelete) {
-      deletePostMutation.mutate(postId);
+      deletePostMutation.mutate({
+        postId: post.id,
+        isStaffDelete,
+        reason,
+      });
     }
   }
 
@@ -1640,8 +1844,8 @@ export function ProfilePage() {
       <Navbar />
 
       <main>
-        <section className="relative overflow-hidden border-b border-white/[0.06] bg-[#0a0a0e]">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,0.17),transparent_30%),radial-gradient(circle_at_90%_30%,rgba(217,70,239,0.07),transparent_25%)]" />
+        <section className="profile-hero relative overflow-hidden border-b border-white/[0.06] bg-[#0a0a0e]">
+          <div className="profile-hero-glow pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,0.17),transparent_30%),radial-gradient(circle_at_90%_30%,rgba(217,70,239,0.07),transparent_25%)]" />
 
           <div className="relative mx-auto max-w-7xl px-5 py-12 lg:px-8 lg:py-16">
             <div className="flex flex-col gap-7 md:flex-row md:items-start md:justify-between">
@@ -1651,18 +1855,18 @@ export function ProfilePage() {
                   profileImageUrl={
                     profile.profileImageUrl
                   }
-                  className="h-28 w-28 rounded-3xl border border-white/10 text-3xl shadow-2xl shadow-black/30"
+                  className="profile-hero-avatar h-28 w-28 rounded-3xl border border-white/10 text-3xl shadow-2xl shadow-black/30"
                 />
 
                 <div className="min-w-0 pt-1">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="truncate text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                    <h1 className="profile-hero-title truncate text-3xl font-bold tracking-tight text-white sm:text-4xl">
                       {profile.userName}
                     </h1>
 
                   </div>
 
-                  <p data-user-content className="mt-4 max-w-2xl whitespace-pre-wrap text-sm leading-7 text-zinc-400">
+                  <p data-user-content className="profile-hero-bio mt-4 max-w-2xl whitespace-pre-wrap text-sm leading-7 text-zinc-400">
                     {profile.bio ??
                       "Bu istifadəçi hələ bio əlavə etməyib."}
                   </p>
@@ -1677,7 +1881,7 @@ export function ProfilePage() {
                           rel="noreferrer"
                           title={socialPlatformLabels[link.platform]}
                           aria-label={`${socialPlatformLabels[link.platform]} profilini aç`}
-                          className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-xs font-semibold text-zinc-400 transition hover:border-violet-400/25 hover:bg-violet-500/10 hover:text-white"
+                          className="profile-hero-social-link inline-flex h-9 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-xs font-semibold text-zinc-400 transition hover:border-violet-400/25 hover:bg-violet-500/10 hover:text-white"
                         >
                           <SocialPlatformIcon
                             platform={link.platform}
@@ -1691,7 +1895,7 @@ export function ProfilePage() {
                     </div>
                   )}
 
-                  <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-zinc-500">
+                  <div className="profile-hero-meta mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-zinc-500">
                     <span className="inline-flex items-center gap-2">
                       <CalendarDays size={15} />
                       {language === "en"
@@ -1703,11 +1907,15 @@ export function ProfilePage() {
                 </div>
               </div>
 
-              <div className="flex shrink-0 flex-wrap gap-3">
+              <div className="profile-hero-actions flex shrink-0 flex-wrap gap-3">
+                <CopyShareButton
+                  path={`/users/${encodeURIComponent(profile.userName)}`}
+                  className="profile-hero-secondary-action flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-4 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.09] hover:text-white"
+                />
                 {isOwnProfile ? (
                   <Link
                     to="/settings?section=profile"
-                    className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-5 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.09] hover:text-white"
+                    className="profile-hero-secondary-action flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-5 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.09] hover:text-white"
                   >
                     <Pencil size={17} />
                     Redaktə et
@@ -1721,8 +1929,8 @@ export function ProfilePage() {
                       className={`flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                         followStatus?.isFollowing ||
                         followStatus?.isPending
-                          ? "border border-white/[0.09] bg-white/[0.05] text-zinc-200 hover:bg-white/[0.09]"
-                          : "bg-violet-600 text-white hover:bg-violet-500"
+                          ? "profile-hero-secondary-action border border-white/[0.09] bg-white/[0.05] text-zinc-200 hover:bg-white/[0.09]"
+                          : "profile-hero-primary-action bg-violet-600 text-white hover:bg-violet-500"
                       }`}
                     >
                       {actionIsPending ? (
@@ -1754,7 +1962,7 @@ export function ProfilePage() {
                           aria-expanded={isProfileActionOpen}
                           aria-haspopup="menu"
                           aria-label="Profil əməliyyatları"
-                          className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.05] text-zinc-300 transition hover:bg-white/[0.09] hover:text-white"
+                          className="profile-hero-menu-trigger flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.05] text-zinc-300 transition hover:bg-white/[0.09] hover:text-white"
                         >
                           <EllipsisVertical size={19} />
                         </button>
@@ -1762,7 +1970,7 @@ export function ProfilePage() {
                         {isProfileActionOpen && (
                           <div
                             role="menu"
-                            className="absolute right-0 top-[calc(100%+8px)] z-30 w-48 rounded-2xl border border-white/[0.09] bg-[#15151b] p-2 shadow-2xl shadow-black/50"
+                            className="profile-hero-action-menu absolute right-0 top-[calc(100%+8px)] z-30 w-48 rounded-2xl border border-white/[0.09] bg-[#15151b] p-2 shadow-2xl shadow-black/50"
                           >
                             <button
                               type="button"
@@ -1777,7 +1985,7 @@ export function ProfilePage() {
                                   `/messages?userId=${loadedProfile.id}&userName=${encodeURIComponent(loadedProfile.userName)}`,
                                 );
                               }}
-                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                              className="profile-hero-menu-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                             >
                               <MessageCircle size={16} />
                               Mesaj yaz
@@ -1790,7 +1998,7 @@ export function ProfilePage() {
                                 handleBlock();
                               }}
                               disabled={actionIsPending}
-                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-red-300 transition hover:bg-red-500/[0.08] disabled:opacity-50"
+                              className="profile-hero-menu-item profile-hero-menu-item-danger flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-red-300 transition hover:bg-red-500/[0.08] disabled:opacity-50"
                             >
                               <Ban size={16} />
                               Blokla
@@ -1806,7 +2014,7 @@ export function ProfilePage() {
                                 }
                                 setIsReportOpen(true);
                               }}
-                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                              className="profile-hero-menu-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                             >
                               <Flag size={16} />
                               Şikayət et
@@ -1819,58 +2027,66 @@ export function ProfilePage() {
               </div>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-6 sm:grid-cols-4">
+            <div className="profile-hero-stats mt-8 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-6 sm:grid-cols-4">
               <button
                 type="button"
                 onClick={() => setConnectionModal("followers")}
-                className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-left transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
+                className="profile-hero-stat-card group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-left transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
               >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <span className="profile-hero-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
                   <Users size={17} />
                 </span>
                 <span className="min-w-0">
-                  <strong className="block text-lg font-bold text-white">{profile.followerCount}</strong>
-                  <span className="block truncate text-xs text-zinc-500 group-hover:text-zinc-300">İzləyici</span>
+                  <strong className="profile-hero-stat-value block text-lg font-bold text-white">{profile.followerCount}</strong>
+                  <span className="profile-hero-stat-label block truncate text-xs text-zinc-500 group-hover:text-zinc-300">
+                    {t("profile:followers")}
+                  </span>
                 </span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setConnectionModal("following")}
-                className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-left transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
+                className="profile-hero-stat-card group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-left transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
               >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <span className="profile-hero-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
                   <UserPlus size={17} />
                 </span>
                 <span className="min-w-0">
-                  <strong className="block text-lg font-bold text-white">{profile.followingCount}</strong>
-                  <span className="block truncate text-xs text-zinc-500 group-hover:text-zinc-300">İzlənilən</span>
+                  <strong className="profile-hero-stat-value block text-lg font-bold text-white">{profile.followingCount}</strong>
+                  <span className="profile-hero-stat-label block truncate text-xs text-zinc-500 group-hover:text-zinc-300">
+                    {t("profile:following")}
+                  </span>
                 </span>
               </button>
 
               <Link
                 to="?tab=posts#posts"
-                className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
+                className="profile-hero-stat-card group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
               >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
-                  <MessageSquareText size={17} />
+                <span className="profile-hero-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                  <FileText size={17} />
                 </span>
                 <span className="min-w-0">
-                  <strong className="block text-lg font-bold text-white">{profile.postCount}</strong>
-                  <span className="block truncate text-xs text-zinc-500 group-hover:text-zinc-300">Post sayı</span>
+                  <strong className="profile-hero-stat-value block text-lg font-bold text-white">{profile.postCount}</strong>
+                  <span className="profile-hero-stat-label block truncate text-xs text-zinc-500 group-hover:text-zinc-300">
+                    {t("profile:posts")}
+                  </span>
                 </span>
               </Link>
 
               <Link
                 to="?tab=reviews#reviews"
-                className="group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
+                className="profile-hero-stat-card group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
               >
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <span className="profile-hero-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
                   <Star size={17} />
                 </span>
                 <span className="min-w-0">
-                  <strong className="block text-lg font-bold text-white">{profile.statistics.reviewCount}</strong>
-                  <span className="block truncate text-xs text-zinc-500 group-hover:text-zinc-300">Rəy sayı</span>
+                  <strong className="profile-hero-stat-value block text-lg font-bold text-white">{profile.statistics.reviewCount}</strong>
+                  <span className="profile-hero-stat-label block truncate text-xs text-zinc-500 group-hover:text-zinc-300">
+                    {t("profile:reviews")}
+                  </span>
                 </span>
               </Link>
             </div>
@@ -1921,7 +2137,15 @@ export function ProfilePage() {
                   }`}
                 >
                   <Icon size={17} />
-                  {tab.label}
+                  {t(
+                    `profile:tabs.${
+                      tab.id === "owned-games"
+                        ? "ownedGames"
+                        : tab.id === "feed"
+                          ? "activity"
+                          : tab.id
+                    }`,
+                  )}
                 </button>
               );
             })}
@@ -2178,7 +2402,7 @@ export function ProfilePage() {
                   </div>
                 ) : posts.length === 0 ? (
                   <div className="rounded-3xl border border-dashed border-white/[0.08] p-12 text-center">
-                    <MessageSquareText
+                    <FileText
                       size={31}
                       className="mx-auto text-zinc-700"
                     />
@@ -2189,8 +2413,9 @@ export function ProfilePage() {
                 ) : (
                   posts.map((post) => (
                     <article
+                      id={`post-${post.id}`}
                       key={post.id}
-                      className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6"
+                      className="scroll-mt-28 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex min-w-0 items-center gap-3">
@@ -2218,6 +2443,11 @@ export function ProfilePage() {
                         </div>
 
                         <div className="flex shrink-0 gap-1">
+                          <CopyShareButton
+                            path={`/users/${encodeURIComponent(post.userName)}?tab=posts&post=${post.id}#post-${post.id}`}
+                            iconOnly
+                            className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-violet-500/[0.08] hover:text-violet-300"
+                          />
                           <ContentReportButton
                             reportedUserId={post.userId}
                             reportedUserName={post.userName}
@@ -2231,7 +2461,6 @@ export function ProfilePage() {
                             className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-red-500/[0.08] hover:text-red-300"
                           />
                           {post.isMine && (
-                            <>
                             <button
                               type="button"
                               onClick={() => {
@@ -2242,10 +2471,12 @@ export function ProfilePage() {
                             >
                               <Pencil size={16} />
                             </button>
+                          )}
+                          {(post.isMine || canDeleteAnyPost) && (
                             <button
                               type="button"
                               onClick={() => {
-                                handlePostDelete(post.id);
+                                void handlePostDelete(post);
                               }}
                               disabled={
                                 deletePostMutation.isPending
@@ -2255,7 +2486,6 @@ export function ProfilePage() {
                             >
                               <Trash2 size={16} />
                             </button>
-                            </>
                           )}
                         </div>
                       </div>
@@ -2775,7 +3005,7 @@ export function ProfilePage() {
                           Sıralama meyarı
                         </p>
                         <p className="mt-1 text-xs leading-5 text-zinc-600">
-                          Tarix və şərh sayı üçün sıra istiqamətini seç. Ulduz bölməsində isə dəqiq puanı slider ilə müəyyən et.
+                          Tarix və şərh sayı üçün sıra istiqamətini seç. Ulduz bölməsində isə dəqiq reytinqi slider ilə müəyyən et.
                         </p>
                       </div>
 
@@ -2828,7 +3058,7 @@ export function ProfilePage() {
                                 Ulduz seçimi
                               </p>
                               <p className="mt-1 text-[11px] leading-5 text-zinc-600">
-                                Sürüşdürərək yalnız seçdiyin puana aid rəyləri göstər.
+                                Sürüşdürərək yalnız seçdiyin reytinqə aid rəyləri göstər.
                               </p>
                             </div>
                             <span className="inline-flex shrink-0 items-center rounded-xl border border-amber-300/15 bg-amber-500/[0.08] px-3 py-2 text-sm font-black text-amber-300">
@@ -3254,7 +3484,8 @@ export function ProfilePage() {
         </div>
       )}
 
-      {connectionModal && (
+      {(connectionModal === "followers" ||
+        connectionModal === "following") && (
         <div
           className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-5 py-8 backdrop-blur-sm"
           role="dialog"
@@ -3291,6 +3522,27 @@ export function ProfilePage() {
             </div>
 
             <div className="max-h-[65vh] overflow-y-auto p-3">
+              {isOwnProfile && connectionModal === "followers" && (
+                <button
+                  type="button"
+                  onClick={() => setConnectionModal("requests")}
+                  className="mb-3 flex w-full items-center gap-3 rounded-2xl border border-violet-400/15 bg-violet-500/[0.07] px-4 py-3 text-left transition hover:border-violet-400/25 hover:bg-violet-500/[0.12]"
+                >
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/12 text-violet-300">
+                    <UserPlus size={17} />
+                  </span>
+                  <span className="min-w-0 flex-1 text-sm font-semibold text-zinc-200">
+                    {t("profile:followRequests.open")}
+                  </span>
+                  {(followRequestCountQuery.data?.totalCount ?? 0) > 0 && (
+                    <span className="text-sm font-bold text-violet-200">
+                      {followRequestCountQuery.data?.totalCount}
+                    </span>
+                  )}
+                  <ChevronRight size={17} className="text-zinc-600" />
+                </button>
+              )}
+
               {connectionsQuery.isLoading ? (
                 <div className="flex items-center justify-center gap-3 py-14 text-sm text-zinc-500">
                   <LoaderCircle
@@ -3423,6 +3675,14 @@ export function ProfilePage() {
             </div>
           </div>
         </div>
+      )}
+
+      {connectionModal === "requests" && isOwnProfile && (
+        <FollowRequestsModal
+          profileUserName={profile.userName}
+          onBack={() => setConnectionModal("followers")}
+          onClose={() => setConnectionModal(null)}
+        />
       )}
 
       <SteamPlaytimeReconciliationModal

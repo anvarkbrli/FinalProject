@@ -29,6 +29,16 @@ const RegisterPage = lazy(() =>
     default: module.RegisterPage,
   })),
 );
+const TermsPage = lazy(() =>
+  import("./pages/TermsPage").then((module) => ({
+    default: module.TermsPage,
+  })),
+);
+const PrivacyPage = lazy(() =>
+  import("./pages/PrivacyPage").then((module) => ({
+    default: module.PrivacyPage,
+  })),
+);
 const ConfirmEmailPage = lazy(() =>
   import("./pages/ConfirmEmailPage").then((module) => ({
     default: module.ConfirmEmailPage,
@@ -193,6 +203,8 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route
           path="/confirm-email"
           element={<ConfirmEmailPage />}

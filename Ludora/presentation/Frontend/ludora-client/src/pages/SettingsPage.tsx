@@ -9,6 +9,7 @@ import {
   KeyRound,
   LoaderCircle,
   LockKeyhole,
+  Languages,
   Mail,
   MonitorSmartphone,
   Moon,
@@ -59,6 +60,7 @@ import type { SteamConnectionMessage } from "../types/steam";
 
 type SettingsSection =
   | "profile"
+  | "appearance"
   | "account"
   | "notifications"
   | "integrations"
@@ -78,9 +80,15 @@ const settingsSections: Array<{
     icon: UserRoundPen,
   },
   {
+    id: "appearance",
+    label: "Görünüş və dil",
+    description: "Dil və rəng rejimi seçimləri",
+    icon: Languages,
+  },
+  {
     id: "account",
     label: "Hesab",
-    description: "Email, şifrə, məxfilik və görünüş",
+    description: "Email, şifrə, məxfilik və təhlükəsizlik",
     icon: ShieldCheck,
   },
   {
@@ -423,17 +431,6 @@ export function SettingsPage() {
     setAreaNotice("delete", { type: "error", message });
   };
 
-  const selectTheme = (nextTheme: WellPlaydTheme) => {
-    applyTheme(nextTheme);
-    setTheme(nextTheme);
-    setAreaNotice("appearance", {
-      type: "success",
-      message: nextTheme === "dark"
-        ? "Tünd görünüş aktiv edildi."
-        : "Açıq görünüş aktiv edildi.",
-    });
-  };
-
   const userQuery = useQuery({
     queryKey: ["current-user"],
     queryFn: getCurrentUser,
@@ -510,6 +507,52 @@ export function SettingsPage() {
       message: getApiErrorMessage(error, "Məxfilik seçimi yenilənmədi."),
     }),
   });
+
+  const themeMutation = useMutation({
+    mutationFn: (nextTheme: WellPlaydTheme) =>
+      updateUserSettings({ preferredTheme: nextTheme }),
+    onMutate: (nextTheme) => {
+      const previousTheme = theme;
+      applyTheme(nextTheme);
+      setTheme(nextTheme);
+      setAreaNotice("appearance", null);
+      return { previousTheme };
+    },
+    onSuccess: (updatedSettings) => {
+      if (userQuery.data) {
+        setUser({
+          ...userQuery.data,
+          preferredLanguage: updatedSettings.preferredLanguage,
+          preferredTheme: updatedSettings.preferredTheme,
+        });
+      }
+
+      queryClient.setQueryData(["user-settings"], updatedSettings);
+      setAreaNotice("appearance", {
+        type: "success",
+        message: updatedSettings.preferredTheme === "dark"
+          ? "Tünd görünüş hesabında yadda saxlanıldı."
+          : "Açıq görünüş hesabında yadda saxlanıldı.",
+      });
+    },
+    onError: (error, _nextTheme, context) => {
+      const previousTheme = context?.previousTheme ?? "dark";
+      applyTheme(previousTheme);
+      setTheme(previousTheme);
+      setAreaNotice("appearance", {
+        type: "error",
+        message: getApiErrorMessage(
+          error,
+          "Görünüş seçimi hesabında yadda saxlanılmadı.",
+        ),
+      });
+    },
+  });
+
+  const selectTheme = (nextTheme: WellPlaydTheme) => {
+    if (themeMutation.isPending || nextTheme === theme) return;
+    themeMutation.mutate(nextTheme);
+  };
 
   const emailMutation = useMutation({
     mutationFn: requestEmailChange,
@@ -724,7 +767,11 @@ export function SettingsPage() {
   }
 
   const user = userQuery.data;
-  const settings = settingsQuery.data ?? { isPrivate: user.isPrivate };
+  const settings = settingsQuery.data ?? {
+    isPrivate: user.isPrivate,
+    preferredLanguage: user.preferredLanguage,
+    preferredTheme: user.preferredTheme,
+  };
   return (
     <div className="min-h-screen wellplayd-page-bg text-zinc-100">
       <Navbar />
@@ -803,7 +850,7 @@ export function SettingsPage() {
             <EditProfilePage embedded />
           )}
 
-          {activeSection === "account" && (
+          {activeSection === "appearance" && (
           <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
             <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -856,7 +903,7 @@ export function SettingsPage() {
           </section>
           )}
 
-          {activeSection === "account" && (
+          {activeSection === "appearance" && (
           <section className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6">
             <div className="flex items-start gap-3">
               <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
@@ -865,7 +912,7 @@ export function SettingsPage() {
               <div>
                 <h2 className="font-semibold text-white">Görünüş</h2>
                 <p className="mt-1 text-xs leading-5 text-zinc-600">
-                  WellPlayd interfeysinin rəng rejimini seç. Seçimin bu brauzerdə yadda qalacaq.
+                  WellPlayd interfeysinin rəng rejimini seç. Seçim hesabında yadda qalacaq və daxil olduqda avtomatik tətbiq ediləcək.
                 </p>
               </div>
             </div>
@@ -880,6 +927,7 @@ export function SettingsPage() {
                 role="radio"
                 aria-checked={theme === "light"}
                 onClick={() => selectTheme("light")}
+                disabled={themeMutation.isPending}
                 className={`group rounded-2xl border p-3 text-left transition ${
                   theme === "light"
                     ? "border-violet-400/50 bg-violet-500/[0.08] ring-2 ring-violet-500/15"
@@ -926,6 +974,7 @@ export function SettingsPage() {
                 role="radio"
                 aria-checked={theme === "dark"}
                 onClick={() => selectTheme("dark")}
+                disabled={themeMutation.isPending}
                 className={`group rounded-2xl border p-3 text-left transition ${
                   theme === "dark"
                     ? "border-violet-400/50 bg-violet-500/[0.08] ring-2 ring-violet-500/15"

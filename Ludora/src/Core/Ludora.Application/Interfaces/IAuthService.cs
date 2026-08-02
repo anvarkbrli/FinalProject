@@ -5,6 +5,10 @@ namespace Ludora.Application.Interfaces;
 
 public interface IAuthService
 {
+    Task<UsernameAvailabilityDTO> CheckUsernameAvailabilityAsync(
+        string userName,
+        CancellationToken cancellationToken = default);
+
     Task<RegisterResultDTO> RegisterAsync(
         RegisterDTO dto,
         CancellationToken cancellationToken = default);

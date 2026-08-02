@@ -103,8 +103,8 @@ export async function sendChatMessage(
   if (request.text?.trim()) {
     formData.append("text", request.text.trim());
   }
-  if (request.media) {
-    formData.append("media", request.media);
+  for (const mediaFile of request.media ?? []) {
+    formData.append("media", mediaFile);
   }
   if (request.replyToMessageId) {
     formData.append("replyToMessageId", request.replyToMessageId.toString());
@@ -123,7 +123,7 @@ export async function sendChatMessage(
     formData,
     {
       headers: { "Content-Type": "multipart/form-data" },
-      timeout: request.media ? 90_000 : 15_000,
+      timeout: request.media?.length ? 180_000 : 15_000,
     },
   );
   return response.data;

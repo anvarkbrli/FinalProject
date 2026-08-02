@@ -14,10 +14,14 @@ namespace Ludora.API.Controllers;
 public sealed class ForumCommunitiesController : ControllerBase
 {
     private readonly IForumCommunityService _communityService;
+    private readonly IForumCommunityFeatureService _featureService;
 
-    public ForumCommunitiesController(IForumCommunityService communityService)
+    public ForumCommunitiesController(
+        IForumCommunityService communityService,
+        IForumCommunityFeatureService featureService)
     {
         _communityService = communityService;
+        _featureService = featureService;
     }
 
     [HttpGet]
@@ -303,6 +307,185 @@ public sealed class ForumCommunitiesController : ControllerBase
             id,
             GetCurrentUserId(),
             cancellationToken);
+        return NoContent();
+    }
+
+    [HttpGet("{id:int}/rules")]
+    public async Task<ActionResult<IReadOnlyList<ForumCommunityRuleDTO>>> GetRules(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _featureService.GetRulesAsync(
+            id,
+            GetOptionalCurrentUserId(),
+            cancellationToken));
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+    [HttpPut("{id:int}/rules")]
+    public async Task<ActionResult<IReadOnlyList<ForumCommunityRuleDTO>>> ReplaceRules(
+        int id,
+        [FromBody] ForumCommunityRulesUpdateDTO dto,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _featureService.ReplaceRulesAsync(
+            id,
+            GetCurrentUserId(),
+            dto,
+            cancellationToken));
+    }
+
+    [HttpGet("{id:int}/moderators")]
+    public async Task<ActionResult<IReadOnlyList<ForumCommunityMemberSearchDTO>>> GetModerators(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _featureService.GetModeratorsAsync(
+            id,
+            GetOptionalCurrentUserId(),
+            cancellationToken));
+    }
+
+    [HttpGet("{id:int}/flairs")]
+    public async Task<ActionResult<IReadOnlyList<ForumCommunityFlairDTO>>> GetFlairs(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _featureService.GetFlairsAsync(
+            id,
+            GetOptionalCurrentUserId(),
+            cancellationToken));
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+    [HttpPut("{id:int}/flairs")]
+    public async Task<ActionResult<IReadOnlyList<ForumCommunityFlairDTO>>> ReplaceFlairs(
+        int id,
+        [FromBody] ForumCommunityFlairsUpdateDTO dto,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _featureService.ReplaceFlairsAsync(
+            id,
+            GetCurrentUserId(),
+            dto,
+            cancellationToken));
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+    [HttpPut("{id:int}/my-flair")]
+    public async Task<IActionResult> SetMyFlair(
+        int id,
+        [FromBody] ForumCommunitySetFlairDTO dto,
+        CancellationToken cancellationToken)
+    {
+        await _featureService.SetMyFlairAsync(id, GetCurrentUserId(), dto, cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
+    [HttpGet("{id:int}/member-search")]
+    public async Task<ActionResult<PagedResultDTO<ForumCommunityMemberSearchDTO>>> SearchMembers(
+        int id,
+        [FromQuery] string? query,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 20,
+        CancellationToken cancellationToken = default)
+    {
+        return Ok(await _featureService.SearchMembersAsync(
+            id,
+            GetCurrentUserId(),
+            query,
+            pageNumber,
+            pageSize,
+            cancellationToken));
+    }
+
+    [HttpGet("{id:int}/events")]
+    public async Task<ActionResult<PagedResultDTO<ForumCommunityEventDTO>>> GetEvents(
+        int id,
+        [FromQuery] bool past = false,
+        [FromQuery] int pageNumber = 1,
+        [FromQuery] int pageSize = 12,
+        CancellationToken cancellationToken = default)
+    {
+        return Ok(await _featureService.GetEventsAsync(
+            id,
+            GetOptionalCurrentUserId(),
+            past,
+            pageNumber,
+            pageSize,
+            cancellationToken));
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+    [HttpPost("{id:int}/events")]
+    public async Task<ActionResult<ForumCommunityEventDTO>> CreateEvent(
+        int id,
+        [FromBody] ForumCommunityEventUpsertDTO dto,
+        CancellationToken cancellationToken)
+    {
+        var created = await _featureService.CreateEventAsync(
+            id,
+            GetCurrentUserId(),
+            dto,
+            cancellationToken);
+        return Ok(created);
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+    [HttpPut("{id:int}/events/{eventId:int}")]
+    public async Task<ActionResult<ForumCommunityEventDTO>> UpdateEvent(
+        int id,
+        int eventId,
+        [FromBody] ForumCommunityEventUpsertDTO dto,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _featureService.UpdateEventAsync(
+            id,
+            eventId,
+            GetCurrentUserId(),
+            dto,
+            cancellationToken));
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+    [HttpDelete("{id:int}/events/{eventId:int}")]
+    public async Task<IActionResult> CancelEvent(
+        int id,
+        int eventId,
+        CancellationToken cancellationToken)
+    {
+        await _featureService.CancelEventAsync(id, eventId, GetCurrentUserId(), cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+    [HttpPut("{id:int}/events/{eventId:int}/participation")]
+    public async Task<IActionResult> JoinEvent(
+        int id,
+        int eventId,
+        CancellationToken cancellationToken)
+    {
+        await _featureService.JoinEventAsync(id, eventId, GetCurrentUserId(), cancellationToken);
+        return NoContent();
+    }
+
+    [Authorize]
+    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+    [HttpDelete("{id:int}/events/{eventId:int}/participation")]
+    public async Task<IActionResult> LeaveEvent(
+        int id,
+        int eventId,
+        CancellationToken cancellationToken)
+    {
+        await _featureService.LeaveEventAsync(id, eventId, GetCurrentUserId(), cancellationToken);
         return NoContent();
     }
 

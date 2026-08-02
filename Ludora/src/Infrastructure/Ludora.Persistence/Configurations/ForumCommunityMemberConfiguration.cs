@@ -21,6 +21,11 @@ public sealed class ForumCommunityMemberConfiguration : IEntityTypeConfiguration
             .HasForeignKey(x => x.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasOne(x => x.Flair)
+            .WithMany(x => x.Members)
+            .HasForeignKey(x => x.FlairId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         builder.HasQueryFilter(x => !x.IsDeleted);
     }
 }

@@ -21,6 +21,8 @@ using Microsoft.Extensions.Options;
 
 public class AuthService : IAuthService
 {
+    private const string CurrentTermsVersion = "2026-08-01";
+    private const string CurrentPrivacyVersion = "2026-08-01";
     private const string VerificationPendingMessage =
         "Qeydiyyat tamamlandı, amma təsdiq emailini indi göndərmək mümkün olmadı. Hesabınız saxlanıldı; bir qədər sonra təsdiq emailini yenidən göndərə bilərsiniz.";
 
@@ -50,10 +52,55 @@ public class AuthService : IAuthService
         _logger = logger;
     }
 
+
+    public async Task<UsernameAvailabilityDTO> CheckUsernameAvailabilityAsync(
+        string userName,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var normalized = (userName ?? string.Empty).Trim();
+
+        if (normalized.Length < 3 || normalized.Length > 30)
+        {
+            return new UsernameAvailabilityDTO
+            {
+                UserName = normalized,
+                IsAvailable = false,
+                Message = "İstifadəçi adı 3-30 simvol aralığında olmalıdır."
+            };
+        }
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(
+                normalized,
+                @"^[a-zA-Z0-9_.]+$",
+                System.Text.RegularExpressions.RegexOptions.CultureInvariant))
+        {
+            return new UsernameAvailabilityDTO
+            {
+                UserName = normalized,
+                IsAvailable = false,
+                Message = "Yalnız hərf, rəqəm, nöqtə və alt xətt istifadə edilə bilər."
+            };
+        }
+
+        var existing = await _userManager.FindByNameAsync(normalized);
+        return new UsernameAvailabilityDTO
+        {
+            UserName = normalized,
+            IsAvailable = existing is null,
+            Message = existing is null
+                ? "Bu istifadəçi adı əlçatandır."
+                : "Bu istifadəçi adı artıq istifadə olunur."
+        };
+    }
+
     public async Task<RegisterResultDTO> RegisterAsync(
         RegisterDTO dto,
         CancellationToken cancellationToken = default)
     {
+        if (!dto.AcceptedTermsAndPrivacy)
+            throw new BadRequestException("İstifadə şərtləri və məxfilik siyasəti ilə razılaşmalısınız.");
+
         var email = dto.Email.Trim();
         var userName = dto.UserName.Trim();
 
@@ -72,7 +119,11 @@ public class AuthService : IAuthService
             UserName = userName,
             Email = email,
             EmailConfirmed = false,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            TermsAcceptedAtUtc = DateTime.UtcNow,
+            PrivacyAcceptedAtUtc = DateTime.UtcNow,
+            TermsVersion = CurrentTermsVersion,
+            PrivacyVersion = CurrentPrivacyVersion
         };
 
         var result = await _userManager.CreateAsync(user, dto.Password);

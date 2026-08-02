@@ -164,6 +164,7 @@ public sealed class GameListService : IGameListService
                 x.IsRanked,
                 OwnerId = x.UserId,
                 OwnerUserName = x.User.UserName ?? string.Empty,
+                OwnerProfileImageUrl = x.User.ProfileImageUrl,
                 GameCount = x.GameListItems.Count,
                 x.CreatedAt,
                 x.UpdatedAt,
@@ -190,29 +191,61 @@ public sealed class GameListService : IGameListService
             currentCollaborationStatus,
             cancellationToken);
 
-        var itemQuery = _context.GameListItems
-            .AsNoTracking()
-            .Where(x => x.GameListId == id);
-        var orderedItems = gameList.IsRanked
-            ? itemQuery
+        var currentUserGames = currentUserId.HasValue
+            ? _context.UserGames
+                .AsNoTracking()
+                .Where(x => x.UserId == currentUserId.Value)
+            : _context.UserGames
+                .AsNoTracking()
+                .Where(_ => false);
+
+        var gameEntries =
+            from item in _context.GameListItems.AsNoTracking()
+            where item.GameListId == id
+            join userGame in currentUserGames
+                on new
+                {
+                    Source = item.GameSource,
+                    GameId = item.GameSourceId
+                }
+                equals new
+                {
+                    Source = userGame.Source,
+                    GameId = userGame.GameId
+                }
+                into userGameGroup
+            from userGame in userGameGroup.DefaultIfEmpty()
+            select new GameListEntryDTO
+            {
+                Source = item.GameSource,
+                Id = item.GameSourceId,
+                Title = item.GameTitle,
+                CoverImageUrl = item.CoverImageUrl,
+                ReleaseDate = item.ReleaseDate,
+                AverageRating = item.Rating,
+                CurrentUserStatus = userGame == null ? null : userGame.Status,
+                CurrentUserRating = userGame == null ? null : userGame.Rating,
+                Position = item.Position,
+                AddedAt = item.AddedAt
+            };
+
+        var games = gameList.IsRanked
+            ? await gameEntries
                 .OrderBy(x => x.Position ?? int.MaxValue)
                 .ThenBy(x => x.AddedAt)
-            : itemQuery
-                .OrderByDescending(x => x.AddedAt)
-                .ThenBy(x => x.GameTitle);
-        var games = await orderedItems
-            .Select(x => new GameListEntryDTO
-            {
-                Source = x.GameSource,
-                Id = x.GameSourceId,
-                Title = x.GameTitle,
-                CoverImageUrl = x.CoverImageUrl,
-                ReleaseDate = x.ReleaseDate,
-                AverageRating = x.Rating,
-                Position = x.Position,
-                AddedAt = x.AddedAt
-            })
-            .ToListAsync(cancellationToken);
+                .ToListAsync(cancellationToken)
+            : await gameEntries
+                .OrderBy(x => x.AddedAt)
+                .ThenBy(x => x.Title)
+                .ToListAsync(cancellationToken);
+
+        var currentUserPlayedGameCount =
+            currentUserId.HasValue && gameList.GameCount > 0
+                ? await CountPlayedGamesAsync(
+                    id,
+                    currentUserId.Value,
+                    cancellationToken)
+                : 0;
 
         var collaborators = await _context.GameListCollaborators
             .AsNoTracking()
@@ -245,12 +278,14 @@ public sealed class GameListService : IGameListService
             IsRanked = gameList.IsRanked,
             OwnerId = gameList.OwnerId,
             OwnerUserName = gameList.OwnerUserName,
+            OwnerProfileImageUrl = gameList.OwnerProfileImageUrl,
             IsOwner = currentUserId == gameList.OwnerId,
             CanEditGames = currentUserId == gameList.OwnerId ||
                 currentCollaborationStatus == GameListCollaborationStatus.Accepted,
             CanManageCollaborators = currentUserId == gameList.OwnerId,
             CurrentUserCollaborationStatus = currentCollaborationStatus,
             GameCount = gameList.GameCount,
+            CurrentUserPlayedGameCount = currentUserPlayedGameCount,
             CreatedAt = gameList.CreatedAt,
             UpdatedAt = gameList.UpdatedAt,
             LikeCount = gameList.LikeCount,
@@ -259,6 +294,22 @@ public sealed class GameListService : IGameListService
             BackgroundCoverImageUrl = backgroundCoverImageUrl,
             Collaborators = collaborators,
             Games = games
+        };
+    }
+
+    public async Task<GameListPlayedProgressDTO> GetPlayedProgressAsync(
+        int id,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default)
+    {
+        // GetByIdAsync performs the same visibility, follow, collaboration and block checks
+        // as the list detail endpoint. Its played count is based only on UserGame.Status.
+        var detail = await GetByIdAsync(id, currentUserId, cancellationToken);
+
+        return new GameListPlayedProgressDTO
+        {
+            PlayedGameCount = detail.CurrentUserPlayedGameCount,
+            TotalGameCount = detail.GameCount
         };
     }
 
@@ -921,6 +972,36 @@ public sealed class GameListService : IGameListService
 
         _context.GameListCollaborators.Remove(collaboration);
         await _context.SaveChangesAsync(cancellationToken);
+    }
+
+    private Task<int> CountPlayedGamesAsync(
+        int listId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        return (
+            from item in _context.GameListItems.AsNoTracking()
+            join userGame in _context.UserGames.AsNoTracking()
+                on new
+                {
+                    Source = item.GameSource,
+                    GameId = item.GameSourceId
+                }
+                equals new
+                {
+                    Source = userGame.Source,
+                    GameId = userGame.GameId
+                }
+            where item.GameListId == listId &&
+                  userGame.UserId == userId &&
+                  userGame.Status == UserGameStatus.Played
+            select new
+            {
+                item.GameSource,
+                item.GameSourceId
+            })
+            .Distinct()
+            .CountAsync(cancellationToken);
     }
 
     private async Task<GameList> GetEditableGameListAsync(

@@ -469,6 +469,10 @@ public sealed class AccountDeletionService : IAccountDeletionService
                 x.MediaStorageKey != null)
             .Select(x => x.MediaStorageKey)
             .ToListAsync(cancellationToken));
+        files.ChatFiles.AddRange(await _context.ChatMessageMedia
+            .Where(x => conversationIds.Contains(x.Message.ConversationId))
+            .Select(x => x.StorageKey)
+            .ToListAsync(cancellationToken));
 
         await _context.ChatMessages
             .Where(x => conversationIds.Contains(x.ConversationId))
@@ -826,7 +830,17 @@ public sealed class AccountDeletionService : IAccountDeletionService
 
         foreach (var key in files.ChatFiles.Where(x => !string.IsNullOrWhiteSpace(x)).Distinct())
         {
-            try { await _fileStorageService.DeleteChatMediaAsync(key); }
+            try
+            {
+                var stillReferenced = await _context.ChatMessages
+                    .AsNoTracking()
+                    .AnyAsync(message => message.MediaStorageKey == key) ||
+                    await _context.ChatMessageMedia
+                        .AsNoTracking()
+                        .AnyAsync(media => media.StorageKey == key);
+                if (!stillReferenced)
+                    await _fileStorageService.DeleteChatMediaAsync(key);
+            }
             catch { }
         }
 

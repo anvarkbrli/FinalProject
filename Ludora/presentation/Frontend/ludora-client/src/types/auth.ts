@@ -10,6 +10,13 @@ export interface RegisterRequestDTO {
   email: string;
   password: string;
   confirmPassword: string;
+  acceptedTermsAndPrivacy: boolean;
+}
+
+export interface UsernameAvailabilityDTO {
+  userName: string;
+  isAvailable: boolean;
+  message: string;
 }
 
 
@@ -34,6 +41,7 @@ export interface CurrentUserDTO {
   socialLinks: UserSocialLinkDTO[];
   isPrivate: boolean;
   preferredLanguage: "az" | "en";
+  preferredTheme: "light" | "dark";
   createdAt: string;
   followerCount: number;
   followingCount: number;

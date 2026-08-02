@@ -22,6 +22,7 @@ import {
   PenLine,
   PlayCircle,
   TabletSmartphone,
+  Trash2,
   Tv,
   XCircle,
 } from "lucide-react";
@@ -29,6 +30,7 @@ import { useLayoutEffect, useMemo, useState } from "react";
 import {
   Link,
   useLocation,
+  useNavigate,
   useParams,
 } from "react-router-dom";
 import { RatingStarIcon } from "../components/common/RatingStarIcon";
@@ -42,12 +44,19 @@ import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
 import { ApiErrorStatusPage } from "../components/status/ApiErrorStatusPage";
 import { getApiErrorMessage } from "../lib/api";
-import { canViewCatalogSources } from "../lib/authRoles";
+import {
+  canViewCatalogSources,
+  hasAuthCapability,
+} from "../lib/authRoles";
+import { useConfirmation } from "../lib/confirmation";
 import {
   isFutureReleaseDate,
   resolveAssetUrl,
 } from "../lib/helpers";
-import { getGameById } from "../services/gamesService";
+import {
+  deleteGame,
+  getGameById,
+} from "../services/gamesService";
 import { getMyGameReview } from "../services/reviewsService";
 import {
   getUserGameState,
@@ -557,12 +566,12 @@ function GameTrackingPanel({
 
   if (!isAuthenticated) {
     return (
-      <div className="rounded-2xl border border-violet-400/15 bg-violet-500/[0.07] p-5">
-        <p className="text-sm font-bold text-zinc-100">
+      <div className="wp-surface-card rounded-2xl p-5">
+        <p className="text-sm font-bold text-[var(--wp-text-strong)]">
           {language === "en" ? "Track this game on your profile" : "Oyunu öz profilində izlə"}
         </p>
 
-        <p className="mt-2 text-sm leading-6 text-zinc-500">
+        <p className="mt-2 text-sm leading-6 text-[color:var(--wp-text-muted)]">
           {language === "en"
             ? "Sign in to add a status, wishlist, favorite, and personal rating."
             : "Status, wishlist, favori və şəxsi reytinq əlavə etmək üçün hesabına daxil ol."}
@@ -590,14 +599,14 @@ function GameTrackingPanel({
 
   return (
     <>
-      <div className="rounded-2xl border border-white/[0.08] bg-[#15161c] p-5">
+      <div className="wp-surface-card rounded-2xl p-5">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-bold text-zinc-100">
+          <p className="text-sm font-bold text-[var(--wp-text-strong)]">
             {language === "en" ? "My game state" : "Mənim oyun vəziyyətim"}
           </p>
 
-          <p className="mt-1 text-xs text-zinc-600">
+          <p className="mt-1 text-xs text-[color:var(--wp-text-muted)]">
             {language === "en" ? "Manage your status and rating" : "Statusunu və reytinqini idarə et"}
           </p>
         </div>
@@ -612,9 +621,9 @@ function GameTrackingPanel({
 
       {stateQuery.isLoading ? (
         <div className="mt-5 space-y-3 animate-pulse">
-          <div className="h-10 rounded-lg bg-white/[0.05]" />
-          <div className="h-10 rounded-lg bg-white/[0.05]" />
-          <div className="h-12 rounded-lg bg-white/[0.05]" />
+          <div className="h-10 rounded-lg bg-[color:var(--wp-surface-soft)]" />
+          <div className="h-10 rounded-lg bg-[color:var(--wp-surface-soft)]" />
+          <div className="h-12 rounded-lg bg-[color:var(--wp-surface-soft)]" />
         </div>
       ) : (
         <>
@@ -648,8 +657,8 @@ function GameTrackingPanel({
                     }}
                     className={`flex items-center gap-3 rounded-lg border px-3 py-2.5 text-left text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                       isActive
-                        ? "border-violet-400/45 bg-violet-500/15 text-violet-100"
-                        : "border-white/[0.08] bg-white/[0.025] text-zinc-400 hover:border-white/15 hover:text-zinc-100"
+                        ? "border-[color:color-mix(in_srgb,var(--wp-accent)_38%,transparent)] bg-[color:color-mix(in_srgb,var(--wp-accent)_12%,transparent)] text-[var(--wp-accent-strong)]"
+                        : "border-[color:var(--wp-border)] bg-[color:var(--wp-surface-soft)] text-[var(--wp-text)] hover:border-[color:color-mix(in_srgb,var(--wp-accent)_18%,var(--wp-border))] hover:text-[var(--wp-text-strong)]"
                     }`}
                   >
                     <Icon size={17} />
@@ -673,8 +682,8 @@ function GameTrackingPanel({
               }}
               className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                 userState?.isWishlisted
-                  ? "border-fuchsia-400/40 bg-fuchsia-500/15 text-fuchsia-100"
-                  : "border-white/[0.08] bg-white/[0.025] text-zinc-400 hover:text-zinc-100"
+                  ? "border-fuchsia-400/35 bg-fuchsia-500/12 text-fuchsia-300"
+                  : "border-[color:var(--wp-border)] bg-[color:var(--wp-surface-soft)] text-[var(--wp-text)] hover:text-[var(--wp-text-strong)]"
               }`}
             >
               <Bookmark
@@ -701,8 +710,8 @@ function GameTrackingPanel({
               }}
               className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                 userState?.isFavorite
-                  ? "border-rose-400/40 bg-rose-500/15 text-rose-100"
-                  : "border-white/[0.08] bg-white/[0.025] text-zinc-400 hover:text-zinc-100"
+                  ? "border-rose-400/35 bg-rose-500/12 text-rose-300"
+                  : "border-[color:var(--wp-border)] bg-[color:var(--wp-surface-soft)] text-[var(--wp-text)] hover:text-[var(--wp-text-strong)]"
               }`}
             >
               <Heart
@@ -718,9 +727,9 @@ function GameTrackingPanel({
             </button>
           </div>
 
-          <div className="mt-5 border-t border-white/[0.08] pt-5">
+          <div className="mt-5 border-t border-[color:var(--wp-border)] pt-5">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-semibold text-zinc-300">
+              <span className="text-sm font-semibold text-[var(--wp-text-strong)]">
                 {language === "en" ? "My rating" : "Mənim reytinqim"}
               </span>
 
@@ -736,7 +745,7 @@ function GameTrackingPanel({
                         value: null,
                       });
                     }}
-                    className="text-xs font-semibold text-zinc-600 transition hover:text-red-300 disabled:opacity-50"
+                    className="text-xs font-semibold text-[color:var(--wp-text-muted)] transition hover:text-red-300 disabled:opacity-50"
                   >
                     {language === "en" ? "Remove" : "Sil"}
                   </button>
@@ -813,7 +822,7 @@ function GameTrackingPanel({
 
       {(actionError ||
         stateQuery.isError) && (
-        <p className="mt-4 rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-200">
+        <p className="mt-4 rounded-lg border border-red-400/20 bg-red-500/10 px-3 py-2 text-xs leading-5 text-red-300">
           {actionError ??
             getApiErrorMessage(
               stateQuery.error,
@@ -914,8 +923,14 @@ function RelatedGameCard({
 
 function GameDetailContent({
   game,
+  canDelete,
+  isDeleting,
+  onDelete,
 }: {
   game: GameDetailDTO;
+  canDelete: boolean;
+  isDeleting: boolean;
+  onDelete: () => void;
 }) {
   const { language } = useI18n();
   const relatedSections = useMemo(() => getRelatedSections(language), [language]);
@@ -1019,7 +1034,7 @@ function GameDetailContent({
 
   return (
     <>
-      <section className="relative isolate border-b border-white/[0.08] bg-[#0a0a0e]">
+      <section className="relative isolate border-b border-[color:var(--wp-border)] bg-[color:var(--wp-page-deep)]">
         <div className="pointer-events-none absolute inset-0 overflow-hidden">
           {coverUrl && (
             <div
@@ -1030,15 +1045,15 @@ function GameDetailContent({
             />
           )}
 
-          <div className="absolute inset-0 bg-[linear-gradient(to_bottom,rgba(7,7,10,0.3),rgba(7,7,10,0.72)_45%,#0a0a0e_100%)]" />
+          <div className="wp-game-hero-overlay-vertical absolute inset-0" />
 
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,#07070a_0%,rgba(7,7,10,0.45)_45%,rgba(7,7,10,0.82)_100%)]" />
+          <div className="wp-game-hero-overlay-horizontal absolute inset-0" />
         </div>
 
         <div className="relative mx-auto max-w-7xl px-5 pb-12 pt-8 lg:px-8 lg:pb-14 lg:pt-10">
           <Link
             to="/games"
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-black/25 px-4 py-2 text-sm font-semibold text-zinc-300 backdrop-blur-md transition hover:border-violet-400/30 hover:text-white"
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold wp-glass-surface transition hover:text-[var(--wp-accent)]"
           >
             <ArrowLeft size={16} />
             Oyun kataloqu
@@ -1078,7 +1093,7 @@ function GameDetailContent({
 
             <div className="min-w-0 py-2 lg:py-6">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-violet-400/25 bg-violet-500/15 px-3 py-1.5 text-xs font-bold text-violet-100 backdrop-blur-sm">
+                <span className="rounded-full px-3 py-1.5 text-xs font-bold wp-chip-accent">
                   {
                     gameTypeLabels[
                       game.gameType
@@ -1087,7 +1102,7 @@ function GameDetailContent({
                 </span>
 
                 {canViewSources && (
-                  <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1.5 text-xs font-semibold text-zinc-300 backdrop-blur-sm">
+                  <span className="rounded-full px-3 py-1.5 text-xs font-semibold wp-chip-neutral">
                     {game.source === "Local"
                       ? "WellPlayd"
                       : "IGDB"}
@@ -1096,24 +1111,39 @@ function GameDetailContent({
 
                 {canViewSources &&
                   game.isOverridden && (
-                    <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-200">
+                    <span className="rounded-full border border-fuchsia-400/20 bg-fuchsia-500/10 px-3 py-1.5 text-xs font-semibold text-fuchsia-300">
                       Redaktə edilib
                     </span>
                   )}
+                {canDelete && (
+                  <button
+                    type="button"
+                    disabled={isDeleting}
+                    onClick={onDelete}
+                    className="ml-auto inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold wp-action-btn-danger transition disabled:opacity-50"
+                  >
+                    {isDeleting ? (
+                      <LoaderCircle size={14} className="animate-spin" />
+                    ) : (
+                      <Trash2 size={14} />
+                    )}
+                    {language === "en" ? "Delete game" : "Oyunu sil"}
+                  </button>
+                )}
               </div>
 
               <div className="mt-5 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
                 <div className="min-w-0">
-                  <h1 className="max-w-4xl text-4xl font-black tracking-[-0.045em] text-white sm:text-5xl lg:text-6xl">
+                  <h1 className="max-w-4xl text-4xl font-black tracking-[-0.045em] text-[var(--wp-text-strong)] sm:text-5xl lg:text-6xl">
                     {game.title}
                   </h1>
 
                   {companyByline.length >
                     0 && (
-                    <p className="mt-4 text-base text-zinc-300 sm:text-lg">
+                    <p className="mt-4 text-base text-[color:var(--wp-text)] sm:text-lg">
                       {language === "en" ? (
                         <>
-                          <span className="text-zinc-500">by </span>
+                          <span className="text-[color:var(--wp-text-muted)]">by </span>
                           {companyByline.map(
                             (
                               company,
@@ -1137,7 +1167,7 @@ function GameDetailContent({
                                     company.id,
                                     company.name,
                                   )}
-                                  className="font-semibold text-zinc-200 underline decoration-white/20 underline-offset-4 transition hover:text-violet-200 hover:decoration-violet-300"
+                                  className="font-semibold text-[var(--wp-text-strong)] underline decoration-[color:var(--wp-border-strong)] underline-offset-4 transition hover:text-[var(--wp-accent-strong)] hover:decoration-[var(--wp-accent)]"
                                 >
                                   {
                                     company.name
@@ -1172,7 +1202,7 @@ function GameDetailContent({
                                     company.id,
                                     company.name,
                                   )}
-                                  className="font-semibold text-zinc-200 underline decoration-white/20 underline-offset-4 transition hover:text-violet-200 hover:decoration-violet-300"
+                                  className="font-semibold text-[var(--wp-text-strong)] underline decoration-[color:var(--wp-border-strong)] underline-offset-4 transition hover:text-[var(--wp-accent-strong)] hover:decoration-[var(--wp-accent)]"
                                 >
                                   {
                                     company.name
@@ -1181,7 +1211,7 @@ function GameDetailContent({
                               </span>
                             ),
                           )}{" "}
-                          <span className="text-zinc-500">
+                          <span className="text-[color:var(--wp-text-muted)]">
                             tərəfindən
                           </span>
                         </>
@@ -1190,14 +1220,14 @@ function GameDetailContent({
                   )}
                 </div>
 
-                <div className="inline-flex w-fit shrink-0 items-center gap-3 rounded-xl border border-white/10 bg-[#1a1b22]/85 px-4 py-3 text-sm backdrop-blur-md">
-                  <span className="font-bold text-zinc-100">
+                <div className="inline-flex w-fit shrink-0 items-center gap-3 rounded-xl px-4 py-3 text-sm wp-glass-surface">
+                  <span className="font-bold text-[var(--wp-text-strong)]">
                     {isComingSoon
                       ? language === "en" ? "Coming Soon" : "Tezliklə"
                       : language === "en" ? "Release date" : "Çıxış tarixi"}
                   </span>
 
-                  <span className="text-zinc-400">
+                  <span className="text-[color:var(--wp-text-muted)]">
                     {formatReleaseDate(
                       game.releaseDate,
                     )}
@@ -1205,7 +1235,7 @@ function GameDetailContent({
                 </div>
               </div>
 
-              <p className="mt-6 max-w-4xl whitespace-pre-line text-base leading-8 text-zinc-300 sm:text-lg sm:leading-8">
+              <p className="mt-6 max-w-4xl whitespace-pre-line text-base leading-8 text-[color:var(--wp-text)] sm:text-lg sm:leading-8">
                 {game.description ??
                   "Bu oyun üçün açıqlama əlavə edilməyib."}
               </p>
@@ -1217,7 +1247,7 @@ function GameDetailContent({
       <section className="border-b border-white/[0.07] bg-[#0d0e12]">
         <div className="mx-auto grid max-w-7xl gap-8 px-5 pb-10 pt-10 lg:grid-cols-[280px_minmax(0,1fr)] lg:px-8 lg:pb-12 lg:pt-12">
           <aside className="space-y-4">
-            <div className="rounded-2xl border border-white/[0.08] bg-[#15161c] p-5">
+            <div className="wp-surface-card rounded-2xl p-5">
               <div className="flex items-center gap-2 text-sm font-semibold text-zinc-200">
                 <Database
                   size={17}
@@ -1536,7 +1566,15 @@ function GameDetailContent({
 }
 
 export function GameDetailPage() {
+  const { language } = useI18n();
   const location = useLocation();
+  const navigate = useNavigate();
+  const requestConfirmation = useConfirmation();
+  const currentUser = useAuthStore((state) => state.user);
+  const canDeleteCatalog = hasAuthCapability(
+    currentUser?.capabilities,
+    "admin.catalog.delete",
+  );
 
   const {
     source: sourceValue,
@@ -1582,6 +1620,34 @@ export function GameDetailPage() {
       getGameById(source!, id, signal),
     enabled: isValidRoute,
   });
+
+  const deleteGameMutation = useMutation({
+    mutationFn: () => deleteGame(source!, id),
+    onSuccess: () => {
+      navigate("/games", { replace: true });
+    },
+  });
+
+  async function handleDeleteGame() {
+    if (!gameQuery.data || !canDeleteCatalog) return;
+
+    const confirmed = await requestConfirmation({
+      title: language === "en" ? "Delete game?" : "Oyun silinsin?",
+      description:
+        language === "en"
+          ? `“${gameQuery.data.title}” will be removed from the public catalog.`
+          : `“${gameQuery.data.title}” ümumi kataloqdan silinəcək.`,
+      detail:
+        language === "en"
+          ? "The game can be restored later from the admin catalog."
+          : "Oyun daha sonra admin kataloqundan bərpa edilə bilər.",
+      confirmLabel: language === "en" ? "Delete game" : "Oyunu sil",
+      kind: "delete",
+      tone: "danger",
+    });
+
+    if (confirmed) deleteGameMutation.mutate();
+  }
 
   const errorMessage = gameQuery.isError
     ? getApiErrorMessage(
@@ -1663,6 +1729,9 @@ export function GameDetailPage() {
         ) : gameQuery.data ? (
           <GameDetailContent
             game={gameQuery.data}
+            canDelete={canDeleteCatalog}
+            isDeleting={deleteGameMutation.isPending}
+            onDelete={() => void handleDeleteGame()}
           />
         ) : null}
       </main>

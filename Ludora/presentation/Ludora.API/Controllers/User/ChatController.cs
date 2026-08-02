@@ -98,6 +98,8 @@ public sealed class ChatController : ControllerBase
 
     [HttpPost("messages")]
     [Consumes("multipart/form-data")]
+    [RequestFormLimits(MultipartBodyLengthLimit = 170L * 1024 * 1024)]
+    [RequestSizeLimit(170L * 1024 * 1024)]
     public async Task<ActionResult<ChatSendMessageResultDTO>> SendMessage(
         [FromForm] Guid recipientUserId,
         [FromForm] string? text,
@@ -106,59 +108,70 @@ public sealed class ChatController : ControllerBase
         [FromForm] string? gameName,
         [FromForm] string? gameCoverUrl,
         [FromForm] long? replyToMessageId,
-        IFormFile? media,
+        [FromForm(Name = "media")] List<IFormFile>? media,
         CancellationToken cancellationToken)
     {
-        await using var mediaStream = media is { Length: > 0 }
-            ? media.OpenReadStream()
-            : null;
-
-        var senderUserId = GetCurrentUserId();
-        var result = await _chatService.SendMessageAsync(
-            senderUserId,
-            new ChatSendMessageDTO
-            {
-                RecipientUserId = recipientUserId,
-                Text = text,
-                Media = media is null || mediaStream is null
-                    ? null
-                    : new ChatMediaUploadDTO
-                    {
-                        Stream = mediaStream,
-                        FileName = media.FileName,
-                        ContentType = media.ContentType,
-                        Length = media.Length
-                    },
-                GameSource = gameSource,
-                GameId = gameId,
-                GameName = gameName,
-                GameCoverUrl = gameCoverUrl,
-                ReplyToMessageId = replyToMessageId
-            },
-            cancellationToken);
-
-        var recipientMessage = await _chatService.GetMessageAsync(
-            recipientUserId,
-            result.Message.ConversationId,
-            result.Message.Id,
-            cancellationToken);
-
-        await Task.WhenAll(
-            _hub.Clients.Group(ChatHub.UserGroup(senderUserId))
-                .SendAsync("MessageCreated", result.Message, cancellationToken),
-            _hub.Clients.Group(ChatHub.UserGroup(recipientUserId))
-                .SendAsync("MessageCreated", recipientMessage, cancellationToken));
-
-        if (result.StreakUpdate is not null)
+        var mediaStreams = new List<Stream>();
+        try
         {
+            var uploads = new List<ChatMediaUploadDTO>();
+            foreach (var file in media?.Where(file => file.Length > 0) ?? Enumerable.Empty<IFormFile>())
+            {
+                var stream = file.OpenReadStream();
+                mediaStreams.Add(stream);
+                uploads.Add(new ChatMediaUploadDTO
+                {
+                    Stream = stream,
+                    FileName = file.FileName,
+                    ContentType = file.ContentType,
+                    Length = file.Length
+                });
+            }
+
+            var senderUserId = GetCurrentUserId();
+            var result = await _chatService.SendMessageAsync(
+                senderUserId,
+                new ChatSendMessageDTO
+                {
+                    RecipientUserId = recipientUserId,
+                    Text = text,
+                    Media = uploads,
+                    GameSource = gameSource,
+                    GameId = gameId,
+                    GameName = gameName,
+                    GameCoverUrl = gameCoverUrl,
+                    ReplyToMessageId = replyToMessageId
+                },
+                cancellationToken);
+
+            var recipientMessage = await _chatService.GetMessageAsync(
+                recipientUserId,
+                result.Message.ConversationId,
+                result.Message.Id,
+                cancellationToken);
+
             await Task.WhenAll(
                 _hub.Clients.Group(ChatHub.UserGroup(senderUserId))
-                    .SendAsync("ChatStreakUpdated", result.StreakUpdate, cancellationToken),
+                    .SendAsync("MessageCreated", result.Message, cancellationToken),
                 _hub.Clients.Group(ChatHub.UserGroup(recipientUserId))
-                    .SendAsync("ChatStreakUpdated", result.StreakUpdate, cancellationToken));
-        }
+                    .SendAsync("MessageCreated", recipientMessage, cancellationToken));
 
-        return StatusCode(StatusCodes.Status201Created, result);
+            if (result.StreakUpdate is not null)
+            {
+                await Task.WhenAll(
+                    _hub.Clients.Group(ChatHub.UserGroup(senderUserId))
+                        .SendAsync("ChatStreakUpdated", result.StreakUpdate, cancellationToken),
+                    _hub.Clients.Group(ChatHub.UserGroup(recipientUserId))
+                        .SendAsync("ChatStreakUpdated", result.StreakUpdate, cancellationToken));
+            }
+
+            return StatusCode(StatusCodes.Status201Created, result);
+        }
+        finally
+        {
+            foreach (var stream in mediaStreams)
+                await stream.DisposeAsync();
+        }
     }
 
     [HttpPost("messages/{messageId:long}/forward")]
@@ -392,6 +405,24 @@ public sealed class ChatController : ControllerBase
         var media = await _chatService.OpenMediaAsync(
             GetCurrentUserId(),
             messageId,
+            mediaId: null,
+            cancellationToken: cancellationToken);
+        return File(
+            media.Content,
+            media.ContentType,
+            enableRangeProcessing: true);
+    }
+
+    [HttpGet("messages/{messageId:long}/media/{mediaId:long}")]
+    public async Task<IActionResult> GetMediaItem(
+        long messageId,
+        long mediaId,
+        CancellationToken cancellationToken)
+    {
+        var media = await _chatService.OpenMediaAsync(
+            GetCurrentUserId(),
+            messageId,
+            mediaId,
             cancellationToken);
         return File(
             media.Content,

@@ -20,6 +20,12 @@ public class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
         builder.Property(x => x.ForumInterestsJson)
             .HasColumnType("nvarchar(max)");
 
+        builder.Property(x => x.TermsVersion)
+            .HasMaxLength(32);
+
+        builder.Property(x => x.PrivacyVersion)
+            .HasMaxLength(32);
+
         builder.Property(x => x.SteamId)
             .HasMaxLength(20);
 
@@ -50,6 +56,11 @@ public class AppUserConfiguration : IEntityTypeConfiguration<AppUser>
             .IsRequired()
             .HasMaxLength(10)
             .HasDefaultValue("az");
+
+        builder.Property(x => x.PreferredTheme)
+            .IsRequired()
+            .HasMaxLength(10)
+            .HasDefaultValue("dark");
 
         builder.Property(x => x.IsPermanentlyBanned)
             .HasDefaultValue(false);

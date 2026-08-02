@@ -21,6 +21,7 @@ import { setDiscussionLike } from "../../services/forumService";
 import { useAuthStore } from "../../stores/authStore";
 import type { DiscussionListItemDTO } from "../../types/home";
 import type { PostDTO } from "../../types/profile";
+import { CopyShareButton } from "../common/CopyShareButton";
 import { InteractionCommentsPanel } from "../interactions/InteractionCommentsPanel";
 import { ContentReportButton } from "../reporting/ContentReportButton";
 import { ForumContentMenu } from "./ForumContentMenu";
@@ -64,6 +65,11 @@ export function DiscussionFeedCard({
 
   return (
     <article className="group relative rounded-[22px] border border-white/[0.075] bg-[#0d1716]/80 p-4 transition hover:border-teal-200/15 hover:bg-[#101c1b] sm:p-5">
+      <CopyShareButton
+        path={`/forum/discussions/${discussion.slug}`}
+        iconOnly
+        className="absolute right-12 top-3 z-10 flex h-9 w-9 items-center justify-center rounded-xl text-zinc-600 transition hover:bg-teal-300/[0.07] hover:text-teal-200 sm:right-14 sm:top-4"
+      />
       <ForumContentMenu
         kind="discussion"
         contentId={discussion.id}
@@ -270,14 +276,21 @@ export function ForumPostCard({
                 </p>
               </div>
 
-              <ContentReportButton
+              <div className="flex shrink-0 items-center gap-1">
+                <CopyShareButton
+                  path={`/users/${encodeURIComponent(post.userName)}?tab=posts&post=${post.id}#post-${post.id}`}
+                  iconOnly
+                  className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-600 transition hover:bg-violet-500/[0.08] hover:text-violet-300"
+                />
+                <ContentReportButton
                 reportedUserId={post.userId}
                 reportedUserName={post.userName}
                 contentType="Post"
                 contentId={post.id}
                 contentLabel={post.content?.slice(0, 80) || "Şəkilli post"}
                 isOwnContent={post.isMine}
-              />
+                />
+              </div>
             </div>
 
             {post.content && (

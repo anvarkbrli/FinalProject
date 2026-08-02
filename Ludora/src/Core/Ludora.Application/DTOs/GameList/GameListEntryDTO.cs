@@ -10,6 +10,8 @@ public record GameListEntryDTO
     public string? CoverImageUrl { get; init; }
     public DateOnly? ReleaseDate { get; init; }
     public double? AverageRating { get; init; }
+    public UserGameStatus? CurrentUserStatus { get; init; }
+    public double? CurrentUserRating { get; init; }
     public int? Position { get; init; }
     public DateTime AddedAt { get; init; }
 }

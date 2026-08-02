@@ -198,7 +198,7 @@ export function SearchPage() {
                           description={`${getReleaseYear(item.releaseDate)}${
                             item.averageRating !== null
                               ? ` · ${item.averageRating.toFixed(1)} ${
-                                  language === "en" ? "rating" : "puan"
+                                  language === "en" ? "rating" : "reytinq"
                                 }`
                               : ""
                           }`}

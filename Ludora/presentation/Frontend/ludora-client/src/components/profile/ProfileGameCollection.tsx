@@ -35,7 +35,13 @@ const statusLabels = {
   Dropped: "Yarım qoyub",
 } as const;
 
-function GameCover({ game }: { game: UserGameDTO }) {
+function GameCover({
+  game,
+  showRating,
+}: {
+  game: UserGameDTO;
+  showRating: boolean;
+}) {
   const coverUrl = resolveAssetUrl(game.coverUrl);
   const [failedUrl, setFailedUrl] =
     useState<string | null>(null);
@@ -63,7 +69,7 @@ function GameCover({ game }: { game: UserGameDTO }) {
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[#09090c]/80 via-transparent to-transparent" />
 
-      {game.rating !== null && (
+      {showRating && game.rating !== null && (
         <span className="absolute right-2 top-2 flex items-center gap-1 rounded-lg border border-amber-300/15 bg-black/70 px-2 py-1 text-[11px] font-bold text-amber-300 backdrop-blur-sm">
           <Star size={11} fill="currentColor" />
           {game.rating.toFixed(1)}
@@ -140,7 +146,7 @@ export function ProfileGameCollection({
             to={`/games/${game.source}/${game.gameId}`}
             className="group overflow-hidden rounded-2xl border border-white/[0.07] bg-[#101015] transition duration-300 hover:-translate-y-1 hover:border-violet-400/30 hover:shadow-xl hover:shadow-violet-950/20"
           >
-            <GameCover game={game} />
+            <GameCover game={game} showRating={kind !== "favorites"} />
 
             <div className="p-3.5">
               <h2
@@ -155,7 +161,7 @@ export function ProfileGameCollection({
                   {getReleaseYear(game.releaseDate)}
                 </span>
 
-                {game.status && (
+                {kind !== "favorites" && game.status && (
                   <span className="rounded-md bg-violet-500/10 px-2 py-1 text-violet-300">
                     {statusLabels[game.status]}
                   </span>

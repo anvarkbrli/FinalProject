@@ -382,7 +382,7 @@ export function GameListDetailPage() {
           <div className="relative mx-auto max-w-7xl px-5 py-10 lg:px-8 lg:py-16">
             <Link
               to={`/users/${list.ownerUserName}`}
-              className="inline-flex items-center gap-2 text-sm font-semibold text-zinc-400 transition hover:text-violet-300"
+              className="inline-flex items-center gap-2 rounded-full wp-glass-surface px-4 py-2 text-sm font-semibold text-[var(--wp-text)] transition hover:text-[var(--wp-accent)]"
             >
               <ArrowLeft size={16} />
               {t("lists:detail.backToProfile", { name: list.ownerUserName })}
@@ -391,28 +391,22 @@ export function GameListDetailPage() {
             <div className="mt-8 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0 max-w-4xl">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-violet-300/20 bg-violet-500/[0.12] px-3 py-1.5 text-xs font-bold text-violet-100 backdrop-blur-md">
+                  <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold wp-chip-accent">
                     {list.isRanked ? <ListOrdered size={14} /> : <ListChecks size={14} />}
                     {list.isRanked
                       ? t("lists:type.ranked")
                       : t("lists:type.unranked")}
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-full border border-white/[0.1] bg-black/25 px-3 py-1.5 text-xs font-semibold text-zinc-300 backdrop-blur-md">
+                  <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold wp-chip-neutral">
                     <VisibilityIcon size={14} />
                     {t(`lists:visibility.${list.visibility}`)}
                   </span>
-                  {isAcceptedCollaborator && (
-                    <span className="inline-flex items-center gap-2 rounded-full border border-emerald-300/15 bg-emerald-500/[0.1] px-3 py-1.5 text-xs font-bold text-emerald-200">
-                      <Sparkles size={14} />
-                      {t("lists:collaboration.collaboratorBadge")}
-                    </span>
-                  )}
                 </div>
 
-                <h1 className="mt-5 text-3xl font-black tracking-tight text-white drop-shadow-lg sm:text-5xl">
+                <h1 className="mt-5 text-3xl font-black tracking-tight text-[var(--wp-text-strong)] sm:text-5xl">
                   {list.name}
                 </h1>
-                <p data-user-content className="mt-4 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-zinc-300/80">
+                <p data-user-content className="mt-4 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-[color:var(--wp-text-muted)]">
                   {list.description ?? t("lists:detail.noDescription")}
                 </p>
                 <div className="mt-6 flex flex-wrap items-center gap-5 text-xs text-zinc-400">
@@ -442,7 +436,7 @@ export function GameListDetailPage() {
                   <button
                     type="button"
                     onClick={() => setIsCloneOpen(true)}
-                    className="flex h-11 items-center gap-2 rounded-xl border border-white/[0.1] bg-black/25 px-4 text-sm font-bold text-zinc-100 backdrop-blur-md transition hover:bg-white/[0.1]"
+                    className="flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold wp-action-btn transition"
                   >
                     <Copy size={16} />
                     {t("lists:actions.clone")}
@@ -452,7 +446,7 @@ export function GameListDetailPage() {
                   <button
                     type="button"
                     onClick={() => setIsCollaboratorsOpen(true)}
-                    className="flex h-11 items-center gap-2 rounded-xl border border-violet-300/15 bg-violet-500/[0.1] px-4 text-sm font-bold text-violet-100 backdrop-blur-md transition hover:bg-violet-500/[0.18]"
+                    className="flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold wp-action-btn-accent transition"
                   >
                     <UserRoundPlus size={16} />
                     {t("lists:actions.collaborators")}
@@ -463,7 +457,7 @@ export function GameListDetailPage() {
                     <button
                       type="button"
                       onClick={() => setIsEditorOpen(true)}
-                      className="flex h-11 items-center gap-2 rounded-xl border border-white/[0.1] bg-black/25 px-4 text-sm font-bold text-zinc-100 backdrop-blur-md transition hover:bg-white/[0.1]"
+                      className="flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold wp-action-btn transition"
                     >
                       <Pencil size={16} />
                       {t("lists:actions.edit")}
@@ -476,7 +470,7 @@ export function GameListDetailPage() {
                         }
                       }}
                       disabled={deleteMutation.isPending}
-                      className="flex h-11 items-center gap-2 rounded-xl border border-red-400/15 bg-red-500/[0.08] px-4 text-sm font-bold text-red-200 backdrop-blur-md transition hover:bg-red-500/15 disabled:opacity-50"
+                      className="flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold wp-action-btn-danger transition disabled:opacity-50"
                     >
                       <Trash2 size={16} />
                       {t("lists:actions.delete")}

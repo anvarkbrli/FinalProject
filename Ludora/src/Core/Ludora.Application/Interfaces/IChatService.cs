@@ -90,5 +90,6 @@ public interface IChatService
     Task<StoredChatMediaDTO> OpenMediaAsync(
         Guid userId,
         long messageId,
+        long? mediaId = null,
         CancellationToken cancellationToken = default);
 }

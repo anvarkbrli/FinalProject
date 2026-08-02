@@ -99,6 +99,7 @@ public static class ServiceRegistration
         services.AddScoped<IDiscussionService, DiscussionService>();
         services.AddScoped<IDiscussionReplyService, DiscussionReplyService>();
         services.AddScoped<IForumCommunityService, ForumCommunityService>();
+        services.AddScoped<IForumCommunityFeatureService, ForumCommunityFeatureService>();
         services.AddScoped<IForumFeedService, ForumFeedService>();
 
         services.AddScoped<IGameService, GameService>();

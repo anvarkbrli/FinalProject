@@ -29,4 +29,5 @@ public sealed class ChatMessage
     public ICollection<ChatMessage> Replies { get; set; } = [];
     public ICollection<ChatMessageUserState> UserStates { get; set; } = [];
     public ICollection<ChatMessageReaction> Reactions { get; set; } = [];
+    public ICollection<ChatMessageMedia> MediaItems { get; set; } = [];
 }

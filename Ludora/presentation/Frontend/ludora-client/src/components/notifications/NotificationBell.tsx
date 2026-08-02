@@ -33,6 +33,7 @@ import {
   markNotificationAsRead,
   notificationQueryKeys,
 } from "../../services/notificationsService";
+import { useAuthStore } from "../../stores/authStore";
 import type {
   NotificationDTO,
   NotificationPageDTO,
@@ -260,12 +261,16 @@ function markAllPagesAsRead(
 function NotificationItem({
   notification,
   now,
+  actionUrl,
   onRead,
+  onNavigate,
   onWarningOpen,
 }: {
   notification: NotificationDTO;
   now: Date;
+  actionUrl: string | null;
   onRead: (notificationId: number) => void;
+  onNavigate: () => void;
   onWarningOpen: (notification: NotificationDTO) => void;
 }) {
   const { language, t } = useI18n();
@@ -362,7 +367,7 @@ function NotificationItem({
     );
   }
 
-  if (!notification.actionUrl) {
+  if (!actionUrl) {
     return (
       <button
         type="button"
@@ -376,9 +381,12 @@ function NotificationItem({
 
   return (
     <Link
-      to={notification.actionUrl}
+      to={actionUrl}
       className={`${rootClassName} notification-item-link`}
-      onClick={() => onRead(notification.id)}
+      onClick={() => {
+        onRead(notification.id);
+        onNavigate();
+      }}
     >
       {content}
     </Link>
@@ -388,6 +396,7 @@ function NotificationItem({
 export function NotificationBell() {
   const { language, t } = useI18n();
   const queryClient = useQueryClient();
+  const currentUserName = useAuthStore((state) => state.user?.userName ?? null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [now, setNow] = useState(() => new Date());
@@ -596,12 +605,21 @@ export function NotificationBell() {
                     key={notification.id}
                     notification={notification}
                     now={now}
+                    actionUrl={
+                      notification.actionUrl ??
+                      (notification.type === "FollowRequestReceived" &&
+                      notification.entityType === "User" &&
+                      currentUserName
+                        ? `/users/${encodeURIComponent(currentUserName)}?connections=requests`
+                        : null)
+                    }
                     onRead={(notificationId) => {
                       if (!notification.isRead) {
                         readMutation.mutate(notificationId);
                       }
                       setIsOpen(false);
                     }}
+                    onNavigate={() => setIsOpen(false)}
                     onWarningOpen={(warningNotification) => {
                       readMutation.mutate(warningNotification.id);
                       setSelectedWarning(warningNotification);

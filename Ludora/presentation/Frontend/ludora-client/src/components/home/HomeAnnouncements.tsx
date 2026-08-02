@@ -4,10 +4,13 @@ import {
   ChevronRight,
   Megaphone,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useI18n } from "../../i18n/useI18n";
 import { formatRelativeDate } from "../../lib/helpers";
-import { getHomeAnnouncements } from "../../services/homeService";
+import {
+  getHomeAnnouncements,
+  markAnnouncementViewed,
+} from "../../services/homeService";
 import {
   isAuthSessionValid,
   useAuthStore,
@@ -28,28 +31,32 @@ export function HomeAnnouncements() {
     isAuthSessionValid(accessToken, expiresAtUtc);
 
   const announcementsQuery = useQuery({
-    queryKey: ["homepage", "announcements"],
+    queryKey: ["homepage", "announcements", user?.id],
     queryFn: ({ signal }) => getHomeAnnouncements(signal),
     enabled: hasValidSession,
     staleTime: 5 * 60 * 1000,
   });
 
   const announcements = announcementsQuery.data?.items ?? [];
+  const activeIndex = announcements.length > 0
+    ? Math.min(selectedIndex, announcements.length - 1)
+    : 0;
+  const announcement = announcements[activeIndex];
+
+  useEffect(() => {
+    if (!announcement?.id || !hasValidSession) return;
+    void markAnnouncementViewed(announcement.id).catch(() => undefined);
+  }, [announcement?.id, hasValidSession]);
 
   if (
     !hasValidSession ||
     announcementsQuery.isLoading ||
     announcementsQuery.isError ||
-    announcements.length === 0
+    !announcement
   ) {
     return null;
   }
 
-  const activeIndex = Math.min(
-    selectedIndex,
-    announcements.length - 1,
-  );
-  const announcement = announcements[activeIndex];
   const publishedAt =
     announcement.publishedAtUtc ?? announcement.createdAt;
   const hasMultipleAnnouncements = announcements.length > 1;

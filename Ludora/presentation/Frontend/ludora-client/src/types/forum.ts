@@ -23,6 +23,9 @@ export interface DiscussionDetailDTO {
   authorUserName: string;
   authorProfileImageUrl: string | null;
   authorCommunityRole: "Owner" | "Moderator" | "Member" | null;
+  authorCommunityFlairName: string | null;
+  authorCommunityFlairBackgroundColor: string | null;
+  authorCommunityFlairTextColor: string | null;
   likeCount: number;
   replyCount: number;
   viewCount: number;
@@ -46,6 +49,9 @@ export interface DiscussionReplyDTO {
   authorUserName: string;
   authorProfileImageUrl: string | null;
   authorCommunityRole: "Owner" | "Moderator" | "Member" | null;
+  authorCommunityFlairName: string | null;
+  authorCommunityFlairBackgroundColor: string | null;
+  authorCommunityFlairTextColor: string | null;
   content: string;
   netScore: number;
   currentUserVote: -1 | 0 | 1;

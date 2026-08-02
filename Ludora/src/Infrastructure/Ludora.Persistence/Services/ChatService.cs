@@ -14,6 +14,8 @@ public sealed class ChatService : IChatService
     private const int MaxMessageLength = 4000;
     private const int MaxPageSize = 100;
     private const int MaxSearchPageSize = 50;
+    private const int MaxMediaCount = 10;
+    private const long MaxTotalMediaBytes = 150L * 1024 * 1024;
     private static readonly TimeZoneInfo BakuTimeZone = ResolveBakuTimeZone();
 
     private readonly AppDbContext _context;
@@ -373,7 +375,13 @@ public sealed class ChatService : IChatService
             throw new BadRequestException("Oyun tövsiyəsi məlumatları tam deyil.");
         }
 
-        if (text is null && dto.Media is null && !hasGame)
+        var mediaUploads = dto.Media ?? [];
+        if (mediaUploads.Count > MaxMediaCount)
+            throw new BadRequestException($"Bir mesajda maksimum {MaxMediaCount} media faylı göndərilə bilər.");
+        if (mediaUploads.Sum(item => item.Length) > MaxTotalMediaBytes)
+            throw new BadRequestException("Bir mesajdakı media fayllarının ümumi ölçüsü maksimum 150 MB ola bilər.");
+
+        if (text is null && mediaUploads.Count == 0 && !hasGame)
             throw new BadRequestException("Boş mesaj göndərilə bilməz.");
 
         var recipient = await _context.Users
@@ -402,21 +410,24 @@ public sealed class ChatService : IChatService
                     x.Status == FollowStatus.Accepted,
                 cancellationToken);
 
-        string? savedMediaKey = null;
-        string? mediaContentType = null;
-        long? mediaLength = null;
-        if (dto.Media is not null)
-        {
-            var stored = await _fileStorage.SaveChatMediaAsync(
-                dto.Media,
-                cancellationToken);
-            savedMediaKey = stored.StorageKey;
-            mediaContentType = stored.ContentType;
-            mediaLength = stored.Length;
-        }
-
+        var savedMedia = new List<(string StorageKey, string ContentType, long Length, string FileName)>();
         try
         {
+            foreach (var upload in mediaUploads)
+            {
+                var stored = await _fileStorage.SaveChatMediaAsync(
+                    upload,
+                    cancellationToken);
+                savedMedia.Add((
+                    stored.StorageKey,
+                    stored.ContentType,
+                    stored.Length,
+                    NormalizeMediaFileName(upload.FileName)));
+            }
+
+            var firstMedia = savedMedia.FirstOrDefault();
+            var hasSavedMedia = savedMedia.Count > 0;
+
             await using var transaction = await _context.Database.BeginTransactionAsync(
                 IsolationLevel.Serializable,
                 cancellationToken);
@@ -486,9 +497,9 @@ public sealed class ChatService : IChatService
             var now = DateTime.UtcNow;
             var kind = hasGame
                 ? ChatMessageKind.GameRecommendation
-                : mediaContentType?.StartsWith("video/", StringComparison.Ordinal) == true
+                : hasSavedMedia && firstMedia.ContentType.StartsWith("video/", StringComparison.Ordinal)
                     ? ChatMessageKind.Video
-                    : mediaContentType is not null
+                    : hasSavedMedia
                         ? ChatMessageKind.Image
                         : ChatMessageKind.Text;
 
@@ -499,9 +510,19 @@ public sealed class ChatService : IChatService
                 ReplyToMessageId = dto.ReplyToMessageId,
                 Kind = kind,
                 Text = text,
-                MediaStorageKey = savedMediaKey,
-                MediaContentType = mediaContentType,
-                MediaLength = mediaLength,
+                MediaStorageKey = hasSavedMedia ? firstMedia.StorageKey : null,
+                MediaContentType = hasSavedMedia ? firstMedia.ContentType : null,
+                MediaLength = hasSavedMedia ? firstMedia.Length : null,
+                MediaItems = savedMedia
+                    .Select((item, index) => new ChatMessageMedia
+                    {
+                        StorageKey = item.StorageKey,
+                        ContentType = item.ContentType,
+                        OriginalFileName = item.FileName,
+                        Length = item.Length,
+                        SortOrder = index
+                    })
+                    .ToList(),
                 GameSource = hasGame ? dto.GameSource : null,
                 GameId = hasGame ? dto.GameId : null,
                 GameName = hasGame ? NormalizeOptional(dto.GameName, 300) : null,
@@ -542,8 +563,8 @@ public sealed class ChatService : IChatService
         }
         catch
         {
-            if (savedMediaKey is not null)
-                await _fileStorage.DeleteChatMediaAsync(savedMediaKey);
+            foreach (var item in savedMedia)
+                await _fileStorage.DeleteChatMediaAsync(item.StorageKey);
             throw;
         }
     }
@@ -571,6 +592,7 @@ public sealed class ChatService : IChatService
             .AsNoTracking()
             .Include(message => message.Conversation)
             .Include(message => message.UserStates)
+            .Include(message => message.MediaItems)
             .FirstOrDefaultAsync(message => message.Id == sourceMessageId, cancellationToken)
             ?? throw new NotFoundException("Yönləndiriləcək mesaj tapılmadı.");
 
@@ -639,6 +661,17 @@ public sealed class ChatService : IChatService
                 MediaStorageKey = source.MediaStorageKey,
                 MediaContentType = source.MediaContentType,
                 MediaLength = source.MediaLength,
+                MediaItems = source.MediaItems
+                    .OrderBy(item => item.SortOrder)
+                    .Select(item => new ChatMessageMedia
+                    {
+                        StorageKey = item.StorageKey,
+                        ContentType = item.ContentType,
+                        OriginalFileName = item.OriginalFileName,
+                        Length = item.Length,
+                        SortOrder = item.SortOrder
+                    })
+                    .ToList(),
                 GameSource = source.GameSource,
                 GameId = source.GameId,
                 GameName = source.GameName,
@@ -830,6 +863,7 @@ public sealed class ChatService : IChatService
             .Include(x => x.Conversation)
             .Include(x => x.UserStates)
             .Include(x => x.Reactions)
+            .Include(x => x.MediaItems)
             .FirstOrDefaultAsync(x => x.Id == messageId, cancellationToken)
             ?? throw new NotFoundException("Mesaj tapılmadı.");
 
@@ -840,7 +874,13 @@ public sealed class ChatService : IChatService
         }
 
         var now = DateTime.UtcNow;
-        string? mediaKeyToDelete = null;
+        var mediaKeysToDelete = message.MediaItems
+            .Select(item => item.StorageKey)
+            .Append(message.MediaStorageKey)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Select(key => key!)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
 
         if (scope == ChatMessageDeleteScope.ForEveryone)
         {
@@ -849,7 +889,7 @@ public sealed class ChatService : IChatService
 
             if (!message.DeletedForEveryoneAtUtc.HasValue)
             {
-                mediaKeyToDelete = message.MediaStorageKey;
+                _context.ChatMessageMedia.RemoveRange(message.MediaItems);
                 message.Kind = ChatMessageKind.Text;
                 message.Text = null;
                 message.MediaStorageKey = null;
@@ -878,13 +918,13 @@ public sealed class ChatService : IChatService
 
             if (otherParticipantAlreadyDeleted)
             {
-                mediaKeyToDelete = message.MediaStorageKey;
                 var isReplyTarget = await _context.ChatMessages
                     .AsNoTracking()
                     .AnyAsync(x => x.ReplyToMessageId == message.Id, cancellationToken);
 
                 if (isReplyTarget)
                 {
+                    _context.ChatMessageMedia.RemoveRange(message.MediaItems);
                     message.Kind = ChatMessageKind.Text;
                     message.Text = null;
                     message.MediaStorageKey = null;
@@ -929,15 +969,17 @@ public sealed class ChatService : IChatService
             await _context.SaveChangesAsync(cancellationToken);
         }
 
-        if (!string.IsNullOrWhiteSpace(mediaKeyToDelete))
+        foreach (var mediaKey in mediaKeysToDelete)
         {
-            var stillReferenced = await _context.ChatMessages
+            var stillReferencedByMessage = await _context.ChatMessages
                 .AsNoTracking()
-                .AnyAsync(message =>
-                        message.MediaStorageKey == mediaKeyToDelete,
-                    cancellationToken);
-            if (!stillReferenced)
-                await _fileStorage.DeleteChatMediaAsync(mediaKeyToDelete);
+                .AnyAsync(item => item.MediaStorageKey == mediaKey, cancellationToken);
+            var stillReferencedByCollection = await _context.ChatMessageMedia
+                .AsNoTracking()
+                .AnyAsync(item => item.StorageKey == mediaKey, cancellationToken);
+
+            if (!stillReferencedByMessage && !stillReferencedByCollection)
+                await _fileStorage.DeleteChatMediaAsync(mediaKey);
         }
 
         return new ChatMessageDeletedDTO
@@ -1145,9 +1187,10 @@ public sealed class ChatService : IChatService
     public async Task<StoredChatMediaDTO> OpenMediaAsync(
         Guid userId,
         long messageId,
+        long? mediaId = null,
         CancellationToken cancellationToken = default)
     {
-        var media = await _context.ChatMessages
+        var message = await _context.ChatMessages
             .AsNoTracking()
             .Where(x =>
                 x.Id == messageId &&
@@ -1156,13 +1199,25 @@ public sealed class ChatService : IChatService
                     state.UserId == userId && state.IsDeleted) &&
                 (x.Conversation.UserOneId == userId ||
                  x.Conversation.UserTwoId == userId))
-            .Select(x => x.MediaStorageKey)
-            .FirstOrDefaultAsync(cancellationToken);
+            .Select(x => new
+            {
+                x.MediaStorageKey,
+                Media = x.MediaItems
+                    .Where(item => !mediaId.HasValue || item.Id == mediaId.Value)
+                    .OrderBy(item => item.SortOrder)
+                    .Select(item => item.StorageKey)
+                    .FirstOrDefault()
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Mesaj mediası tapılmadı.");
 
-        if (string.IsNullOrWhiteSpace(media))
+        var storageKey = mediaId.HasValue
+            ? message.Media
+            : message.Media ?? message.MediaStorageKey;
+        if (string.IsNullOrWhiteSpace(storageKey))
             throw new NotFoundException("Mesaj mediası tapılmadı.");
 
-        return await _fileStorage.OpenChatMediaAsync(media, cancellationToken);
+        return await _fileStorage.OpenChatMediaAsync(storageKey, cancellationToken);
     }
 
     private async Task<ChatRequestDecisionDTO> DecideRequestAsync(
@@ -1202,6 +1257,7 @@ public sealed class ChatService : IChatService
             .AsSplitQuery()
             .Include(x => x.UserStates)
             .Include(x => x.Reactions)
+            .Include(x => x.MediaItems)
             .Include(x => x.ReplyToMessage)
                 .ThenInclude(x => x!.SenderUser)
             .Include(x => x.ReplyToMessage)
@@ -1350,6 +1406,34 @@ public sealed class ChatService : IChatService
             })
             .ToList();
 
+        var mediaItems = deleted
+            ? new List<ChatMessageMediaDTO>()
+            : message.MediaItems
+                .OrderBy(item => item.SortOrder)
+                .Select(item => new ChatMessageMediaDTO
+                {
+                    Id = item.Id,
+                    Url = $"/chat/messages/{message.Id}/media/{item.Id}",
+                    ContentType = item.ContentType,
+                    FileName = item.OriginalFileName,
+                    Length = item.Length,
+                    SortOrder = item.SortOrder
+                })
+                .ToList();
+
+        if (!deleted && mediaItems.Count == 0 && message.MediaStorageKey is not null)
+        {
+            mediaItems.Add(new ChatMessageMediaDTO
+            {
+                Id = 0,
+                Url = $"/chat/messages/{message.Id}/media",
+                ContentType = message.MediaContentType ?? "application/octet-stream",
+                FileName = "media",
+                Length = message.MediaLength ?? 0,
+                SortOrder = 0
+            });
+        }
+
         ChatReplyPreviewDTO? reply = null;
         if (message.ReplyToMessage is not null)
         {
@@ -1380,6 +1464,7 @@ public sealed class ChatService : IChatService
                 ? null
                 : $"/chat/messages/{message.Id}/media",
             MediaContentType = deleted ? null : message.MediaContentType,
+            MediaItems = mediaItems,
             GameSource = deleted ? null : message.GameSource,
             GameId = deleted ? null : message.GameId,
             GameName = deleted ? null : message.GameName,
@@ -1457,6 +1542,14 @@ public sealed class ChatService : IChatService
         return normalized.Length <= maxLength
             ? normalized
             : normalized[..maxLength];
+    }
+
+    private static string NormalizeMediaFileName(string? value)
+    {
+        var fileName = Path.GetFileName(value ?? string.Empty).Trim();
+        if (string.IsNullOrWhiteSpace(fileName))
+            return "media";
+        return fileName.Length <= 255 ? fileName : fileName[..255];
     }
 
     private static string? NormalizeGameCoverUrl(string? value)

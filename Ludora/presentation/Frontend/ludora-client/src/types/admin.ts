@@ -314,15 +314,29 @@ export interface AdminPost {
   updatedAt: string | null;
 }
 
+export type AnnouncementAudience =
+  | "Everyone"
+  | "AzerbaijaniUsers"
+  | "EnglishUsers"
+  | "SteamLinkedUsers"
+  | "NewUsers"
+  | "RegularUsers"
+  | "Moderators"
+  | "Administrators";
+
 export interface Announcement {
   id: number;
   title: string;
   content: string;
   createdByUserId: string;
   createdByUserName: string;
+  audience: AnnouncementAudience;
   isPublished: boolean;
   publishedAtUtc: string | null;
   isDeleted: boolean;
+  uniqueViewCount: number;
+  targetUserCount: number;
+  viewRatePercent: number;
   createdAt: string;
   updatedAt: string | null;
 }

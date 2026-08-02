@@ -29,7 +29,9 @@
     "collaboratorCount": "{count} collaborators",
     "likeCount": "{count} likes",
     "commentCount": "{count} comments",
-    "addedOn": "Added on {date}"
+    "addedOn": "Added on {date}",
+    "listOwner": "List owner",
+    "lastUpdated": "Last updated"
   },
   "notices": {
     "updated": "List updated.",
@@ -111,7 +113,9 @@
     "declineConfirm": "Are you sure you want to decline this collaboration invitation?",
     "acceptedNotice": "Collaboration invitation accepted.",
     "acceptError": "The collaboration invitation could not be accepted.",
-    "declineError": "The collaboration invitation could not be declined."
+    "declineError": "The collaboration invitation could not be declined.",
+    "userNotFound": "User not found.",
+    "searchError": "Users could not be searched."
   },
   "profile": {
     "collaborators": "{count} collaborators",
@@ -122,5 +126,33 @@
     "sharedWithMeDescription": "Game lists you were invited to and build together.",
     "invitationPending": "Invitation pending",
     "collaborating": "Collaborator"
+  },
+  "progress": {
+    "played": "You've played",
+    "count": "{played} / {total} games",
+    "percentage": "{percentage}% of the list played",
+    "signIn": "Sign in",
+    "signInDescription": "to see how much of this list you have played.",
+    "showDetails": "Show statistics",
+    "hideDetails": "Hide statistics",
+    "averageRating": "Your average rating in this list",
+    "status": {
+      "playing": "Playing",
+      "played": "Played",
+      "planToPlay": "Going to play",
+      "dropped": "Abandoned"
+    }
+  },
+  "pagination": {
+    "label": "List game pages",
+    "previous": "Previous page",
+    "next": "Next page",
+    "page": "Page {current} of {total}"
+  },
+  "display": {
+    "label": "Display",
+    "grid": "Grid",
+    "detail": "Detail",
+    "fadePlayed": "Fade played games"
   }
 }

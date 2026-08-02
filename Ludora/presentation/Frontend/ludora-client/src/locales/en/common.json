@@ -12,5 +12,10 @@
     "az": "Azərbaycan dili",
     "en": "English",
     "label": "Language selection"
+  },
+  "share": {
+    "action": "Share",
+    "copied": "Link copied",
+    "error": "Could not copy link"
   }
 }

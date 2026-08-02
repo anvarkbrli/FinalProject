@@ -24,6 +24,8 @@ public record CurrentUserDTO
 
     public string PreferredLanguage { get; set; } = "az";
 
+    public string PreferredTheme { get; set; } = "dark";
+
     public DateTime CreatedAt { get; set; }
 
     public int FollowerCount { get; set; }

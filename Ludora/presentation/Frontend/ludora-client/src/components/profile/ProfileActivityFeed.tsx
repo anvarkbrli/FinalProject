@@ -48,7 +48,7 @@ const filters: Array<{
   { value: "All", label: "Hamısı" },
   { value: "Statuses", label: "Statuslar" },
   { value: "Lists", label: "Siyahılar" },
-  { value: "Ratings", label: "Puanlar" },
+  { value: "Ratings", label: "Reytinqlər" },
   { value: "Reviews", label: "Loglar" },
   { value: "Posts", label: "Postlar" },
 ];
@@ -267,7 +267,7 @@ function getPresentation(
     case "GameRated":
       return { icon: Star, accent: "bg-amber-500/10 text-amber-300", action: <>{game} oyununa {activity.rating ?? "—"} ulduz {verb("verdin", "verdi")}.</> };
     case "GameRatingRemoved":
-      return { icon: Star, accent: "bg-zinc-500/10 text-zinc-400", action: <>{game} oyununun puanını {verb("sildin", "sildi")}.</> };
+      return { icon: Star, accent: "bg-zinc-500/10 text-zinc-400", action: <>{game} oyununun reytinqini {verb("sildin", "sildi")}.</> };
     case "ReviewCreated":
       return { icon: NotebookPen, accent: "bg-violet-500/10 text-violet-300", action: <>{game} oyununu log {verb("etdin", "etdi")}.</> };
     case "ReviewUpdated":
@@ -371,7 +371,7 @@ export function ProfileActivityFeed({
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="font-semibold text-zinc-100">
-                {language === "en" ? "Community feed" : "İcma axını"}
+                {language === "en" ? "Community activity" : "İcma axını"}
               </h2>
               <p className="mt-1 text-xs text-zinc-600">
                 {scope === "Mine"
@@ -427,14 +427,14 @@ export function ProfileActivityFeed({
       {isLoading ? (
         <div className="flex items-center justify-center gap-3 py-16 text-sm text-zinc-500">
           <LoaderCircle size={19} className="animate-spin" />
-          {language === "en" ? "Loading feed..." : "Axın yüklənir..."}
+          {language === "en" ? "Loading activity..." : "Axın yüklənir..."}
         </div>
       ) : isError ? (
         <div className="rounded-3xl border border-red-400/15 bg-red-500/[0.05] p-8 text-center text-sm text-red-100/70">
           {getApiErrorMessage(
             error,
             language === "en"
-              ? "The community feed could not be loaded."
+              ? "The community activity could not be loaded."
               : "İcma axınını yükləmək mümkün olmadı.",
           )}
         </div>

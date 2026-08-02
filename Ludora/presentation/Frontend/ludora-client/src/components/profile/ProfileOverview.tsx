@@ -16,10 +16,7 @@ import { Link } from "react-router-dom";
 import { ProfileBadges } from "./ProfileBadges";
 import { getCurrentLanguage, getCurrentLocale } from "../../i18n/localization";
 import { useI18n } from "../../i18n/useI18n";
-import {
-  formatPlaytime as formatLocalizedPlaytime,
-  resolveAssetUrl,
-} from "../../lib/helpers";
+import { resolveAssetUrl } from "../../lib/helpers";
 import type {
   ProfileGameEntryDTO,
   UserPlaytimeChartPointDTO,
@@ -201,19 +198,53 @@ function formatRating(value: number): string {
   return Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1);
 }
 
-function formatPlaytime(totalMinutes: number): string {
-  if (getCurrentLanguage() === "en") {
-    return formatLocalizedPlaytime(totalMinutes);
+function formatPlaytime(
+  totalMinutes: number,
+  language: "az" | "en",
+): string {
+  const normalizedMinutes = Math.max(0, Math.round(totalMinutes));
+
+  if (language === "en") {
+    const hours = Math.floor(normalizedMinutes / 60);
+    const minutes = normalizedMinutes % 60;
+    const hourText = `${hours} ${hours === 1 ? "hour" : "hours"}`;
+    const minuteText = `${minutes} ${minutes === 1 ? "minute" : "minutes"}`;
+
+    if (hours === 0) return minuteText;
+    if (minutes === 0) return hourText;
+    return `${hourText} ${minuteText}`;
   }
 
-  const totalHours = totalMinutes / 60;
+  const totalHours = normalizedMinutes / 60;
   if (totalHours < 1) {
-    return `${totalMinutes} dəq`;
+    return `${normalizedMinutes} dəq`;
   }
 
   return `${new Intl.NumberFormat("az-AZ", {
     maximumFractionDigits: totalHours < 100 ? 1 : 0,
   }).format(totalHours)} saat`;
+}
+
+function formatGameCount(
+  count: number,
+  language: "az" | "en",
+): string {
+  if (language === "en") {
+    return `${count} ${count === 1 ? "game" : "games"}`;
+  }
+
+  return `${count} oyun`;
+}
+
+function formatRatingCount(
+  count: number,
+  language: "az" | "en",
+): string {
+  if (language === "en") {
+    return `${count} ${count === 1 ? "rating" : "ratings"}`;
+  }
+
+  return `${count} reytinq`;
 }
 
 function parseChartDate(value: string): Date {
@@ -322,9 +353,12 @@ function formatChartRangeTitle(
   return `${dateFormatter.format(start)} – ${dateFormatter.format(end)}`;
 }
 
-function formatTopStatPlaytime(totalMinutes: number): string {
+function formatTopStatPlaytime(
+  totalMinutes: number,
+  language: "az" | "en",
+): string {
   return totalMinutes > 0
-    ? formatPlaytime(totalMinutes)
+    ? formatPlaytime(totalMinutes, language)
     : "Məlumat yoxdur";
 }
 
@@ -346,7 +380,7 @@ export function ProfileOverview({
   onPlaytimePeriodChange,
   onRatingSelect,
 }: ProfileOverviewProps) {
-  useI18n();
+  const { language } = useI18n();
   const [selectedPlaytimePoint, setSelectedPlaytimePoint] =
     useState<UserPlaytimeChartPointDTO | null>(null);
   const topGenre = playtimeStatistics?.topGenre;
@@ -385,7 +419,19 @@ export function ProfileOverview({
     ...ratingSteps.map((rating) => counts.get(rating) ?? 0),
   );
 
-  const playtimeChart = playtimeStatistics?.chart ?? [];
+  const playtimeChart = (playtimeStatistics?.chart ?? []).map((item) => {
+    const games = item.games.filter((game) => game.playtimeMinutes > 0);
+
+    return {
+      ...item,
+      games,
+      gameCount: games.length,
+      playtimeMinutes: games.reduce(
+        (total, game) => total + game.playtimeMinutes,
+        0,
+      ),
+    };
+  });
   const maximumPlaytime = Math.max(
     1,
     ...playtimeChart.map((item) => item.playtimeMinutes),
@@ -416,10 +462,10 @@ export function ProfileOverview({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-bold uppercase tracking-[0.18em] text-fuchsia-300">
-              Puan qrafiki
+              Reytinq qrafiki
             </p>
             <p className="mt-2 text-sm text-zinc-500">
-              Rəy yazılıb-yazılmamasından asılı olmayaraq verilən bütün puanlar.
+              Rəy yazılıb-yazılmamasından asılı olmayaraq verilən bütün reytinqlər.
             </p>
           </div>
           <div className="text-right">
@@ -430,7 +476,7 @@ export function ProfileOverview({
               <Star size={16} className="fill-fuchsia-300 text-fuchsia-300" />
             </p>
             <p className="mt-1 text-xs text-zinc-600">
-              {profile.statistics.ratingCount} puan
+              {formatRatingCount(profile.statistics.ratingCount, language)}
             </p>
           </div>
         </div>
@@ -449,7 +495,7 @@ export function ProfileOverview({
                   onRatingSelect(rating);
                 }}
                 className="group relative flex h-full min-w-0 flex-1 cursor-pointer items-end rounded-t-lg outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#101015]"
-                aria-label={`${formatRating(rating)} ulduz: ${count} oyun`}
+                aria-label={`${formatRating(rating)} ulduz: ${formatGameCount(count, language)}`}
               >
                 <span
                   className={`w-full rounded-t-lg transition group-hover:-translate-y-1 group-focus-visible:-translate-y-1 ${
@@ -460,7 +506,7 @@ export function ProfileOverview({
                   style={{ height: `${height}%` }}
                 />
                 <span className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/[0.1] bg-[#181820] px-2.5 py-1.5 text-[11px] font-semibold text-zinc-100 shadow-xl group-hover:block group-focus-visible:block">
-                  {formatRating(rating)}★ · {count} oyun
+                  {formatRating(rating)}★ · {formatGameCount(count, language)}
                 </span>
               </button>
             );
@@ -506,12 +552,12 @@ export function ProfileOverview({
             <span className="inline-flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-xs font-semibold text-zinc-400">
               <Clock3 size={14} className="text-violet-300" />
               Bu dövr: {playtimeStatistics && playtimeStatistics.periodTotalPlaytimeMinutes > 0
-                ? formatPlaytime(playtimeStatistics.periodTotalPlaytimeMinutes)
+                ? formatPlaytime(playtimeStatistics.periodTotalPlaytimeMinutes, language)
                 : "Məlumat yoxdur"}
             </span>
             <span className="inline-flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3 py-2 text-xs font-semibold text-zinc-500">
               Ümumi: {playtimeStatistics && playtimeStatistics.allTimeTotalPlaytimeMinutes > 0
-                ? formatPlaytime(playtimeStatistics.allTimeTotalPlaytimeMinutes)
+                ? formatPlaytime(playtimeStatistics.allTimeTotalPlaytimeMinutes, language)
                 : "Məlumat yoxdur"}
             </span>
           </div>
@@ -547,7 +593,7 @@ export function ProfileOverview({
                       key={`${item.startDate}-${item.endDate}`}
                       onClick={() => setSelectedPlaytimePoint(item)}
                       className="group relative flex h-full min-w-0 flex-1 cursor-pointer items-end rounded-t-lg outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#101015]"
-                      aria-label={`${formatChartRangeTitle(item.startDate, item.endDate)}: ${formatPlaytime(item.playtimeMinutes)}, ${item.gameCount} oyun`}
+                      aria-label={`${formatChartRangeTitle(item.startDate, item.endDate)}: ${formatPlaytime(item.playtimeMinutes, language)}, ${formatGameCount(item.gameCount, language)}`}
                     >
                       <span
                         className={`w-full rounded-t-lg transition group-hover:-translate-y-1 group-focus-visible:-translate-y-1 ${
@@ -558,7 +604,7 @@ export function ProfileOverview({
                         style={{ height: `${height}%` }}
                       />
                       <span className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-10 hidden -translate-x-1/2 whitespace-nowrap rounded-lg border border-white/[0.1] bg-[#181820] px-2.5 py-1.5 text-[11px] font-semibold text-zinc-100 shadow-xl group-hover:block group-focus-visible:block">
-                        {formatPlaytime(item.playtimeMinutes)} · {item.gameCount} oyun
+                        {formatPlaytime(item.playtimeMinutes, language)} · {formatGameCount(item.gameCount, language)}
                       </span>
                     </button>
                   );
@@ -613,7 +659,7 @@ export function ProfileOverview({
                   {playtimeStatistics.topGame.name}
                 </span>
                 <span className="mt-1 block text-xs text-violet-300">
-                  {formatTopStatPlaytime(playtimeStatistics.topGame.playtimeMinutes)}
+                  {formatTopStatPlaytime(playtimeStatistics.topGame.playtimeMinutes, language)}
                 </span>
               </span>
             </Link>
@@ -653,7 +699,7 @@ export function ProfileOverview({
                   {topGenre.name}
                 </span>
                 <span className="mt-1 block text-xs text-violet-300">
-                  {formatTopStatPlaytime(topGenre.playtimeMinutes)} · {topGenre.percentage}%
+                  {formatTopStatPlaytime(topGenre.playtimeMinutes, language)} · {topGenre.percentage}%
                 </span>
               </span>
               <ChevronRight
@@ -697,7 +743,7 @@ export function ProfileOverview({
                   {topPlatform.name}
                 </span>
                 <span className="mt-1 block text-xs text-violet-300">
-                  {formatTopStatPlaytime(topPlatform.playtimeMinutes)} · {topPlatform.percentage}%
+                  {formatTopStatPlaytime(topPlatform.playtimeMinutes, language)} · {topPlatform.percentage}%
                 </span>
               </span>
               <ChevronRight
@@ -775,7 +821,7 @@ export function ProfileOverview({
                   )}
                 </h2>
                 <p className="mt-2 text-sm text-zinc-500">
-                  {formatPlaytime(selectedPlaytimePoint.playtimeMinutes)} · {selectedPlaytimePoint.gameCount} oyun
+                  {formatPlaytime(selectedPlaytimePoint.playtimeMinutes, language)} · {formatGameCount(selectedPlaytimePoint.gameCount, language)}
                 </p>
               </div>
 
@@ -824,7 +870,7 @@ export function ProfileOverview({
                           </span>
                           <span className="mt-1 flex items-center gap-1.5 text-xs text-violet-300">
                             <Clock3 size={13} />
-                            {formatPlaytime(game.playtimeMinutes)}
+                            {formatPlaytime(game.playtimeMinutes, language)}
                           </span>
                         </span>
 

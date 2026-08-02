@@ -57,6 +57,9 @@ export interface DiscussionListItemDTO {
   authorUserName: string;
   authorProfileImageUrl: string | null;
   authorCommunityRole: "Owner" | "Moderator" | "Member" | null;
+  authorCommunityFlairName: string | null;
+  authorCommunityFlairBackgroundColor: string | null;
+  authorCommunityFlairTextColor: string | null;
 
   likeCount: number;
   replyCount: number;
@@ -129,15 +132,29 @@ export interface ForumCategoryDTO {
   updatedAt: string | null;
 }
 
+export type AnnouncementAudience =
+  | "Everyone"
+  | "AzerbaijaniUsers"
+  | "EnglishUsers"
+  | "SteamLinkedUsers"
+  | "NewUsers"
+  | "RegularUsers"
+  | "Moderators"
+  | "Administrators";
+
 export interface AnnouncementDTO {
   id: number;
   title: string;
   content: string;
   createdByUserId: string;
   createdByUserName: string;
+  audience: AnnouncementAudience;
   isPublished: boolean;
   publishedAtUtc: string | null;
   isDeleted: boolean;
+  uniqueViewCount: number;
+  targetUserCount: number;
+  viewRatePercent: number;
   createdAt: string;
   updatedAt: string | null;
 }

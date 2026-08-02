@@ -15,7 +15,10 @@
     "expandImage": "Şəkli böyüt",
     "messageImageAlt": "Mesaj şəkli",
     "closePreview": "Media önizləməsini bağla",
-    "expandedImageAlt": "Böyüdülmüş mesaj şəkli"
+    "expandedImageAlt": "Böyüdülmüş mesaj şəkli",
+    "previous": "Əvvəlki media",
+    "next": "Növbəti media",
+    "collapse": "Kolleksiyanı yığ"
   },
   "streak": {
     "celebrationTitle": "{count} günlük streak!",
@@ -104,13 +107,18 @@
     "recommendGame": "Oyun təklif et",
     "requestPlaceholder": "Bir mesaj istəyi yaza bilərsən...",
     "messagePlaceholder": "Mesaj yaz...",
-    "send": "Mesajı göndər"
+    "send": "Mesajı göndər",
+    "selectedMedia": "{count} media seçilib",
+    "removeSelected": "Seçilmiş medianı sil",
+    "clearMedia": "Bütün mediaları sil"
   },
   "validation": {
     "unsupportedMedia": "Yalnız şəkil, MP4 və WEBM faylları göndərilə bilər.",
     "videoTooLarge": "Video maksimum 50 MB ola bilər.",
     "imageTooLarge": "Şəkil maksimum 10 MB ola bilər.",
-    "sendFailed": "Mesaj göndərilmədi."
+    "sendFailed": "Mesaj göndərilmədi.",
+    "tooManyMedia": "Bir mesajda maksimum {count} media faylı göndərilə bilər.",
+    "mediaTotalTooLarge": "Media fayllarının ümumi ölçüsü maksimum 150 MB ola bilər."
   },
   "delete": {
     "forEveryoneTitle": "Mesaj hər kəsdən silinsin?",

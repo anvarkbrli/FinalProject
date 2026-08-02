@@ -46,11 +46,11 @@ const sortOptions: {
   },
   {
     value: "RatingHighToLow",
-    label: "Puan yüksəkdən aşağı",
+    label: "Reytinq yüksəkdən aşağı",
   },
   {
     value: "RatingLowToHigh",
-    label: "Puan aşağıdan yuxarı",
+    label: "Reytinq aşağıdan yuxarı",
   },
   {
     value: "NameAsc",
@@ -318,7 +318,7 @@ export function ProfileGamesGallery({
                   Oyun filtrləri
                 </p>
                 <p className="mt-1 text-xs leading-5 text-zinc-600">
-                  Status, buraxılış ili, platforma və puana görə kolleksiyanı daralt.
+                  Status, buraxılış ili, platforma və reytinqə görə kolleksiyanı daralt.
                 </p>
               </div>
               {hasFilters && (
@@ -438,7 +438,7 @@ export function ProfileGamesGallery({
                     Ulduz seçimi
                   </p>
                   <p className="mt-1 text-[11px] leading-5 text-zinc-600">
-                    Yalnız seçdiyin puanda oyunları göstər.
+                    Yalnız seçdiyin reytinqdə oyunları göstər.
                   </p>
                 </div>
                 <span className="inline-flex shrink-0 items-center rounded-xl border border-amber-300/15 bg-amber-500/[0.08] px-3 py-2 text-sm font-black text-amber-300">

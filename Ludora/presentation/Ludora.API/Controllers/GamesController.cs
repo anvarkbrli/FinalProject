@@ -12,10 +12,14 @@ namespace Ludora.API.Controllers;
 public sealed class GamesController : ControllerBase
 {
     private readonly IGameService _gameService;
+    private readonly IFileStorageService _fileStorageService;
 
-    public GamesController(IGameService gameService)
+    public GamesController(
+        IGameService gameService,
+        IFileStorageService fileStorageService)
     {
         _gameService = gameService;
+        _fileStorageService = fileStorageService;
     }
 
     [HttpGet]
@@ -41,6 +45,32 @@ public sealed class GamesController : ControllerBase
         CancellationToken cancellationToken)
     {
         return Ok(await _gameService.GetDeletedAsync(cancellationToken));
+    }
+
+    [Authorize(Roles = RoleNames.AdminOrModerator)]
+    [HttpPost("cover-image")]
+    [RequestSizeLimit(12 * 1024 * 1024)]
+    public async Task<ActionResult<object>> UploadCoverImage(
+        [FromForm] IFormFile image,
+        CancellationToken cancellationToken)
+    {
+        if (image is null || image.Length <= 0)
+            return BadRequest(new { message = "Oyun şəkli seçilməyib." });
+
+        await using var stream = image.OpenReadStream();
+        var upload = new ProfileImageUploadDTO
+        {
+            Stream = stream,
+            FileName = image.FileName,
+            ContentType = image.ContentType,
+            Length = image.Length
+        };
+
+        var url = await _fileStorageService.SaveGameCoverImageAsync(
+            upload,
+            cancellationToken);
+
+        return Ok(new { url });
     }
 
     [Authorize(Roles = RoleNames.AdminOrModerator)]

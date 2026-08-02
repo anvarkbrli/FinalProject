@@ -21,4 +21,7 @@ public record RegisterDTO
     [Required(ErrorMessage = "Şifrəni təkrar daxil edin.")]
     [Compare(nameof(Password), ErrorMessage = "Şifrələr eyni deyil.")]
     public string ConfirmPassword { get; set; } = string.Empty;
+
+    [Range(typeof(bool), "true", "true", ErrorMessage = "İstifadə şərtləri və məxfilik siyasəti ilə razılaşmalısınız.")]
+    public bool AcceptedTermsAndPrivacy { get; set; }
 }

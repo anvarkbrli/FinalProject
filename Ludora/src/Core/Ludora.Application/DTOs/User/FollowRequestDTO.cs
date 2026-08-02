@@ -1,4 +1,4 @@
-﻿namespace Ludora.Application.DTOs;
+namespace Ludora.Application.DTOs;
 
 public record FollowRequestDTO
 {
@@ -9,4 +9,14 @@ public record FollowRequestDTO
     public string? ProfileImageUrl { get; set; }
 
     public DateTime RequestedAt { get; set; }
+}
+
+public sealed record FollowRequestBulkActionDTO
+{
+    public List<Guid> RequesterIds { get; init; } = new();
+}
+
+public sealed record FollowRequestBulkResultDTO
+{
+    public int ProcessedCount { get; init; }
 }

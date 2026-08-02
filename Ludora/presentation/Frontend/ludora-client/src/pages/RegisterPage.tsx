@@ -1,5 +1,5 @@
 ﻿import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -15,7 +15,7 @@ import {
   UserPlus,
   UserRound,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import {
   Link,
@@ -23,12 +23,16 @@ import {
 } from "react-router-dom";
 import { z } from "zod";
 import { getApiErrorMessage } from "../lib/api";
-import { register } from "../services/authService";
+import {
+  checkUsernameAvailability,
+  register,
+} from "../services/authService";
 import {
   isAuthSessionValid,
   useAuthStore,
 } from "../stores/authStore";
 import { BrandLogo } from "../components/common/BrandLogo";
+import { useI18n } from "../i18n/useI18n";
 
 const userNamePattern = /^[a-zA-Z0-9_.]+$/;
 
@@ -86,6 +90,12 @@ const registerSchema = z
     confirmPassword: z
       .string()
       .min(1, "Şifrəni təkrar daxil et."),
+
+    acceptedTerms: z
+      .boolean()
+      .refine((value) => value, {
+        message: "İstifadə şərtləri və məxfilik siyasəti ilə razılaşmalısan.",
+      }),
   })
   .refine(
     (values) => {
@@ -136,8 +146,10 @@ function PasswordRule({
 }
 
 export function RegisterPage() {
+  const { language } = useI18n();
   const [isPasswordVisible, setIsPasswordVisible] =
     useState(false);
+  const [debouncedUserName, setDebouncedUserName] = useState("");
 
   const [
     isConfirmPasswordVisible,
@@ -160,16 +172,44 @@ export function RegisterPage() {
       email: "",
       password: "",
       confirmPassword: "",
+      acceptedTerms: false,
     },
 
     mode: "onTouched",
   });
+
+  const userNameValue =
+    useWatch({
+      control: form.control,
+      name: "userName",
+    }) ?? "";
 
   const passwordValue =
     useWatch({
       control: form.control,
       name: "password",
     }) ?? "";
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedUserName(userNameValue.trim());
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [userNameValue]);
+
+  const canCheckUserName =
+    debouncedUserName.length >= 3 &&
+    debouncedUserName.length <= 30 &&
+    userNamePattern.test(debouncedUserName);
+
+  const usernameAvailabilityQuery = useQuery({
+    queryKey: ["auth", "username-availability", debouncedUserName],
+    queryFn: ({ signal }) =>
+      checkUsernameAvailability(debouncedUserName, signal),
+    enabled: canCheckUserName,
+    staleTime: 30_000,
+  });
 
   const registerMutation = useMutation({
     mutationFn: register,
@@ -288,7 +328,31 @@ export function RegisterPage() {
     hasUppercase: /[A-Z]/.test(passwordValue),
     hasLowercase: /[a-z]/.test(passwordValue),
     hasDigit: /[0-9]/.test(passwordValue),
+    hasSpecial: /[^a-zA-Z0-9]/.test(passwordValue),
   };
+
+  const requiredPasswordRuleCount = [
+    passwordRequirements.hasMinimumLength,
+    passwordRequirements.hasUppercase,
+    passwordRequirements.hasLowercase,
+    passwordRequirements.hasDigit,
+  ].filter(Boolean).length;
+
+  const passwordStrength =
+    passwordValue.length === 0
+      ? 0
+      : requiredPasswordRuleCount < 4
+        ? 1
+        : passwordValue.length >= 12 && passwordRequirements.hasSpecial
+          ? 4
+          : passwordValue.length >= 10 || passwordRequirements.hasSpecial
+            ? 3
+            : 2;
+
+  const passwordStrengthLabels =
+    language === "en"
+      ? ["", "Weak", "Acceptable", "Good", "Strong"]
+      : ["", "Zəif", "Qənaətbəxş", "Yaxşı", "Güclü"];
 
   const registerError = registerMutation.isError
     ? getApiErrorMessage(
@@ -300,11 +364,32 @@ export function RegisterPage() {
   function handleRegister(
     values: RegisterFormValues,
   ) {
+    const normalizedUserName = values.userName.trim();
+    const availability = usernameAvailabilityQuery.data;
+
+    if (
+      availability &&
+      availability.userName.localeCompare(normalizedUserName, undefined, {
+        sensitivity: "base",
+      }) === 0 &&
+      !availability.isAvailable
+    ) {
+      form.setError("userName", {
+        type: "validate",
+        message:
+          language === "en"
+            ? "This username is already taken."
+            : availability.message,
+      });
+      return;
+    }
+
     registerMutation.mutate({
-      userName: values.userName.trim(),
+      userName: normalizedUserName,
       email: values.email.trim(),
       password: values.password,
       confirmPassword: values.confirmPassword,
+      acceptedTermsAndPrivacy: values.acceptedTerms,
     });
   }
 
@@ -471,18 +556,47 @@ export function RegisterPage() {
                     autoComplete="username"
                     placeholder="İstifadəçi adın"
                     {...form.register("userName")}
-                    className="h-12 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-11 pr-4 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/50 focus:bg-white/[0.055] focus:ring-4 focus:ring-violet-500/10"
+                    className="h-12 w-full rounded-xl border border-white/[0.08] bg-white/[0.035] pl-11 pr-12 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/50 focus:bg-white/[0.055] focus:ring-4 focus:ring-violet-500/10"
                   />
+
+                  {canCheckUserName && (
+                    <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2">
+                      {usernameAvailabilityQuery.isFetching ? (
+                        <LoaderCircle size={17} className="animate-spin text-zinc-500" />
+                      ) : usernameAvailabilityQuery.data?.isAvailable ? (
+                        <Check size={18} className="text-emerald-400" />
+                      ) : (
+                        <AlertTriangle size={17} className="text-red-300" />
+                      )}
+                    </span>
+                  )}
                 </div>
 
-                {form.formState.errors.userName && (
+                {form.formState.errors.userName ? (
                   <p className="mt-2 text-xs text-red-300">
-                    {
-                      form.formState.errors.userName
-                        .message
-                    }
+                    {form.formState.errors.userName.message}
                   </p>
-                )}
+                ) : canCheckUserName && usernameAvailabilityQuery.data ? (
+                  <p
+                    className={`mt-2 text-xs ${
+                      usernameAvailabilityQuery.data.isAvailable
+                        ? "text-emerald-400"
+                        : "text-red-300"
+                    }`}
+                  >
+                    {language === "en"
+                      ? usernameAvailabilityQuery.data.isAvailable
+                        ? "This username is available."
+                        : "This username is already taken."
+                      : usernameAvailabilityQuery.data.message}
+                  </p>
+                ) : userNameValue.trim().length > 0 && userNameValue.trim().length < 3 ? (
+                  <p className="mt-2 text-xs text-zinc-600">
+                    {language === "en"
+                      ? "Enter at least 3 characters to check availability."
+                      : "Əlçatanlığı yoxlamaq üçün ən azı 3 simvol daxil et."}
+                  </p>
+                ) : null}
               </div>
 
               <div>
@@ -565,34 +679,73 @@ export function RegisterPage() {
                   </button>
                 </div>
 
+                <div className="mt-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs text-zinc-500">
+                      {language === "en" ? "Password strength" : "Şifrə gücü"}
+                    </span>
+                    <span
+                      className={`text-xs font-bold ${
+                        passwordStrength >= 4
+                          ? "text-emerald-300"
+                          : passwordStrength >= 3
+                            ? "text-sky-300"
+                            : passwordStrength >= 2
+                              ? "text-amber-300"
+                              : "text-red-300"
+                      }`}
+                    >
+                      {passwordStrengthLabels[passwordStrength]}
+                    </span>
+                  </div>
+                  <div className="mt-2 grid grid-cols-4 gap-1.5">
+                    {[1, 2, 3, 4].map((level) => (
+                      <span
+                        key={level}
+                        className={`h-1.5 rounded-full transition ${
+                          passwordStrength < level
+                            ? "bg-white/[0.07]"
+                            : passwordStrength >= 4
+                              ? "bg-emerald-400"
+                              : passwordStrength >= 3
+                                ? "bg-sky-400"
+                                : passwordStrength >= 2
+                                  ? "bg-amber-400"
+                                  : "bg-red-400"
+                        }`}
+                      />
+                    ))}
+                  </div>
+                </div>
+
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
                   <PasswordRule
                     isValid={
                       passwordRequirements
                         .hasMinimumLength
                     }
-                    label="Minimum 8 simvol"
+                    label={language === "en" ? "At least 8 characters" : "Minimum 8 simvol"}
                   />
 
                   <PasswordRule
                     isValid={
                       passwordRequirements.hasUppercase
                     }
-                    label="Bir böyük hərf"
+                    label={language === "en" ? "One uppercase letter" : "Bir böyük hərf"}
                   />
 
                   <PasswordRule
                     isValid={
                       passwordRequirements.hasLowercase
                     }
-                    label="Bir kiçik hərf"
+                    label={language === "en" ? "One lowercase letter" : "Bir kiçik hərf"}
                   />
 
                   <PasswordRule
                     isValid={
                       passwordRequirements.hasDigit
                     }
-                    label="Bir rəqəm"
+                    label={language === "en" ? "One number" : "Bir rəqəm"}
                   />
                 </div>
 
@@ -664,6 +817,42 @@ export function RegisterPage() {
                       form.formState.errors
                         .confirmPassword.message
                     }
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
+                  <input
+                    type="checkbox"
+                    {...form.register("acceptedTerms")}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/20 bg-black/30 accent-violet-500"
+                  />
+                  <span className="text-xs leading-6 text-zinc-500">
+                    {language === "en" ? "I have read and agree to the " : ""}
+                    <Link
+                      to="/terms"
+                      target="_blank"
+                      className="font-semibold text-violet-300 hover:text-violet-200"
+                    >
+                      {language === "en" ? "Terms of Use" : "İstifadə şərtlərini"}
+                    </Link>
+                    {language === "en" ? " and " : " və "}
+                    <Link
+                      to="/privacy"
+                      target="_blank"
+                      className="font-semibold text-violet-300 hover:text-violet-200"
+                    >
+                      {language === "en" ? "Privacy Policy" : "Məxfilik siyasətini"}
+                    </Link>
+                    {language === "en" ? "." : " oxudum və qəbul edirəm."}
+                  </span>
+                </label>
+                {form.formState.errors.acceptedTerms && (
+                  <p className="mt-2 text-xs text-red-300">
+                    {language === "en"
+                      ? "You must accept the Terms of Use and Privacy Policy."
+                      : form.formState.errors.acceptedTerms.message}
                   </p>
                 )}
               </div>

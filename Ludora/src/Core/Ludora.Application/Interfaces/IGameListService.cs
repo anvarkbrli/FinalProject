@@ -21,6 +21,11 @@ public interface IGameListService
         Guid? currentUserId,
         CancellationToken cancellationToken = default);
 
+    Task<GameListPlayedProgressDTO> GetPlayedProgressAsync(
+        int id,
+        Guid currentUserId,
+        CancellationToken cancellationToken = default);
+
     Task<int> CreateAsync(
         Guid userId,
         GameListCreateDTO dto,

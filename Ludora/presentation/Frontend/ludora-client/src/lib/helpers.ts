@@ -82,12 +82,104 @@ export function formatDate(
     return value;
   }
 
+  if (getCurrentLanguage() === "az") {
+    const parts = new Intl.DateTimeFormat("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: azerbaijanTimeZone,
+    }).formatToParts(date);
+    const day = parts.find((part) => part.type === "day")?.value ?? "";
+    const month = parts.find((part) => part.type === "month")?.value ?? "";
+    const year = parts.find((part) => part.type === "year")?.value ?? "";
+
+    return day && month && year ? `${day}.${month}.${year}` : value;
+  }
+
   return new Intl.DateTimeFormat(getCurrentLocale(), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     timeZone: azerbaijanTimeZone,
   }).format(date);
+}
+
+export function formatLongDate(
+  value: string | null | undefined,
+): string {
+  if (!value) {
+    return "";
+  }
+
+  const dateOnlyMatch = dateOnlyPattern.exec(value);
+  let date: Date | null;
+  let timeZone = azerbaijanTimeZone;
+
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 12));
+    timeZone = "UTC";
+  } else {
+    date = parseBackendDateTime(value);
+  }
+
+  if (!date) {
+    return value;
+  }
+
+  const parts = new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+    timeZone,
+  }).formatToParts(date);
+
+  const day = Number(parts.find((part) => part.type === "day")?.value ?? 0);
+  const monthIndex = Number(
+    parts.find((part) => part.type === "month")?.value ?? 0,
+  ) - 1;
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+
+  const azerbaijaniMonths = [
+    "yanvar",
+    "fevral",
+    "mart",
+    "aprel",
+    "may",
+    "iyun",
+    "iyul",
+    "avqust",
+    "sentyabr",
+    "oktyabr",
+    "noyabr",
+    "dekabr",
+  ];
+  const englishMonths = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
+
+  const month = getCurrentLanguage() === "az"
+    ? azerbaijaniMonths[monthIndex]
+    : englishMonths[monthIndex];
+
+  if (!day || !month || !year) {
+    return value;
+  }
+
+  return getCurrentLanguage() === "az"
+    ? `${day} ${month}, ${year}`
+    : `${month} ${day}, ${year}`;
 }
 
 export function formatDateTime(

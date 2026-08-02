@@ -743,6 +743,24 @@ public sealed class DiscussionReplyService : IDiscussionReplyService
                     .Select(member => (ForumCommunityMemberRole?)member.Role)
                     .FirstOrDefault()
                 : null,
+            AuthorCommunityFlairName = x.Discussion.CommunityId.HasValue
+                ? x.Discussion.Community!.Members
+                    .Where(member => member.UserId == x.UserId && member.Status == ForumCommunityMembershipStatus.Active)
+                    .Select(member => member.Flair != null ? member.Flair.Name : null)
+                    .FirstOrDefault()
+                : null,
+            AuthorCommunityFlairBackgroundColor = x.Discussion.CommunityId.HasValue
+                ? x.Discussion.Community!.Members
+                    .Where(member => member.UserId == x.UserId && member.Status == ForumCommunityMembershipStatus.Active)
+                    .Select(member => member.Flair != null ? member.Flair.BackgroundColor : null)
+                    .FirstOrDefault()
+                : null,
+            AuthorCommunityFlairTextColor = x.Discussion.CommunityId.HasValue
+                ? x.Discussion.Community!.Members
+                    .Where(member => member.UserId == x.UserId && member.Status == ForumCommunityMembershipStatus.Active)
+                    .Select(member => member.Flair != null ? member.Flair.TextColor : null)
+                    .FirstOrDefault()
+                : null,
             Content = x.IsDeleted ? string.Empty : x.Content,
             NetScore = x.Votes.Sum(vote => (int?)vote.Value) ?? 0,
             CurrentUserVote = currentUserId.HasValue

@@ -564,6 +564,184 @@ namespace Ludora.Persistence.Migrations
                     b.ToTable("ForumCommunityFollows");
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.Forum.ForumCommunityEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CommunityId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(1500)
+                        .HasColumnType("nvarchar(1500)");
+
+                    b.Property<DateTime?>("EndsAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("GameName")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<bool>("IsCancelled")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("JoinUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<int?>("MaxParticipants")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Platform")
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<DateTime>("StartsAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommunityId", "StartsAtUtc");
+
+                    b.HasIndex("CreatedByUserId", "StartsAtUtc");
+
+                    b.ToTable("ForumCommunityEvents");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Forum.ForumCommunityEventParticipant", b =>
+                {
+                    b.Property<int>("EventId")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("JoinedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("EventId", "UserId");
+
+                    b.HasIndex("UserId", "JoinedAtUtc");
+
+                    b.ToTable("ForumCommunityEventParticipants");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Forum.ForumCommunityFlair", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("BackgroundColor")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<int>("CommunityId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TextColor")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("nvarchar(7)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommunityId", "Name")
+                        .IsUnique();
+
+                    b.HasIndex("CommunityId", "SortOrder");
+
+                    b.ToTable("ForumCommunityFlairs");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Forum.ForumCommunityRule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("CommunityId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CommunityId", "SortOrder");
+
+                    b.ToTable("ForumCommunityRules");
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.Forum.ForumCommunityMember", b =>
                 {
                     b.Property<int>("Id")
@@ -577,6 +755,9 @@ namespace Ludora.Persistence.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<int?>("FlairId")
+                        .HasColumnType("int");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
@@ -597,6 +778,8 @@ namespace Ludora.Persistence.Migrations
 
                     b.HasIndex("CommunityId", "UserId")
                         .IsUnique();
+
+                    b.HasIndex("FlairId");
 
                     b.HasIndex("UserId", "Status", "CreatedAt");
 
@@ -1411,6 +1594,11 @@ namespace Ludora.Persistence.Migrations
 
                     SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<int>("Audience")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("Content")
                         .IsRequired()
                         .HasMaxLength(4000)
@@ -1449,7 +1637,41 @@ namespace Ludora.Persistence.Migrations
 
                     b.HasIndex("IsPublished", "CreatedAt");
 
-                    b.ToTable("Announcements", (string)null);
+                    b.HasIndex("IsPublished", "Audience", "CreatedAt");
+
+                    b.ToTable("Announcements", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_Announcements_Audience", "[Audience] BETWEEN 0 AND 7");
+                        });
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.AnnouncementView", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<int>("AnnouncementId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("FirstViewedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AnnouncementId", "FirstViewedAtUtc");
+
+                    b.HasIndex("AnnouncementId", "UserId")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("AnnouncementViews", (string)null);
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.AppUser", b =>
@@ -1548,6 +1770,13 @@ namespace Ludora.Persistence.Migrations
                     b.Property<bool>("PhoneNumberConfirmed")
                         .HasColumnType("bit");
 
+                    b.Property<DateTime?>("PrivacyAcceptedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("PrivacyVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
+
                     b.Property<string>("PreferredLanguage")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -1586,6 +1815,13 @@ namespace Ludora.Persistence.Migrations
                     b.Property<string>("SteamProfileUrl")
                         .HasMaxLength(1000)
                         .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime?>("TermsAcceptedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("TermsVersion")
+                        .HasMaxLength(32)
+                        .HasColumnType("nvarchar(32)");
 
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("bit");
@@ -2265,6 +2501,48 @@ namespace Ludora.Persistence.Migrations
 
                             t.HasCheckConstraint("CK_ChatMessages_Kind", "[Kind] BETWEEN 0 AND 3");
                         });
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.ChatMessageMedia", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<long>("Length")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("MessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("OriginalFileName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("int");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StorageKey");
+
+                    b.HasIndex("MessageId", "SortOrder")
+                        .IsUnique();
+
+                    b.ToTable("ChatMessageMedia");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.ChatConversationUserState", b =>
@@ -3940,6 +4218,66 @@ namespace Ludora.Persistence.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.Forum.ForumCommunityEvent", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.Forum.ForumCommunity", "Community")
+                        .WithMany("Events")
+                        .HasForeignKey("CommunityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "CreatedByUser")
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Community");
+
+                    b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Forum.ForumCommunityEventParticipant", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.Forum.ForumCommunityEvent", "Event")
+                        .WithMany("Participants")
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Event");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Forum.ForumCommunityFlair", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.Forum.ForumCommunity", "Community")
+                        .WithMany("Flairs")
+                        .HasForeignKey("CommunityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Community");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Forum.ForumCommunityRule", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.Forum.ForumCommunity", "Community")
+                        .WithMany("Rules")
+                        .HasForeignKey("CommunityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Community");
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.Forum.ForumCommunityMember", b =>
                 {
                     b.HasOne("Ludora.Domain.Entities.Forum.ForumCommunity", "Community")
@@ -3948,6 +4286,11 @@ namespace Ludora.Persistence.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Ludora.Domain.Entities.Forum.ForumCommunityFlair", "Flair")
+                        .WithMany("Members")
+                        .HasForeignKey("FlairId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
@@ -3955,6 +4298,8 @@ namespace Ludora.Persistence.Migrations
                         .IsRequired();
 
                     b.Navigation("Community");
+
+                    b.Navigation("Flair");
 
                     b.Navigation("User");
                 });
@@ -4098,6 +4443,25 @@ namespace Ludora.Persistence.Migrations
                     b.Navigation("CreatedByUser");
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.User.AnnouncementView", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.Announcement", "Announcement")
+                        .WithMany("Views")
+                        .HasForeignKey("AnnouncementId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("AnnouncementViews")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Announcement");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.User.ChatConversationUserState", b =>
                 {
                     b.HasOne("Ludora.Domain.Entities.User.ChatConversation", "Conversation")
@@ -4187,6 +4551,17 @@ namespace Ludora.Persistence.Migrations
                     b.Navigation("ReplyToMessage");
 
                     b.Navigation("SenderUser");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.ChatMessageMedia", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.ChatMessage", "Message")
+                        .WithMany("MediaItems")
+                        .HasForeignKey("MessageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Message");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.ChatMessageUserState", b =>
@@ -4743,8 +5118,24 @@ namespace Ludora.Persistence.Migrations
                 {
                     b.Navigation("Discussions");
 
+                    b.Navigation("Events");
+
+                    b.Navigation("Flairs");
+
                     b.Navigation("Followers");
 
+                    b.Navigation("Members");
+
+                    b.Navigation("Rules");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Forum.ForumCommunityEvent", b =>
+                {
+                    b.Navigation("Participants");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.Forum.ForumCommunityFlair", b =>
+                {
                     b.Navigation("Members");
                 });
 
@@ -4773,11 +5164,18 @@ namespace Ludora.Persistence.Migrations
                     b.Navigation("Deltas");
                 });
 
+            modelBuilder.Entity("Ludora.Domain.Entities.User.Announcement", b =>
+                {
+                    b.Navigation("Views");
+                });
+
             modelBuilder.Entity("Ludora.Domain.Entities.User.AppUser", b =>
                 {
                     b.Navigation("Activities");
 
                     b.Navigation("Announcements");
+
+                    b.Navigation("AnnouncementViews");
 
                     b.Navigation("Badges");
 
@@ -4878,6 +5276,8 @@ namespace Ludora.Persistence.Migrations
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.ChatMessage", b =>
                 {
+                    b.Navigation("MediaItems");
+
                     b.Navigation("Reactions");
 
                     b.Navigation("Replies");

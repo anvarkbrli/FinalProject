@@ -11,6 +11,7 @@ import type {
   RegisterRequestDTO,
   RegisterResultDTO,
   ResendEmailConfirmationRequestDTO,
+  UsernameAvailabilityDTO,
 } from "../types/auth";
 
 export async function login(
@@ -19,6 +20,22 @@ export async function login(
   const response = await api.post<AuthResponseDTO>(
     "/auth/login",
     request,
+  );
+
+  return response.data;
+}
+
+
+export async function checkUsernameAvailability(
+  userName: string,
+  signal?: AbortSignal,
+): Promise<UsernameAvailabilityDTO> {
+  const response = await api.get<UsernameAvailabilityDTO>(
+    "/auth/username-availability",
+    {
+      params: { userName },
+      signal,
+    },
   );
 
   return response.data;

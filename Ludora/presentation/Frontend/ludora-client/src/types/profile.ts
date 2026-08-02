@@ -89,6 +89,7 @@ export interface UserProfileDTO {
   profileImageUrl: string | null;
   socialLinks: UserSocialLinkDTO[];
   isPrivate: boolean;
+  canViewContent?: boolean;
   createdAt: string;
   followerCount: number;
   followingCount: number;

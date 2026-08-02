@@ -1368,6 +1368,7 @@ public sealed class UserGameService : IUserGameService
                                 review => (long)review.PlaytimeMinutes)
                         };
                     })
+                    .Where(game => game.PlaytimeMinutes > 0)
                     .OrderByDescending(game => game.PlaytimeMinutes)
                     .ThenBy(game => game.Name)
                     .ToList();

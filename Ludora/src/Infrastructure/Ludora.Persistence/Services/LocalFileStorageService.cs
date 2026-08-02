@@ -17,6 +17,7 @@ public class LocalFileStorageService : IFileStorageService
 {
     private const int MaxProfileImageSize = 5;
     private const int MaxPostImageSize = 10;
+    private const int MaxGameCoverImageSize = 10;
     private const int MaxReportEvidenceImageSize = 5;
     private const int MaxReportEvidenceVideoSize = 50;
     private const long MaxChatImageBytes = 10L * 1024 * 1024;
@@ -67,6 +68,21 @@ public class LocalFileStorageService : IFileStorageService
             dto.FileName,
             dto.ContentType,
             "post-images",
+            cancellationToken);
+    }
+
+    public Task<string> SaveGameCoverImageAsync(
+        ProfileImageUploadDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        dto.ValidateUpload(MaxGameCoverImageSize, FileSize.MB);
+        return SavePublicImageAsync(
+            dto.Stream,
+            dto.Length,
+            ToBytes(MaxGameCoverImageSize),
+            dto.FileName,
+            dto.ContentType,
+            "game-covers",
             cancellationToken);
     }
 

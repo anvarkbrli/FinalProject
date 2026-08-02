@@ -110,7 +110,10 @@ public class FollowService : IFollowService
                     : "Yeni izləmə sorğusu",
                 Message = status == FollowStatus.Accepted
                     ? "Sizi izləməyə başladı."
-                    : "Sizə izləmə sorğusu göndərdi."
+                    : "Sizə izləmə sorğusu göndərdi.",
+                ActionUrl = status == FollowStatus.Pending
+                    ? $"/users/{Uri.EscapeDataString(followingUser.UserName ?? string.Empty)}?connections=requests"
+                    : null
             },
             cancellationToken);
 
@@ -224,13 +227,28 @@ public class FollowService : IFollowService
     public async Task<PagedResultDTO<FollowRequestDTO>> GetFollowRequestsAsync(
         Guid userId,
         PaginationFilterDTO pagination,
+        string? search = null,
         CancellationToken cancellationToken = default)
     {
+        var normalizedSearch = search?.Trim();
+
+        if (normalizedSearch?.Length > 80)
+            throw new BadRequestException("Axtarış mətni 80 simvoldan uzun ola bilməz.");
+
         var query = _context.UserFollows
             .AsNoTracking()
             .Where(follow =>
                 follow.FollowingId == userId &&
-                follow.Status == FollowStatus.Pending)
+                follow.Status == FollowStatus.Pending);
+
+        if (!string.IsNullOrWhiteSpace(normalizedSearch))
+        {
+            query = query.Where(follow =>
+                follow.Follower.UserName != null &&
+                follow.Follower.UserName.Contains(normalizedSearch));
+        }
+
+        var projectedQuery = query
             .OrderByDescending(follow => follow.CreatedAt)
             .ThenByDescending(follow => follow.FollowerId)
             .Select(follow => new FollowRequestDTO
@@ -241,9 +259,79 @@ public class FollowService : IFollowService
                 RequestedAt = follow.CreatedAt
             });
 
-        return await query.ToPagedResultAsync(
+        return await projectedQuery.ToPagedResultAsync(
             pagination,
             cancellationToken);
+    }
+
+    public async Task<int> AcceptFollowRequestsAsync(
+        Guid currentUserId,
+        IReadOnlyCollection<Guid> requesterIds,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedRequesterIds = NormalizeRequesterIds(requesterIds);
+
+        var requests = await _context.UserFollows
+            .Where(follow =>
+                follow.FollowingId == currentUserId &&
+                follow.Status == FollowStatus.Pending &&
+                normalizedRequesterIds.Contains(follow.FollowerId))
+            .ToListAsync(cancellationToken);
+
+        if (requests.Count == 0)
+            return 0;
+
+        var acceptedAt = DateTime.UtcNow;
+
+        foreach (var request in requests)
+        {
+            request.Status = FollowStatus.Accepted;
+            request.AcceptedAt = acceptedAt;
+
+            _context.AddUserActivity(
+                request.FollowerId,
+                UserActivityType.UserFollowed,
+                targetUserId: currentUserId);
+
+            await _notificationService.QueueAsync(
+                new NotificationCreateRequest
+                {
+                    RecipientUserId = request.FollowerId,
+                    ActorUserId = currentUserId,
+                    Type = NotificationType.FollowRequestAccepted,
+                    Priority = NotificationPriority.High,
+                    EntityType = NotificationEntityType.User,
+                    EntityId = currentUserId.ToString(),
+                    Title = "İzləmə sorğusu qəbul edildi",
+                    Message = "Göndərdiyiniz izləmə sorğusunu qəbul etdi."
+                },
+                cancellationToken);
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+        return requests.Count;
+    }
+
+    public async Task<int> RejectFollowRequestsAsync(
+        Guid currentUserId,
+        IReadOnlyCollection<Guid> requesterIds,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedRequesterIds = NormalizeRequesterIds(requesterIds);
+
+        var requests = await _context.UserFollows
+            .Where(follow =>
+                follow.FollowingId == currentUserId &&
+                follow.Status == FollowStatus.Pending &&
+                normalizedRequesterIds.Contains(follow.FollowerId))
+            .ToListAsync(cancellationToken);
+
+        if (requests.Count == 0)
+            return 0;
+
+        _context.UserFollows.RemoveRange(requests);
+        await _context.SaveChangesAsync(cancellationToken);
+        return requests.Count;
     }
 
     public async Task<FollowStatusDTO> GetFollowStatusAsync(
@@ -343,6 +431,26 @@ public class FollowService : IFollowService
         return await query.ToPagedResultAsync(
             pagination,
             cancellationToken);
+    }
+
+
+    private static HashSet<Guid> NormalizeRequesterIds(
+        IReadOnlyCollection<Guid> requesterIds)
+    {
+        ArgumentNullException.ThrowIfNull(requesterIds);
+
+        var normalizedRequesterIds = requesterIds
+            .Where(id => id != Guid.Empty)
+            .Distinct()
+            .ToHashSet();
+
+        if (normalizedRequesterIds.Count == 0)
+            throw new BadRequestException("Ən azı bir izləmə sorğusu seçilməlidir.");
+
+        if (normalizedRequesterIds.Count > 100)
+            throw new BadRequestException("Eyni anda ən çox 100 izləmə sorğusu idarə edilə bilər.");
+
+        return normalizedRequesterIds;
     }
 
     private async Task EnsureCanViewConnectionsAsync(

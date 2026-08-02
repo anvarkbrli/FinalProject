@@ -37,6 +37,17 @@ public class AuthController : ControllerBase
     }
 
     [EnableRateLimiting(RateLimitPolicyNames.Auth)]
+    [HttpGet("username-availability")]
+    public async Task<IActionResult> CheckUsernameAvailability(
+        [FromQuery] string userName,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _authService.CheckUsernameAvailabilityAsync(
+            userName,
+            cancellationToken));
+    }
+
+    [EnableRateLimiting(RateLimitPolicyNames.Auth)]
     [HttpPost("register")]
     public async Task<IActionResult> Register(
         [FromBody] RegisterDTO dto,

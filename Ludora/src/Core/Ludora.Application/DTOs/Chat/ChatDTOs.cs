@@ -52,6 +52,16 @@ public sealed record ChatStreakUpdatedDTO
     public bool WasIncremented { get; init; }
 }
 
+public sealed record ChatMessageMediaDTO
+{
+    public long Id { get; init; }
+    public string Url { get; init; } = string.Empty;
+    public string ContentType { get; init; } = string.Empty;
+    public string FileName { get; init; } = string.Empty;
+    public long Length { get; init; }
+    public int SortOrder { get; init; }
+}
+
 public sealed record ChatMessageDTO
 {
     public long Id { get; init; }
@@ -61,6 +71,7 @@ public sealed record ChatMessageDTO
     public string? Text { get; init; }
     public string? MediaUrl { get; init; }
     public string? MediaContentType { get; init; }
+    public IReadOnlyList<ChatMessageMediaDTO> MediaItems { get; init; } = [];
     public CatalogSource? GameSource { get; init; }
     public long? GameId { get; init; }
     public string? GameName { get; init; }
@@ -172,7 +183,7 @@ public sealed record ChatSendMessageDTO
 {
     public Guid RecipientUserId { get; init; }
     public string? Text { get; init; }
-    public ChatMediaUploadDTO? Media { get; init; }
+    public IReadOnlyList<ChatMediaUploadDTO> Media { get; init; } = [];
     public CatalogSource? GameSource { get; init; }
     public long? GameId { get; init; }
     public string? GameName { get; init; }

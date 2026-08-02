@@ -112,6 +112,18 @@ export function useNotificationRealtime(enabled: boolean) {
         queryKey: notificationQueryKeys.list,
         refetchType: "active",
       });
+
+      if (
+        notification.type === "FollowRequestReceived" &&
+        notification.entityType === "User" &&
+        (!notification.actionUrl ||
+          notification.actionUrl.includes("connections=requests"))
+      ) {
+        void queryClient.invalidateQueries({
+          queryKey: ["follow-requests"],
+          refetchType: "active",
+        });
+      }
     });
 
     connection.onreconnected(() => {

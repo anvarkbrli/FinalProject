@@ -37,6 +37,18 @@ export async function getDeletedAdminGames(
   return response.data;
 }
 
+export async function uploadAdminGameCover(file: File): Promise<string> {
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const response = await api.post<{ url: string }>(
+    "/games/cover-image",
+    formData,
+  );
+
+  return response.data.url;
+}
+
 export async function createAdminGame(
   request: AdminGameInput,
 ): Promise<{ source: CatalogSource; id: number }> {

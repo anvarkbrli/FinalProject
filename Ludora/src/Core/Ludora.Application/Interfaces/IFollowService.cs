@@ -1,4 +1,4 @@
-﻿using Ludora.Application.DTOs;
+using Ludora.Application.DTOs;
 
 namespace Ludora.Application.Interfaces;
 
@@ -27,6 +27,15 @@ public interface IFollowService
     Task<PagedResultDTO<FollowRequestDTO>> GetFollowRequestsAsync(
         Guid userId,
         PaginationFilterDTO pagination,
+        string? search = null,
+        CancellationToken cancellationToken = default);
+    Task<int> AcceptFollowRequestsAsync(
+        Guid currentUserId,
+        IReadOnlyCollection<Guid> requesterIds,
+        CancellationToken cancellationToken = default);
+    Task<int> RejectFollowRequestsAsync(
+        Guid currentUserId,
+        IReadOnlyCollection<Guid> requesterIds,
         CancellationToken cancellationToken = default);
     Task<FollowStatusDTO> GetFollowStatusAsync(
         Guid currentUserId,

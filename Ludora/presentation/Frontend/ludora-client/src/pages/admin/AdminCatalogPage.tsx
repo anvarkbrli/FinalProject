@@ -8,11 +8,13 @@ import {
   Building2,
   CircleAlert,
   Gamepad2,
+  ImagePlus,
   Layers3,
   LoaderCircle,
   Pencil,
   Plus,
   Save,
+  Search,
   Tags,
   Trash2,
   X,
@@ -34,6 +36,7 @@ import {
   restoreCatalogItem,
   updateAdminGame,
   updateCatalogItem,
+  uploadAdminGameCover,
   type AdminCatalogKind,
   type AdminGameInput,
 } from "../../services/adminCatalogService";
@@ -150,6 +153,8 @@ function GamesCatalogPanel() {
   const canDelete = hasAuthRole(accessToken, "Admin", user?.roles ?? []);
   const [editor, setEditor] = useState<GameDetailDTO | "new" | null>(null);
   const [form, setForm] = useState<AdminGameInput>(emptyGameForm);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [search, setSearch] = useState("");
   const [loadingGameId, setLoadingGameId] = useState<number | null>(null);
   const [relatedSource, setRelatedSource] = useState<CatalogSource>("Igdb");
   const [relatedId, setRelatedId] = useState("");
@@ -157,11 +162,13 @@ function GamesCatalogPanel() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
+  const normalizedSearch = search.trim();
   const activeQuery = useQuery({
-    queryKey: ["admin", "catalog", "games", "active"],
+    queryKey: ["admin", "catalog", "games", "active", normalizedSearch],
     queryFn: ({ signal }) =>
       getGames(
         {
+          searchName: normalizedSearch || undefined,
           pageNumber: 1,
           pageSize: 50,
           releasedOnly: false,
@@ -182,12 +189,20 @@ function GamesCatalogPanel() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const coverImageUrl = coverFile
+        ? await uploadAdminGameCover(coverFile)
+        : form.coverImageUrl;
+      const request: AdminGameInput = {
+        ...form,
+        coverImageUrl,
+      };
+
       if (editor === "new") {
-        await createAdminGame(form);
+        await createAdminGame(request);
         return;
       }
 
-      await updateAdminGame(editor!.source, editor!.id, form);
+      await updateAdminGame(editor!.source, editor!.id, request);
     },
     onMutate: () => {
       setError(null);
@@ -196,6 +211,7 @@ function GamesCatalogPanel() {
     onSuccess: async () => {
       setEditor(null);
       setForm(emptyGameForm);
+      setCoverFile(null);
       setNotice("Oyun məlumatı yadda saxlanıldı.");
       await refresh();
     },
@@ -252,6 +268,7 @@ function GamesCatalogPanel() {
 
   async function openEditor(source: CatalogSource, id: number) {
     setLoadingGameId(id);
+    setCoverFile(null);
     setError(null);
     try {
       const detail = await getGameById(source, id);
@@ -288,14 +305,28 @@ function GamesCatalogPanel() {
 
   return (
     <div className="space-y-5">
-      <div className="flex justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <label className="relative block w-full sm:max-w-md">
+          <Search
+            size={17}
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-600"
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Oyunun adına görə axtar..."
+            className={`${inputClass} pl-10`}
+          />
+        </label>
         <button
           type="button"
           onClick={() => {
             setEditor("new");
             setForm({ ...emptyGameForm });
+            setCoverFile(null);
           }}
-          className="inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white"
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white"
         >
           <Plus size={17} />
           Yeni oyun
@@ -308,8 +339,13 @@ function GamesCatalogPanel() {
           editor={editor}
           form={form}
           setForm={setForm}
+          coverFile={coverFile}
+          setCoverFile={setCoverFile}
           isSaving={saveMutation.isPending}
-          onClose={() => setEditor(null)}
+          onClose={() => {
+            setEditor(null);
+            setCoverFile(null);
+          }}
           onSave={() => saveMutation.mutate()}
           relatedSource={relatedSource}
           setRelatedSource={setRelatedSource}
@@ -332,6 +368,13 @@ function GamesCatalogPanel() {
         />
       ) : (
         <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {activeItems.length === 0 && (
+            <p className="col-span-full rounded-2xl border border-dashed border-white/[0.08] px-5 py-12 text-center text-sm text-zinc-600">
+              {normalizedSearch
+                ? "Bu ada uyğun oyun tapılmadı."
+                : "Aktiv oyun tapılmadı."}
+            </p>
+          )}
           {activeItems.map((game) => (
             <article
               key={`${game.source}-${game.id}`}
@@ -433,6 +476,8 @@ function GameEditor({
   editor,
   form,
   setForm,
+  coverFile,
+  setCoverFile,
   isSaving,
   onClose,
   onSave,
@@ -448,6 +493,8 @@ function GameEditor({
   editor: GameDetailDTO | "new";
   form: AdminGameInput;
   setForm: (value: AdminGameInput) => void;
+  coverFile: File | null;
+  setCoverFile: (value: File | null) => void;
   isSaving: boolean;
   onClose: () => void;
   onSave: () => void;
@@ -503,14 +550,25 @@ function GameEditor({
             className={inputClass}
           />
         </Field>
-        <Field label="Cover URL">
-          <input
-            value={form.coverImageUrl ?? ""}
-            onChange={(event) =>
-              setForm({ ...form, coverImageUrl: event.target.value })
-            }
-            className={inputClass}
-          />
+        <Field label="Oyun şəkli">
+          <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-xl border border-dashed border-violet-300/20 bg-black/20 px-3 py-2.5 text-sm text-zinc-400 transition hover:border-violet-300/40 hover:bg-violet-500/[0.04]">
+            <ImagePlus size={18} className="shrink-0 text-violet-300" />
+            <span className="min-w-0 flex-1 truncate">
+              {coverFile?.name ??
+                (form.coverImageUrl
+                  ? "Mövcud şəkli dəyişmək üçün fayl seç"
+                  : "JPEG, PNG və ya WEBP faylı seç")}
+            </span>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="sr-only"
+              onChange={(event) => {
+                setCoverFile(event.target.files?.[0] ?? null);
+                event.currentTarget.value = "";
+              }}
+            />
+          </label>
         </Field>
         <Field label="Açıqlama" wide>
           <textarea
@@ -594,6 +652,7 @@ function SimpleCatalogPanel({ kind }: { kind: AdminCatalogKind }) {
   const canDelete = hasAuthRole(accessToken, "Admin", user?.roles ?? []);
   const [editor, setEditor] = useState<CatalogFilterItemDTO | "new" | null>(null);
   const [name, setName] = useState("");
+  const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const activeQuery = useQuery({
@@ -646,16 +705,34 @@ function SimpleCatalogPanel({ kind }: { kind: AdminCatalogKind }) {
 
   if (activeQuery.isPending || deletedQuery.isPending) return <LoadingPanel />;
 
+  const normalizedSearch = search.trim().toLocaleLowerCase("az-AZ");
+  const activeItems = (activeQuery.data ?? []).filter((item) =>
+    item.name.toLocaleLowerCase("az-AZ").includes(normalizedSearch),
+  );
+
   return (
     <div className="space-y-5">
-      <div className="flex justify-end">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <label className="relative block w-full sm:max-w-md">
+          <Search
+            size={17}
+            className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-600"
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Ada görə axtar..."
+            className={`${inputClass} pl-10`}
+          />
+        </label>
         <button
           type="button"
           onClick={() => {
             setEditor("new");
             setName("");
           }}
-          className="inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white"
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white"
         >
           <Plus size={17} />
           Yeni əlavə et
@@ -689,7 +766,14 @@ function SimpleCatalogPanel({ kind }: { kind: AdminCatalogKind }) {
         </div>
       )}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {(activeQuery.data ?? []).map((item) => (
+        {activeItems.length === 0 && (
+          <p className="col-span-full rounded-2xl border border-dashed border-white/[0.08] px-5 py-12 text-center text-sm text-zinc-600">
+            {normalizedSearch
+              ? "Bu ada uyğun məlumat tapılmadı."
+              : "Aktiv məlumat tapılmadı."}
+          </p>
+        )}
+        {activeItems.map((item) => (
           <article
             key={`${item.source}-${item.id}`}
             className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-5"

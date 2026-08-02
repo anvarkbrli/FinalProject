@@ -162,7 +162,7 @@ function getActivityPresentation(
             <span className="font-semibold text-amber-300">
               {activity.rating?.toFixed(1)}
             </span>{" "}
-            puan verdin.
+            reytinq verdin.
           </>
         ),
         accent: "bg-amber-500/10 text-amber-300",
@@ -170,7 +170,7 @@ function getActivityPresentation(
     case "GameRatingRemoved":
       return {
         icon: Star,
-        content: <>{game} oyununa verdiyin puanı sildin.</>,
+        content: <>{game} oyununa verdiyin reytinqi sildin.</>,
         accent: "bg-zinc-500/10 text-zinc-400",
       };
     case "ReviewCreated":

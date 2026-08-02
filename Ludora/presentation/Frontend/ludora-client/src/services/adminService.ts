@@ -271,6 +271,7 @@ export async function createAdminAnnouncement(
   request: {
     title: string;
     content: string;
+    audience: import("../types/admin").AnnouncementAudience;
     isPublished: boolean;
   },
 ): Promise<Announcement> {
@@ -286,6 +287,7 @@ export async function updateAdminAnnouncement(
   request: {
     title: string;
     content: string;
+    audience: import("../types/admin").AnnouncementAudience;
     isPublished: boolean;
   },
 ): Promise<Announcement> {

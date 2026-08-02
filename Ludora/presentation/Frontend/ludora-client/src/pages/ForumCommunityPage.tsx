@@ -19,11 +19,13 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { CopyShareButton } from "../components/common/CopyShareButton";
 import {
   CommunityOwnerManagementModal,
   type CommunityOwnerModalMode,
 } from "../components/forum/CommunityOwnerManagementModal";
 import { CommunityOwnershipOfferModal } from "../components/forum/CommunityOwnershipOfferModal";
+import { CommunityFeatureHub } from "../components/forum/CommunityFeatureHub";
 import { Navbar } from "../components/layout/Navbar";
 import { ApiErrorStatusPage } from "../components/status/ApiErrorStatusPage";
 import { UserReportModal } from "../components/profile/UserReportModal";
@@ -271,6 +273,10 @@ export function ForumCommunityPage() {
               </div>
 
               <div className="flex shrink-0 items-center gap-2">
+                <CopyShareButton
+                  path={`/forum/communities/${community.slug}`}
+                  className="flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.025] px-3 text-xs font-bold text-zinc-300 transition hover:border-teal-300/20 hover:bg-teal-300/[0.07] hover:text-teal-200"
+                />
                 {isAuthenticated && isOwner && (
                   <button
                     type="button"
@@ -491,6 +497,15 @@ export function ForumCommunityPage() {
           </div>
         </section>
 
+
+        <CommunityFeatureHub
+          communityId={community.id}
+          canManage={community.canManage}
+          canModerate={community.canModerate}
+          isActiveMember={isActiveMember}
+          isAuthenticated={isAuthenticated}
+        />
+
         <div
           className={`mt-6 grid gap-6 ${
             hasManagementSidebar
@@ -538,6 +553,19 @@ export function ForumCommunityPage() {
                       {discussion.authorCommunityRole === "Moderator" && (
                         <span className="rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-1.5 py-0.5 text-[9px] font-bold text-violet-300">
                           Moderator
+                        </span>
+                      )}
+                      {discussion.authorCommunityFlairName && (
+                        <span
+                          className="rounded-full px-2 py-0.5 text-[9px] font-black"
+                          style={{
+                            backgroundColor:
+                              discussion.authorCommunityFlairBackgroundColor ?? undefined,
+                            color:
+                              discussion.authorCommunityFlairTextColor ?? undefined,
+                          }}
+                        >
+                          {discussion.authorCommunityFlairName}
                         </span>
                       )}
                       <span aria-hidden="true">·</span>

@@ -53,12 +53,17 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<ForumCommunity> ForumCommunities { get; set; }
     public DbSet<ForumCommunityMember> ForumCommunityMembers { get; set; }
     public DbSet<ForumCommunityFollow> ForumCommunityFollows { get; set; }
+    public DbSet<ForumCommunityRule> ForumCommunityRules { get; set; }
+    public DbSet<ForumCommunityFlair> ForumCommunityFlairs { get; set; }
+    public DbSet<ForumCommunityEvent> ForumCommunityEvents { get; set; }
+    public DbSet<ForumCommunityEventParticipant> ForumCommunityEventParticipants { get; set; }
     public DbSet<UserBanHistory> UserBanHistories { get; set; }
     public DbSet<UserWarning> UserWarnings { get; set; }
     public DbSet<UserReport> UserReports { get; set; }
     public DbSet<UserReportEvidence> UserReportEvidenceImages { get; set; }
     public DbSet<ModeratorActionLog> ModeratorActionLogs { get; set; }
     public DbSet<Announcement> Announcements { get; set; }
+    public DbSet<AnnouncementView> AnnouncementViews { get; set; }
     public DbSet<Notification> Notifications { get; set; }
     public DbSet<NotificationPreference> NotificationPreferences { get; set; }
     public DbSet<NotificationOutboxMessage> NotificationOutboxMessages { get; set; }
@@ -70,6 +75,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<SteamFriendSnapshot> SteamFriendSnapshots { get; set; }
     public DbSet<ChatConversation> ChatConversations { get; set; }
     public DbSet<ChatMessage> ChatMessages { get; set; }
+    public DbSet<ChatMessageMedia> ChatMessageMedia { get; set; }
     public DbSet<ChatMessageUserState> ChatMessageUserStates { get; set; }
     public DbSet<ChatMessageReaction> ChatMessageReactions { get; set; }
     public DbSet<ChatConversationUserState> ChatConversationUserStates { get; set; }

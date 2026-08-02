@@ -11,6 +11,9 @@ public interface IFileStorageService
     Task<string> SavePostImageAsync(
         PostImageUploadDTO dto,
         CancellationToken cancellationToken = default);
+    Task<string> SaveGameCoverImageAsync(
+        ProfileImageUploadDTO dto,
+        CancellationToken cancellationToken = default);
     Task<string> SaveCommunityIconAsync(
         ProfileImageUploadDTO dto,
         CancellationToken cancellationToken = default);

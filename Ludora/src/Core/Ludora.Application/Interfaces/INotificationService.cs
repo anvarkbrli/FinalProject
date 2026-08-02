@@ -57,5 +57,6 @@ public interface INotificationService
         int announcementId,
         string title,
         string content,
+        AnnouncementAudience audience,
         CancellationToken cancellationToken = default);
 }

@@ -60,6 +60,7 @@ public class UserService : IUserService
             SocialLinks = SocialLinkHelper.Deserialize(user.SocialLinksJson),
             IsPrivate = user.IsPrivate,
             PreferredLanguage = user.PreferredLanguage,
+            PreferredTheme = user.PreferredTheme,
             CreatedAt = user.CreatedAt,
             FollowerCount = summary.FollowerCount,
             FollowingCount = summary.FollowingCount,
@@ -171,28 +172,30 @@ public class UserService : IUserService
     {
         var user = await _userManager.FindByIdOrThrowAsync(userId);
 
-        return new UserSettingsDTO
-        {
-            IsPrivate = user.IsPrivate
-        };
+        return MapSettings(user);
     }
 
     public async Task<UserSettingsDTO> UpdateSettingsAsync(
         Guid userId,
         UpdateUserSettingsDTO dto)
     {
+        ArgumentNullException.ThrowIfNull(dto);
+
         var user = await _userManager.FindByIdOrThrowAsync(userId);
 
         if (dto.IsPrivate.HasValue)
             user.IsPrivate = dto.IsPrivate.Value;
 
+        if (dto.PreferredLanguage is not null)
+            user.PreferredLanguage = NormalizePreferredLanguage(dto.PreferredLanguage);
+
+        if (dto.PreferredTheme is not null)
+            user.PreferredTheme = NormalizePreferredTheme(dto.PreferredTheme);
+
         var result = await _userManager.UpdateAsync(user);
         result.ThrowIfFailed();
 
-        return new UserSettingsDTO
-        {
-            IsPrivate = user.IsPrivate
-        };
+        return MapSettings(user);
     }
 
     public async Task<ForumInterestProfileDTO?> GetForumInterestsAsync(
@@ -272,10 +275,7 @@ public class UserService : IUserService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dto);
-        var language = dto.Language.Trim().ToLowerInvariant();
-
-        if (language is not ("az" or "en"))
-            throw new BadRequestException("Dil yalnız az və ya en ola bilər.");
+        var language = NormalizePreferredLanguage(dto.Language);
 
         var user = await _userManager.FindByIdOrThrowAsync(userId);
         user.PreferredLanguage = language;
@@ -566,6 +566,36 @@ public class UserService : IUserService
                     : weightedRatingTotal / ratingCount,
                 RatingDistribution = ratingGroups
             });
+    }
+
+    private static UserSettingsDTO MapSettings(AppUser user)
+    {
+        return new UserSettingsDTO
+        {
+            IsPrivate = user.IsPrivate,
+            PreferredLanguage = user.PreferredLanguage,
+            PreferredTheme = user.PreferredTheme
+        };
+    }
+
+    private static string NormalizePreferredLanguage(string value)
+    {
+        var language = value.Trim().ToLowerInvariant();
+
+        if (language is not ("az" or "en"))
+            throw new BadRequestException("Dil yalnız az və ya en ola bilər.");
+
+        return language;
+    }
+
+    private static string NormalizePreferredTheme(string value)
+    {
+        var theme = value.Trim().ToLowerInvariant();
+
+        if (theme is not ("light" or "dark"))
+            throw new BadRequestException("Görünüş yalnız light və ya dark ola bilər.");
+
+        return theme;
     }
 
     private static string NormalizeHardwareName(

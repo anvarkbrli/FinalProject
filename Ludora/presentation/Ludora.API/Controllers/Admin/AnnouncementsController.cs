@@ -1,6 +1,8 @@
+using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Admin;
 using Ludora.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Ludora.API.Controllers.Admin;
@@ -23,6 +25,7 @@ public sealed class AnnouncementsController : ControllerBase
         CancellationToken cancellationToken = default)
     {
         return Ok(await _announcementService.GetPublishedAsync(
+            GetOptionalCurrentUserId(),
             pageNumber,
             pageSize,
             cancellationToken));
@@ -34,7 +37,36 @@ public sealed class AnnouncementsController : ControllerBase
         CancellationToken cancellationToken)
     {
         return Ok(await _announcementService.GetPublishedByIdAsync(
+            GetOptionalCurrentUserId(),
             announcementId,
             cancellationToken));
+    }
+
+    [Authorize]
+    [HttpPost("{announcementId:int}/view")]
+    public async Task<IActionResult> MarkViewed(
+        int announcementId,
+        CancellationToken cancellationToken)
+    {
+        await _announcementService.MarkViewedAsync(
+            GetRequiredCurrentUserId(),
+            announcementId,
+            cancellationToken);
+
+        return NoContent();
+    }
+
+    private Guid GetRequiredCurrentUserId()
+    {
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(value, out var userId)
+            ? userId
+            : throw new UnauthorizedAccessException("İstifadəçi müəyyən edilmədi.");
+    }
+
+    private Guid? GetOptionalCurrentUserId()
+    {
+        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        return Guid.TryParse(value, out var userId) ? userId : null;
     }
 }

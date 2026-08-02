@@ -6,11 +6,18 @@ namespace Ludora.Application.Interfaces;
 public interface IAnnouncementService
 {
     Task<PagedResultDTO<AnnouncementDTO>> GetPublishedAsync(
+        Guid? userId,
         int pageNumber,
         int pageSize,
         CancellationToken cancellationToken = default);
 
     Task<AnnouncementDTO> GetPublishedByIdAsync(
+        Guid? userId,
+        int announcementId,
+        CancellationToken cancellationToken = default);
+
+    Task MarkViewedAsync(
+        Guid userId,
         int announcementId,
         CancellationToken cancellationToken = default);
 

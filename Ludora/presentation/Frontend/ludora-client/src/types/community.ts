@@ -79,3 +79,92 @@ export interface CreateForumCommunityInput {
   icon: File | null;
   coverImage: File | null;
 }
+
+export interface ForumCommunityRuleDTO {
+  id: number;
+  title: string;
+  description: string;
+  sortOrder: number;
+}
+
+export interface ForumCommunityRuleInput {
+  id?: number;
+  title: string;
+  description: string;
+}
+
+export interface ForumCommunityFlairDTO {
+  id: number;
+  name: string;
+  backgroundColor: string;
+  textColor: string;
+  sortOrder: number;
+  isSelectedByCurrentUser: boolean;
+}
+
+export interface ForumCommunityFlairInput {
+  id?: number;
+  name: string;
+  backgroundColor: string;
+  textColor: string;
+}
+
+export interface ForumCommunityMemberSearchDTO {
+  membershipId: number;
+  userId: string;
+  userName: string;
+  profileImageUrl: string | null;
+  role: ForumCommunityMemberRole;
+  flairId: number | null;
+  flairName: string | null;
+  flairBackgroundColor: string | null;
+  flairTextColor: string | null;
+  joinedAt: string;
+}
+
+export type ForumCommunityEventType =
+  | "Multiplayer"
+  | "Community"
+  | "Tournament"
+  | "WatchParty";
+
+export interface ForumCommunityEventDTO {
+  id: number;
+  communityId: number;
+  title: string;
+  description: string;
+  type: ForumCommunityEventType;
+  gameName: string | null;
+  platform: string | null;
+  joinUrl: string | null;
+  startsAtUtc: string;
+  endsAtUtc: string | null;
+  maxParticipants: number | null;
+  participantCount: number;
+  isJoinedByCurrentUser: boolean;
+  isCancelled: boolean;
+  createdByUserId: string;
+  createdByUserName: string;
+  canManage: boolean;
+  createdAt: string;
+}
+
+export interface ForumCommunityEventInput {
+  title: string;
+  description: string;
+  type: ForumCommunityEventType;
+  gameName: string | null;
+  platform: string | null;
+  joinUrl: string | null;
+  startsAtUtc: string;
+  endsAtUtc: string | null;
+  maxParticipants: number | null;
+}
+
+export interface CommunityPagedResult<T> {
+  items: T[];
+  pageNumber: number;
+  pageSize: number;
+  totalCount: number;
+  totalPages: number;
+}

@@ -154,7 +154,7 @@ function RatingInput({
                 <button
                   type="button"
                   disabled={disabled}
-                  aria-label={`${halfValue.toFixed(1)} puan`}
+                  aria-label={`${halfValue.toFixed(1)} reytinq`}
                   onClick={() => {
                     onChange(halfValue);
                   }}
@@ -164,7 +164,7 @@ function RatingInput({
                 <button
                   type="button"
                   disabled={disabled}
-                  aria-label={`${starNumber.toFixed(1)} puan`}
+                  aria-label={`${starNumber.toFixed(1)} reytinq`}
                   onClick={() => {
                     onChange(starNumber);
                   }}
@@ -184,14 +184,14 @@ function RatingInput({
             }}
             className="ml-2 text-xs font-semibold text-zinc-500 transition hover:text-zinc-200 disabled:cursor-not-allowed"
           >
-            Puanı sil
+            Reytinqi sil
           </button>
         )}
       </div>
 
       <p className="mt-2 text-xs text-zinc-600">
         {value === null
-          ? "Puan seçilməyib"
+          ? "Reytinq seçilməyib"
           : `${value.toFixed(1)} / 5`}
       </p>
     </div>
@@ -590,7 +590,7 @@ export function LogGameModal({
         totalMinutes <= 0
       ) {
         throw new Error(
-          "Status, puan, platforma, oyun müddəti və ya rəy məlumatlarından ən azı birini əlavə edin.",
+          "Status, reytinq, platforma, oyun müddəti və ya rəy məlumatlarından ən azı birini əlavə edin.",
         );
       }
 
@@ -784,7 +784,7 @@ export function LogGameModal({
                 : "Oyunu log et"}
             </h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Status, puan, platforma, oyun müddəti və rəyini bir yerdən əlavə et.
+              Status, reytinq, platforma, oyun müddəti və rəyini bir yerdən əlavə et.
             </p>
           </div>
 
@@ -949,7 +949,7 @@ export function LogGameModal({
 
               <div>
                 <label className="block text-sm font-semibold text-zinc-200">
-                  Puan
+                  Reytinq
                 </label>
                 <div className="mt-3">
                   <RatingInput

@@ -57,6 +57,18 @@ public sealed class GameListsController : ControllerBase
     }
 
     [Authorize]
+    [HttpGet("{id:int:min(1)}/played-progress")]
+    public async Task<IActionResult> GetPlayedProgress(
+        int id,
+        CancellationToken cancellationToken)
+    {
+        return Ok(await _gameListService.GetPlayedProgressAsync(
+            id,
+            GetCurrentUserId(),
+            cancellationToken));
+    }
+
+    [Authorize]
     [EnableRateLimiting(RateLimitPolicyNames.SocialWrite)]
     [HttpPost]
     public async Task<IActionResult> Create(

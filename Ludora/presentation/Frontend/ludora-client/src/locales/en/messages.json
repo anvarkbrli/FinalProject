@@ -15,7 +15,10 @@
     "expandImage": "Expand image",
     "messageImageAlt": "Message image",
     "closePreview": "Close media preview",
-    "expandedImageAlt": "Expanded message image"
+    "expandedImageAlt": "Expanded message image",
+    "previous": "Previous media",
+    "next": "Next media",
+    "collapse": "Collapse collection"
   },
   "streak": {
     "celebrationTitle": "{count}-day streak!",
@@ -104,13 +107,18 @@
     "recommendGame": "Recommend a game",
     "requestPlaceholder": "You can write one message request...",
     "messagePlaceholder": "Write a message...",
-    "send": "Send message"
+    "send": "Send message",
+    "selectedMedia": "{count} media selected",
+    "removeSelected": "Remove selected media",
+    "clearMedia": "Remove all media"
   },
   "validation": {
     "unsupportedMedia": "Only images, MP4 and WEBM files can be sent.",
     "videoTooLarge": "Videos can be up to 50 MB.",
     "imageTooLarge": "Images can be up to 10 MB.",
-    "sendFailed": "Message could not be sent."
+    "sendFailed": "Message could not be sent.",
+    "tooManyMedia": "A message can contain up to {count} media files.",
+    "mediaTotalTooLarge": "The total media size can be up to 150 MB."
   },
   "delete": {
     "forEveryoneTitle": "Delete the message for everyone?",

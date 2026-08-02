@@ -19,6 +19,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { ForumMediaGallery } from "../components/forum/ForumMediaGallery";
+import { CopyShareButton } from "../components/common/CopyShareButton";
 import { ForumContentMenu } from "../components/forum/ForumContentMenu";
 import { DiscussionPollCard } from "../components/forum/DiscussionPollCard";
 import "../components/forum/forum.css";
@@ -26,6 +27,7 @@ import { Navbar } from "../components/layout/Navbar";
 import { ApiErrorStatusPage } from "../components/status/ApiErrorStatusPage";
 import { useI18n } from "../i18n/useI18n";
 import { getApiErrorMessage } from "../lib/api";
+import { hasAuthCapability } from "../lib/authRoles";
 import {
   formatRelativeDate,
   resolveAssetUrl,
@@ -94,7 +96,12 @@ function CommentItem({
   const [isEditing, setIsEditing] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [editText, setEditText] = useState(reply.content);
-  const currentUserId = useAuthStore((state) => state.user?.id ?? null);
+  const currentUser = useAuthStore((state) => state.user);
+  const currentUserId = currentUser?.id ?? null;
+  const canDeleteForumContent = hasAuthCapability(
+    currentUser?.capabilities,
+    "admin.forum.delete",
+  );
   const isOwnReply = currentUserId === reply.authorId;
   const avatarUrl = resolveAssetUrl(reply.authorProfileImageUrl);
   const isMatch =
@@ -121,7 +128,7 @@ function CommentItem({
             authorUserName={reply.authorUserName}
             initialIsActive={reply.isFollowedByCurrentUser}
             canEdit={reply.canEdit}
-            canDelete={reply.canDelete}
+            canDelete={reply.canDelete || canDeleteForumContent}
             onEdit={() => {
               setEditText(reply.content);
               setIsEditing(true);
@@ -164,6 +171,18 @@ function CommentItem({
               {reply.authorCommunityRole === "Moderator" && (
                 <span className="rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-1.5 py-0.5 text-[9px] font-bold text-violet-300">
                   Moderator
+                </span>
+              )}
+              {reply.authorCommunityFlairName && (
+                <span
+                  className="rounded-full px-2 py-0.5 text-[9px] font-black"
+                  style={{
+                    backgroundColor:
+                      reply.authorCommunityFlairBackgroundColor ?? undefined,
+                    color: reply.authorCommunityFlairTextColor ?? undefined,
+                  }}
+                >
+                  {reply.authorCommunityFlairName}
                 </span>
               )}
               <span className="text-zinc-700">•</span>
@@ -380,6 +399,10 @@ export function ForumDiscussionPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
+  const canDeleteForumContent = hasAuthCapability(
+    user?.capabilities,
+    "admin.forum.delete",
+  );
   const accessToken = useAuthStore((state) => state.accessToken);
   const expiresAtUtc = useAuthStore(
     (state) => state.expiresAtUtc,
@@ -805,10 +828,28 @@ export function ForumDiscussionPage() {
                       Moderator
                     </span>
                   )}
+                  {discussion.authorCommunityFlairName && (
+                    <span
+                      className="ml-1 rounded-full px-2 py-0.5 text-[9px] font-black"
+                      style={{
+                        backgroundColor:
+                          discussion.authorCommunityFlairBackgroundColor ?? undefined,
+                        color:
+                          discussion.authorCommunityFlairTextColor ?? undefined,
+                      }}
+                    >
+                      {discussion.authorCommunityFlairName}
+                    </span>
+                  )}
                 </p>
               )}
             </div>
             <div className="ml-auto flex items-center gap-2">
+              <CopyShareButton
+                path={`/forum/discussions/${discussion.slug}`}
+                iconOnly
+                className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.025] text-zinc-500 transition hover:border-teal-300/20 hover:bg-teal-300/[0.07] hover:text-teal-200"
+              />
               {discussion.isLocked && (
                 <span className="flex items-center gap-1.5 rounded-full bg-amber-300/10 px-3 py-1 text-[11px] font-bold text-amber-200">
                   <Lock size={12} />
@@ -823,7 +864,7 @@ export function ForumDiscussionPage() {
                 authorUserName={discussion.authorUserName}
                 initialIsActive={discussion.isSavedByCurrentUser}
                 canEdit={discussion.canEdit}
-                canDelete={discussion.canDelete}
+                canDelete={discussion.canDelete || canDeleteForumContent}
                 onEdit={beginDiscussionEdit}
                 onDelete={handleDiscussionDelete}
               />
