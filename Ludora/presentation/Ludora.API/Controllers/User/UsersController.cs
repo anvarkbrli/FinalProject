@@ -116,7 +116,9 @@ public class UsersController : ControllerBase
             GetCurrentUserId(),
             cancellationToken);
 
-        return Ok(result);
+        return result is null
+            ? new JsonResult(null) { StatusCode = StatusCodes.Status200OK }
+            : Ok(result);
     }
 
     [Authorize]

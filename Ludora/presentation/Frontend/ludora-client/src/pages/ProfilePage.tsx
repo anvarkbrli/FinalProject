@@ -26,6 +26,7 @@ import {
   LoaderCircle,
   LockKeyhole,
   MessageCircle,
+  MessageSquareWarning,
   Pencil,
   Plus,
   Send,
@@ -51,7 +52,6 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
-import { CopyShareButton } from "../components/common/CopyShareButton";
 import { InteractionCommentsPanel } from "../components/interactions/InteractionCommentsPanel";
 import { InteractionLikesModal } from "../components/interactions/InteractionLikesModal";
 import { Footer } from "../components/layout/Footer";
@@ -82,7 +82,7 @@ import {
   resolveAssetUrl,
 } from "../lib/helpers";
 import { createGameList } from "../services/gameListsService";
-import { deleteAdminPost } from "../services/adminService";
+import { deleteAdminPost, warnAdminUser } from "../services/adminService";
 import {
   likeContent,
   unlikeContent,
@@ -106,6 +106,7 @@ import {
   getMyCollaboratingGameLists,
   getMyFeed,
   getUserGameLists,
+  getUserFavoriteGames,
   getUserGames,
   getUserProfileGames,
   getUserPlaytimeStatistics,
@@ -416,7 +417,7 @@ function UserAvatar({
 
 function ProfileLoadingState() {
   return (
-    <div className="min-h-screen wellplayd-page-bg text-zinc-100">
+    <div className="min-h-screen wellplayd-page-bg text-[var(--wp-text)]">
       <Navbar />
 
       <main className="flex min-h-[70vh] items-center justify-center px-5">
@@ -447,11 +448,18 @@ export function ProfilePage() {
     storedUser?.capabilities,
     "admin.posts.delete",
   );
+  const canWarnUsers = hasAuthCapability(
+    storedUser?.capabilities,
+    "admin.users.warn",
+  );
   const accessToken = useAuthStore(
     (state) => state.accessToken,
   );
   const expiresAtUtc = useAuthStore(
     (state) => state.expiresAtUtc,
+  );
+  const isAuthInitialized = useAuthStore(
+    (state) => state.isInitialized,
   );
 
   const activeTab =
@@ -555,6 +563,8 @@ export function ProfilePage() {
     useState(false);
   const profileActionMenuRef = useRef<HTMLDivElement>(null);
   const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isWarningOpen, setIsWarningOpen] = useState(false);
+  const [warningMessage, setWarningMessage] = useState("");
   const [isPlaytimeReconciliationOpen, setIsPlaytimeReconciliationOpen] =
     useState(false);
 
@@ -613,37 +623,49 @@ export function ProfilePage() {
     ) && storedUser !== null;
 
   const profileQuery = useQuery({
-    queryKey: ["user-profile", userName],
+    queryKey: [
+      "user-profile",
+      userName,
+      storedUser?.id ?? "anonymous",
+    ],
     queryFn: ({ signal }) =>
       getUserProfile(userName, signal),
-    enabled: userName.trim().length > 0,
+    enabled:
+      isAuthInitialized &&
+      userName.trim().length > 0,
   });
 
   const profile = profileQuery.data;
   const isOwnProfile =
     profile !== undefined &&
     storedUser?.id === profile.id;
-  const canViewProfileContent =
-    profile !== undefined &&
-    (profile.canViewContent ?? (!profile.isPrivate || isOwnProfile));
-  const requestedTab = profileTabs.find((tab) => tab.id === activeTab);
-  const visibleActiveTab =
-    !isOwnProfile && requestedTab?.ownerOnly
-      ? "overview"
-      : activeTab;
 
   const followStatusQuery = useQuery({
     queryKey: [
       "follow-status",
       profile?.id,
+      storedUser?.id ?? "anonymous",
     ],
     queryFn: ({ signal }) =>
       getFollowStatus(profile!.id, signal),
     enabled:
+      isAuthInitialized &&
       isAuthenticated &&
       profile !== undefined &&
       !isOwnProfile,
   });
+
+  const canViewProfileContent =
+    profile !== undefined &&
+    (profile.canViewContent === true ||
+      !profile.isPrivate ||
+      isOwnProfile ||
+      followStatusQuery.data?.isFollowing === true);
+  const requestedTab = profileTabs.find((tab) => tab.id === activeTab);
+  const visibleActiveTab =
+    !isOwnProfile && requestedTab?.ownerOnly
+      ? "overview"
+      : activeTab;
 
   const postsQuery = useQuery({
     queryKey: ["user-posts", profile?.id],
@@ -736,22 +758,25 @@ export function ProfilePage() {
         pageSize: 4,
       }),
     enabled:
+      isAuthInitialized &&
       canViewProfileContent &&
       visibleActiveTab === "overview",
     staleTime: 2 * 60 * 1000,
+    refetchOnMount: "always",
   });
 
   const recentFavoriteGamesQuery = useQuery({
-    queryKey: ["user-profile-recent-favorite-games", profile?.id],
+    queryKey: [
+      "user-profile-recent-favorite-games",
+      profile?.id,
+      storedUser?.id ?? "anonymous",
+    ],
     queryFn: () =>
-      getUserGames(profile!.id, {
-        isFavorite: true,
-        pageNumber: 1,
-        pageSize: 4,
-      }),
+      getUserFavoriteGames(profile!.id, 1, 4),
     enabled:
+      isAuthInitialized &&
+      isAuthenticated &&
       canViewProfileContent &&
-      isOwnProfile &&
       visibleActiveTab === "overview",
     staleTime: 2 * 60 * 1000,
   });
@@ -812,18 +837,21 @@ export function ProfilePage() {
       profile?.id,
       "favorites",
       favoritesPage,
+      storedUser?.id ?? "anonymous",
     ],
     queryFn: () =>
-      getUserGames(profile!.id, {
-        isFavorite: true,
-        pageNumber: favoritesPage,
-        pageSize: 12,
-      }),
+      getUserFavoriteGames(
+        profile!.id,
+        favoritesPage,
+        12,
+      ),
     enabled:
+      isAuthInitialized &&
+      isAuthenticated &&
       canViewProfileContent &&
-      isOwnProfile &&
       (isFavoritesModalOpen ||
-        visibleActiveTab === "favorites"),
+        (isOwnProfile && visibleActiveTab === "favorites")),
+    refetchOnMount: "always",
   });
 
   const ownedGamesQuery = useQuery({
@@ -993,6 +1021,43 @@ export function ProfilePage() {
         message: getApiErrorMessage(
           error,
           "İstifadəçini bloklamaq mümkün olmadı.",
+        ),
+      });
+    },
+  });
+
+  const warningMutation = useMutation({
+    mutationFn: (message: string) => warnAdminUser(profile!.id, message),
+    onSuccess: async () => {
+      setWarningMessage("");
+      setIsWarningOpen(false);
+      setNotice({
+        type: "success",
+        message:
+          language === "en"
+            ? "The warning was sent to the user."
+            : "Xəbərdarlıq istifadəçiyə göndərildi.",
+      });
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["admin", "user", profile?.id],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["admin", "user", profile?.id, "warnings"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["admin", "user", profile?.id, "audit"],
+        }),
+      ]);
+    },
+    onError: (error) => {
+      setNotice({
+        type: "error",
+        message: getApiErrorMessage(
+          error,
+          language === "en"
+            ? "The warning could not be sent."
+            : "Xəbərdarlıq göndərilmədi.",
         ),
       });
     },
@@ -1256,7 +1321,7 @@ export function ProfilePage() {
     nextParams.set("tab", "reviews");
 
     if (category === "rating") {
-      // Ulduz kateqoriyası sıralama deyil, dəqiq reytinq filtridir.
+      // Ulduz kateqoriyası sıralama deyil, dəqiq puan filtridir.
       // Buna görə artan/azalan istiqaməti deaktiv edilir və
       // nəticələr standart olaraq ən yeni tarixə görə göstərilir.
       nextParams.delete("sort");
@@ -1472,27 +1537,7 @@ export function ProfilePage() {
     blockMutation.isPending ||
     removeFollowerMutation.isPending;
 
-  const posts = useMemo(() => postsQuery.data ?? [], [postsQuery.data]);
-  const sharedPostId = searchParams.get("post");
-
-  useEffect(() => {
-    if (
-      visibleActiveTab !== "posts" ||
-      !sharedPostId ||
-      posts.length === 0
-    ) {
-      return;
-    }
-
-    const frameId = window.requestAnimationFrame(() => {
-      document.getElementById(`post-${sharedPostId}`)?.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [posts, sharedPostId, visibleActiveTab]);
+  const posts = postsQuery.data ?? [];
   const gameLists = listsQuery.data ?? [];
   const collaboratingGameLists = collaboratingListsQuery.data ?? [];
   const reviews = reviewsQuery.data?.items ?? [];
@@ -1584,6 +1629,7 @@ export function ProfilePage() {
   }
 
   const loadedProfile = profile;
+  const isRestrictedPrivateProfile = !canViewProfileContent;
 
   async function handleFollowAction() {
     setNotice(null);
@@ -1643,79 +1689,6 @@ export function ProfilePage() {
     if (shouldBlock) {
       blockMutation.mutate(loadedProfile.id);
     }
-  }
-
-  if (!canViewProfileContent) {
-    return (
-      <div className="min-h-screen wellplayd-page-bg text-zinc-100">
-        <Navbar />
-
-        <main className="relative flex min-h-[calc(100vh-160px)] items-center justify-center overflow-hidden px-5 py-16">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.18),transparent_32%),radial-gradient(circle_at_80%_70%,rgba(217,70,239,0.09),transparent_28%)]" />
-
-          <section className="relative w-full max-w-xl rounded-[2rem] border border-white/[0.08] bg-[#111118]/95 p-7 text-center shadow-2xl shadow-black/35 sm:p-10">
-            <UserAvatar
-              userName={loadedProfile.userName}
-              profileImageUrl={loadedProfile.profileImageUrl}
-              className="mx-auto h-24 w-24 rounded-3xl border border-white/10 text-2xl shadow-xl shadow-black/30"
-            />
-
-            <h1 className="mt-5 truncate text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              {loadedProfile.userName}
-            </h1>
-
-            <div className="mx-auto mt-7 flex h-16 w-16 items-center justify-center rounded-2xl border border-violet-400/15 bg-violet-500/10 text-violet-300">
-              <LockKeyhole size={28} />
-            </div>
-
-            <h2 className="mt-5 text-xl font-bold text-white">
-              {t("profile:private")}
-            </h2>
-            <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-zinc-400">
-              {t("profile:privateDescription")}
-            </p>
-
-            {notice && (
-              <div
-                className={`mt-6 rounded-2xl border px-4 py-3 text-sm ${
-                  notice.type === "success"
-                    ? "border-emerald-400/15 bg-emerald-500/[0.07] text-emerald-200"
-                    : "border-red-400/15 bg-red-500/[0.07] text-red-200"
-                }`}
-              >
-                {notice.message}
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={handleFollowAction}
-              disabled={actionIsPending}
-              className={`mx-auto mt-7 flex h-11 min-w-40 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                followStatus?.isPending
-                  ? "border border-white/[0.09] bg-white/[0.05] text-zinc-200 hover:bg-white/[0.09]"
-                  : "bg-violet-600 text-white hover:bg-violet-500"
-              }`}
-            >
-              {actionIsPending ? (
-                <LoaderCircle size={17} className="animate-spin" />
-              ) : followStatus?.isPending ? (
-                <Clock3 size={17} />
-              ) : (
-                <UserPlus size={17} />
-              )}
-              {followStatus?.isPending
-                ? language === "en"
-                  ? "Request sent"
-                  : "Sorğu göndərilib"
-                : t("profile:followToView")}
-            </button>
-          </section>
-        </main>
-
-        <Footer />
-      </div>
-    );
   }
 
   function handleCreatePost() {
@@ -1844,8 +1817,8 @@ export function ProfilePage() {
       <Navbar />
 
       <main>
-        <section className="profile-hero relative overflow-hidden border-b border-white/[0.06] bg-[#0a0a0e]">
-          <div className="profile-hero-glow pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,0.17),transparent_30%),radial-gradient(circle_at_90%_30%,rgba(217,70,239,0.07),transparent_25%)]" />
+        <section className="wp-profile-hero relative overflow-hidden border-b border-white/[0.06] bg-[#0a0a0e]">
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,0.17),transparent_30%),radial-gradient(circle_at_90%_30%,rgba(217,70,239,0.07),transparent_25%)]" />
 
           <div className="relative mx-auto max-w-7xl px-5 py-12 lg:px-8 lg:py-16">
             <div className="flex flex-col gap-7 md:flex-row md:items-start md:justify-between">
@@ -1855,70 +1828,73 @@ export function ProfilePage() {
                   profileImageUrl={
                     profile.profileImageUrl
                   }
-                  className="profile-hero-avatar h-28 w-28 rounded-3xl border border-white/10 text-3xl shadow-2xl shadow-black/30"
+                  className="h-28 w-28 rounded-3xl border border-white/10 text-3xl shadow-2xl shadow-black/30"
                 />
 
                 <div className="min-w-0 pt-1">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h1 className="profile-hero-title truncate text-3xl font-bold tracking-tight text-white sm:text-4xl">
+                    <h1 className="truncate text-3xl font-bold tracking-tight text-white sm:text-4xl">
                       {profile.userName}
                     </h1>
 
                   </div>
 
-                  <p data-user-content className="profile-hero-bio mt-4 max-w-2xl whitespace-pre-wrap text-sm leading-7 text-zinc-400">
-                    {profile.bio ??
-                      "Bu istifadəçi hələ bio əlavə etməyib."}
-                  </p>
+                  <>
+                      <p data-user-content className="mt-4 max-w-2xl whitespace-pre-wrap text-sm leading-7 text-zinc-400">
+                        {profile.bio ??
+                          (language === "en"
+                            ? "This user has not added a bio yet."
+                            : "Bu istifadəçi hələ bio əlavə etməyib.")}
+                      </p>
 
-                  {profile.socialLinks.length > 0 && (
-                    <div className="mt-4 flex flex-wrap items-center gap-2">
-                      {profile.socialLinks.map((link) => (
-                        <a
-                          key={link.platform}
-                          href={link.url}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={socialPlatformLabels[link.platform]}
-                          aria-label={`${socialPlatformLabels[link.platform]} profilini aç`}
-                          className="profile-hero-social-link inline-flex h-9 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-xs font-semibold text-zinc-400 transition hover:border-violet-400/25 hover:bg-violet-500/10 hover:text-white"
-                        >
-                          <SocialPlatformIcon
-                            platform={link.platform}
-                            size={16}
-                          />
-                          <span className="hidden sm:inline">
-                            {socialPlatformLabels[link.platform]}
-                          </span>
-                        </a>
-                      ))}
-                    </div>
-                  )}
+                      {profile.socialLinks.length > 0 && (
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          {profile.socialLinks.map((link) => (
+                            <a
+                              key={link.platform}
+                              href={link.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={socialPlatformLabels[link.platform]}
+                              aria-label={
+                                language === "en"
+                                  ? `Open ${socialPlatformLabels[link.platform]} profile`
+                                  : `${socialPlatformLabels[link.platform]} profilini aç`
+                              }
+                              className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.035] px-3 text-xs font-semibold text-zinc-400 transition hover:border-violet-400/25 hover:bg-violet-500/10 hover:text-white"
+                            >
+                              <SocialPlatformIcon
+                                platform={link.platform}
+                                size={16}
+                              />
+                              <span className="hidden sm:inline">
+                                {socialPlatformLabels[link.platform]}
+                              </span>
+                            </a>
+                          ))}
+                        </div>
+                      )}
 
-                  <div className="profile-hero-meta mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-zinc-500">
-                    <span className="inline-flex items-center gap-2">
-                      <CalendarDays size={15} />
-                      {language === "en"
-                        ? `Member since ${formatDate(profile.createdAt)}`
-                        : `${formatDate(profile.createdAt)} tarixindən üzvdür`}
-                    </span>
-
-                  </div>
+                      <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-zinc-500">
+                        <span className="inline-flex items-center gap-2">
+                          <CalendarDays size={15} />
+                          {language === "en"
+                            ? `Member since ${formatDate(profile.createdAt)}`
+                            : `${formatDate(profile.createdAt)} tarixindən üzvdür`}
+                        </span>
+                      </div>
+                  </>
                 </div>
               </div>
 
-              <div className="profile-hero-actions flex shrink-0 flex-wrap gap-3">
-                <CopyShareButton
-                  path={`/users/${encodeURIComponent(profile.userName)}`}
-                  className="profile-hero-secondary-action flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-4 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.09] hover:text-white"
-                />
+              <div className="flex shrink-0 flex-wrap gap-3">
                 {isOwnProfile ? (
                   <Link
                     to="/settings?section=profile"
-                    className="profile-hero-secondary-action flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-5 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.09] hover:text-white"
+                    className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-5 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.09] hover:text-white"
                   >
                     <Pencil size={17} />
-                    Redaktə et
+                    {language === "en" ? "Edit" : "Redaktə et"}
                   </Link>
                 ) : (
                   <>
@@ -1929,8 +1905,8 @@ export function ProfilePage() {
                       className={`flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${
                         followStatus?.isFollowing ||
                         followStatus?.isPending
-                          ? "profile-hero-secondary-action border border-white/[0.09] bg-white/[0.05] text-zinc-200 hover:bg-white/[0.09]"
-                          : "profile-hero-primary-action bg-violet-600 text-white hover:bg-violet-500"
+                          ? "border border-white/[0.09] bg-white/[0.05] text-zinc-200 hover:bg-white/[0.09]"
+                          : "bg-violet-600 text-white hover:bg-violet-500"
                       }`}
                     >
                       {actionIsPending ? (
@@ -1947,10 +1923,16 @@ export function ProfilePage() {
                       )}
 
                       {followStatus?.isFollowing
-                        ? "İzləyirsən"
+                        ? language === "en"
+                          ? "Following"
+                          : "İzləyirsən"
                         : followStatus?.isPending
-                          ? "Sorğu göndərilib"
-                          : "İzlə"}
+                          ? language === "en"
+                            ? "Request sent"
+                            : "Sorğu göndərilib"
+                          : language === "en"
+                            ? "Follow"
+                            : "İzlə"}
                     </button>
 
                     <div ref={profileActionMenuRef} className="relative">
@@ -1961,8 +1943,12 @@ export function ProfilePage() {
                           }
                           aria-expanded={isProfileActionOpen}
                           aria-haspopup="menu"
-                          aria-label="Profil əməliyyatları"
-                          className="profile-hero-menu-trigger flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.05] text-zinc-300 transition hover:bg-white/[0.09] hover:text-white"
+                          aria-label={
+                            language === "en"
+                              ? "Profile actions"
+                              : "Profil əməliyyatları"
+                          }
+                          className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.09] bg-white/[0.05] text-zinc-300 transition hover:bg-white/[0.09] hover:text-white"
                         >
                           <EllipsisVertical size={19} />
                         </button>
@@ -1970,7 +1956,7 @@ export function ProfilePage() {
                         {isProfileActionOpen && (
                           <div
                             role="menu"
-                            className="profile-hero-action-menu absolute right-0 top-[calc(100%+8px)] z-30 w-48 rounded-2xl border border-white/[0.09] bg-[#15151b] p-2 shadow-2xl shadow-black/50"
+                            className="wp-profile-action-menu absolute right-0 top-[calc(100%+8px)] z-30 w-48 rounded-2xl border border-white/[0.09] bg-[#15151b] p-2 shadow-2xl shadow-black/50"
                           >
                             <button
                               type="button"
@@ -1985,10 +1971,10 @@ export function ProfilePage() {
                                   `/messages?userId=${loadedProfile.id}&userName=${encodeURIComponent(loadedProfile.userName)}`,
                                 );
                               }}
-                              className="profile-hero-menu-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                             >
                               <MessageCircle size={16} />
-                              Mesaj yaz
+                              {language === "en" ? "Message" : "Mesaj yaz"}
                             </button>
                             <button
                               type="button"
@@ -1998,10 +1984,10 @@ export function ProfilePage() {
                                 handleBlock();
                               }}
                               disabled={actionIsPending}
-                              className="profile-hero-menu-item profile-hero-menu-item-danger flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-red-300 transition hover:bg-red-500/[0.08] disabled:opacity-50"
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-red-300 transition hover:bg-red-500/[0.08] disabled:opacity-50"
                             >
                               <Ban size={16} />
-                              Blokla
+                              {language === "en" ? "Block" : "Blokla"}
                             </button>
                             <button
                               type="button"
@@ -2014,11 +2000,26 @@ export function ProfilePage() {
                                 }
                                 setIsReportOpen(true);
                               }}
-                              className="profile-hero-menu-item flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                              className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                             >
                               <Flag size={16} />
-                              Şikayət et
+                              {language === "en" ? "Report" : "Şikayət et"}
                             </button>
+                            {canWarnUsers && (
+                              <button
+                                type="button"
+                                role="menuitem"
+                                onClick={() => {
+                                  setIsProfileActionOpen(false);
+                                  setWarningMessage("");
+                                  setIsWarningOpen(true);
+                                }}
+                                className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-amber-300 transition hover:bg-amber-500/[0.08]"
+                              >
+                                <MessageSquareWarning size={16} />
+                                {language === "en" ? "Send warning" : "Xəbərdarlıq et"}
+                              </button>
+                            )}
                           </div>
                         )}
                     </div>
@@ -2027,18 +2028,22 @@ export function ProfilePage() {
               </div>
             </div>
 
-            <div className="profile-hero-stats mt-8 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-6 sm:grid-cols-4">
+            <div className="mt-8 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-6 sm:grid-cols-4">
               <button
                 type="button"
                 onClick={() => setConnectionModal("followers")}
-                className="profile-hero-stat-card group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-left transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
+                disabled={isRestrictedPrivateProfile}
+                title={isRestrictedPrivateProfile ? t("profile:private") : undefined}
+                className={`wp-profile-stat-card group flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3 text-left transition ${
+                  isRestrictedPrivateProfile ? "is-disabled" : ""
+                }`}
               >
-                <span className="profile-hero-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <span className="wp-profile-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
                   <Users size={17} />
                 </span>
                 <span className="min-w-0">
-                  <strong className="profile-hero-stat-value block text-lg font-bold text-white">{profile.followerCount}</strong>
-                  <span className="profile-hero-stat-label block truncate text-xs text-zinc-500 group-hover:text-zinc-300">
+                  <strong className="wp-profile-stat-value block text-lg font-bold">{profile.followerCount}</strong>
+                  <span className="wp-profile-stat-label block truncate text-xs">
                     {t("profile:followers")}
                   </span>
                 </span>
@@ -2047,48 +2052,88 @@ export function ProfilePage() {
               <button
                 type="button"
                 onClick={() => setConnectionModal("following")}
-                className="profile-hero-stat-card group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 text-left transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
+                disabled={isRestrictedPrivateProfile}
+                title={isRestrictedPrivateProfile ? t("profile:private") : undefined}
+                className={`wp-profile-stat-card group flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3 text-left transition ${
+                  isRestrictedPrivateProfile ? "is-disabled" : ""
+                }`}
               >
-                <span className="profile-hero-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
+                <span className="wp-profile-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
                   <UserPlus size={17} />
                 </span>
                 <span className="min-w-0">
-                  <strong className="profile-hero-stat-value block text-lg font-bold text-white">{profile.followingCount}</strong>
-                  <span className="profile-hero-stat-label block truncate text-xs text-zinc-500 group-hover:text-zinc-300">
+                  <strong className="wp-profile-stat-value block text-lg font-bold">{profile.followingCount}</strong>
+                  <span className="wp-profile-stat-label block truncate text-xs">
                     {t("profile:following")}
                   </span>
                 </span>
               </button>
 
-              <Link
-                to="?tab=posts#posts"
-                className="profile-hero-stat-card group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
-              >
-                <span className="profile-hero-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
-                  <FileText size={17} />
-                </span>
-                <span className="min-w-0">
-                  <strong className="profile-hero-stat-value block text-lg font-bold text-white">{profile.postCount}</strong>
-                  <span className="profile-hero-stat-label block truncate text-xs text-zinc-500 group-hover:text-zinc-300">
-                    {t("profile:posts")}
+              {isRestrictedPrivateProfile ? (
+                <div
+                  aria-disabled="true"
+                  title={t("profile:private")}
+                  className="wp-profile-stat-card is-disabled group flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3"
+                >
+                  <span className="wp-profile-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+                    <FileText size={17} />
                   </span>
-                </span>
-              </Link>
+                  <span className="min-w-0">
+                    <strong className="wp-profile-stat-value block text-lg font-bold">{profile.postCount}</strong>
+                    <span className="wp-profile-stat-label block truncate text-xs">
+                      {t("profile:posts")}
+                    </span>
+                  </span>
+                </div>
+              ) : (
+                <Link
+                  to="?tab=posts#posts"
+                  className="wp-profile-stat-card group flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3 transition"
+                >
+                  <span className="wp-profile-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+                    <FileText size={17} />
+                  </span>
+                  <span className="min-w-0">
+                    <strong className="wp-profile-stat-value block text-lg font-bold">{profile.postCount}</strong>
+                    <span className="wp-profile-stat-label block truncate text-xs">
+                      {t("profile:posts")}
+                    </span>
+                  </span>
+                </Link>
+              )}
 
-              <Link
-                to="?tab=reviews#reviews"
-                className="profile-hero-stat-card group flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 transition hover:border-violet-400/20 hover:bg-violet-500/[0.05]"
-              >
-                <span className="profile-hero-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
-                  <Star size={17} />
-                </span>
-                <span className="min-w-0">
-                  <strong className="profile-hero-stat-value block text-lg font-bold text-white">{profile.statistics.reviewCount}</strong>
-                  <span className="profile-hero-stat-label block truncate text-xs text-zinc-500 group-hover:text-zinc-300">
-                    {t("profile:reviews")}
+              {isRestrictedPrivateProfile ? (
+                <div
+                  aria-disabled="true"
+                  title={t("profile:private")}
+                  className="wp-profile-stat-card is-disabled group flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3"
+                >
+                  <span className="wp-profile-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+                    <Star size={17} />
                   </span>
-                </span>
-              </Link>
+                  <span className="min-w-0">
+                    <strong className="wp-profile-stat-value block text-lg font-bold">{profile.statistics.reviewCount}</strong>
+                    <span className="wp-profile-stat-label block truncate text-xs">
+                      {t("profile:reviews")}
+                    </span>
+                  </span>
+                </div>
+              ) : (
+                <Link
+                  to="?tab=reviews#reviews"
+                  className="wp-profile-stat-card group flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3 transition"
+                >
+                  <span className="wp-profile-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
+                    <Star size={17} />
+                  </span>
+                  <span className="min-w-0">
+                    <strong className="wp-profile-stat-value block text-lg font-bold">{profile.statistics.reviewCount}</strong>
+                    <span className="wp-profile-stat-label block truncate text-xs">
+                      {t("profile:reviews")}
+                    </span>
+                  </span>
+                </Link>
+              )}
             </div>
           </div>
         </section>
@@ -2118,7 +2163,18 @@ export function ProfilePage() {
             </div>
           )}
 
-          <div className="flex gap-2 overflow-x-auto border-b border-white/[0.07] pb-3">
+          {isRestrictedPrivateProfile ? (
+            <section className="wp-private-profile-inline mx-auto flex max-w-3xl flex-col items-center px-6 py-12 text-center sm:px-10 sm:py-16">
+              <span className="wp-private-profile-lock flex h-16 w-16 items-center justify-center rounded-2xl">
+                <LockKeyhole size={28} />
+              </span>
+              <h2 className="mt-5 text-xl font-bold text-[var(--wp-text-strong)] sm:text-2xl">
+                {t("profile:private")}
+              </h2>
+            </section>
+          ) : (
+            <>
+              <div className="flex gap-2 overflow-x-auto border-b border-white/[0.07] pb-3">
             {visibleProfileTabs.map((tab) => {
               const Icon = tab.icon;
               const isActive = visibleActiveTab === tab.id;
@@ -2159,9 +2215,15 @@ export function ProfilePage() {
                 recentPlayedGamesLoading={recentPlayedGamesQuery.isLoading}
                 favoriteGames={recentFavoriteGamesQuery.data?.items ?? []}
                 favoriteGamesLoading={recentFavoriteGamesQuery.isLoading}
-                canViewFavorites={isOwnProfile}
                 onOpenFavorites={() => {
                   setFavoritesPage(1);
+                  queryClient.removeQueries({
+                    queryKey: [
+                      "user-games",
+                      profile.id,
+                      "favorites",
+                    ],
+                  });
                   setIsFavoritesModalOpen(true);
                 }}
                 onOpenRecentPlayed={openRecentlyPlayedGames}
@@ -2413,9 +2475,8 @@ export function ProfilePage() {
                 ) : (
                   posts.map((post) => (
                     <article
-                      id={`post-${post.id}`}
                       key={post.id}
-                      className="scroll-mt-28 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6"
+                      className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex min-w-0 items-center gap-3">
@@ -2443,11 +2504,6 @@ export function ProfilePage() {
                         </div>
 
                         <div className="flex shrink-0 gap-1">
-                          <CopyShareButton
-                            path={`/users/${encodeURIComponent(post.userName)}?tab=posts&post=${post.id}#post-${post.id}`}
-                            iconOnly
-                            className="flex h-9 w-9 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-violet-500/[0.08] hover:text-violet-300"
-                          />
                           <ContentReportButton
                             reportedUserId={post.userId}
                             reportedUserName={post.userName}
@@ -2694,10 +2750,10 @@ export function ProfilePage() {
               <div>
                 <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h2 className="text-xl font-bold text-white">
+                    <h2 className="text-xl font-bold text-[var(--wp-text-strong)]">
                       Oyun siyahıları
                     </h2>
-                    <p className="mt-1 text-sm text-zinc-600">
+                    <p className="mt-1 text-sm text-[color:var(--wp-text-muted)]">
                       Ranklanmış siyahılar şəxsi sıralamanı, sırasız siyahılar isə kolleksiyanı göstərir.
                     </p>
                   </div>
@@ -2777,23 +2833,23 @@ export function ProfilePage() {
                         <Link
                           key={list.id}
                           to={`/lists/${list.id}`}
-                          className="group relative min-h-[22rem] overflow-hidden rounded-[1.75rem] border border-white/[0.08] bg-[#101015] shadow-xl shadow-black/10 transition duration-300 hover:-translate-y-1 hover:border-violet-300/25 hover:shadow-2xl hover:shadow-violet-950/20"
+                          className="wp-list-card group relative min-h-[22rem] overflow-hidden rounded-[1.75rem] transition duration-300 hover:-translate-y-1 hover:border-violet-300/25 hover:shadow-2xl"
                         >
                           {backgroundUrl && (
                             <div className="pointer-events-none absolute inset-0 overflow-hidden">
                               <img
                                 src={backgroundUrl}
                                 alt=""
-                                className="h-full w-full scale-110 object-cover opacity-35 blur-xl transition duration-500 group-hover:scale-[1.16] group-hover:opacity-45"
+                                className="wp-list-card-image h-full w-full scale-110 object-cover opacity-35 blur-xl transition duration-500 group-hover:scale-[1.16] group-hover:opacity-45"
                               />
-                              <div className="absolute inset-0 bg-gradient-to-t from-[#0c0c12] via-[#0c0c12]/88 to-[#0c0c12]/45" />
-                              <div className="absolute inset-0 bg-gradient-to-r from-violet-950/20 to-transparent" />
+                              <div className="wp-list-card-overlay absolute inset-0" />
+                              <div className="wp-list-card-accent absolute inset-0" />
                             </div>
                           )}
 
                           <div className="relative flex h-full min-h-[22rem] flex-col p-6">
                             <div className="flex items-start justify-between gap-4">
-                              <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-300/15 bg-violet-500/15 text-violet-200 backdrop-blur-md">
+                              <span className="flex h-12 w-12 items-center justify-center rounded-2xl wp-chip-accent">
                                 {list.isRanked ? (
                                   <ListOrdered size={21} />
                                 ) : (
@@ -2801,29 +2857,29 @@ export function ProfilePage() {
                                 )}
                               </span>
 
-                              <span className="rounded-full border border-white/[0.1] bg-black/25 px-3 py-1 text-[11px] font-semibold text-zinc-300 backdrop-blur-md">
+                              <span className="rounded-full px-3 py-1 text-[11px] font-semibold wp-chip-neutral">
                                 {t(`lists:visibility.${list.visibility}`)}
                               </span>
                             </div>
 
-                            <div className="mt-8 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-violet-200/90">
+                            <div className="mt-8 flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-[var(--wp-accent-strong)]">
                               {list.isRanked
                                 ? t("lists:profile.ranked")
                                 : t("lists:profile.unranked")}
                             </div>
 
-                            <h2 className="mt-2 line-clamp-2 text-xl font-black text-white drop-shadow-md transition group-hover:text-violet-100">
+                            <h2 className="mt-2 line-clamp-2 text-xl font-black text-[var(--wp-text-strong)] transition group-hover:text-[var(--wp-accent-strong)]">
                               {list.name}
                             </h2>
 
-                            <p data-user-content className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-300/70">
+                            <p data-user-content className="mt-3 line-clamp-3 text-sm leading-6 text-[color:var(--wp-text-muted)]">
                               {list.description ??
                                 t("lists:profile.noDescription")}
                             </p>
 
                             <div className="mt-auto pt-8">
                               {list.collaboratorCount > 0 && (
-                                <span className="mb-3 inline-flex items-center gap-2 rounded-full border border-emerald-300/10 bg-emerald-500/[0.08] px-3 py-1 text-[11px] font-bold text-emerald-200/80">
+                                <span className="mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold wp-chip-success">
                                   <Users size={13} />
                                   {t("lists:profile.collaborators", {
                                     count: list.collaboratorCount,
@@ -2831,7 +2887,7 @@ export function ProfilePage() {
                                 </span>
                               )}
 
-                              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.08] pt-4 text-xs text-zinc-400">
+                              <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[color:var(--wp-border)] pt-4 text-xs text-[color:var(--wp-text-muted)]">
                                 <div className="flex flex-wrap items-center gap-4">
                                   <span className="inline-flex items-center gap-2">
                                     <Gamepad2 size={15} />
@@ -2859,10 +2915,10 @@ export function ProfilePage() {
                 {isOwnProfile && collaboratingGameLists.length > 0 && (
                   <section className="mt-10 border-t border-white/[0.07] pt-8">
                     <div className="mb-5">
-                      <h3 className="text-lg font-black text-white">
+                      <h3 className="text-lg font-black text-[var(--wp-text-strong)]">
                         {t("lists:profile.sharedWithMe")}
                       </h3>
-                      <p className="mt-1 text-sm text-zinc-600">
+                      <p className="mt-1 text-sm text-[color:var(--wp-text-muted)]">
                         {t("lists:profile.sharedWithMeDescription")}
                       </p>
                     </div>
@@ -2878,16 +2934,16 @@ export function ProfilePage() {
                           <Link
                             key={`collaboration-${list.id}`}
                             to={`/lists/${list.id}`}
-                            className="group relative min-h-[18rem] overflow-hidden rounded-[1.75rem] border border-white/[0.08] bg-[#101015] transition duration-300 hover:-translate-y-1 hover:border-violet-300/25"
+                            className="wp-collaboration-list-card group relative min-h-[18rem] overflow-hidden rounded-[1.75rem] border border-white/[0.08] bg-[#101015] transition duration-300 hover:-translate-y-1 hover:border-violet-300/25"
                           >
                             {backgroundUrl && (
                               <div className="pointer-events-none absolute inset-0 overflow-hidden">
                                 <img
                                   src={backgroundUrl}
                                   alt=""
-                                  className="h-full w-full scale-110 object-cover opacity-30 blur-xl transition duration-500 group-hover:scale-[1.16]"
+                                  className="wp-collaboration-list-card-image h-full w-full scale-110 object-cover opacity-30 blur-xl transition duration-500 group-hover:scale-[1.16]"
                                 />
-                                <div className="absolute inset-0 bg-gradient-to-t from-[#0c0c12] via-[#0c0c12]/88 to-[#0c0c12]/50" />
+                                <div className="wp-collaboration-list-card-overlay absolute inset-0 bg-gradient-to-t from-[#0c0c12] via-[#0c0c12]/88 to-[#0c0c12]/50" />
                               </div>
                             )}
                             <div className="relative flex h-full min-h-[18rem] flex-col p-6">
@@ -3005,7 +3061,7 @@ export function ProfilePage() {
                           Sıralama meyarı
                         </p>
                         <p className="mt-1 text-xs leading-5 text-zinc-600">
-                          Tarix və şərh sayı üçün sıra istiqamətini seç. Ulduz bölməsində isə dəqiq reytinqi slider ilə müəyyən et.
+                          Tarix və şərh sayı üçün sıra istiqamətini seç. Ulduz bölməsində isə dəqiq puanı slider ilə müəyyən et.
                         </p>
                       </div>
 
@@ -3058,7 +3114,7 @@ export function ProfilePage() {
                                 Ulduz seçimi
                               </p>
                               <p className="mt-1 text-[11px] leading-5 text-zinc-600">
-                                Sürüşdürərək yalnız seçdiyin reytinqə aid rəyləri göstər.
+                                Sürüşdürərək yalnız seçdiyin puana aid rəyləri göstər.
                               </p>
                             </div>
                             <span className="inline-flex shrink-0 items-center rounded-xl border border-amber-300/15 bg-amber-500/[0.08] px-3 py-2 text-sm font-black text-amber-300">
@@ -3254,6 +3310,7 @@ export function ProfilePage() {
                               cpu={review.hardwareCpu}
                               ramGb={review.hardwareRamGb}
                               vramGb={review.hardwareVramGb}
+                              language={language}
                             />
                           )}
 
@@ -3385,21 +3442,23 @@ export function ProfilePage() {
                   onPageChange={setFeedPage}
                 />
               )}
-          </div>
+              </div>
+            </>
+          )}
         </section>
       </main>
 
       <Footer />
 
       <ReviewLikesModal
-        reviewId={likesReview?.id ?? null}
+        reviewId={canViewProfileContent ? likesReview?.id ?? null : null}
         likeCount={likesReview?.count ?? 0}
         onClose={() => setLikesReview(null)}
       />
 
       <InteractionLikesModal
         contentType="post"
-        contentId={likesPost?.id ?? null}
+        contentId={canViewProfileContent ? likesPost?.id ?? null : null}
         likeCount={likesPost?.count ?? 0}
         onClose={() => setLikesPost(null)}
       />
@@ -3429,7 +3488,7 @@ export function ProfilePage() {
         />
       )}
 
-      {isOwnProfile && isFavoritesModalOpen && (
+      {canViewProfileContent && isFavoritesModalOpen && (
         <div
           className="fixed inset-0 z-[85] flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm"
           role="dialog"
@@ -3445,17 +3504,23 @@ export function ProfilePage() {
             <div className="flex items-start justify-between gap-4 border-b border-white/[0.07] px-5 py-4 sm:px-6 sm:py-5">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-fuchsia-300">
-                  Şəxsi kolleksiya
+                  {language === "en" ? "Favorite collection" : "Sevimli kolleksiya"}
                 </p>
                 <h2
                   id="favorite-games-modal-title"
                   className="mt-2 flex items-center gap-2 text-xl font-bold text-white"
                 >
                   <Heart size={19} className="fill-rose-300 text-rose-300" />
-                  Sevimli oyunlar
+                  {language === "en" ? "Favorite games" : "Sevimli oyunlar"}
                 </h2>
                 <p className="mt-2 text-sm text-zinc-500">
-                  Bu siyahı yalnız sənə görünür.
+                  {isOwnProfile
+                    ? language === "en"
+                      ? "Your favorite game collection."
+                      : "Sənin sevimli oyun kolleksiyan."
+                    : language === "en"
+                      ? `${profile.userName}'s favorite game collection.`
+                      : `${profile.userName} istifadəçisinin sevimli oyun kolleksiyası.`}
                 </p>
               </div>
 
@@ -3463,7 +3528,7 @@ export function ProfilePage() {
                 type="button"
                 onClick={() => setIsFavoritesModalOpen(false)}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-zinc-400 transition hover:bg-white/[0.08] hover:text-white"
-                aria-label="Sevimli oyunlar pəncərəsini bağla"
+                aria-label={language === "en" ? "Close favorite games dialog" : "Sevimli oyunlar pəncərəsini bağla"}
               >
                 <X size={18} />
               </button>
@@ -3484,8 +3549,9 @@ export function ProfilePage() {
         </div>
       )}
 
-      {(connectionModal === "followers" ||
-        connectionModal === "following") && (
+      {canViewProfileContent &&
+        (connectionModal === "followers" ||
+          connectionModal === "following") && (
         <div
           className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-5 py-8 backdrop-blur-sm"
           role="dialog"
@@ -3696,6 +3762,138 @@ export function ProfilePage() {
           await queryClient.invalidateQueries();
         }}
       />
+
+      {isWarningOpen && canWarnUsers && (
+        <div
+          className="fixed inset-0 z-[180] flex items-center justify-center bg-slate-950/65 px-4 py-8 backdrop-blur-sm"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !warningMutation.isPending) {
+              setIsWarningOpen(false);
+              setWarningMessage("");
+            }
+          }}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="profile-warning-title"
+            className="wp-warning-modal w-full max-w-lg rounded-3xl p-5 sm:p-6"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const normalizedMessage = warningMessage.trim();
+              if (normalizedMessage.length < 3) {
+                setNotice({
+                  type: "error",
+                  message:
+                    language === "en"
+                      ? "Write a warning of at least 3 characters."
+                      : "Ən azı 3 simvoldan ibarət xəbərdarlıq yaz.",
+                });
+                return;
+              }
+              warningMutation.mutate(normalizedMessage);
+            }}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex min-w-0 items-start gap-3">
+                <span className="wp-warning-modal-icon flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl">
+                  <MessageSquareWarning size={21} />
+                </span>
+                <div className="min-w-0">
+                  <h2
+                    id="profile-warning-title"
+                    className="text-lg font-bold text-[var(--wp-text-strong)]"
+                  >
+                    {language === "en" ? "Send warning" : "Xəbərdarlıq göndər"}
+                  </h2>
+                  <p className="mt-1 truncate text-sm text-[var(--wp-text-muted)]">
+                    @{loadedProfile.userName}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={warningMutation.isPending}
+                onClick={() => {
+                  setIsWarningOpen(false);
+                  setWarningMessage("");
+                }}
+                className="wp-warning-modal-close flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition disabled:opacity-50"
+                aria-label={language === "en" ? "Close" : "Bağla"}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="mt-5 text-sm leading-6 text-[var(--wp-text-muted)]">
+              {language === "en"
+                ? "The user will receive this message as an official moderation warning."
+                : "İstifadəçi bu mesajı rəsmi moderasiya xəbərdarlığı kimi alacaq."}
+            </p>
+
+            <label className="mt-4 block">
+              <span className="mb-2 block text-xs font-bold uppercase tracking-[0.14em] text-[var(--wp-text-muted)]">
+                {language === "en" ? "Warning message" : "Xəbərdarlıq mətni"}
+              </span>
+              <textarea
+                autoFocus
+                value={warningMessage}
+                onChange={(event) => setWarningMessage(event.target.value)}
+                maxLength={1000}
+                rows={6}
+                placeholder={
+                  language === "en"
+                    ? "Explain which rule was violated and what the user should change..."
+                    : "Hansı qaydanın pozulduğunu və istifadəçinin nəyi dəyişməli olduğunu izah et..."
+                }
+                className="wp-warning-textarea w-full resize-y rounded-2xl px-4 py-3 text-sm leading-6 outline-none transition"
+              />
+            </label>
+
+            <div className="mt-2 flex items-center justify-between gap-3 text-xs text-[var(--wp-text-muted)]">
+              <span>
+                {language === "en"
+                  ? "Minimum 3 characters"
+                  : "Minimum 3 simvol"}
+              </span>
+              <span>{warningMessage.length}/1000</span>
+            </div>
+
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                disabled={warningMutation.isPending}
+                onClick={() => {
+                  setIsWarningOpen(false);
+                  setWarningMessage("");
+                }}
+                className="wp-warning-secondary h-11 rounded-xl px-5 text-sm font-semibold transition disabled:opacity-50"
+              >
+                {language === "en" ? "Cancel" : "Ləğv et"}
+              </button>
+              <button
+                type="submit"
+                disabled={warningMutation.isPending || warningMessage.trim().length < 3}
+                className="wp-warning-primary flex h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {warningMutation.isPending ? (
+                  <LoaderCircle size={17} className="animate-spin" />
+                ) : (
+                  <MessageSquareWarning size={17} />
+                )}
+                {warningMutation.isPending
+                  ? language === "en"
+                    ? "Sending..."
+                    : "Göndərilir..."
+                  : language === "en"
+                    ? "Send warning"
+                    : "Xəbərdarlığı göndər"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       <UserReportModal
         isOpen={isReportOpen}

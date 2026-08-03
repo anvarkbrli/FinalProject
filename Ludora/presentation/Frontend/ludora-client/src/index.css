@@ -390,8 +390,7 @@ img {
 }
 
 [data-theme="light"] :where(
-  section[class~="relative"][class~="isolate"][class~="bg-[#0a0a0e]"],
-  section[class~="relative"][class~="overflow-hidden"][class~="bg-[#0a0a0e]"]
+  section[class~="relative"][class~="isolate"][class~="bg-[#0a0a0e]"]
 ) {
   --wp-utility-white-text: #ffffff;
   --color-zinc-100: #f3f5f8;
@@ -402,6 +401,81 @@ img {
   --color-zinc-600: #596273;
   --color-zinc-700: #353d4d;
   background-color: #111827 !important;
+}
+
+.wp-profile-hero {
+  background-color: var(--wp-surface-soft) !important;
+  border-color: var(--wp-border) !important;
+}
+
+.wp-profile-action-menu {
+  background-color: var(--wp-surface-strong) !important;
+  border-color: var(--wp-border-strong) !important;
+  box-shadow: var(--wp-shadow-floating) !important;
+}
+
+.wp-profile-stat-card {
+  border: 1px solid var(--wp-border);
+  background: color-mix(in srgb, var(--wp-surface-strong) 70%, transparent);
+  color: var(--wp-text);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 42%, transparent);
+}
+
+.wp-profile-stat-card:not(.is-disabled):hover {
+  border-color: color-mix(in srgb, var(--wp-accent) 26%, var(--wp-border));
+  background: color-mix(in srgb, var(--wp-accent) 6%, var(--wp-surface-strong));
+  transform: translateY(-1px);
+}
+
+.wp-profile-stat-card.is-disabled,
+.wp-profile-stat-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.82;
+}
+
+.wp-profile-stat-icon {
+  color: var(--wp-accent-strong);
+  background: color-mix(in srgb, var(--wp-accent) 11%, var(--wp-surface-strong));
+}
+
+.wp-profile-stat-value {
+  color: var(--wp-text-strong);
+}
+
+.wp-profile-stat-label {
+  color: var(--wp-text-muted);
+}
+
+.wp-profile-stat-card:not(.is-disabled):hover .wp-profile-stat-label {
+  color: var(--wp-text);
+}
+
+.wp-private-profile-inline {
+  border: 1px solid var(--wp-border);
+  border-radius: 1.75rem;
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--wp-accent) 10%, transparent), transparent 15rem),
+    color-mix(in srgb, var(--wp-surface-strong) 88%, transparent);
+  box-shadow: var(--wp-shadow-card);
+}
+
+[data-theme="dark"] .wp-profile-hero {
+  background-color: #0a0a0e !important;
+}
+
+[data-theme="dark"] .wp-profile-action-menu {
+  background-color: #15151b !important;
+}
+
+[data-theme="dark"] .wp-profile-stat-card {
+  background: rgba(255, 255, 255, 0.025);
+  box-shadow: none;
+}
+
+[data-theme="dark"] .wp-private-profile-inline {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(124, 58, 237, 0.12), transparent 15rem),
+    rgba(17, 17, 24, 0.82);
 }
 
 [class~="bg-[#101015]/95"] {
@@ -808,6 +882,48 @@ select optgroup {
   }
 }
 
+.chat-conversation-header {
+  border-color: var(--wp-border) !important;
+  background: color-mix(in srgb, var(--wp-surface-strong) 92%, transparent) !important;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--wp-page-deep) 18%, transparent);
+  backdrop-filter: blur(16px) saturate(135%);
+  -webkit-backdrop-filter: blur(16px) saturate(135%);
+}
+
+.chat-conversation-title {
+  color: var(--wp-text-strong);
+}
+
+.chat-conversation-presence {
+  color: var(--wp-text-muted);
+}
+
+.chat-presence-indicator {
+  border-color: var(--wp-surface-strong) !important;
+  background: var(--wp-emerald);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--wp-emerald) 24%, transparent);
+}
+
+.chat-conversation-streak {
+  border: 1px solid color-mix(in srgb, var(--color-orange-300) 22%, var(--wp-border));
+  background: color-mix(in srgb, var(--color-orange-300) 9%, var(--wp-surface-strong));
+  color: var(--color-orange-300);
+}
+
+.chat-conversation-streak.is-complete {
+  border-color: color-mix(in srgb, var(--color-orange-300) 30%, var(--wp-border));
+  background: color-mix(in srgb, var(--color-orange-300) 14%, var(--wp-surface-strong));
+}
+
+[data-theme="dark"] .chat-conversation-header {
+  background: rgba(13, 13, 18, 0.94) !important;
+  box-shadow: none;
+}
+
+[data-theme="dark"] .chat-presence-indicator {
+  border-color: #0d0d12 !important;
+}
+
 @keyframes chat-streak-pop {
   0% { opacity: 0; transform: scale(.72) translateY(24px); }
   55% { opacity: 1; transform: scale(1.06) translateY(-4px); }
@@ -838,134 +954,594 @@ select optgroup {
 }
 
 
-/* Profile hero: theme-aware light mode treatment. */
-[data-theme="light"] .profile-hero {
-  --wp-utility-white-text: var(--wp-text-strong);
-  --color-zinc-100: #1d2736;
-  --color-zinc-200: #2d3748;
-  --color-zinc-300: #3f4a5c;
-  --color-zinc-400: #536075;
-  --color-zinc-500: #667085;
-  --color-zinc-600: #7f8a9b;
-  --color-zinc-700: #cbd3df;
-  background-color: #f7f8fc !important;
-  background-image:
-    linear-gradient(118deg, rgba(109, 74, 255, 0.09), transparent 39%),
-    linear-gradient(245deg, rgba(20, 115, 230, 0.065), transparent 38%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(244, 246, 252, 0.96)) !important;
+.wp-surface-card {
+  border: 1px solid var(--wp-border);
+  background: color-mix(in srgb, var(--wp-surface-strong) 86%, transparent);
+  box-shadow: var(--wp-shadow-card);
+}
+
+.wp-surface-soft {
+  border: 1px solid var(--wp-border);
+  background: color-mix(in srgb, var(--wp-surface) 92%, transparent);
+  box-shadow: var(--wp-shadow-card);
+}
+
+.wp-glass-surface {
+  border: 1px solid var(--wp-border);
+  background: color-mix(in srgb, var(--wp-surface-strong) 78%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--wp-shadow-card);
+}
+
+.wp-chip-neutral {
+  border: 1px solid var(--wp-border);
+  background: color-mix(in srgb, var(--wp-surface-strong) 80%, transparent);
+  color: var(--wp-text);
+  backdrop-filter: blur(14px);
+}
+
+.wp-chip-accent {
+  border: 1px solid color-mix(in srgb, var(--wp-accent) 30%, var(--wp-border));
+  background: color-mix(in srgb, var(--wp-accent) 10%, var(--wp-surface-strong));
+  color: var(--wp-accent-strong);
+  backdrop-filter: blur(14px);
+}
+
+.wp-chip-success {
+  border: 1px solid color-mix(in srgb, var(--wp-emerald) 28%, var(--wp-border));
+  background: color-mix(in srgb, var(--wp-emerald) 10%, var(--wp-surface-strong));
+  color: var(--wp-emerald);
+}
+
+.wp-action-btn {
+  border: 1px solid var(--wp-border);
+  background: color-mix(in srgb, var(--wp-surface-strong) 84%, transparent);
+  color: var(--wp-text-strong);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--wp-shadow-card);
+}
+
+.wp-action-btn:hover {
+  border-color: color-mix(in srgb, var(--wp-accent) 20%, var(--wp-border));
+  background: color-mix(in srgb, var(--wp-accent) 7%, var(--wp-surface-strong));
+}
+
+.wp-action-btn-accent {
+  border: 1px solid color-mix(in srgb, var(--wp-accent) 28%, var(--wp-border));
+  background: color-mix(in srgb, var(--wp-accent) 12%, var(--wp-surface-strong));
+  color: var(--wp-accent-strong);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--wp-shadow-card);
+}
+
+.wp-action-btn-accent:hover {
+  background: color-mix(in srgb, var(--wp-accent) 18%, var(--wp-surface-strong));
+}
+
+.wp-action-btn-danger {
+  border: 1px solid color-mix(in srgb, var(--color-red-400) 25%, var(--wp-border));
+  background: color-mix(in srgb, var(--color-red-400) 10%, var(--wp-surface-strong));
+  color: var(--color-red-300);
+  backdrop-filter: blur(16px);
+}
+
+.wp-action-btn-danger:hover {
+  background: color-mix(in srgb, var(--color-red-400) 16%, var(--wp-surface-strong));
+}
+
+.wp-list-card {
+  border: 1px solid var(--wp-border);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--wp-surface-strong) 92%, transparent) 0%, color-mix(in srgb, var(--wp-surface) 96%, transparent) 100%);
+  box-shadow: var(--wp-shadow-card);
+}
+
+.wp-list-card-overlay {
+  background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--wp-page) 48%, transparent) 42%, color-mix(in srgb, var(--wp-page-deep) 94%, transparent) 100%);
+}
+
+.wp-list-card-accent {
+  background: linear-gradient(90deg, color-mix(in srgb, var(--wp-accent) 16%, transparent), transparent 70%);
+}
+
+[data-theme="light"] .wp-list-card {
+  border-color: var(--wp-border-strong);
+  background: linear-gradient(180deg, #ffffff 0%, #f3f6fb 100%) !important;
+  box-shadow: var(--wp-shadow-card);
+}
+
+[data-theme="light"] .wp-list-card-image {
+  opacity: 0.2;
+  filter: saturate(0.68) blur(24px);
+}
+
+[data-theme="light"] .wp-list-card:hover .wp-list-card-image {
+  opacity: 0.28;
+}
+
+[data-theme="light"] .wp-list-card-overlay {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.68) 0%,
+    rgba(248, 250, 252, 0.9) 42%,
+    rgba(237, 241, 247, 0.98) 100%
+  );
+}
+
+[data-theme="light"] .wp-list-card-accent {
+  background: linear-gradient(90deg, rgba(109, 74, 255, 0.1), transparent 72%);
+}
+
+[data-theme="dark"] .wp-list-card-overlay {
+  background: linear-gradient(180deg, transparent 0%, rgba(10, 12, 18, 0.58) 42%, rgba(10, 12, 18, 0.94) 100%);
+}
+
+[data-theme="dark"] .wp-list-card-accent {
+  background: linear-gradient(90deg, rgba(109, 74, 255, 0.16), transparent 70%);
+}
+
+.wp-collaboration-list-card {
   border-color: var(--wp-border) !important;
+  background: var(--wp-surface-strong) !important;
+  box-shadow: var(--wp-shadow-card);
+}
+
+[data-theme="light"] .wp-collaboration-list-card-image {
+  opacity: 0.18;
+  filter: saturate(0.7) blur(24px);
+}
+
+[data-theme="light"] .wp-collaboration-list-card:hover .wp-collaboration-list-card-image {
+  opacity: 0.24;
+}
+
+[data-theme="light"] .wp-collaboration-list-card-overlay {
+  background: linear-gradient(
+    to top,
+    rgba(243, 246, 251, 0.98),
+    rgba(248, 250, 252, 0.9) 58%,
+    rgba(255, 255, 255, 0.7)
+  ) !important;
+}
+
+[data-theme="dark"] .wp-collaboration-list-card {
+  background: #101015 !important;
+}
+
+[data-theme="dark"] .wp-collaboration-list-card-overlay {
+  background: linear-gradient(to top, #0c0c12, rgba(12, 12, 18, 0.88), rgba(12, 12, 18, 0.5)) !important;
+}
+
+.wp-game-hero-overlay-vertical {
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--wp-page) 14%, transparent), color-mix(in srgb, var(--wp-page-deep) 70%, transparent) 45%, color-mix(in srgb, var(--wp-page-deep) 96%, transparent) 100%);
+}
+
+.wp-game-hero-overlay-horizontal {
+  background: linear-gradient(to right, color-mix(in srgb, var(--wp-page-deep) 90%, transparent) 0%, color-mix(in srgb, var(--wp-page-deep) 52%, transparent) 46%, color-mix(in srgb, var(--wp-page-deep) 82%, transparent) 100%);
+}
+
+[data-theme="dark"] .wp-game-hero-overlay-vertical {
+  background: linear-gradient(to bottom, rgba(7, 7, 10, 0.28), rgba(7, 7, 10, 0.72) 45%, #0a0a0e 100%);
+}
+
+[data-theme="dark"] .wp-game-hero-overlay-horizontal {
+  background: linear-gradient(to right, #07070a 0%, rgba(7, 7, 10, 0.45) 45%, rgba(7, 7, 10, 0.82) 100%);
+}
+
+.wp-review-card {
+  border: 1px solid color-mix(in srgb, var(--wp-border) 92%, transparent);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--wp-surface-strong) 98%, transparent),
+      color-mix(in srgb, var(--wp-surface) 88%, transparent)
+    );
+  box-shadow: var(--wp-shadow-card);
+}
+
+.wp-review-content-box {
+  border: 1px solid color-mix(in srgb, var(--wp-border) 92%, transparent);
+  background: color-mix(in srgb, var(--wp-surface) 72%, transparent);
+}
+
+.wp-review-content-box:is(button):hover {
+  border-color: color-mix(in srgb, var(--color-amber-400) 34%, var(--wp-border));
+  background: color-mix(in srgb, var(--color-amber-400) 7%, var(--wp-surface));
+}
+
+.wp-review-rating {
+  color: #a85d00;
+  border: 1px solid rgba(217, 119, 6, 0.22);
+  background: rgba(245, 158, 11, 0.11);
+}
+
+.wp-review-meta-item,
+.wp-review-hardware {
+  border: 1px solid color-mix(in srgb, var(--wp-border) 90%, transparent);
+  background: color-mix(in srgb, var(--wp-surface) 84%, transparent);
+}
+
+.wp-review-meta-icon {
+  color: var(--wp-accent-strong);
+  background: color-mix(in srgb, var(--wp-accent) 10%, var(--wp-surface-strong));
+}
+
+.wp-review-sort {
+  color: var(--wp-text-strong);
+  border: 1px solid var(--wp-border);
+  background: var(--wp-surface-strong);
+}
+
+.wp-review-sort:hover,
+.wp-review-sort:focus {
+  border-color: color-mix(in srgb, var(--wp-accent) 52%, var(--wp-border));
+}
+
+.wp-review-sort:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wp-accent) 12%, transparent);
+}
+
+[data-theme="dark"] .wp-review-card {
+  background: linear-gradient(145deg, rgba(18, 18, 24, 0.98), rgba(13, 13, 18, 0.96));
+}
+
+[data-theme="dark"] .wp-review-content-box,
+[data-theme="dark"] .wp-review-meta-item,
+[data-theme="dark"] .wp-review-hardware {
+  background: rgba(255, 255, 255, 0.025);
+}
+
+[data-theme="dark"] .wp-review-rating {
+  color: #fcd34d;
+  border-color: rgba(252, 211, 77, 0.2);
+  background: rgba(245, 158, 11, 0.1);
+}
+
+
+.wp-list-hero {
+  border-color: var(--wp-border);
+  background:
+    radial-gradient(circle at 14% 10%, color-mix(in srgb, var(--wp-accent) 14%, transparent), transparent 34rem),
+    radial-gradient(circle at 86% 28%, color-mix(in srgb, var(--color-amber-400) 8%, transparent), transparent 28rem),
+    linear-gradient(135deg, var(--wp-page-deep), var(--wp-page));
+}
+
+.wp-list-hero-image {
+  opacity: 0.12;
+  filter: saturate(0.72) blur(24px);
+}
+
+.wp-list-hero-overlay-horizontal {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--wp-page-deep) 91%, transparent) 0%,
+    color-mix(in srgb, var(--wp-page) 76%, transparent) 48%,
+    color-mix(in srgb, var(--wp-page-deep) 72%, transparent) 100%
+  );
+}
+
+.wp-list-hero-overlay-vertical {
+  background: linear-gradient(
+    0deg,
+    color-mix(in srgb, var(--wp-page-deep) 78%, transparent) 0%,
+    transparent 58%,
+    color-mix(in srgb, var(--wp-page) 18%, transparent) 100%
+  );
+}
+
+.wp-list-hero-accents {
+  background:
+    radial-gradient(circle at 15% 10%, color-mix(in srgb, var(--wp-accent) 15%, transparent), transparent 32%),
+    radial-gradient(circle at 85% 25%, color-mix(in srgb, var(--color-amber-400) 7%, transparent), transparent 25%);
+}
+
+[data-theme="dark"] .wp-list-hero {
+  background: #09090d;
+}
+
+[data-theme="dark"] .wp-list-hero-image {
+  opacity: 0.3;
+  filter: blur(24px);
+}
+
+[data-theme="dark"] .wp-list-hero-overlay-horizontal {
+  background: linear-gradient(90deg, #09090d 0%, rgba(9, 9, 13, 0.85) 52%, rgba(9, 9, 13, 0.65) 100%);
+}
+
+[data-theme="dark"] .wp-list-hero-overlay-vertical {
+  background: linear-gradient(0deg, #09090d 0%, transparent 58%, rgba(9, 9, 13, 0.3) 100%);
+}
+
+[data-theme="dark"] .wp-list-hero-accents {
+  background:
+    radial-gradient(circle at 15% 10%, rgba(124, 58, 237, 0.2), transparent 32%),
+    radial-gradient(circle at 85% 25%, rgba(245, 158, 11, 0.08), transparent 25%);
+}
+
+.wp-private-profile-card {
+  border: 1px solid color-mix(in srgb, var(--wp-border) 88%, transparent);
+  background:
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--wp-accent) 9%, transparent), transparent 18rem),
+    color-mix(in srgb, var(--wp-surface-strong) 96%, transparent);
+  box-shadow: var(--wp-shadow-floating);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+}
+
+.wp-private-profile-avatar {
+  border: 1px solid color-mix(in srgb, var(--wp-border) 90%, transparent);
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--wp-page-deep) 28%, transparent);
+}
+
+.wp-private-profile-lock {
+  color: var(--wp-accent-strong);
+  border: 1px solid color-mix(in srgb, var(--wp-accent) 22%, var(--wp-border));
+  background: color-mix(in srgb, var(--wp-accent) 11%, var(--wp-surface-strong));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 36%, transparent);
+}
+
+.wp-private-profile-pending {
+  color: var(--wp-text-strong);
+  border: 1px solid var(--wp-border);
+  background: color-mix(in srgb, var(--wp-surface) 88%, transparent);
+}
+
+.wp-private-profile-pending:hover {
+  background: color-mix(in srgb, var(--wp-surface) 78%, var(--wp-accent) 8%);
+}
+
+[data-theme="dark"] .wp-private-profile-card {
+  background:
+    radial-gradient(circle at 50% 0%, rgba(124, 58, 237, 0.13), transparent 18rem),
+    rgba(17, 17, 24, 0.96);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.36);
+}
+
+[data-theme="dark"] .wp-private-profile-avatar {
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.34);
+}
+
+/* Chat conversation actions, emoji picker and moderation warning modal */
+.chat-conversation-options,
+.chat-composer-tool-button,
+.chat-emoji-close,
+.wp-warning-modal-close {
+  border: 1px solid var(--wp-border);
+  background: color-mix(in srgb, var(--wp-surface-strong) 78%, transparent);
+  color: var(--wp-text-muted);
+}
+
+.chat-conversation-options:hover,
+.chat-composer-tool-button:hover,
+.chat-emoji-close:hover,
+.wp-warning-modal-close:hover {
+  border-color: color-mix(in srgb, var(--wp-accent) 30%, var(--wp-border));
+  background: var(--wp-accent-soft);
+  color: var(--wp-accent-strong);
+}
+
+.chat-conversation-context-menu,
+.chat-emoji-picker,
+.wp-warning-modal {
+  border: 1px solid var(--wp-border-strong);
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--wp-surface-strong) 98%, transparent),
+      color-mix(in srgb, var(--wp-surface) 96%, transparent)
+    );
+  color: var(--wp-text);
+  box-shadow: var(--wp-shadow-floating);
+}
+
+.chat-conversation-context-action {
+  color: var(--wp-text);
+}
+
+.chat-conversation-context-action:hover {
+  background: var(--wp-surface-hover);
+  color: var(--wp-text-strong);
+}
+
+.chat-conversation-context-action.is-danger {
+  color: var(--wp-danger, #dc3f5f);
+}
+
+.chat-conversation-context-action.is-danger:hover {
+  background: color-mix(in srgb, var(--wp-danger, #dc3f5f) 10%, transparent);
+  color: color-mix(in srgb, var(--wp-danger, #dc3f5f) 84%, var(--wp-text-strong));
+}
+
+.chat-emoji-picker-header,
+.chat-emoji-categories {
+  border-bottom: 1px solid var(--wp-border);
+}
+
+.chat-emoji-search {
+  border: 1px solid var(--wp-border);
+  background: color-mix(in srgb, var(--wp-surface-soft) 82%, transparent);
+  color: var(--wp-text-muted);
+}
+
+.chat-emoji-search:focus-within {
+  border-color: color-mix(in srgb, var(--wp-accent) 44%, var(--wp-border));
+  box-shadow: 0 0 0 3px var(--wp-accent-soft);
+  color: var(--wp-accent-strong);
+}
+
+.chat-emoji-search input {
+  color: var(--wp-text-strong);
+}
+
+.chat-emoji-search input::placeholder {
+  color: var(--wp-text-muted);
+}
+
+.chat-emoji-categories {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--wp-accent) 30%, transparent) transparent;
+}
+
+.chat-emoji-category {
+  color: var(--wp-text-muted);
+}
+
+.chat-emoji-category:hover,
+.chat-emoji-category.is-active {
+  background: var(--wp-accent-soft);
+  color: var(--wp-text-strong);
+}
+
+.chat-emoji-category.is-active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wp-accent) 34%, transparent);
+}
+
+.chat-emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--wp-accent) 30%, transparent) transparent;
+}
+
+.chat-emoji-item {
+  color: var(--wp-text-strong);
+}
+
+.chat-emoji-item:hover,
+.chat-emoji-item:focus-visible {
+  background: var(--wp-accent-soft);
+  outline: none;
+  transform: translateY(-1px) scale(1.08);
+}
+
+.chat-emoji-empty {
+  color: var(--wp-text-muted);
+}
+
+.wp-warning-modal-icon {
+  border: 1px solid color-mix(in srgb, #f59e0b 30%, var(--wp-border));
+  background: color-mix(in srgb, #f59e0b 11%, var(--wp-surface-strong));
+  color: color-mix(in srgb, #f59e0b 82%, var(--wp-text-strong));
+}
+
+.wp-warning-textarea {
+  min-height: 9rem;
+  border: 1px solid var(--wp-border-strong);
+  background: color-mix(in srgb, var(--wp-surface-soft) 76%, transparent);
+  color: var(--wp-text-strong);
+}
+
+.wp-warning-textarea::placeholder {
+  color: var(--wp-text-muted);
+}
+
+.wp-warning-textarea:focus {
+  border-color: color-mix(in srgb, #f59e0b 52%, var(--wp-border));
+  box-shadow: 0 0 0 4px color-mix(in srgb, #f59e0b 12%, transparent);
+}
+
+.wp-warning-secondary {
+  border: 1px solid var(--wp-border);
+  background: color-mix(in srgb, var(--wp-surface-soft) 72%, transparent);
+  color: var(--wp-text);
+}
+
+.wp-warning-secondary:hover {
+  border-color: var(--wp-border-strong);
+  background: var(--wp-surface-hover);
+  color: var(--wp-text-strong);
+}
+
+.wp-warning-primary {
+  border: 1px solid color-mix(in srgb, #f59e0b 52%, transparent);
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  box-shadow: 0 10px 25px color-mix(in srgb, #f59e0b 22%, transparent);
+}
+
+.wp-warning-primary:hover:not(:disabled) {
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 420px) {
+  .chat-emoji-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}
+
+.chat-conversation-row {
+  color: var(--wp-text);
+}
+
+.chat-conversation-row:hover {
+  background: var(--wp-surface-hover);
+}
+
+.chat-conversation-row.is-selected {
+  background: var(--wp-accent-soft);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wp-accent) 22%, transparent);
+}
+
+.chat-conversation-name {
+  color: var(--wp-text-strong);
+}
+
+.chat-conversation-time,
+.chat-conversation-preview {
+  color: var(--wp-text-muted);
+}
+
+
+/* Message bubbles use theme tokens so incoming messages stay readable in light mode. */
+.chat-message-bubble-sent {
+  background: linear-gradient(135deg, #7c3aed, #6d28d9);
+  box-shadow: 0 8px 18px color-mix(in srgb, #6d28d9 18%, transparent);
+}
+
+.chat-message-bubble-received {
+  border-color: color-mix(in srgb, var(--wp-border-strong) 72%, transparent) !important;
+  background: color-mix(in srgb, var(--wp-surface-strong) 96%, var(--wp-page-deep) 4%);
+  color: var(--wp-text-strong);
   box-shadow:
-    inset 0 -1px 0 var(--wp-border),
-    0 18px 52px rgba(46, 55, 86, 0.08);
+    0 8px 20px color-mix(in srgb, var(--wp-page-deep) 8%, transparent),
+    inset 0 1px 0 color-mix(in srgb, white 54%, transparent);
 }
 
-[data-theme="light"] .profile-hero-glow {
-  background-image:
-    radial-gradient(circle at 14% 18%, rgba(109, 74, 255, 0.13), transparent 31%),
-    radial-gradient(circle at 88% 24%, rgba(20, 115, 230, 0.08), transparent 28%) !important;
+.chat-message-bubble-deleted {
+  border-color: var(--wp-border) !important;
+  background: color-mix(in srgb, var(--wp-surface) 88%, transparent);
+  color: var(--wp-text-muted);
 }
 
-[data-theme="light"] .profile-hero-avatar {
-  border-color: rgba(109, 74, 255, 0.18) !important;
-  box-shadow:
-    0 16px 36px rgba(52, 45, 92, 0.16),
-    0 0 0 5px rgba(255, 255, 255, 0.7) !important;
+.chat-message-muted,
+.chat-message-time-received {
+  color: var(--wp-text-muted);
 }
 
-[data-theme="light"] .profile-hero-title {
-  color: var(--wp-text-strong) !important;
+.chat-message-reply-author {
+  color: var(--wp-accent-strong);
 }
 
-[data-theme="light"] .profile-hero-bio {
-  color: #536075 !important;
+[data-theme="dark"] .chat-message-bubble-received {
+  border-color: rgba(255, 255, 255, 0.07) !important;
+  background: #17171d;
+  color: #e4e4e7;
+  box-shadow: none;
 }
 
-[data-theme="light"] .profile-hero-meta {
-  color: #667085 !important;
+[data-theme="dark"] .chat-message-bubble-deleted {
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(255, 255, 255, 0.035);
+  color: #71717a;
 }
 
-[data-theme="light"] .profile-hero-social-link,
-[data-theme="light"] .profile-hero-secondary-action,
-[data-theme="light"] .profile-hero-menu-trigger {
-  border-color: rgba(24, 32, 51, 0.11) !important;
-  background-color: rgba(255, 255, 255, 0.72) !important;
-  color: #344054 !important;
-  box-shadow: 0 8px 24px rgba(35, 45, 72, 0.06);
+[data-theme="dark"] .chat-message-muted,
+[data-theme="dark"] .chat-message-time-received {
+  color: #71717a;
 }
 
-[data-theme="light"] .profile-hero-social-link:hover,
-[data-theme="light"] .profile-hero-secondary-action:hover,
-[data-theme="light"] .profile-hero-menu-trigger:hover {
-  border-color: rgba(109, 74, 255, 0.28) !important;
-  background-color: rgba(109, 74, 255, 0.09) !important;
-  color: #4a2bc2 !important;
-}
-
-[data-theme="light"] .profile-hero-primary-action {
-  color: #ffffff !important;
-  box-shadow: 0 10px 24px rgba(89, 54, 232, 0.22);
-}
-
-[data-theme="light"] .profile-hero-action-menu {
-  border-color: rgba(24, 32, 51, 0.12) !important;
-  background-color: rgba(250, 251, 254, 0.98) !important;
-  box-shadow: 0 22px 56px rgba(35, 45, 72, 0.2) !important;
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-}
-
-[data-theme="light"] .profile-hero-menu-item {
-  color: #344054 !important;
-}
-
-[data-theme="light"] .profile-hero-menu-item:hover {
-  background-color: rgba(109, 74, 255, 0.08) !important;
-  color: #4a2bc2 !important;
-}
-
-[data-theme="light"] .profile-hero-menu-item-danger {
-  color: #b42318 !important;
-}
-
-[data-theme="light"] .profile-hero-menu-item-danger:hover {
-  background-color: rgba(240, 68, 56, 0.08) !important;
-  color: #912018 !important;
-}
-
-[data-theme="light"] .profile-hero-menu-item:disabled {
-  color: #98a2b3 !important;
-  opacity: 0.7;
-}
-
-[data-theme="light"] .profile-hero-stats {
-  border-color: rgba(24, 32, 51, 0.09) !important;
-}
-
-[data-theme="light"] .profile-hero-stat-card {
-  border-color: rgba(24, 32, 51, 0.09) !important;
-  background-color: rgba(255, 255, 255, 0.62) !important;
-  box-shadow: 0 8px 26px rgba(35, 45, 72, 0.045);
-}
-
-[data-theme="light"] .profile-hero-stat-card:hover {
-  border-color: rgba(109, 74, 255, 0.24) !important;
-  background-color: rgba(109, 74, 255, 0.065) !important;
-  box-shadow: 0 12px 30px rgba(77, 60, 145, 0.09);
-}
-
-[data-theme="light"] .profile-hero-stat-icon {
-  background-color: rgba(109, 74, 255, 0.11) !important;
-  color: #6545e6 !important;
-}
-
-[data-theme="light"] .profile-hero-stat-value {
-  color: var(--wp-text-strong) !important;
-}
-
-[data-theme="light"] .profile-hero-stat-label {
-  color: #667085 !important;
-}
-
-[data-theme="light"] .profile-hero-stat-card:hover .profile-hero-stat-label {
-  color: #344054 !important;
+[data-theme="dark"] .chat-message-reply-author {
+  color: #c4b5fd;
 }

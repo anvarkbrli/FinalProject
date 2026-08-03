@@ -39,9 +39,11 @@ import {
   useState,
   type ChangeEvent,
   type FormEvent,
+  type MouseEvent as ReactMouseEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
+import { ChatEmojiPicker } from "../components/chat/ChatEmojiPicker";
 import { Navbar } from "../components/layout/Navbar";
 import { useChatRealtime } from "../hooks/useChatRealtime";
 import {
@@ -56,6 +58,7 @@ import { resolveAssetUrl } from "../lib/helpers";
 import {
   acceptMessageRequest,
   chatQueryKeys,
+  deleteChatConversation,
   deleteChatMessage,
   forwardChatMessage,
   getChatConversations,
@@ -889,62 +892,68 @@ function ConversationItem({
   conversation,
   selected,
   onSelect,
+  onContextMenu,
 }: {
   conversation: ChatConversationDTO;
   selected: boolean;
   onSelect: () => void;
+  onContextMenu?: (event: ReactMouseEvent<HTMLDivElement>) => void;
 }) {
   const preview = getMessagePreview(conversation.lastMessage);
 
   return (
-    <button
-      type="button"
-      onClick={onSelect}
-      className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${
-        selected
-          ? "bg-violet-500/12 ring-1 ring-violet-400/20"
-          : "hover:bg-white/[0.045]"
-      }`}
+    <div
+      className="group/conversation relative"
+      onContextMenu={onContextMenu}
     >
-      <span className="relative shrink-0">
-        <UserAvatar
-          userName={conversation.otherUser.userName}
-          profileImageUrl={conversation.otherUser.profileImageUrl}
-        />
-        {conversation.otherUser.isOnline && (
-          <span
-            className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#0d0d12] bg-emerald-400"
-            aria-label={translateText("messages:header.online", undefined, "onlayn")}
+      <button
+        type="button"
+        onClick={onSelect}
+        className={`chat-conversation-row flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition ${
+          selected ? "is-selected" : ""
+        }`}
+      >
+        <span className="relative shrink-0">
+          <UserAvatar
+            userName={conversation.otherUser.userName}
+            profileImageUrl={conversation.otherUser.profileImageUrl}
           />
-        )}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center justify-between gap-2">
-          <strong className="truncate text-sm text-zinc-100">
-            {conversation.otherUser.userName}
-          </strong>
-          <span className="flex shrink-0 items-center gap-1.5">
-            {conversation.streak.currentCount > 0 && (
-              <span className="flex items-center gap-0.5 rounded-full bg-orange-500/10 px-1.5 py-0.5 text-[10px] font-bold text-orange-300">
-                <Flame size={11} fill="currentColor" />
-                {conversation.streak.currentCount}
-              </span>
-            )}
-            <span className="text-[10px] text-zinc-600">
-              {formatConversationTime(conversation.updatedAtUtc)}
-            </span>
-          </span>
-        </span>
-        <span className="mt-1 flex items-center justify-between gap-2">
-          <span className="truncate text-xs text-zinc-500">{preview}</span>
-          {conversation.unreadCount > 0 && (
-            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-500 px-1.5 text-[10px] font-bold text-white">
-              {Math.min(conversation.unreadCount, 99)}
-            </span>
+          {conversation.otherUser.isOnline && (
+            <span
+              className="chat-presence-indicator absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2"
+              aria-label={translateText("messages:header.online", undefined, "onlayn")}
+            />
           )}
         </span>
-      </span>
-    </button>
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center justify-between gap-2">
+            <strong className="chat-conversation-name truncate text-sm">
+              {conversation.otherUser.userName}
+            </strong>
+            <span className="flex shrink-0 items-center gap-1.5">
+              {conversation.streak.currentCount > 0 && (
+                <span className="chat-conversation-streak flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold">
+                  <Flame size={11} fill="currentColor" />
+                  {conversation.streak.currentCount}
+                </span>
+              )}
+              <span className="chat-conversation-time text-[10px]">
+                {formatConversationTime(conversation.updatedAtUtc)}
+              </span>
+            </span>
+          </span>
+          <span className="mt-1 flex items-center justify-between gap-2">
+            <span className="chat-conversation-preview truncate text-xs">{preview}</span>
+            {conversation.unreadCount > 0 && (
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-violet-500 px-1.5 text-[10px] font-bold text-white">
+                {Math.min(conversation.unreadCount, 99)}
+              </span>
+            )}
+          </span>
+        </span>
+      </button>
+
+    </div>
   );
 }
 
@@ -1035,9 +1044,15 @@ export function MessagesPage() {
   const [messageSearchText, setMessageSearchText] = useState("");
   const [debouncedMessageSearch, setDebouncedMessageSearch] = useState("");
   const [messageSearchPage, setMessageSearchPage] = useState(1);
+  const [conversationContextMenu, setConversationContextMenu] = useState<{
+    conversationId: number;
+    x: number;
+    y: number;
+  } | null>(null);
 
   const messageListRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const messageInputRef = useRef<HTMLTextAreaElement>(null);
   const pendingPrependHeightRef = useRef<number | null>(null);
   const initialScrolledConversationRef = useRef<number | null>(null);
   const wasNearBottomRef = useRef(true);
@@ -1065,6 +1080,26 @@ export function MessagesPage() {
     }, 60_000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (!conversationContextMenu) return;
+
+    const closeMenu = () => setConversationContextMenu(null);
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeMenu();
+    };
+
+    document.addEventListener("pointerdown", closeMenu);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+    return () => {
+      document.removeEventListener("pointerdown", closeMenu);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+    };
+  }, [conversationContextMenu]);
 
   const activeConversationsQuery = useQuery({
     queryKey: chatQueryKeys.conversations(false, debouncedConversationSearch),
@@ -1139,6 +1174,7 @@ export function MessagesPage() {
     selectedConversation.canSendMessage === false;
 
   const selectConversation = (conversationId: number | null) => {
+    setConversationContextMenu(null);
     setOpenMessageMenuId(null);
     setReplyTarget(null);
     setDeleteChoiceMessage(null);
@@ -1384,6 +1420,23 @@ export function MessagesPage() {
     onSuccess: async (event) => {
       selectConversation(null);
       setShowArchived(!event.isArchived);
+      await refreshChat();
+    },
+  });
+  const deleteConversationMutation = useMutation({
+    mutationFn: deleteChatConversation,
+    onSuccess: async (event) => {
+      setConversationContextMenu(null);
+      if (selectedConversationId === event.conversationId) {
+        selectConversation(null);
+        setSearchParams({});
+      }
+      queryClient.removeQueries({
+        queryKey: chatQueryKeys.messages(event.conversationId),
+      });
+      queryClient.removeQueries({
+        queryKey: chatQueryKeys.pinnedMessages(event.conversationId),
+      });
       await refreshChat();
     },
   });
@@ -1719,6 +1772,86 @@ export function MessagesPage() {
     if (confirmed) deleteMessageMutation.mutate({ messageId: message.id, scope });
   }
 
+  function openConversationActions(
+    event: ReactMouseEvent<HTMLElement>,
+    conversationId: number,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    const menuWidth = 208;
+    const menuHeight = 112;
+    const anchorRect = event.currentTarget.getBoundingClientRect();
+    const requestedX = event.clientX || anchorRect.right;
+    const requestedY = event.clientY || anchorRect.bottom;
+    setConversationContextMenu({
+      conversationId,
+      x: Math.min(
+        Math.max(12, requestedX),
+        window.innerWidth - menuWidth - 12,
+      ),
+      y: Math.min(
+        Math.max(12, requestedY),
+        window.innerHeight - menuHeight - 12,
+      ),
+    });
+  }
+
+  async function requestConversationDelete(conversation: ChatConversationDTO) {
+    setConversationContextMenu(null);
+    const confirmed = await requestConfirmation({
+      title: t(
+        "messages:conversationActions.deleteTitle",
+        undefined,
+        language === "en"
+          ? `Delete chat with ${conversation.otherUser.userName}?`
+          : `${conversation.otherUser.userName} ilə söhbət silinsin?`,
+      ),
+      description: t(
+        "messages:conversationActions.deleteDescription",
+        undefined,
+        language === "en"
+          ? "This conversation and its current message history will be removed only from your account."
+          : "Bu söhbət və hazırkı mesaj tarixçəsi yalnız sənin hesabından silinəcək.",
+      ),
+      detail: t(
+        "messages:conversationActions.deleteDetail",
+        undefined,
+        language === "en"
+          ? "The other person keeps their copy. A future message will open a fresh conversation without restoring your deleted history."
+          : "Qarşı tərəfin tarixçəsi qalacaq. Gələcək yeni mesaj silinmiş tarixçəni qaytarmadan söhbəti yenidən açacaq.",
+      ),
+      confirmLabel: t(
+        "messages:conversationActions.deleteConfirm",
+        undefined,
+        language === "en" ? "Delete chat" : "Söhbəti sil",
+      ),
+      kind: "delete",
+      tone: "danger",
+    });
+
+    if (confirmed) deleteConversationMutation.mutate(conversation.id);
+  }
+
+  function insertEmoji(emoji: string) {
+    const input = messageInputRef.current;
+    const selectionStart = input?.selectionStart ?? messageText.length;
+    const selectionEnd = input?.selectionEnd ?? selectionStart;
+    const nextText = `${messageText.slice(0, selectionStart)}${emoji}${messageText.slice(selectionEnd)}`.slice(0, 4000);
+    handleTyping(nextText);
+
+    window.requestAnimationFrame(() => {
+      const nextCursor = Math.min(selectionStart + emoji.length, nextText.length);
+      messageInputRef.current?.focus();
+      messageInputRef.current?.setSelectionRange(nextCursor, nextCursor);
+    });
+  }
+
+  const contextConversation = conversationContextMenu
+    ? allConversations.find(
+        (conversation) => conversation.id === conversationContextMenu.conversationId,
+      ) ?? null
+    : null;
+
   const mutationError = sendMutation.isError
     ? getApiErrorMessage(
         sendMutation.error,
@@ -1849,6 +1982,9 @@ export function MessagesPage() {
                   conversation={conversation}
                   selected={selectedConversationId === conversation.id}
                   onSelect={() => selectConversation(conversation.id)}
+                  onContextMenu={(event) =>
+                    openConversationActions(event, conversation.id)
+                  }
                 />
               ))}
               {!(showArchived
@@ -1884,7 +2020,7 @@ export function MessagesPage() {
           >
             {recipientId ? (
               <>
-                <header className="relative z-30 flex shrink-0 items-center gap-3 border-b border-white/[0.07] bg-[#0d0d12] px-4 py-3 sm:px-5">
+                <header className="chat-conversation-header relative z-30 flex shrink-0 items-center gap-3 border-b px-4 py-3 sm:px-5">
                   <button
                     type="button"
                     onClick={() => {
@@ -1908,7 +2044,7 @@ export function MessagesPage() {
                     />
                     {selectedConversation?.otherUser.isOnline && (
                       <span
-                        className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-[#0d0d12] bg-emerald-400"
+                        className="chat-presence-indicator absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2"
                         aria-hidden="true"
                       />
                     )}
@@ -1917,16 +2053,16 @@ export function MessagesPage() {
                     <div className="flex items-center gap-2">
                       <Link
                         to={`/users/${encodeURIComponent(recipientName)}`}
-                        className="truncate text-sm font-bold text-white hover:text-violet-200"
+                        className="chat-conversation-title truncate text-sm font-bold transition hover:text-violet-200"
                       >
                         {recipientName}
                       </Link>
                       {(selectedConversation?.streak.currentCount ?? 0) > 0 && (
                         <span
-                          className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
+                          className={`chat-conversation-streak flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
                             selectedConversation?.streak.isCompletedToday
-                              ? "bg-orange-500/15 text-orange-200"
-                              : "bg-zinc-800 text-orange-300"
+                              ? "is-complete"
+                              : ""
                           }`}
                           title={t(
                             (selectedConversation?.streak.longestCount ?? 0) === 1
@@ -1943,7 +2079,7 @@ export function MessagesPage() {
                         </span>
                       )}
                     </div>
-                    <p className="mt-0.5 text-[11px] text-zinc-600">
+                    <p className="chat-conversation-presence mt-0.5 text-[11px]">
                       {otherUserIsTyping
                         ? t("messages:header.typing", undefined, "yazır...")
                         : selectedConversation?.requestStatus === "Pending"
@@ -2300,18 +2436,18 @@ export function MessagesPage() {
                           {mine && messageMenu}
                           <div className="max-w-[85%] sm:max-w-[70%]">
                             <article
-                              className={`rounded-2xl px-3.5 py-2.5 shadow-sm ${
+                              className={`chat-message-bubble rounded-2xl px-3.5 py-2.5 shadow-sm ${
                                 message.isDeletedForEveryone
-                                  ? "border border-white/[0.08] bg-white/[0.035] text-zinc-500"
+                                  ? "chat-message-bubble-deleted border"
                                   : mine
-                                    ? "rounded-br-md bg-violet-600 text-white"
-                                    : "rounded-bl-md border border-white/[0.07] bg-[#17171d] text-zinc-200"
+                                    ? "chat-message-bubble-sent rounded-br-md text-white"
+                                    : "chat-message-bubble-received rounded-bl-md border"
                               }`}
                             >
                               {message.isForwarded && !message.isDeletedForEveryone && (
                                 <div
                                   className={`mb-2 flex items-center gap-1.5 text-[11px] font-semibold ${
-                                    mine ? "text-violet-100/75" : "text-zinc-500"
+                                    mine ? "text-violet-100/75" : "chat-message-muted"
                                   }`}
                                 >
                                   <Forward size={12} />
@@ -2334,7 +2470,7 @@ export function MessagesPage() {
                                       : "border-violet-400/60 bg-violet-500/[0.08]"
                                   }`}
                                 >
-                                  <strong className="block truncate text-[11px] text-violet-200">
+                                  <strong className={`block truncate text-[11px] ${mine ? "text-violet-100" : "chat-message-reply-author"}`}>
                                     {message.replyTo.senderUserName}
                                   </strong>
                                   <span className="mt-0.5 block truncate text-xs opacity-70">
@@ -2388,7 +2524,7 @@ export function MessagesPage() {
                               )}
                               <div
                                 className={`mt-1 flex items-center justify-end gap-1 text-[10px] ${
-                                  mine ? "text-violet-100/70" : "text-zinc-600"
+                                  mine ? "text-violet-100/70" : "chat-message-time-received"
                                 }`}
                               >
                                 {message.isPinnedByCurrentUser && <Pin size={11} />}
@@ -2616,7 +2752,15 @@ export function MessagesPage() {
                       >
                         <Gamepad2 size={20} />
                       </button>
+                      <ChatEmojiPicker
+                        disabled={
+                          selectedConversation?.canSendMessage === false ||
+                          sendMutation.isPending
+                        }
+                        onSelect={insertEmoji}
+                      />
                       <textarea
+                        ref={messageInputRef}
                         value={messageText}
                         onChange={(event) => handleTyping(event.target.value)}
                         onKeyDown={(event) => {
@@ -2712,6 +2856,68 @@ export function MessagesPage() {
           </section>
         </div>
       </main>
+
+      {conversationContextMenu &&
+        contextConversation &&
+        createPortal(
+          <div
+            role="menu"
+            onPointerDown={(event) => event.stopPropagation()}
+            className="chat-conversation-context-menu fixed z-[185] w-52 rounded-2xl p-2"
+            style={{
+              left: conversationContextMenu.x,
+              top: conversationContextMenu.y,
+            }}
+          >
+            {contextConversation.requestStatus === "Accepted" && (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={archiveMutation.isPending}
+                onClick={() => {
+                  setConversationContextMenu(null);
+                  archiveMutation.mutate({
+                    conversationId: contextConversation.id,
+                    archived: !contextConversation.isArchived,
+                  });
+                }}
+                className="chat-conversation-context-action flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition disabled:opacity-40"
+              >
+                {contextConversation.isArchived ? (
+                  <Undo2 size={17} />
+                ) : (
+                  <Archive size={17} />
+                )}
+                {contextConversation.isArchived
+                  ? t(
+                      "messages:conversationActions.unarchive",
+                      undefined,
+                      language === "en" ? "Unarchive" : "Arxivdən çıxar",
+                    )
+                  : t(
+                      "messages:conversationActions.archive",
+                      undefined,
+                      language === "en" ? "Archive" : "Arxivlə",
+                    )}
+              </button>
+            )}
+            <button
+              type="button"
+              role="menuitem"
+              disabled={deleteConversationMutation.isPending}
+              onClick={() => void requestConversationDelete(contextConversation)}
+              className="chat-conversation-context-action is-danger flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold transition disabled:opacity-40"
+            >
+              <Trash2 size={17} />
+              {t(
+                "messages:conversationActions.delete",
+                undefined,
+                language === "en" ? "Delete chat" : "Söhbəti sil",
+              )}
+            </button>
+          </div>,
+          document.body,
+        )}
 
       {deleteChoiceMessage &&
         createPortal(

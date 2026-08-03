@@ -3,12 +3,14 @@ import {
   MemoryStick,
   MonitorCog,
 } from "lucide-react";
+import type { ReactNode } from "react";
 
 interface ReviewHardwareSummaryProps {
   gpu: string | null;
   cpu: string | null;
   ramGb: number | null;
   vramGb: number | null;
+  language: "az" | "en";
 }
 
 export function ReviewHardwareSummary({
@@ -16,61 +18,60 @@ export function ReviewHardwareSummary({
   cpu,
   ramGb,
   vramGb,
+  language,
 }: ReviewHardwareSummaryProps) {
   if (!gpu || !cpu || ramGb === null) {
     return null;
   }
 
   return (
-    <div className="wp-review-subcard rounded-2xl p-4">
-      <div className="flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-[var(--wp-accent-strong)]">
-        <MonitorCog size={15} />
-        Oynanılan sistem
+    <div className="wp-review-hardware rounded-2xl px-4 py-4 sm:px-5">
+      <div className="flex items-center gap-2 text-xs font-bold text-[var(--wp-text-strong)]">
+        <MonitorCog
+          size={16}
+          className="text-[var(--wp-accent-strong)]"
+        />
+        {language === "en" ? "Played on" : "Oynanılan sistem"}
       </div>
 
-      <dl className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-        <div className="min-w-0 rounded-xl border border-[color:var(--wp-border)] bg-[color:var(--wp-surface-strong)] px-3 py-2.5">
-          <dt className="flex items-center gap-1.5 text-[color:var(--wp-text-muted)]">
-            <MonitorCog size={13} />
-            GPU
-          </dt>
-          <dd className="mt-1 break-words font-semibold text-[var(--wp-text-strong)]">
-            {gpu}
-          </dd>
-        </div>
-
-        <div className="min-w-0 rounded-xl border border-[color:var(--wp-border)] bg-[color:var(--wp-surface-strong)] px-3 py-2.5">
-          <dt className="flex items-center gap-1.5 text-[color:var(--wp-text-muted)]">
-            <Cpu size={13} />
-            CPU
-          </dt>
-          <dd className="mt-1 break-words font-semibold text-[var(--wp-text-strong)]">
-            {cpu}
-          </dd>
-        </div>
-
-        <div className="rounded-xl border border-[color:var(--wp-border)] bg-[color:var(--wp-surface-strong)] px-3 py-2.5">
-          <dt className="flex items-center gap-1.5 text-[color:var(--wp-text-muted)]">
-            <MemoryStick size={13} />
-            RAM
-          </dt>
-          <dd className="mt-1 font-semibold text-[var(--wp-text-strong)]">
-            {ramGb} GB
-          </dd>
-        </div>
-
+      <dl className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <HardwareItem icon={<MonitorCog size={14} />} label="GPU" value={gpu} />
+        <HardwareItem icon={<Cpu size={14} />} label="CPU" value={cpu} />
+        <HardwareItem
+          icon={<MemoryStick size={14} />}
+          label="RAM"
+          value={`${ramGb} GB`}
+        />
         {vramGb !== null && (
-          <div className="rounded-xl border border-[color:var(--wp-border)] bg-[color:var(--wp-surface-strong)] px-3 py-2.5">
-            <dt className="flex items-center gap-1.5 text-[color:var(--wp-text-muted)]">
-              <MemoryStick size={13} />
-              VRAM
-            </dt>
-            <dd className="mt-1 font-semibold text-[var(--wp-text-strong)]">
-              {vramGb} GB
-            </dd>
-          </div>
+          <HardwareItem
+            icon={<MemoryStick size={14} />}
+            label="VRAM"
+            value={`${vramGb} GB`}
+          />
         )}
       </dl>
+    </div>
+  );
+}
+
+function HardwareItem({
+  icon,
+  label,
+  value,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--wp-text-muted)]">
+        {icon}
+        {label}
+      </dt>
+      <dd className="mt-1.5 break-words text-sm font-semibold text-[var(--wp-text-strong)]">
+        {value}
+      </dd>
     </div>
   );
 }

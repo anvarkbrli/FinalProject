@@ -11,28 +11,31 @@ import {
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AdminDateRangeFilter } from "../../components/admin/AdminDateRangeFilter";
+import { AdminFilterSelect } from "../../components/admin/AdminFilterSelect";
 import { AdminLiveSearch } from "../../components/admin/AdminLiveSearch";
 import { getApiErrorMessage } from "../../lib/api";
 import { formatDateTime } from "../../lib/helpers";
 import {
   getModerationActionTitle,
-  getModerationResourceType,
+  getModerationResourceSummary,
 } from "../../lib/moderationAudit";
 import { useI18n } from "../../i18n/useI18n";
 import { getModerationAudit } from "../../services/adminService";
 
 const pageSize = 20;
 
-const actionOptions = [
-  ["", "Bütün əməliyyatlar"],
-  ["1", "Şikayət statusu"],
-  ["2", "Xəbərdarlıq"],
-  ["3", "Müddətli ban"],
-  ["4", "Müddətsiz ban"],
-  ["5", "Ban açılması"],
-  ["6", "Rol dəyişikliyi"],
-  ["7", "Admin əməliyyatları"],
-] as const;
+function getActionOptions(language: "az" | "en") {
+  return [
+    ["", language === "en" ? "All actions" : "Bütün əməliyyatlar"],
+    ["1", language === "en" ? "Report status" : "Şikayət statusu"],
+    ["2", language === "en" ? "Warning" : "Xəbərdarlıq"],
+    ["3", language === "en" ? "Temporary ban" : "Müddətli ban"],
+    ["4", language === "en" ? "Permanent ban" : "Müddətsiz ban"],
+    ["5", language === "en" ? "Ban lifted" : "Ban açılması"],
+    ["6", language === "en" ? "Role change" : "Rol dəyişikliyi"],
+    ["7", language === "en" ? "Administrative actions" : "Admin əməliyyatları"],
+  ] as const;
+}
 
 export function AdminAuditPage() {
   const { language } = useI18n();
@@ -144,22 +147,18 @@ export function AdminAuditPage() {
               ariaLabel="Audit jurnalında axtarış"
             />
           </div>
-          <label className="block min-w-0">
+          <div className="block min-w-0">
             <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.12em] text-zinc-500">
-              Əməliyyat növü
+              {language === "en" ? "Action type" : "Əməliyyat növü"}
             </span>
-            <select
+            <AdminFilterSelect
+              label={language === "en" ? "Action type" : "Əməliyyat növü"}
               value={action}
-              onChange={(event) => updateParam("action", event.target.value)}
-              className="h-14 w-full rounded-xl border border-white/[0.08] bg-[#0a0a0e] px-3 text-sm text-zinc-300 outline-none transition focus:border-violet-500/50 focus:ring-2 focus:ring-violet-500/10"
-            >
-              {actionOptions.map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </label>
+              onChange={(value) => updateParam("action", value)}
+              options={getActionOptions(language)}
+              buttonClassName="h-14 w-full"
+            />
+          </div>
           <AdminDateRangeFilter
             from={from}
             to={to}
@@ -218,17 +217,9 @@ export function AdminAuditPage() {
                       <ScrollText size={16} className="text-amber-300" />
                       {getModerationActionTitle(entry, language)}
                     </p>
-                    {entry.resourceType && (
+                    {getModerationResourceSummary(entry, language) && (
                       <p className="mt-2 text-sm text-zinc-500">
-                        {getModerationResourceType(
-                          entry.resourceType,
-                          language,
-                        )}
-                        {entry.resourceName
-                          ? `: ${entry.resourceName}`
-                          : entry.resourceId
-                            ? ` #${entry.resourceId}`
-                            : ""}
+                        {getModerationResourceSummary(entry, language)}
                       </p>
                     )}
                     {entry.targetUserId && (

@@ -1,4 +1,5 @@
 using Ludora.Application.DTOs;
+using Ludora.Application.Common;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
@@ -21,15 +22,18 @@ public sealed class UserGameService : IUserGameService
     private readonly AppDbContext _context;
     private readonly IIgdbClient _igdbClient;
     private readonly INotificationService _notificationService;
+    private readonly IAppCache _cache;
 
     public UserGameService(
         AppDbContext context,
         IIgdbClient igdbClient,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IAppCache cache)
     {
         _context = context;
         _igdbClient = igdbClient;
         _notificationService = notificationService;
+        _cache = cache;
     }
 
     public async Task<PagedResultDTO<UserGameDTO>> GetMineAsync(
@@ -164,12 +168,6 @@ public sealed class UserGameService : IUserGameService
         ArgumentNullException.ThrowIfNull(filter);
         ValidateFilter(filter);
 
-        if (filter.IsFavorite == true && currentUserId != userId)
-        {
-            throw new ForbiddenException(
-                "Sevimli oyunlar yalnız profil sahibinə görünür.");
-        }
-
         if (filter.IsWishlisted == true && currentUserId != userId)
         {
             throw new ForbiddenException(
@@ -223,6 +221,26 @@ public sealed class UserGameService : IUserGameService
                 ? 0
                 : (int)Math.Ceiling(totalCount / (double)filter.PageSize)
         };
+    }
+
+    public Task<PagedResultDTO<UserGameDTO>> GetVisibleFavoritesAsync(
+        Guid userId,
+        Guid currentUserId,
+        PaginationFilterDTO pagination,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(pagination);
+
+        return GetByUserAsync(
+            userId,
+            new UserGameFilterDTO
+            {
+                IsFavorite = true,
+                PageNumber = pagination.PageNumber,
+                PageSize = pagination.PageSize
+            },
+            currentUserId,
+            cancellationToken);
     }
 
     public async Task<PagedResultDTO<ProfileGameEntryDTO>> GetProfileCollectionAsync(
@@ -1776,6 +1794,9 @@ public sealed class UserGameService : IUserGameService
         try
         {
             await _context.SaveChangesAsync(cancellationToken);
+            await GameCatalogCache.InvalidateAsync(
+                _cache,
+                cancellationToken);
         }
         catch (DbUpdateException exception)
             when (exception.IsUniqueConstraintViolation())

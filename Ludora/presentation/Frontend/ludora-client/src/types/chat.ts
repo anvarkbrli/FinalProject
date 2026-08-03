@@ -192,6 +192,13 @@ export interface ChatConversationArchiveChangedDTO {
   archivedAtUtc: string | null;
 }
 
+export interface ChatConversationDeletedDTO {
+  conversationId: number;
+  userId: string;
+  deletedMessageCount: number;
+  deletedAtUtc: string;
+}
+
 export interface ChatTypingDTO {
   conversationId: number;
   userId: string;

@@ -1,0 +1,48 @@
+{
+  "social": {
+    "eyebrow": "Sənin üçün",
+    "title": "Dostlar və icma",
+    "description": "İzlədiyin insanların son fəaliyyətləri, oynadıqları oyunlar və sizə uyğun yeni əlaqələr.",
+    "announcements": {
+      "eyebrow": "Rəsmi məlumat",
+      "title": "WellPlayd elanları",
+      "empty": "Hazırda aktiv elan yoxdur.",
+      "login": "Elanları və sənə uyğun yenilikləri görmək üçün hesabına daxil ol.",
+      "previous": "Əvvəlki elan",
+      "next": "Növbəti elan"
+    },
+    "tabs": {
+      "activity": "Fəaliyyət",
+      "playing": "İndi oynayırlar",
+      "ratings": "Dost reytinqləri",
+      "connections": "Uyğunluq"
+    },
+    "loginTitle": "Dostlarının fəaliyyətini gör",
+    "loginDescription": "İzlədiyin insanların nə oynadığını, hansı oyunlara yüksək reytinq verdiyini və sənə uyğun istifadəçiləri görmək üçün daxil ol.",
+    "loginAction": "Daxil ol",
+    "emptyActivity": "İzlədiyin insanlardan yeni fəaliyyət yoxdur.",
+    "emptyPlaying": "Hazırda dostlarından heç kim oyun oynayır statusunda deyil.",
+    "emptyRatings": "Dostların hələ yüksək reytinq paylaşmayıb.",
+    "emptyConnections": "Uyğunluq hesablamaq üçün daha çox oyun və əlaqə lazımdır.",
+    "friendCount": "{count} dost",
+    "moreFriends": "+{count}",
+    "tasteTitle": "Ortaq oyun zövqü",
+    "tasteWith": "{name} ilə uyğunluq",
+    "sharedGames": "{count} ortaq oyun",
+    "sharedFavorites": "{count} ortaq favori",
+    "suggestionsTitle": "İzləmək maraqlı ola bilər",
+    "mutual": "{count} ortaq əlaqə",
+    "private": "Gizli profil",
+    "viewProfile": "Profilə bax",
+    "allFeed": "Bütün fəaliyyətlərə bax",
+    "emptyReviews": "Dostların hələ yazılı rəy paylaşmayıb.",
+    "ratings": {
+      "stars": "Yalnız reytinq",
+      "reviews": "Yazılı rəylər",
+      "starsDescription": "Rəy yazmadan yalnız ulduz verən dostların.",
+      "reviewsDescription": "Dostlarının son yazılı oyun rəyləri.",
+      "spoiler": "Bu rəy spoiler ehtiva edir",
+      "reveal": "Rəyi göstər"
+    }
+  }
+}

@@ -89,7 +89,7 @@ export function ProfileGameCollection({
   onPageChange,
 }: ProfileGameCollectionProps) {
   const Icon = kind === "wishlist" ? Bookmark : Heart;
-  const title = kind === "wishlist" ? "Wishlist" : "Favorilər";
+  const title = kind === "wishlist" ? "Wishlist" : "Sevimli oyunlar";
   const emptyMessage =
     kind === "wishlist"
       ? "Wishlist-ə əlavə edilmiş oyun yoxdur."
@@ -105,17 +105,20 @@ export function ProfileGameCollection({
   }
 
   if (isError) {
+    const ErrorIcon = kind === "wishlist" ? LockKeyhole : Heart;
+    const fallbackMessage =
+      kind === "wishlist"
+        ? "Wishlist yalnız profil sahibinə görünür."
+        : "Sevimli oyunları yükləmək mümkün olmadı.";
+
     return (
       <div className="rounded-3xl border border-amber-400/15 bg-amber-500/[0.05] p-8 text-center">
-        <LockKeyhole
+        <ErrorIcon
           size={30}
           className="mx-auto text-amber-300"
         />
         <p className="mt-4 text-sm leading-6 text-amber-100/70">
-          {getApiErrorMessage(
-            error,
-            `Bu istifadəçinin ${title.toLocaleLowerCase("az-AZ")} hissəsinə baxmaq mümkün deyil.`,
-          )}
+          {getApiErrorMessage(error, fallbackMessage)}
         </p>
       </div>
     );

@@ -4,12 +4,13 @@ import {
   ChevronRight,
   CircleAlert,
   Eye,
-  Filter,
   ShieldAlert,
   UsersRound,
 } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
+import { AdminFilterSelect } from "../../components/admin/AdminFilterSelect";
 import { AdminLiveSearch } from "../../components/admin/AdminLiveSearch";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
 import {
   formatDate,
@@ -21,6 +22,7 @@ import { getAdminUsers } from "../../services/adminService";
 const pageSize = 20;
 
 export function AdminUsersPage() {
+  const { language } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const pageNumber = Math.max(
@@ -99,38 +101,40 @@ export function AdminUsersPage() {
             ariaLabel="İstifadəçilər arasında axtarış"
           />
 
-          <FilterSelect
-            label="Rol"
+          <AdminFilterSelect
+            label={language === "en" ? "Role" : "Rol"}
             value={role}
             onChange={(value) => updateParam("role", value)}
+            showFilterIcon
             options={[
-              ["", "Bütün rollar"],
-              ["User", "User"],
+              ["", language === "en" ? "All roles" : "Bütün rollar"],
+              ["User", language === "en" ? "User" : "İstifadəçi"],
               ["Moderator", "Moderator"],
               ["Admin", "Admin"],
             ]}
           />
-          <FilterSelect
-            label="Ban statusu"
+          <AdminFilterSelect
+            label={language === "en" ? "Account status" : "Hesab statusu"}
             value={banState}
             onChange={(value) => updateParam("ban", value)}
+            showFilterIcon
             options={[
-              ["", "Bütün statuslar"],
-              ["active", "Aktiv"],
-              ["banned", "Banlı"],
+              ["", language === "en" ? "All statuses" : "Bütün statuslar"],
+              ["active", language === "en" ? "Active" : "Aktiv"],
+              ["banned", language === "en" ? "Banned" : "Banlı"],
             ]}
           />
-          <FilterSelect
-            label="Sıralama"
+          <AdminFilterSelect
+            label={language === "en" ? "Sort users" : "İstifadəçiləri sırala"}
             value={sortBy}
             onChange={(value) => updateParam("sort", value)}
             options={[
-              ["newest", "Ən yeni"],
-              ["oldest", "Ən köhnə"],
-              ["username", "Ad A–Z"],
-              ["username_desc", "Ad Z–A"],
-              ["mostreported", "Ən çox şikayət"],
-              ["mostwarned", "Ən çox warning"],
+              ["newest", language === "en" ? "Newest" : "Ən yeni"],
+              ["oldest", language === "en" ? "Oldest" : "Ən köhnə"],
+              ["username", language === "en" ? "Name A–Z" : "Ad A–Z"],
+              ["username_desc", language === "en" ? "Name Z–A" : "Ad Z–A"],
+              ["mostreported", language === "en" ? "Most reported" : "Ən çox şikayət"],
+              ["mostwarned", language === "en" ? "Most warned" : "Ən çox xəbərdarlıq"],
             ]}
           />
         </div>
@@ -317,41 +321,6 @@ export function AdminUsersPage() {
         )}
       </section>
     </div>
-  );
-}
-
-interface FilterSelectProps {
-  label: string;
-  value: string;
-  options: Array<[string, string]>;
-  onChange: (value: string) => void;
-}
-
-function FilterSelect({
-  label,
-  value,
-  options,
-  onChange,
-}: FilterSelectProps) {
-  return (
-    <label className="relative">
-      <span className="sr-only">{label}</span>
-      <Filter
-        size={15}
-        className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
-      />
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full appearance-none rounded-xl border border-white/[0.08] bg-[#0a0a0e] pl-9 pr-8 text-sm text-zinc-300 outline-none transition focus:border-violet-500/50 lg:w-auto"
-      >
-        {options.map(([optionValue, optionLabel]) => (
-          <option key={optionValue} value={optionValue}>
-            {optionLabel}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

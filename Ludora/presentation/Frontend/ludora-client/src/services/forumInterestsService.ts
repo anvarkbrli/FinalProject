@@ -12,7 +12,8 @@ export async function getForumInterests(
     { signal },
   );
 
-  return response.data;
+  const data = response.data as ForumInterestProfileDTO | null | "";
+  return response.status === 204 || data === "" ? null : data;
 }
 
 export async function updateForumInterests(

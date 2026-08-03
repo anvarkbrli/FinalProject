@@ -21,7 +21,6 @@ public static class UserMappings
             SocialLinks = SocialLinkHelper.Deserialize(user.SocialLinksJson),
             IsPrivate = user.IsPrivate,
             PreferredLanguage = user.PreferredLanguage,
-            PreferredTheme = user.PreferredTheme,
             CreatedAt = user.CreatedAt
         };
     }
@@ -41,6 +40,7 @@ public static class UserMappings
                 user.SteamId,
                 user.SteamProfileUrl),
             IsPrivate = user.IsPrivate,
+            CanViewContent = !user.IsPrivate,
             CreatedAt = user.CreatedAt,
             FollowerCount = 0,
             FollowingCount = 0,

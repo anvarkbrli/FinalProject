@@ -16,6 +16,8 @@ public record UserProfileDTO
 
     public bool IsPrivate { get; set; }
 
+    public bool CanViewContent { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public int FollowerCount { get; set; }

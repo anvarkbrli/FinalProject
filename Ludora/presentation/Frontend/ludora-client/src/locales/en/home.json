@@ -1,0 +1,48 @@
+{
+  "social": {
+    "eyebrow": "For you",
+    "title": "Friends and community",
+    "description": "Recent activity from people you follow, what they are playing, and connections that fit your taste.",
+    "announcements": {
+      "eyebrow": "Official update",
+      "title": "WellPlayd announcements",
+      "empty": "There are no active announcements right now.",
+      "login": "Sign in to see announcements and updates selected for you.",
+      "previous": "Previous announcement",
+      "next": "Next announcement"
+    },
+    "tabs": {
+      "activity": "Activity",
+      "playing": "Playing now",
+      "ratings": "Friend ratings",
+      "connections": "Matches"
+    },
+    "loginTitle": "See what your friends are doing",
+    "loginDescription": "Sign in to see what people you follow are playing, their highly rated games, and users with a similar taste.",
+    "loginAction": "Sign in",
+    "emptyActivity": "There is no new activity from people you follow.",
+    "emptyPlaying": "None of your friends are marked as playing a game right now.",
+    "emptyRatings": "Your friends have not shared any high ratings yet.",
+    "emptyConnections": "More games and connections are needed to calculate matches.",
+    "friendCount": "{count} friends",
+    "moreFriends": "+{count}",
+    "tasteTitle": "Shared game taste",
+    "tasteWith": "Match with {name}",
+    "sharedGames": "{count} shared games",
+    "sharedFavorites": "{count} shared favorites",
+    "suggestionsTitle": "People worth following",
+    "mutual": "{count} mutual connections",
+    "private": "Private profile",
+    "viewProfile": "View profile",
+    "allFeed": "View all activity",
+    "emptyReviews": "Your friends have not shared a written review yet.",
+    "ratings": {
+      "stars": "Ratings only",
+      "reviews": "Written reviews",
+      "starsDescription": "Friends who rated a game without writing a review.",
+      "reviewsDescription": "Recent written game reviews from your friends.",
+      "spoiler": "This review contains spoilers",
+      "reveal": "Reveal review"
+    }
+  }
+}

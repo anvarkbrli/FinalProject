@@ -211,6 +211,7 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
             "Unlock" => "Forum müzakirəsinin kilidini açdı",
             "AddRelation" => "Oyuna əlaqəli kontent əlavə etdi",
             "RemoveRelation" => "Oyundan əlaqəli kontenti sildi",
+            "UploadCoverImage" => "Oyun örtük şəkli yüklədi",
             _ => $"{resourceType} üzrə “{actionName}” əməliyyatını yerinə yetirdi"
         };
     }
@@ -238,6 +239,9 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
     {
         foreach (var value in context.ActionArguments.Values)
         {
+            if (value is Microsoft.AspNetCore.Http.IFormFile)
+                continue;
+
             var name = ReadDisplayName(value);
             if (!string.IsNullOrWhiteSpace(name))
                 return name;

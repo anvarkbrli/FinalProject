@@ -306,6 +306,23 @@ public sealed class ChatController : ControllerBase
             cancellationToken));
     }
 
+    [HttpDelete("conversations/{conversationId:long}")]
+    public async Task<ActionResult<ChatConversationDeletedDTO>> DeleteConversation(
+        long conversationId,
+        CancellationToken cancellationToken)
+    {
+        var userId = GetCurrentUserId();
+        var result = await _chatService.DeleteConversationForUserAsync(
+            userId,
+            conversationId,
+            cancellationToken);
+
+        await _hub.Clients.Group(ChatHub.UserGroup(userId))
+            .SendAsync("ConversationDeleted", result, cancellationToken);
+
+        return Ok(result);
+    }
+
     [HttpGet("conversations/{conversationId:long}/pinned-messages")]
     public async Task<ActionResult<IReadOnlyList<ChatMessageDTO>>> GetPinnedMessages(
         long conversationId,

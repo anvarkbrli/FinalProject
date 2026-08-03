@@ -258,22 +258,37 @@ internal static class IgdbQueryBuilder
                 .Append("\";");
         }
 
-        if (filter.GenreId.HasValue &&
-            (!filter.GenreSource.HasValue || filter.GenreSource == CatalogSource.Igdb))
+        var genreIds = filter.GetGenreReferences()
+            .Where(reference => reference.Source == CatalogSource.Igdb)
+            .Select(reference => reference.Id)
+            .Distinct()
+            .ToArray();
+
+        if (genreIds.Length > 0)
         {
-            where.Add($"genres = {filter.GenreId.Value}");
+            where.Add(BuildAnyValueFilter("genres", genreIds));
         }
 
-        if (filter.PlatformId.HasValue &&
-            (!filter.PlatformSource.HasValue || filter.PlatformSource == CatalogSource.Igdb))
+        var platformIds = filter.GetPlatformReferences()
+            .Where(reference => reference.Source == CatalogSource.Igdb)
+            .Select(reference => reference.Id)
+            .Distinct()
+            .ToArray();
+
+        if (platformIds.Length > 0)
         {
-            where.Add($"platforms = {filter.PlatformId.Value}");
+            where.Add(BuildAnyValueFilter("platforms", platformIds));
         }
 
-        if (filter.CompanyId.HasValue &&
-            (!filter.CompanySource.HasValue || filter.CompanySource == CatalogSource.Igdb))
+        var companyIds = filter.GetCompanyReferences()
+            .Where(reference => reference.Source == CatalogSource.Igdb)
+            .Select(reference => reference.Id)
+            .Distinct()
+            .ToArray();
+
+        if (companyIds.Length > 0)
         {
-            where.Add($"involved_companies.company = {filter.CompanyId.Value}");
+            where.Add(BuildAnyValueFilter("involved_companies.company", companyIds));
         }
 
         if (filter.ReleaseYear.HasValue)
@@ -320,6 +335,28 @@ internal static class IgdbQueryBuilder
         builder.Append(" where ")
             .Append(string.Join(" & ", where))
             .Append(';');
+    }
+
+    private static string BuildAnyValueFilter(
+        string field,
+        IReadOnlyCollection<long> values)
+    {
+        var normalizedValues = values
+            .Where(value => value > 0)
+            .Distinct()
+            .ToArray();
+
+        if (normalizedValues.Length == 0)
+        {
+            throw new ArgumentException("Filter dəyərləri boş ola bilməz.", nameof(values));
+        }
+
+        // genres, platforms and involved_companies.company are collection
+        // fields. Always use APICalypse's list syntax so the predicate means
+        // "the collection contains any selected value", even for one value.
+        // Curly-brace syntax would mean an exact collection match and must not
+        // be used for catalog filters.
+        return $"{field} = ({string.Join(',', normalizedValues.Select(value => value.ToString(CultureInfo.InvariantCulture)))})";
     }
 
     private static void AppendGameSort(

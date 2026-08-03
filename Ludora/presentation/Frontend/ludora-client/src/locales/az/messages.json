@@ -15,10 +15,7 @@
     "expandImage": "Şəkli böyüt",
     "messageImageAlt": "Mesaj şəkli",
     "closePreview": "Media önizləməsini bağla",
-    "expandedImageAlt": "Böyüdülmüş mesaj şəkli",
-    "previous": "Əvvəlki media",
-    "next": "Növbəti media",
-    "collapse": "Kolleksiyanı yığ"
+    "expandedImageAlt": "Böyüdülmüş mesaj şəkli"
   },
   "streak": {
     "celebrationTitle": "{count} günlük streak!",
@@ -26,7 +23,8 @@
     "longestOne": "Ən uzun: {count} gün",
     "longestMany": "Ən uzun: {count} gün",
     "longestTitleOne": "Ən uzun streak: {count} gün",
-    "longestTitleMany": "Ən uzun streak: {count} gün"
+    "longestTitleMany": "Ən uzun streak: {count} gün",
+    "currentTitle": "Hazırkı streak: {count} gün"
   },
   "tabs": {
     "active": "Aktiv",
@@ -107,18 +105,13 @@
     "recommendGame": "Oyun təklif et",
     "requestPlaceholder": "Bir mesaj istəyi yaza bilərsən...",
     "messagePlaceholder": "Mesaj yaz...",
-    "send": "Mesajı göndər",
-    "selectedMedia": "{count} media seçilib",
-    "removeSelected": "Seçilmiş medianı sil",
-    "clearMedia": "Bütün mediaları sil"
+    "send": "Mesajı göndər"
   },
   "validation": {
     "unsupportedMedia": "Yalnız şəkil, MP4 və WEBM faylları göndərilə bilər.",
     "videoTooLarge": "Video maksimum 50 MB ola bilər.",
     "imageTooLarge": "Şəkil maksimum 10 MB ola bilər.",
-    "sendFailed": "Mesaj göndərilmədi.",
-    "tooManyMedia": "Bir mesajda maksimum {count} media faylı göndərilə bilər.",
-    "mediaTotalTooLarge": "Media fayllarının ümumi ölçüsü maksimum 150 MB ola bilər."
+    "sendFailed": "Mesaj göndərilmədi."
   },
   "delete": {
     "forEveryoneTitle": "Mesaj hər kəsdən silinsin?",
@@ -147,6 +140,23 @@
     "placeholder": "Söhbətlərdə axtar...",
     "clear": "Söhbət axtarışını təmizlə",
     "empty": "Uyğun söhbət tapılmadı."
+  },
+  "conversationActions": {
+    "open": "Söhbət əməliyyatlarını aç",
+    "archive": "Arxivlə",
+    "unarchive": "Arxivdən çıxar",
+    "delete": "Söhbəti sil",
+    "deleteTitle": "Söhbət silinsin?",
+    "deleteDescription": "Bu söhbət yalnız sənin hesabından silinəcək.",
+    "deleteDetail": "Qarşı tərəfin söhbəti dəyişməyəcək. Gələcəkdə yeni mesaj gəlsə söhbət yenidən görünəcək, silinmiş tarixçə isə gizli qalacaq.",
+    "deleteConfirm": "Söhbəti sil"
+  },
+  "emoji": {
+    "open": "Emoji seç",
+    "title": "Emoji seçimi",
+    "search": "Emoji və ya kateqoriya axtar...",
+    "close": "Emoji seçimini bağla",
+    "empty": "Emoji tapılmadı."
   },
   "forward": {
     "title": "Mesajı yönləndir",

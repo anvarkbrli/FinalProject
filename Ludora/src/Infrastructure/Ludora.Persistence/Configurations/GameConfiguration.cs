@@ -26,7 +26,14 @@ namespace Ludora.Persistence.Configurations
                 .IsDescending(true, false, false)
                 .HasFilter("[IsDeleted] = 0");
 
+            builder.HasIndex(x => new { x.GameType, x.ReleaseDate, x.Name, x.Id })
+                .IsDescending(false, true, false, false)
+                .HasFilter("[IsDeleted] = 0");
+
             builder.HasIndex(x => new { x.Name, x.Id })
+                .HasFilter("[IsDeleted] = 0");
+
+            builder.HasIndex(x => new { x.GameType, x.Name, x.Id })
                 .HasFilter("[IsDeleted] = 0");
 
             builder.HasIndex(x => new { x.AverageRating, x.Id })

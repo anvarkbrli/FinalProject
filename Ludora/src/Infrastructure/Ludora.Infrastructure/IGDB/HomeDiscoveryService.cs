@@ -117,29 +117,32 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
         {
             try
             {
-                trendingGames = await LoadTrendingFromIgdbAsync(
+                var popularityTypes = await _igdbClient
+                    .GetPopularityTypesAsync(cancellationToken);
+                var trendingTask = LoadTrendingFromIgdbAsync(
+                    popularityTypes,
                     cancellationToken);
+                var comingSoonTask = LoadMostAnticipatedUpcomingAsync(
+                    popularityTypes,
+                    cancellationToken);
+
+                await Task.WhenAll(trendingTask, comingSoonTask);
+
+                trendingGames = await trendingTask;
+                comingSoonGames = await comingSoonTask;
             }
-            catch (ExternalServiceException exception)
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
             {
                 _logger.LogWarning(
                     exception,
-                    "Ana səhifə üçün IGDB trend məlumatları alına bilmədi.");
+                    "Ana səhifə üçün IGDB discovery məlumatları alına bilmədi; son uğurlu keş istifadə olunur.");
 
                 trendingGames = staleResult?.TrendingGames ?? [];
-            }
-
-            try
-            {
-                comingSoonGames = await LoadMostAnticipatedUpcomingAsync(
-                    cancellationToken);
-            }
-            catch (ExternalServiceException exception)
-            {
-                _logger.LogWarning(
-                    exception,
-                    "Ana səhifə üçün gözlənilən oyun məlumatları alına bilmədi.");
-
                 comingSoonGames = staleResult?.ComingSoonGames ?? [];
             }
         }
@@ -158,11 +161,10 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
     }
 
     private async Task<IReadOnlyList<GameListItemDTO>> LoadTrendingFromIgdbAsync(
+        IReadOnlyList<IgdbPopularityTypeModel> popularityTypes,
         CancellationToken cancellationToken)
     {
         var today = GetAzerbaijanToday();
-        var popularityTypes = await _igdbClient.GetPopularityTypesAsync(
-            cancellationToken);
 
         var trendingScores = await BuildTrendingScoresAsync(
             popularityTypes,
@@ -174,7 +176,7 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
             .ToArray();
 
         if (trendingIds.Length == 0)
-            return [];
+            return await LoadTrendingFallbackAsync(cancellationToken);
 
         var references = trendingIds
             .Select(x => new CatalogReferenceDTO
@@ -188,7 +190,7 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
             references,
             cancellationToken);
 
-        return trendingIds
+        var trendingGames = trendingIds
             .Select(id => gamesByReference.GetValueOrDefault(
                 (CatalogSource.Igdb, id)))
             .Where(x => x is not null)
@@ -198,38 +200,78 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
             .Take(SectionSize)
             .Select(MapGame)
             .ToList();
+
+        return trendingGames.Count > 0
+            ? trendingGames
+            : await LoadTrendingFallbackAsync(cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<GameListItemDTO>>
+        LoadTrendingFallbackAsync(CancellationToken cancellationToken)
+    {
+        var today = GetAzerbaijanToday();
+        var games = await _igdbClient.GetGamesAsync(
+            new GameFilterDTO
+            {
+                Source = CatalogSource.Igdb,
+                ReleasedOnly = true,
+                SortBy = "rating_desc",
+                PageNumber = 1,
+                PageSize = SectionSize * 2,
+                IncludeRelatedContent = false
+            },
+            cancellationToken);
+
+        return games
+            .Where(IsDisplayableGame)
+            .Where(game =>
+                game.ReleaseDate.HasValue &&
+                game.ReleaseDate.Value <= today)
+            .Take(SectionSize)
+            .Select(MapGame)
+            .ToArray();
     }
 
     private async Task<IReadOnlyList<HomeComingSoonGameDTO>>
         LoadMostAnticipatedUpcomingAsync(
+            IReadOnlyList<IgdbPopularityTypeModel> popularityTypes,
             CancellationToken cancellationToken)
     {
         var today = GetAzerbaijanToday();
         var maximumReleaseDate = today.AddMonths(UpcomingWindowMonths);
-        var popularityTypes = await _igdbClient.GetPopularityTypesAsync(
-            cancellationToken);
 
         var scores = new Dictionary<long, double>();
-
-        await AddPopularityMetricAsync(
-            scores,
+        var wishlistedTask = LoadPopularityMetricAsync(
             popularityTypes,
             "Most Wishlisted Upcoming",
-            0.50,
+            UpcomingCandidateCount,
             cancellationToken);
-
-        await AddPopularityMetricAsync(
-            scores,
+        var wantToPlayTask = LoadPopularityMetricAsync(
             popularityTypes,
             "Want to Play",
-            0.30,
+            UpcomingCandidateCount,
             cancellationToken);
-
-        var hypeOrderedGames = await _igdbClient.GetUpcomingGamesAsync(
+        var upcomingGamesTask = _igdbClient.GetUpcomingGamesAsync(
             today,
             maximumReleaseDate,
             UpcomingCandidateCount,
             cancellationToken);
+
+        await Task.WhenAll(
+            wishlistedTask,
+            wantToPlayTask,
+            upcomingGamesTask);
+
+        AddNormalizedScores(
+            scores,
+            await wishlistedTask,
+            0.50);
+        AddNormalizedScores(
+            scores,
+            await wantToPlayTask,
+            0.30);
+
+        var hypeOrderedGames = await upcomingGamesTask;
 
         AddRankScores(
             scores,
@@ -307,11 +349,11 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
             .ToList();
     }
 
-    private async Task AddPopularityMetricAsync(
-        IDictionary<long, double> scores,
+    private async Task<IReadOnlyList<IgdbPopularityPrimitiveModel>>
+        LoadPopularityMetricAsync(
         IReadOnlyList<IgdbPopularityTypeModel> popularityTypes,
         string metricName,
-        double weight,
+        int limit,
         CancellationToken cancellationToken)
     {
         var popularityType = FindPopularityType(
@@ -319,14 +361,12 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
             metricName);
 
         if (popularityType is null)
-            return;
+            return [];
 
-        var primitives = await _igdbClient.GetPopularityPrimitivesAsync(
+        return await _igdbClient.GetPopularityPrimitivesAsync(
             popularityType.Id,
-            UpcomingCandidateCount,
+            limit,
             cancellationToken);
-
-        AddNormalizedScores(scores, primitives, weight);
     }
 
     private static void AddRankScores(
@@ -358,23 +398,21 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
         CancellationToken cancellationToken)
     {
         var scores = new Dictionary<long, double>();
+        var metricTasks = TrendingMetrics
+            .Select(async metric => new
+            {
+                metric.Weight,
+                Primitives = await LoadPopularityMetricAsync(
+                    popularityTypes,
+                    metric.Name,
+                    PopularityCandidateCount,
+                    cancellationToken)
+            })
+            .ToArray();
+        var metrics = await Task.WhenAll(metricTasks);
 
-        foreach (var metric in TrendingMetrics)
-        {
-            var popularityType = FindPopularityType(
-                popularityTypes,
-                metric.Name);
-
-            if (popularityType is null)
-                continue;
-
-            var primitives = await _igdbClient.GetPopularityPrimitivesAsync(
-                popularityType.Id,
-                PopularityCandidateCount,
-                cancellationToken);
-
-            AddNormalizedScores(scores, primitives, metric.Weight);
-        }
+        foreach (var metric in metrics)
+            AddNormalizedScores(scores, metric.Primitives, metric.Weight);
 
         return scores
             .OrderByDescending(x => x.Value)
@@ -451,6 +489,14 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
                MainCatalogGameTypes.Contains(game.GameType);
     }
 
+    private static bool IsDisplayableGame(IgdbGameModel game)
+    {
+        return game.Id > 0 &&
+               !string.IsNullOrWhiteSpace(game.Name) &&
+               !string.IsNullOrWhiteSpace(game.CoverImageUrl) &&
+               MainCatalogGameTypes.Contains(game.GameType);
+    }
+
     private static GameListItemDTO MapGame(GameDetailDTO game)
     {
         return new GameListItemDTO
@@ -465,6 +511,35 @@ public sealed class HomeDiscoveryService : IHomeDiscoveryService
             GameType = game.GameType,
             Genres = game.Genres,
             Platforms = game.Platforms
+        };
+    }
+
+    private static GameListItemDTO MapGame(IgdbGameModel game)
+    {
+        return new GameListItemDTO
+        {
+            Source = CatalogSource.Igdb,
+            Id = game.Id,
+            Title = game.Name,
+            CoverImageUrl = game.CoverImageUrl,
+            ReleaseDate = game.ReleaseDate,
+            AverageRating = game.Rating,
+            IsOverridden = false,
+            GameType = game.GameType,
+            Genres = game.Genres.Select(genre => new LookupDTO
+            {
+                Source = CatalogSource.Igdb,
+                Id = genre.Id,
+                Name = genre.Name,
+                IsOverridden = false
+            }).ToList(),
+            Platforms = game.Platforms.Select(platform => new LookupDTO
+            {
+                Source = CatalogSource.Igdb,
+                Id = platform.Id,
+                Name = platform.Name,
+                IsOverridden = false
+            }).ToList()
         };
     }
 }

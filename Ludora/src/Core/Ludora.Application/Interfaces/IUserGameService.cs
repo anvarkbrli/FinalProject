@@ -24,6 +24,12 @@ namespace Ludora.Application.Interfaces
             Guid? currentUserId,
             CancellationToken cancellationToken = default);
 
+        Task<PagedResultDTO<UserGameDTO>> GetVisibleFavoritesAsync(
+            Guid userId,
+            Guid currentUserId,
+            PaginationFilterDTO pagination,
+            CancellationToken cancellationToken = default);
+
         Task<PagedResultDTO<ProfileGameEntryDTO>> GetProfileCollectionAsync(
             Guid userId,
             UserProfileGamesFilterDTO filter,

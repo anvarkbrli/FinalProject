@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowRight,
   BookOpen,
@@ -7,12 +7,15 @@ import {
   MessageSquareText,
   Sparkles,
 } from "lucide-react";
+import { useState } from "react";
+import { InterestOnboardingModal } from "../components/home/InterestOnboardingModal";
 import { DiscussionCard } from "../components/home/DiscussionCard";
 import { DiscussionCardSkeleton } from "../components/home/DiscussionCardSkeleton";
 import { GameCard } from "../components/home/GameCard";
 import { GameCardSkeleton } from "../components/home/GameCardSkeleton";
-import { HomeAnnouncements } from "../components/home/HomeAnnouncements";
 import { HomeDiscoverySection } from "../components/home/HomeDiscoverySection";
+import { HomeInterestRecommendations } from "../components/home/HomeInterestRecommendations";
+import { HomeCommunityHub } from "../components/home/HomeCommunityHub";
 import { UserWelcomePanel } from "../components/home/UserWelcomePanel";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
@@ -21,8 +24,15 @@ import {
   getFeaturedGames,
   getForumCategories,
   getHomeDiscovery,
+  getHomeInterestRecommendations,
   getTrendingDiscussions,
 } from "../services/homeService";
+import { getForumInterests } from "../services/forumInterestsService";
+import {
+  isAuthSessionValid,
+  useAuthStore,
+} from "../stores/authStore";
+import type { ForumInterestProfileDTO } from "../types/forumInterests";
 import type { GameListItemDTO } from "../types/home";
 
 interface HeroGameCoverProps {
@@ -73,6 +83,45 @@ function HeroGameCover({
 }
 
 export function HomePage() {
+  const queryClient = useQueryClient();
+  const user = useAuthStore((state) => state.user);
+  const accessToken = useAuthStore((state) => state.accessToken);
+  const expiresAtUtc = useAuthStore((state) => state.expiresAtUtc);
+  const isAuthenticated =
+    user !== null && isAuthSessionValid(accessToken, expiresAtUtc);
+  const [onboardingDismissedForUserId, setOnboardingDismissedForUserId] =
+    useState<string | null>(null);
+
+  const interestsQuery = useQuery({
+    queryKey: ["forum", "interests", user?.id],
+    queryFn: ({ signal }) => getForumInterests(signal),
+    enabled: isAuthenticated,
+  });
+
+  const interestProfile = interestsQuery.data ?? null;
+  const recommendationsQuery = useQuery({
+    queryKey: [
+      "homepage",
+      "interest-recommendations",
+      user?.id,
+      interestProfile?.completedAtUtc,
+    ],
+    queryFn: ({ signal }) => getHomeInterestRecommendations(signal),
+    enabled:
+      isAuthenticated &&
+      interestsQuery.isSuccess &&
+      interestProfile !== null,
+    staleTime: 6 * 60 * 60 * 1000,
+    retry: 0,
+  });
+
+  const shouldShowOnboarding =
+    isAuthenticated &&
+    user !== null &&
+    interestsQuery.isSuccess &&
+    interestProfile === null &&
+    onboardingDismissedForUserId !== user.id;
+
   const gamesQuery = useQuery({
     queryKey: ["homepage", "featured-games"],
     queryFn: getFeaturedGames,
@@ -80,8 +129,9 @@ export function HomePage() {
 
   const discoveryQuery = useQuery({
     queryKey: ["homepage", "igdb-discovery"],
-    queryFn: getHomeDiscovery,
+    queryFn: ({ signal }) => getHomeDiscovery(signal),
     staleTime: 20 * 60 * 1000,
+    retry: 1,
   });
 
   const discussionsQuery = useQuery({
@@ -107,8 +157,6 @@ export function HomePage() {
       <Navbar />
 
       <main>
-        <HomeAnnouncements />
-
         <UserWelcomePanel />
 
         <section
@@ -223,6 +271,19 @@ export function HomePage() {
           isLoading={discoveryQuery.isLoading}
           isError={discoveryQuery.isError}
         />
+
+        {interestProfile && (
+          <HomeInterestRecommendations
+            data={recommendationsQuery.data}
+            isLoading={recommendationsQuery.isLoading}
+            isError={recommendationsQuery.isError}
+            onRetry={() => {
+              void recommendationsQuery.refetch();
+            }}
+          />
+        )}
+
+        <HomeCommunityHub />
 
         <section className="mx-auto grid max-w-7xl gap-12 px-5 py-20 lg:grid-cols-[minmax(0,1.6fr)_minmax(320px,0.8fr)] lg:px-8">
           <div
@@ -445,6 +506,28 @@ export function HomePage() {
       </main>
 
       <Footer />
+
+      {user && (
+        <InterestOnboardingModal
+          open={shouldShowOnboarding}
+          onComplete={(profile: ForumInterestProfileDTO) => {
+            queryClient.setQueryData(
+              ["forum", "interests", user.id],
+              profile,
+            );
+            void queryClient.invalidateQueries({
+              queryKey: [
+                "homepage",
+                "interest-recommendations",
+                user.id,
+              ],
+            });
+          }}
+          onDismiss={() => {
+            setOnboardingDismissedForUserId(user.id);
+          }}
+        />
+      )}
     </div>
   );
 }

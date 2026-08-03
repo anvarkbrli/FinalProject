@@ -15,10 +15,7 @@
     "expandImage": "Expand image",
     "messageImageAlt": "Message image",
     "closePreview": "Close media preview",
-    "expandedImageAlt": "Expanded message image",
-    "previous": "Previous media",
-    "next": "Next media",
-    "collapse": "Collapse collection"
+    "expandedImageAlt": "Expanded message image"
   },
   "streak": {
     "celebrationTitle": "{count}-day streak!",
@@ -26,7 +23,8 @@
     "longestOne": "Longest: {count} day",
     "longestMany": "Longest: {count} days",
     "longestTitleOne": "Longest streak: {count} day",
-    "longestTitleMany": "Longest streak: {count} days"
+    "longestTitleMany": "Longest streak: {count} days",
+    "currentTitle": "Current streak: {count} days"
   },
   "tabs": {
     "active": "Active",
@@ -107,18 +105,13 @@
     "recommendGame": "Recommend a game",
     "requestPlaceholder": "You can write one message request...",
     "messagePlaceholder": "Write a message...",
-    "send": "Send message",
-    "selectedMedia": "{count} media selected",
-    "removeSelected": "Remove selected media",
-    "clearMedia": "Remove all media"
+    "send": "Send message"
   },
   "validation": {
     "unsupportedMedia": "Only images, MP4 and WEBM files can be sent.",
     "videoTooLarge": "Videos can be up to 50 MB.",
     "imageTooLarge": "Images can be up to 10 MB.",
-    "sendFailed": "Message could not be sent.",
-    "tooManyMedia": "A message can contain up to {count} media files.",
-    "mediaTotalTooLarge": "The total media size can be up to 150 MB."
+    "sendFailed": "Message could not be sent."
   },
   "delete": {
     "forEveryoneTitle": "Delete the message for everyone?",
@@ -147,6 +140,23 @@
     "placeholder": "Search conversations...",
     "clear": "Clear conversation search",
     "empty": "No matching conversations found."
+  },
+  "conversationActions": {
+    "open": "Open conversation actions",
+    "archive": "Archive",
+    "unarchive": "Unarchive",
+    "delete": "Delete chat",
+    "deleteTitle": "Delete this chat?",
+    "deleteDescription": "This chat will be deleted only from your account.",
+    "deleteDetail": "The other person's chat will not change. If a new message arrives later, the conversation will appear again while the deleted history remains hidden.",
+    "deleteConfirm": "Delete chat"
+  },
+  "emoji": {
+    "open": "Choose emoji",
+    "title": "Emoji picker",
+    "search": "Search emoji or category...",
+    "close": "Close emoji picker",
+    "empty": "No emoji found."
   },
   "forward": {
     "title": "Forward message",

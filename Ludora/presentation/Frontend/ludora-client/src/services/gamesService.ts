@@ -1,5 +1,4 @@
 import { api } from "../lib/api";
-import { deduplicateGames } from "../lib/deduplicateGames";
 import type { CatalogSource } from "../types/home";
 import type {
   CatalogEntityKind,
@@ -27,16 +26,28 @@ export async function getGames(
             filter.companySource,
           companyId:
             filter.companyId,
+          companyFilters:
+            filter.companyReferences?.length
+              ? filter.companyReferences.join(",")
+              : undefined,
 
           genreSource:
             filter.genreSource,
           genreId:
             filter.genreId,
+          genreFilters:
+            filter.genreReferences?.length
+              ? filter.genreReferences.join(",")
+              : undefined,
 
           platformSource:
             filter.platformSource,
           platformId:
             filter.platformId,
+          platformFilters:
+            filter.platformReferences?.length
+              ? filter.platformReferences.join(",")
+              : undefined,
 
           releaseYear:
             filter.releaseYear,
@@ -60,14 +71,7 @@ export async function getGames(
       },
     );
 
-  if (!filter.searchName?.trim()) {
-    return response.data;
-  }
-
-  return {
-    ...response.data,
-    items: deduplicateGames(response.data.items),
-  };
+  return response.data;
 }
 
 export async function getGameById(

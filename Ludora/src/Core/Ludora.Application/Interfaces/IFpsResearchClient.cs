@@ -7,7 +7,9 @@ public interface IFpsResearchClient
     Task<FpsResearchCompletion> ResearchAsync(
         string systemPrompt,
         string benchmarkSearchPrompt,
-        CancellationToken cancellationToken = default);
+        CancellationToken cancellationToken = default,
+        string? modelOverride = null,
+        string? modelVersionOverride = null);
 }
 
 public sealed record FpsResearchCompletion

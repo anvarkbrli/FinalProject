@@ -4,6 +4,7 @@ using System.Text.Json;
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Badge;
 using Ludora.Application.DTOs.FpsEstimator;
+using Ludora.Application.DTOs.Home;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Helpers;
@@ -60,7 +61,6 @@ public class UserService : IUserService
             SocialLinks = SocialLinkHelper.Deserialize(user.SocialLinksJson),
             IsPrivate = user.IsPrivate,
             PreferredLanguage = user.PreferredLanguage,
-            PreferredTheme = user.PreferredTheme,
             CreatedAt = user.CreatedAt,
             FollowerCount = summary.FollowerCount,
             FollowingCount = summary.FollowingCount,
@@ -76,10 +76,11 @@ public class UserService : IUserService
         if (string.IsNullOrWhiteSpace(userName))
             throw new BadRequestException("İstifadəçi adı boş ola bilməz.");
 
+        var normalizedUserName = _userManager.NormalizeName(userName.Trim());
         var user = await _userManager.Users
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                u => u.NormalizedUserName == userName.Trim().ToUpper());
+                u => u.NormalizedUserName == normalizedUserName);
 
         if (user is null)
             throw new NotFoundException("İstifadəçi tapılmadı.");
@@ -96,6 +97,17 @@ public class UserService : IUserService
                 throw new ForbiddenException("Bu profilə baxmaq mümkün deyil.");
         }
 
+        var isOwnProfile = currentUserId.HasValue && currentUserId.Value == user.Id;
+        var isAcceptedFollower = currentUserId.HasValue &&
+            currentUserId.Value != user.Id &&
+            await _context.UserFollows
+                .AsNoTracking()
+                .AnyAsync(follow =>
+                    follow.FollowerId == currentUserId.Value &&
+                    follow.FollowingId == user.Id &&
+                    follow.Status == FollowStatus.Accepted);
+        var canViewContent = !user.IsPrivate || isOwnProfile || isAcceptedFollower;
+
         var summary = await GetProfileSummaryAsync(user.Id);
         var badges = await GetUserBadgesAsync(user.Id);
 
@@ -110,6 +122,7 @@ public class UserService : IUserService
                 user.SteamId,
                 user.SteamProfileUrl),
             IsPrivate = user.IsPrivate,
+            CanViewContent = canViewContent,
             CreatedAt = user.CreatedAt,
             FollowerCount = summary.FollowerCount,
             FollowingCount = summary.FollowingCount,
@@ -172,30 +185,28 @@ public class UserService : IUserService
     {
         var user = await _userManager.FindByIdOrThrowAsync(userId);
 
-        return MapSettings(user);
+        return new UserSettingsDTO
+        {
+            IsPrivate = user.IsPrivate
+        };
     }
 
     public async Task<UserSettingsDTO> UpdateSettingsAsync(
         Guid userId,
         UpdateUserSettingsDTO dto)
     {
-        ArgumentNullException.ThrowIfNull(dto);
-
         var user = await _userManager.FindByIdOrThrowAsync(userId);
 
         if (dto.IsPrivate.HasValue)
             user.IsPrivate = dto.IsPrivate.Value;
 
-        if (dto.PreferredLanguage is not null)
-            user.PreferredLanguage = NormalizePreferredLanguage(dto.PreferredLanguage);
-
-        if (dto.PreferredTheme is not null)
-            user.PreferredTheme = NormalizePreferredTheme(dto.PreferredTheme);
-
         var result = await _userManager.UpdateAsync(user);
         result.ThrowIfFailed();
 
-        return MapSettings(user);
+        return new UserSettingsDTO
+        {
+            IsPrivate = user.IsPrivate
+        };
     }
 
     public async Task<ForumInterestProfileDTO?> GetForumInterestsAsync(
@@ -220,7 +231,7 @@ public class UserService : IUserService
             return null;
         }
 
-        return DeserializeForumInterests(serialized);
+        return DeserializeForumInterestState(serialized).Profile;
     }
 
     public async Task<ForumInterestProfileDTO> UpdateForumInterestsAsync(
@@ -261,12 +272,67 @@ public class UserService : IUserService
         };
 
         var user = await _userManager.FindByIdOrThrowAsync(userId);
-        user.ForumInterestsJson = JsonSerializer.Serialize(profile);
+        var state = DeserializeForumInterestState(user.ForumInterestsJson);
+        user.ForumInterestsJson = JsonSerializer.Serialize(
+            state with { Profile = profile });
 
         var result = await _userManager.UpdateAsync(user);
         result.ThrowIfFailed();
 
         return profile;
+    }
+
+    public async Task<HomeInterestRecommendationsDTO?>
+        GetSavedHomeInterestRecommendationsAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+    {
+        var serialized = await _context.Users
+            .AsNoTracking()
+            .Where(user => user.Id == userId)
+            .Select(user => user.ForumInterestsJson)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (serialized is null)
+        {
+            var exists = await _context.Users
+                .AsNoTracking()
+                .AnyAsync(user => user.Id == userId, cancellationToken);
+
+            if (!exists)
+                throw new NotFoundException("İstifadəçi tapılmadı.");
+
+            return null;
+        }
+
+        return DeserializeForumInterestState(serialized)
+            .HomeRecommendations;
+    }
+
+    public async Task<HomeInterestRecommendationsDTO>
+        SaveHomeInterestRecommendationsOnceAsync(
+            Guid userId,
+            HomeInterestRecommendationsDTO recommendations,
+            CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(recommendations);
+
+        var user = await _userManager.FindByIdOrThrowAsync(userId);
+        var state = DeserializeForumInterestState(user.ForumInterestsJson);
+
+        if (state.HomeRecommendations is { Items.Count: > 0 } existing)
+            return existing;
+
+        if (state.Profile is null)
+            throw new BadRequestException("Maraq seçimləri tamamlanmayıb.");
+
+        user.ForumInterestsJson = JsonSerializer.Serialize(
+            state with { HomeRecommendations = recommendations });
+
+        var result = await _userManager.UpdateAsync(user);
+        result.ThrowIfFailed();
+
+        return recommendations;
     }
 
     public async Task<CurrentUserDTO> UpdatePreferredLanguageAsync(
@@ -275,7 +341,10 @@ public class UserService : IUserService
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(dto);
-        var language = NormalizePreferredLanguage(dto.Language);
+        var language = dto.Language.Trim().ToLowerInvariant();
+
+        if (language is not ("az" or "en"))
+            throw new BadRequestException("Dil yalnız az və ya en ola bilər.");
 
         var user = await _userManager.FindByIdOrThrowAsync(userId);
         user.PreferredLanguage = language;
@@ -568,36 +637,6 @@ public class UserService : IUserService
             });
     }
 
-    private static UserSettingsDTO MapSettings(AppUser user)
-    {
-        return new UserSettingsDTO
-        {
-            IsPrivate = user.IsPrivate,
-            PreferredLanguage = user.PreferredLanguage,
-            PreferredTheme = user.PreferredTheme
-        };
-    }
-
-    private static string NormalizePreferredLanguage(string value)
-    {
-        var language = value.Trim().ToLowerInvariant();
-
-        if (language is not ("az" or "en"))
-            throw new BadRequestException("Dil yalnız az və ya en ola bilər.");
-
-        return language;
-    }
-
-    private static string NormalizePreferredTheme(string value)
-    {
-        var theme = value.Trim().ToLowerInvariant();
-
-        if (theme is not ("light" or "dark"))
-            throw new BadRequestException("Görünüş yalnız light və ya dark ola bilər.");
-
-        return theme;
-    }
-
     private static string NormalizeHardwareName(
         string? value,
         string fieldName)
@@ -644,16 +683,35 @@ public class UserService : IUserService
             .ToListAsync();
     }
 
-    private static ForumInterestProfileDTO? DeserializeForumInterests(
-        string serialized)
+    private static StoredForumInterestState DeserializeForumInterestState(
+        string? serialized)
     {
+        if (string.IsNullOrWhiteSpace(serialized))
+            return new StoredForumInterestState();
+
         try
         {
-            return JsonSerializer.Deserialize<ForumInterestProfileDTO>(serialized);
+            var state = JsonSerializer.Deserialize<StoredForumInterestState>(
+                serialized,
+                new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+            if (state?.Profile is not null)
+                return state;
+
+            var legacyProfile =
+                JsonSerializer.Deserialize<ForumInterestProfileDTO>(serialized);
+
+            return new StoredForumInterestState
+            {
+                Profile = legacyProfile
+            };
         }
         catch (JsonException)
         {
-            return null;
+            return new StoredForumInterestState();
         }
     }
 
@@ -699,6 +757,12 @@ public class UserService : IUserService
         int FollowingCount,
         int PostCount,
         UserProfileStatisticsDTO Statistics);
+
+    private sealed record StoredForumInterestState
+    {
+        public ForumInterestProfileDTO? Profile { get; init; }
+        public HomeInterestRecommendationsDTO? HomeRecommendations { get; init; }
+    }
 
     private string BuildEmailChangeConfirmationLink(
         Guid userId,

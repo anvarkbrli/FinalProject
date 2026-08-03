@@ -1,4 +1,5 @@
 using Ludora.Application.DTOs;
+using Ludora.Application.Common;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Extensions;
 using Ludora.Application.Interfaces;
@@ -23,17 +24,20 @@ public sealed class ReviewService : IReviewService
     private readonly IIgdbClient _igdbClient;
     private readonly IGameService _gameService;
     private readonly INotificationService _notificationService;
+    private readonly IAppCache _cache;
 
     public ReviewService(
         AppDbContext context,
         IIgdbClient igdbClient,
         IGameService gameService,
-        INotificationService notificationService)
+        INotificationService notificationService,
+        IAppCache cache)
     {
         _context = context;
         _igdbClient = igdbClient;
         _gameService = gameService;
         _notificationService = notificationService;
+        _cache = cache;
     }
 
     public async Task<ReviewDTO> CreateAsync(
@@ -559,6 +563,7 @@ public sealed class ReviewService : IReviewService
             reviewId: review.Id);
 
         await _context.SaveChangesAsync(cancellationToken);
+        await GameCatalogCache.InvalidateAsync(_cache, cancellationToken);
     }
 
     private async Task<PagedResultDTO<ReviewDTO>> CreatePagedResultAsync(
@@ -1096,6 +1101,9 @@ public sealed class ReviewService : IReviewService
         try
         {
             await _context.SaveChangesAsync(cancellationToken);
+            await GameCatalogCache.InvalidateAsync(
+                _cache,
+                cancellationToken);
         }
         catch (DbUpdateException exception)
             when (exception.IsUniqueConstraintViolation())

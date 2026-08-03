@@ -75,6 +75,10 @@ public static class ServiceRegistration
                     "Ludora-FpsBenchmark/2.0");
             });
 
+        services.AddScoped<
+            IHomeInterestRecommendationService,
+            HomeInterestRecommendationService>();
+
         return services;
     }
 

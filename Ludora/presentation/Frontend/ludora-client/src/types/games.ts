@@ -44,12 +44,15 @@ export interface GameCatalogFilterDTO {
 
   companySource?: CatalogSource;
   companyId?: number;
+  companyReferences?: string[];
 
   genreSource?: CatalogSource;
   genreId?: number;
+  genreReferences?: string[];
 
   platformSource?: CatalogSource;
   platformId?: number;
+  platformReferences?: string[];
 
   releaseYear?: number;
   releasedOnly?: boolean;

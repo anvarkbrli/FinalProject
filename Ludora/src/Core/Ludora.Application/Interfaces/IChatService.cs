@@ -83,6 +83,10 @@ public interface IChatService
         long conversationId,
         bool isArchived,
         CancellationToken cancellationToken = default);
+    Task<ChatConversationDeletedDTO> DeleteConversationForUserAsync(
+        Guid userId,
+        long conversationId,
+        CancellationToken cancellationToken = default);
     Task<ChatConversationParticipantsDTO> GetParticipantsAsync(
         Guid userId,
         long conversationId,

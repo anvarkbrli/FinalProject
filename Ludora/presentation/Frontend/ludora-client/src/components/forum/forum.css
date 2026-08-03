@@ -183,9 +183,16 @@
 
 .forum-theme :where(
   [class~="bg-[#0c1716]/90"],
-  [class~="bg-[#0c1716]/70"]
+  [class~="bg-[#0c1716]/70"],
+  [class~="bg-[#0b1514]/90"]
 ) {
   background-color: var(--forum-surface-strong) !important;
+}
+
+.forum-theme .community-feature-hub {
+  border-color: var(--forum-border) !important;
+  background-color: var(--forum-surface-strong) !important;
+  box-shadow: var(--forum-shadow-card);
 }
 
 .forum-theme :where(

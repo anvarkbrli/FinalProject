@@ -2,6 +2,7 @@ import azAuth from "../locales/az/auth.json";
 import azCommon from "../locales/az/common.json";
 import azForum from "../locales/az/forum.json";
 import azGames from "../locales/az/games.json";
+import azHome from "../locales/az/home.json";
 import azMessages from "../locales/az/messages.json";
 import azLists from "../locales/az/lists.json";
 import azNotifications from "../locales/az/notifications.json";
@@ -12,6 +13,7 @@ import enAuth from "../locales/en/auth.json";
 import enCommon from "../locales/en/common.json";
 import enForum from "../locales/en/forum.json";
 import enGames from "../locales/en/games.json";
+import enHome from "../locales/en/home.json";
 import enMessages from "../locales/en/messages.json";
 import enLists from "../locales/en/lists.json";
 import enNotifications from "../locales/en/notifications.json";
@@ -36,6 +38,7 @@ const bundles: Record<SupportedLanguage, TranslationBundle> = {
     common: azCommon,
     auth: azAuth,
     games: azGames,
+    home: azHome,
     profile: azProfile,
     forum: azForum,
     messages: azMessages,
@@ -48,6 +51,7 @@ const bundles: Record<SupportedLanguage, TranslationBundle> = {
     common: enCommon,
     auth: enAuth,
     games: enGames,
+    home: enHome,
     profile: enProfile,
     forum: enForum,
     messages: enMessages,

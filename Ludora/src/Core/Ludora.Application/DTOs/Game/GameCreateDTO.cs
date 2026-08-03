@@ -15,6 +15,8 @@ namespace Ludora.Application.DTOs
         public string? Description { get; init; }
         public DateOnly? ReleaseDate { get; init; }
         public string? CoverImageUrl { get; init; }
+        public CatalogSource? ParentGameSource { get; init; }
+        public long? ParentGameId { get; init; }
         public List<CompanyReferenceDTO> CompanyReferences { get; init; } = [];
         public List<CatalogReferenceDTO> GenreReferences { get; init; } = [];
         public List<CatalogReferenceDTO> PlatformReferences { get; init; } = [];

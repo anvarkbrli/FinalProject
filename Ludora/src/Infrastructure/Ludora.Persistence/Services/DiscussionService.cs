@@ -985,6 +985,22 @@ public sealed class DiscussionService : IDiscussionService
                     SortOrder = media.SortOrder
                 })
                 .ToList(),
+            Poll = x.Poll == null ? null : new DiscussionPollPreviewDTO
+            {
+                Id = x.Poll.Id,
+                Question = x.Poll.Question,
+                EndsAtUtc = x.Poll.EndsAtUtc,
+                IsClosed = x.Poll.IsClosed,
+                Options = x.Poll.Options
+                    .OrderBy(option => option.DisplayOrder)
+                    .Select(option => new DiscussionPollPreviewOptionDTO
+                    {
+                        Id = option.Id,
+                        Text = option.Text,
+                        DisplayOrder = option.DisplayOrder
+                    })
+                    .ToList()
+            },
             CategoryId = x.CategoryId,
             CategoryName = x.Category.Name,
             CategorySlug = x.Category.Slug,

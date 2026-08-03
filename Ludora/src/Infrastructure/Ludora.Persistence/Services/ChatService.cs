@@ -49,6 +49,9 @@ public sealed class ChatService : IChatService
                 (x.RequestStatus == ChatRequestStatus.Accepted ||
                  (x.RequestStatus == ChatRequestStatus.Pending &&
                   x.InitiatedByUserId == userId)) &&
+                x.Messages.Any(message =>
+                    !message.UserStates.Any(state =>
+                        state.UserId == userId && state.IsDeleted)) &&
                 (archived
                     ? x.UserStates.Any(state =>
                         state.UserId == userId && state.IsArchived)
@@ -143,6 +146,9 @@ public sealed class ChatService : IChatService
                 (x.UserOneId == userId || x.UserTwoId == userId) &&
                 x.RequestStatus == ChatRequestStatus.Pending &&
                 x.InitiatedByUserId != userId &&
+                x.Messages.Any(message =>
+                    !message.UserStates.Any(state =>
+                        state.UserId == userId && state.IsDeleted)) &&
                 (normalizedSearch == null ||
                  (x.UserOneId == userId
                     ? x.UserTwo.UserName!.Contains(normalizedSearch)
@@ -1159,6 +1165,73 @@ public sealed class ChatService : IChatService
             UserId = userId,
             IsArchived = isArchived,
             ArchivedAtUtc = state.ArchivedAtUtc
+        };
+    }
+
+    public async Task<ChatConversationDeletedDTO> DeleteConversationForUserAsync(
+        Guid userId,
+        long conversationId,
+        CancellationToken cancellationToken = default)
+    {
+        var conversation = await _context.ChatConversations
+            .Include(x => x.UserStates)
+            .FirstOrDefaultAsync(x => x.Id == conversationId, cancellationToken)
+            ?? throw new NotFoundException("Söhbət tapılmadı.");
+
+        if (conversation.UserOneId != userId && conversation.UserTwoId != userId)
+            throw new ForbiddenException("Bu söhbətə giriş yoxdur.");
+        if (conversation.RequestStatus == ChatRequestStatus.Rejected)
+            throw new ConflictException("Rədd edilmiş söhbət silinə bilməz.");
+
+        var visibleMessageIds = await _context.ChatMessages
+            .AsNoTracking()
+            .Where(message =>
+                message.ConversationId == conversationId &&
+                !message.UserStates.Any(state =>
+                    state.UserId == userId && state.IsDeleted))
+            .Select(message => message.Id)
+            .ToListAsync(cancellationToken);
+
+        var existingStates = await _context.ChatMessageUserStates
+            .Where(state =>
+                state.UserId == userId &&
+                state.Message.ConversationId == conversationId)
+            .ToDictionaryAsync(state => state.MessageId, cancellationToken);
+
+        var now = DateTime.UtcNow;
+        foreach (var messageId in visibleMessageIds)
+        {
+            if (!existingStates.TryGetValue(messageId, out var state))
+            {
+                state = new ChatMessageUserState
+                {
+                    MessageId = messageId,
+                    UserId = userId
+                };
+                _context.ChatMessageUserStates.Add(state);
+            }
+
+            state.IsDeleted = true;
+            state.DeletedAtUtc = now;
+            state.PinnedAtUtc = null;
+        }
+
+        var conversationState = conversation.UserStates
+            .FirstOrDefault(state => state.UserId == userId);
+        if (conversationState is not null)
+        {
+            conversationState.IsArchived = false;
+            conversationState.ArchivedAtUtc = null;
+        }
+
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return new ChatConversationDeletedDTO
+        {
+            ConversationId = conversationId,
+            UserId = userId,
+            DeletedMessageCount = visibleMessageIds.Count,
+            DeletedAtUtc = now
         };
     }
 

@@ -25,6 +25,8 @@ export interface AdminGameInput {
   description?: string;
   releaseDate?: string;
   coverImageUrl?: string;
+  parentGameSource?: CatalogSource;
+  parentGameId?: number;
   companyReferences: CompanyReferenceInput[];
   genreReferences: CatalogReferenceInput[];
   platformReferences: CatalogReferenceInput[];
@@ -44,6 +46,11 @@ export async function uploadAdminGameCover(file: File): Promise<string> {
   const response = await api.post<{ url: string }>(
     "/games/cover-image",
     formData,
+    {
+      headers: {
+        "Content-Type": undefined,
+      },
+    },
   );
 
   return response.data.url;

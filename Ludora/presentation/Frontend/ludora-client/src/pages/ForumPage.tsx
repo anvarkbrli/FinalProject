@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   ArrowRight,
@@ -8,7 +8,6 @@ import {
   MessageCircle,
   Plus,
   Search,
-  Sparkles,
   UserPlus,
   UsersRound,
 } from "lucide-react";
@@ -21,7 +20,6 @@ import {
   ForumFeedSkeleton,
   ForumPostCard,
 } from "../components/forum/ForumFeedCards";
-import { ForumInterestOnboarding } from "../components/forum/ForumInterestOnboarding";
 import {
   ForumSidebar,
   type ForumSection,
@@ -41,7 +39,6 @@ import {
 import { getForumDiscussions } from "../services/forumService";
 import { getForumInterests } from "../services/forumInterestsService";
 import { getForumCategories } from "../services/homeService";
-import { getMyUserGames } from "../services/userGamesService";
 import {
   isAuthSessionValid,
   useAuthStore,
@@ -54,7 +51,6 @@ import type {
   ForumFeedItemDTO,
   ForumPopularPeriod,
 } from "../types/forumFeed";
-import type { ForumInterestProfileDTO } from "../types/forumInterests";
 
 const communityCategoryLabels: Record<
   ForumCommunityCategory,
@@ -303,7 +299,6 @@ function Pagination({
 
 export function ForumPage() {
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -317,12 +312,6 @@ export function ForumPage() {
   const popularPeriod = parsePopularPeriod(searchParams.get("period"));
   const page = parsePage(searchParams.get("page"));
   const [searchInput, setSearchInput] = useState(feedSearch);
-  const [onboardingCompleted, setOnboardingCompleted] =
-    useState(false);
-  const [onboardingDismissed, setOnboardingDismissed] =
-    useState(false);
-  const [isOnboardingRequested, setIsOnboardingRequested] =
-    useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] =
     useState(false);
   const [isCreateCommunityOpen, setIsCreateCommunityOpen] =
@@ -361,12 +350,6 @@ export function ForumPage() {
 
     return () => window.clearTimeout(timeoutId);
   }, [feedSearch, searchInput, serializedSearchParams, setSearchParams]);
-
-  const userGamesQuery = useQuery({
-    queryKey: ["forum", "user-game-count", user?.id],
-    queryFn: ({ signal }) => getMyUserGames(1, 1, signal),
-    enabled: isAuthenticated,
-  });
 
   const interestsQuery = useQuery({
     queryKey: ["forum", "interests", user?.id],
@@ -512,15 +495,6 @@ export function ForumPage() {
     });
   }
 
-  const shouldShowOnboarding =
-    isAuthenticated &&
-    userGamesQuery.isSuccess &&
-    userGamesQuery.data.totalCount < 25 &&
-    interestsQuery.isSuccess &&
-    !interestProfile &&
-    !onboardingCompleted &&
-    !onboardingDismissed;
-
   const categories = categoriesQuery.data ?? [];
   const communities = communitiesQuery.data ?? [];
   const activeFeedQuery =
@@ -564,11 +538,6 @@ export function ForumPage() {
         <ForumSidebar
           activeSection={activeSection}
           onSectionChange={changeSection}
-          onCreateCommunity={
-            isAuthenticated
-              ? () => setIsCreateCommunityOpen(true)
-              : undefined
-          }
         />
 
         <main className="relative min-w-0 flex-1">
@@ -908,66 +877,11 @@ export function ForumPage() {
                   </button>
                 </div>
 
-                <div className="rounded-[22px] border border-violet-300/10 bg-gradient-to-br from-violet-500/[0.09] via-[#101719] to-teal-300/[0.05] p-5">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-400/10 text-violet-300">
-                    <Sparkles size={17} />
-                  </span>
-                  <h2 className="mt-4 text-sm font-bold text-white">
-                    Lentlərin fərqi
-                  </h2>
-                  <div className="mt-3 space-y-2 text-[11px] leading-5 text-zinc-500">
-                    <p>
-                      <strong className="text-zinc-300">Ana lent:</strong>{" "}
-                      izlədiyin istifadəçilər və izlədiyin və ya üzv olduğun icmalardakı yeniliklər.
-                    </p>
-                    <p>
-                      <strong className="text-zinc-300">Populyar:</strong>{" "}
-                      icmalarda trend olan mövzular.
-                    </p>
-                    <p>
-                      <strong className="text-zinc-300">Kəşf:</strong>{" "}
-                      izləmədiyin yeni məzmun və insanlar.
-                    </p>
-                  </div>
-                  {isAuthenticated && user && interestsQuery.isSuccess && !interestProfile && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOnboardingDismissed(false);
-                        setIsOnboardingRequested(true);
-                      }}
-                      className="mt-4 text-xs font-bold text-teal-300"
-                    >
-                      Maraqlarımı seç
-                    </button>
-                  )}
-                </div>
               </aside>
             </div>
           </div>
         </main>
       </div>
-
-      {user && (
-        <ForumInterestOnboarding
-          open={
-            shouldShowOnboarding ||
-            (isAuthenticated && isOnboardingRequested)
-          }
-          onComplete={(profile: ForumInterestProfileDTO) => {
-            queryClient.setQueryData(
-              ["forum", "interests", user.id],
-              profile,
-            );
-            setOnboardingCompleted(true);
-            setIsOnboardingRequested(false);
-          }}
-          onDismiss={() => {
-            setOnboardingDismissed(true);
-            setIsOnboardingRequested(false);
-          }}
-        />
-      )}
 
       <CreateDiscussionModal
         open={isCreateModalOpen && activeSection === "discussions"}

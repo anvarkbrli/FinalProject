@@ -1,6 +1,7 @@
 import { api } from "../lib/api";
 import type {
   ChatConversationArchiveChangedDTO,
+  ChatConversationDeletedDTO,
   ChatConversationDTO,
   ChatForwardMessagesResultDTO,
   ChatMessageDTO,
@@ -175,6 +176,15 @@ export async function setConversationArchived(
     : await api.delete<ChatConversationArchiveChangedDTO>(
         `/chat/conversations/${conversationId}/archive`,
       );
+  return response.data;
+}
+
+export async function deleteChatConversation(
+  conversationId: number,
+): Promise<ChatConversationDeletedDTO> {
+  const response = await api.delete<ChatConversationDeletedDTO>(
+    `/chat/conversations/${conversationId}`,
+  );
   return response.data;
 }
 

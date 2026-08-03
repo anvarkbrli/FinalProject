@@ -43,6 +43,7 @@ export interface DiscussionListItemDTO {
   slug: string;
   contentPreview: string;
   media: DiscussionMediaDTO[];
+  poll: DiscussionPollPreviewDTO | null;
 
   categoryId: number;
   categoryName: string;
@@ -86,6 +87,20 @@ export interface DiscussionMediaDTO {
   fileSize: number;
   sortOrder: number;
   isVideo: boolean;
+}
+
+export interface DiscussionPollPreviewOptionDTO {
+  id: number;
+  text: string;
+  displayOrder: number;
+}
+
+export interface DiscussionPollPreviewDTO {
+  id: number;
+  question: string;
+  endsAtUtc: string;
+  isClosed: boolean;
+  options: DiscussionPollPreviewOptionDTO[];
 }
 
 export type PollResultsVisibility = "Always" | "AfterVote" | "AfterEnd";
@@ -174,10 +189,87 @@ export interface HomeDiscoveryDTO {
   generatedAtUtc: string;
 }
 
+export interface HomeInterestRecommendationDTO {
+  game: GameListItemDTO;
+  reason: string;
+  matchScore: number;
+}
+
+export interface HomeInterestRecommendationsDTO {
+  items: HomeInterestRecommendationDTO[];
+  summary: string;
+  isAiGenerated: boolean;
+  generatedAtUtc: string;
+}
+
 export interface PagedResultDTO<T> {
   items: T[];
   pageNumber: number;
   pageSize: number;
   totalCount: number;
   totalPages: number;
+}
+
+export interface HomeSocialUserDTO {
+  id: string;
+  userName: string;
+  profileImageUrl: string | null;
+}
+
+export interface HomeSocialGameDTO {
+  source: CatalogSource;
+  id: number;
+  title: string;
+  coverImageUrl: string | null;
+}
+
+export interface HomeFriendsPlayingGameDTO {
+  game: HomeSocialGameDTO;
+  friends: HomeSocialUserDTO[];
+  friendCount: number;
+  lastActivityAtUtc: string;
+}
+
+export interface HomeFriendRatingDTO {
+  user: HomeSocialUserDTO;
+  game: HomeSocialGameDTO;
+  rating: number;
+  ratedAtUtc: string;
+}
+
+
+export interface HomeFriendReviewDTO {
+  reviewId: number;
+  user: HomeSocialUserDTO;
+  game: HomeSocialGameDTO;
+  rating: number | null;
+  content: string;
+  containsSpoilers: boolean;
+  createdAtUtc: string;
+}
+
+export interface HomeTasteMatchDTO {
+  user: HomeSocialUserDTO;
+  matchPercent: number;
+  sharedGameCount: number;
+  sharedFavoriteCount: number;
+  sharedGames: HomeSocialGameDTO[];
+}
+
+export interface HomeFriendSuggestionDTO {
+  user: HomeSocialUserDTO;
+  isPrivate: boolean;
+  mutualFollowCount: number;
+  sharedGameCount: number;
+  sharedFavoriteCount: number;
+}
+
+export interface HomeSocialDashboardDTO {
+  followedUserCount: number;
+  activities: import("./profile").UserActivityDTO[];
+  friendsPlaying: HomeFriendsPlayingGameDTO[];
+  friendRatings: HomeFriendRatingDTO[];
+  friendReviews: HomeFriendReviewDTO[];
+  tasteMatch: HomeTasteMatchDTO | null;
+  friendSuggestions: HomeFriendSuggestionDTO[];
 }

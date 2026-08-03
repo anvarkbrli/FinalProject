@@ -33,7 +33,7 @@ import { updateForumInterests } from "../../services/forumInterestsService";
 import type { ForumInterestProfileDTO } from "../../types/forumInterests";
 import type { GameCatalogItemDTO } from "../../types/games";
 
-interface ForumInterestOnboardingProps {
+interface InterestOnboardingModalProps {
   open: boolean;
   onComplete: (profile: ForumInterestProfileDTO) => void;
   onDismiss: () => void;
@@ -249,11 +249,11 @@ function toggleValue(values: string[], value: string) {
     : [...values, value];
 }
 
-export function ForumInterestOnboarding({
+export function InterestOnboardingModal({
   open,
   onComplete,
   onDismiss,
-}: ForumInterestOnboardingProps) {
+}: InterestOnboardingModalProps) {
   const [step, setStep] = useState(0);
   const [styles, setStyles] = useState<string[]>([]);
   const [selectedGames, setSelectedGames] = useState<

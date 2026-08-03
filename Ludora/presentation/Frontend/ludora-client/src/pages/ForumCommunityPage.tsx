@@ -26,6 +26,7 @@ import {
 } from "../components/forum/CommunityOwnerManagementModal";
 import { CommunityOwnershipOfferModal } from "../components/forum/CommunityOwnershipOfferModal";
 import { CommunityFeatureHub } from "../components/forum/CommunityFeatureHub";
+import { DiscussionPollPreview } from "../components/forum/DiscussionPollPreview";
 import { Navbar } from "../components/layout/Navbar";
 import { ApiErrorStatusPage } from "../components/status/ApiErrorStatusPage";
 import { UserReportModal } from "../components/profile/UserReportModal";
@@ -578,6 +579,11 @@ export function ForumCommunityPage() {
                       <p className="pointer-events-none relative mt-2 line-clamp-2 text-sm leading-6 text-zinc-500">
                         {discussion.contentPreview}
                       </p>
+                    )}
+                    {discussion.poll && (
+                      <div className="pointer-events-none relative z-10">
+                        <DiscussionPollPreview poll={discussion.poll} compact />
+                      </div>
                     )}
                     <div className="pointer-events-none relative mt-4 flex items-center justify-between text-[11px] text-zinc-600">
                       <span>

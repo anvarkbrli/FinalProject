@@ -89,6 +89,7 @@ public static class ServiceRegistration
         services.AddScoped<IChatService, ChatService>();
         services.AddScoped<IBadgeService, BadgeService>();
         services.AddScoped<IUserActivityService, UserActivityService>();
+        services.AddScoped<IHomeSocialService, HomeSocialService>();
         services.AddScoped<IPostService, PostService>();
         services.AddScoped<IPostInteractionService, PostInteractionService>();
         services.AddScoped<IGameListInteractionService, GameListInteractionService>();

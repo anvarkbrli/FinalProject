@@ -29,6 +29,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "react-router-dom";
+import { AdminFilterSelect } from "../../components/admin/AdminFilterSelect";
 import { AdminLiveSearch } from "../../components/admin/AdminLiveSearch";
 import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
@@ -264,33 +265,36 @@ export function AdminAnnouncementsPage() {
             ariaLabel="Elanlar arasında axtarış"
           />
 
-          <FilterSelect
+          <AdminFilterSelect
+            label={language === "en" ? "Publication status" : "Yayım statusu"}
             value={publication}
             onChange={(value) => updateParam("publication", value)}
             options={[
-              ["", "Bütün yayımlar"],
-              ["published", "Yayımlanmış"],
-              ["draft", "Qaralama"],
+              ["", language === "en" ? "All broadcasts" : "Bütün yayımlar"],
+              ["published", language === "en" ? "Published" : "Yayımlanmış"],
+              ["draft", language === "en" ? "Draft" : "Qaralama"],
             ]}
           />
-          <FilterSelect
+          <AdminFilterSelect
+            label={language === "en" ? "Announcement state" : "Elan vəziyyəti"}
             value={state}
             onChange={(value) => updateParam("state", value)}
             options={[
-              ["active", "Aktiv elanlar"],
-              ["deleted", "Silinmiş elanlar"],
-              ["all", "Hamısı"],
+              ["active", language === "en" ? "Active announcements" : "Aktiv elanlar"],
+              ["deleted", language === "en" ? "Deleted announcements" : "Silinmiş elanlar"],
+              ["all", language === "en" ? "All announcements" : "Hamısı"],
             ]}
           />
-          <FilterSelect
+          <AdminFilterSelect
+            label={language === "en" ? "Sort announcements" : "Elanları sırala"}
             value={sortBy}
             onChange={(value) => updateParam("sort", value)}
             options={[
-              ["newest", "Ən yeni"],
-              ["oldest", "Ən köhnə"],
-              ["updated", "Son yenilənən"],
-              ["published", "Son yayımlanan"],
-              ["title", "Başlıq A–Z"],
+              ["newest", language === "en" ? "Newest" : "Ən yeni"],
+              ["oldest", language === "en" ? "Oldest" : "Ən köhnə"],
+              ["updated", language === "en" ? "Recently updated" : "Son yenilənən"],
+              ["published", language === "en" ? "Recently published" : "Son yayımlanan"],
+              ["title", language === "en" ? "Title A–Z" : "Başlıq A–Z"],
             ]}
           />
         </div>
@@ -827,30 +831,6 @@ function AnnouncementEditorModal({
         </div>
       </form>
     </div>
-  );
-}
-
-function FilterSelect({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (value: string) => void;
-  options: Array<[string, string]>;
-}) {
-  return (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="h-11 rounded-xl border border-white/[0.08] bg-[#0a0a0e] px-3 text-sm text-zinc-300 outline-none transition focus:border-violet-500/50"
-    >
-      {options.map(([optionValue, label]) => (
-        <option key={optionValue} value={optionValue}>
-          {label}
-        </option>
-      ))}
-    </select>
   );
 }
 

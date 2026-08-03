@@ -45,7 +45,9 @@ public sealed class GroqCompoundClient : IFpsResearchClient
     public async Task<FpsResearchCompletion> ResearchAsync(
         string systemPrompt,
         string benchmarkSearchPrompt,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? modelOverride = null,
+        string? modelVersionOverride = null)
     {
         if (!IsEnabled)
         {
@@ -53,9 +55,15 @@ public sealed class GroqCompoundClient : IFpsResearchClient
                 "FPS benchmark xidməti aktiv deyil.");
         }
 
+        var model = string.IsNullOrWhiteSpace(modelOverride)
+            ? _settings.Model
+            : modelOverride.Trim();
+        var modelVersion = string.IsNullOrWhiteSpace(modelVersionOverride)
+            ? _settings.ModelVersion
+            : modelVersionOverride.Trim();
         var payload = JsonSerializer.Serialize(new
         {
-            model = _settings.Model,
+            model,
             temperature = 0.1,
             max_tokens = 1600,
             response_format = new
@@ -86,7 +94,7 @@ public sealed class GroqCompoundClient : IFpsResearchClient
 
             try
             {
-                using var request = CreateRequest(payload);
+                using var request = CreateRequest(payload, modelVersion);
                 using var response = await _httpClient.SendAsync(
                     request,
                     HttpCompletionOption.ResponseHeadersRead,
@@ -98,7 +106,7 @@ public sealed class GroqCompoundClient : IFpsResearchClient
 
                 _logger.LogInformation(
                     "FPS benchmark research tamamlandı. Provider Groq Compound, Model {Model}, DurationMs {DurationMs}, StatusCode {StatusCode}, RetryCount {RetryCount}, CorrelationId {CorrelationId}.",
-                    _settings.Model,
+                    model,
                     elapsed.TotalMilliseconds,
                     (int)response.StatusCode,
                     attempt,
@@ -147,7 +155,9 @@ public sealed class GroqCompoundClient : IFpsResearchClient
             "FPS benchmark xidməti hazırda əlçatan deyil. Bir qədər sonra yenidən yoxlayın.");
     }
 
-    private HttpRequestMessage CreateRequest(string payload)
+    private HttpRequestMessage CreateRequest(
+        string payload,
+        string modelVersion)
     {
         var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -159,7 +169,7 @@ public sealed class GroqCompoundClient : IFpsResearchClient
             new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.TryAddWithoutValidation(
             "Groq-Model-Version",
-            _settings.ModelVersion);
+            modelVersion);
         request.Content = new StringContent(
             payload,
             Encoding.UTF8,

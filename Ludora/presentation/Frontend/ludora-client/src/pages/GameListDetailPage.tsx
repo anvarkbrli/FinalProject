@@ -7,8 +7,14 @@ import {
   ArrowLeft,
   CalendarDays,
   Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Copy,
+  Crown,
+  EyeOff,
   Gamepad2,
+  Grid2X2,
   GripVertical,
   Heart,
   ListChecks,
@@ -18,19 +24,21 @@ import {
   MessageCircle,
   Pencil,
   Plus,
+  Rows3,
   Search,
-  Sparkles,
   Star,
   Trash2,
   UserRoundPlus,
   Users,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { CopyShareButton } from "../components/common/CopyShareButton";
 import { InteractionCommentsPanel } from "../components/interactions/InteractionCommentsPanel";
 import { InteractionLikesModal } from "../components/interactions/InteractionLikesModal";
 import { GameListCloneModal } from "../components/lists/GameListCloneModal";
+import "../components/lists/game-list-detail-theme.css";
 import { GameListCollaboratorsModal } from "../components/lists/GameListCollaboratorsModal";
 import {
   GameListEditorModal,
@@ -43,10 +51,11 @@ import { useI18n } from "../i18n/useI18n";
 import { getApiErrorMessage } from "../lib/api";
 import {
   formatDate,
-  formatDateTime,
+  formatLongDate,
   getReleaseYear,
   resolveAssetUrl,
 } from "../lib/helpers";
+import { useConfirmation } from "../lib/confirmation";
 import {
   likeContent,
   unlikeContent,
@@ -58,6 +67,7 @@ import {
   declineGameListCollaboration,
   deleteGameList,
   getGameList,
+  getGameListPlayedProgress,
   removeGameFromList,
   reorderGameList,
   updateGameList,
@@ -69,11 +79,16 @@ import {
 } from "../stores/authStore";
 import type { GameListDetailDTO, GameListEntryDTO } from "../types/gameLists";
 import type { GameListItemDTO } from "../types/home";
+import type { UserGameStatus } from "../types/userGames";
 
 interface NoticeState {
   type: "success" | "error";
   message: string;
 }
+
+type DisplayMode = "grid" | "detail";
+
+const GAMES_PER_PAGE = 16;
 
 function GameCover({
   title,
@@ -99,16 +114,66 @@ function GameCover({
   );
 }
 
+function OwnerAvatar({
+  userName,
+  profileImageUrl,
+}: {
+  userName: string;
+  profileImageUrl: string | null;
+}) {
+  const imageUrl = resolveAssetUrl(profileImageUrl);
+
+  return (
+    <span className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/[0.08] bg-violet-500/10 text-sm font-black text-violet-200 shadow-lg shadow-black/20">
+      {imageUrl ? (
+        <img
+          src={imageUrl}
+          alt={`${userName} profil şəkli`}
+          className="h-full w-full object-cover"
+        />
+      ) : (
+        userName.trim().charAt(0).toUpperCase() || "?"
+      )}
+    </span>
+  );
+}
+
 function getRankBadgeClasses(position: number) {
   switch (position) {
     case 1:
       return "border-amber-300/25 bg-amber-500/[0.11] text-amber-300 shadow-[0_0_28px_rgba(245,158,11,0.14)]";
     case 2:
-      return "border-slate-200/25 bg-slate-200/[0.10] text-slate-200 shadow-[0_0_28px_rgba(226,232,240,0.10)]";
+      return "game-list-rank-silver";
     case 3:
       return "border-orange-400/25 bg-orange-500/[0.10] text-orange-300 shadow-[0_0_28px_rgba(194,100,45,0.12)]";
     default:
       return "border-white/[0.08] bg-white/[0.04] text-zinc-400";
+  }
+}
+
+
+function getStatusBadgeStyles(status: UserGameStatus) {
+  switch (status) {
+    case "Playing":
+      return {
+        badge: "border-emerald-300/20 bg-[#161a1a]/95 text-emerald-100",
+        dot: "bg-emerald-400",
+      };
+    case "Played":
+      return {
+        badge: "border-violet-300/20 bg-[#181720]/95 text-violet-100",
+        dot: "bg-violet-400",
+      };
+    case "PlanToPlay":
+      return {
+        badge: "border-sky-300/20 bg-[#151a20]/95 text-sky-100",
+        dot: "bg-sky-400",
+      };
+    case "Dropped":
+      return {
+        badge: "border-orange-300/20 bg-[#1d1916]/95 text-orange-100",
+        dot: "bg-orange-400",
+      };
   }
 }
 
@@ -122,11 +187,21 @@ export function GameListDetailPage() {
   const listId = Number(id);
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const requestConfirmation = useConfirmation();
   const accessToken = useAuthStore((state) => state.accessToken);
   const expiresAtUtc = useAuthStore((state) => state.expiresAtUtc);
   const storedUser = useAuthStore((state) => state.user);
+  const isAuthInitialized = useAuthStore((state) => state.isInitialized);
   const isAuthenticated =
     isAuthSessionValid(accessToken, expiresAtUtc) && storedUser !== null;
+  const currentUserCacheKey = isAuthenticated && storedUser
+    ? storedUser.id
+    : "anonymous";
+  const gameListQueryKey = [
+    "game-list",
+    listId,
+    currentUserCacheKey,
+  ] as const;
 
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   const [isCloneOpen, setIsCloneOpen] = useState(false);
@@ -136,13 +211,62 @@ export function GameListDetailPage() {
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [isLikesOpen, setIsLikesOpen] = useState(false);
   const [draggedGameKey, setDraggedGameKey] = useState<string | null>(null);
+  const [pageState, setPageState] = useState({ listId, page: 1 });
+  const [displayMode, setDisplayMode] = useState<DisplayMode>("grid");
+  const [fadePlayedGames, setFadePlayedGames] = useState(false);
+  const [isDisplayMenuOpen, setIsDisplayMenuOpen] = useState(false);
+  const [isProgressExpanded, setIsProgressExpanded] = useState(false);
+  const displayMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isDisplayMenuOpen) return;
+
+    const closeMenu = (event: MouseEvent) => {
+      if (!displayMenuRef.current?.contains(event.target as Node)) {
+        setIsDisplayMenuOpen(false);
+      }
+    };
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsDisplayMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", closeMenu);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("mousedown", closeMenu);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isDisplayMenuOpen]);
 
   const listQuery = useQuery({
-    queryKey: ["game-list", listId],
+    queryKey: gameListQueryKey,
     queryFn: () => getGameList(listId),
-    enabled: Number.isInteger(listId) && listId > 0,
+    enabled:
+      isAuthInitialized &&
+      Number.isInteger(listId) &&
+      listId > 0,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
+
+  const playedProgressQuery = useQuery({
+    queryKey: [
+      "game-list-played-progress",
+      listId,
+      currentUserCacheKey,
+    ],
+    queryFn: () => getGameListPlayedProgress(listId),
+    enabled:
+      isAuthInitialized &&
+      isAuthenticated &&
+      Number.isInteger(listId) &&
+      listId > 0,
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
 
   const normalizedSearch = searchText.trim();
   const searchQuery = useQuery({
@@ -160,7 +284,7 @@ export function GameListDetailPage() {
 
   const invalidateList = async () => {
     await Promise.all([
-      queryClient.invalidateQueries({ queryKey: ["game-list", listId] }),
+      queryClient.invalidateQueries({ queryKey: gameListQueryKey }),
       queryClient.invalidateQueries({ queryKey: ["user-game-lists"] }),
     ]);
   };
@@ -301,7 +425,32 @@ export function GameListDetailPage() {
     [listQuery.data?.games],
   );
 
-  if (listQuery.isLoading) {
+  const totalGamePages = Math.max(
+    1,
+    Math.ceil((listQuery.data?.games.length ?? 0) / GAMES_PER_PAGE),
+  );
+  const currentPage = Math.min(
+    pageState.listId === listId ? pageState.page : 1,
+    totalGamePages,
+  );
+  const pageStartIndex = (currentPage - 1) * GAMES_PER_PAGE;
+  const visibleGames = useMemo(
+    () =>
+      (listQuery.data?.games ?? []).slice(
+        pageStartIndex,
+        pageStartIndex + GAMES_PER_PAGE,
+      ),
+    [listQuery.data?.games, pageStartIndex],
+  );
+
+  function goToPage(page: number) {
+    setPageState({
+      listId,
+      page: Math.max(1, Math.min(totalGamePages, page)),
+    });
+  }
+
+  if (!isAuthInitialized || listQuery.isPending) {
     return (
       <div className="min-h-screen wellplayd-page-bg text-zinc-100">
         <Navbar />
@@ -331,6 +480,83 @@ export function GameListDetailPage() {
     list.currentUserCollaborationStatus === "Accepted";
   const cloneName =
     language === "en" ? `Copy of ${list.name}` : `${list.name} — surəti`;
+  const progressCountFromEndpoint = Number(
+    playedProgressQuery.data?.playedGameCount,
+  );
+  const progressCountFromDetail = Number(
+    list.currentUserPlayedGameCount,
+  );
+  const rawPlayedGameCount = Number.isFinite(progressCountFromEndpoint)
+    ? progressCountFromEndpoint
+    : Number.isFinite(progressCountFromDetail)
+      ? progressCountFromDetail
+      : 0;
+  const playedGameCount = Math.max(
+    0,
+    Math.min(list.gameCount, Math.trunc(rawPlayedGameCount)),
+  );
+  const playedPercentage = list.gameCount === 0
+    ? 0
+    : Math.round((playedGameCount / list.gameCount) * 100);
+  const lastUpdatedAt = list.updatedAt ?? list.createdAt;
+  const statusCounts = list.games.reduce<Record<UserGameStatus, number>>(
+    (counts, game) => {
+      if (game.currentUserStatus) {
+        counts[game.currentUserStatus] += 1;
+      }
+      return counts;
+    },
+    {
+      Playing: 0,
+      PlanToPlay: 0,
+      Played: 0,
+      Dropped: 0,
+    },
+  );
+  const userRatings = list.games
+    .map((game) => game.currentUserRating)
+    .filter((rating): rating is number => Number.isFinite(rating));
+  const averageUserRating = userRatings.length > 0
+    ? userRatings.reduce((total, rating) => total + rating, 0) /
+      userRatings.length
+    : null;
+  const statusBadgeLabels: Record<UserGameStatus, string> = {
+    Playing: t("lists:progress.status.playing"),
+    Played: t("lists:progress.status.played"),
+    PlanToPlay: t("lists:progress.status.planToPlay"),
+    Dropped: t("lists:progress.status.dropped"),
+  };
+  const statusProgressItems: Array<{
+    status: UserGameStatus;
+    label: string;
+    count: number;
+    barClassName: string;
+  }> = [
+    {
+      status: "Playing",
+      label: t("lists:progress.status.playing"),
+      count: statusCounts.Playing,
+      barClassName: "bg-emerald-400",
+    },
+    {
+      status: "Played",
+      label: t("lists:progress.status.played"),
+      count: statusCounts.Played,
+      barClassName: "bg-violet-400",
+    },
+    {
+      status: "PlanToPlay",
+      label: t("lists:progress.status.planToPlay"),
+      count: statusCounts.PlanToPlay,
+      barClassName: "bg-sky-400",
+    },
+    {
+      status: "Dropped",
+      label: t("lists:progress.status.dropped"),
+      count: statusCounts.Dropped,
+      barClassName: "bg-rose-400",
+    },
+  ];
 
   function handleDrop(targetIndex: number) {
     if (!draggedGameKey || !list.isRanked || !list.canEditGames) return;
@@ -346,7 +572,7 @@ export function GameListDetailPage() {
     const [moved] = nextGames.splice(sourceIndex, 1);
     nextGames.splice(targetIndex, 0, moved);
     queryClient.setQueryData<GameListDetailDTO>(
-      ["game-list", listId],
+      gameListQueryKey,
       (current) => current
         ? {
             ...current,
@@ -360,29 +586,64 @@ export function GameListDetailPage() {
     reorderMutation.mutate(nextGames);
   }
 
+
+  async function handleDeleteList() {
+    const confirmed = await requestConfirmation({
+      title: language === "en" ? "Delete list?" : "Siyahı silinsin?",
+      description: language === "en"
+        ? "This list will be permanently removed from your profile."
+        : "Bu siyahı profilindən birdəfəlik silinəcək.",
+      detail: list.name,
+      confirmLabel: t("lists:actions.delete"),
+      cancelLabel: t("lists:common.cancel"),
+      kind: "delete",
+      tone: "danger",
+    });
+
+    if (confirmed) {
+      deleteMutation.mutate();
+    }
+  }
+
+  async function handleRemoveGame(game: GameListEntryDTO) {
+    const confirmed = await requestConfirmation({
+      title: language === "en" ? "Remove game?" : "Oyun siyahıdan çıxarılsın?",
+      description: t("lists:confirm.removeGame", { name: game.title }),
+      detail: game.title,
+      confirmLabel: t("lists:actions.removeGame"),
+      cancelLabel: t("lists:common.cancel"),
+      kind: "delete",
+      tone: "danger",
+    });
+
+    if (confirmed) {
+      removeMutation.mutate(game);
+    }
+  }
+
   return (
     <div className="min-h-screen wellplayd-page-bg text-zinc-100">
       <Navbar />
 
       <main>
-        <section className="relative overflow-hidden border-b border-white/[0.07] bg-[#09090d]">
+        <section className="game-list-hero relative overflow-hidden border-b">
           {backgroundUrl && (
             <div className="pointer-events-none absolute inset-0 overflow-hidden">
               <img
                 src={backgroundUrl}
                 alt=""
-                className="h-full w-full scale-110 object-cover opacity-30 blur-2xl"
+                className="game-list-hero-image h-full w-full scale-110 object-cover blur-2xl"
               />
-              <div className="absolute inset-0 bg-gradient-to-r from-[#09090d] via-[#09090d]/85 to-[#09090d]/65" />
-              <div className="absolute inset-0 bg-gradient-to-t from-[#09090d] via-transparent to-[#09090d]/30" />
+              <div className="game-list-hero-overlay-horizontal absolute inset-0" />
+              <div className="game-list-hero-overlay-vertical absolute inset-0" />
             </div>
           )}
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_10%,rgba(124,58,237,0.2),transparent_32%),radial-gradient(circle_at_85%_25%,rgba(245,158,11,0.08),transparent_25%)]" />
+          <div className="game-list-hero-accents pointer-events-none absolute inset-0" />
 
           <div className="relative mx-auto max-w-7xl px-5 py-10 lg:px-8 lg:py-16">
             <Link
               to={`/users/${list.ownerUserName}`}
-              className="inline-flex items-center gap-2 rounded-full wp-glass-surface px-4 py-2 text-sm font-semibold text-[var(--wp-text)] transition hover:text-[var(--wp-accent)]"
+              className="game-list-glass inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition hover:text-[var(--wp-accent)]"
             >
               <ArrowLeft size={16} />
               {t("lists:detail.backToProfile", { name: list.ownerUserName })}
@@ -391,13 +652,13 @@ export function GameListDetailPage() {
             <div className="mt-8 flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0 max-w-4xl">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold wp-chip-accent">
+                  <span className="game-list-chip-accent inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold">
                     {list.isRanked ? <ListOrdered size={14} /> : <ListChecks size={14} />}
                     {list.isRanked
                       ? t("lists:type.ranked")
                       : t("lists:type.unranked")}
                   </span>
-                  <span className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold wp-chip-neutral">
+                  <span className="game-list-chip-neutral inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold">
                     <VisibilityIcon size={14} />
                     {t(`lists:visibility.${list.visibility}`)}
                   </span>
@@ -409,19 +670,19 @@ export function GameListDetailPage() {
                 <p data-user-content className="mt-4 max-w-3xl whitespace-pre-wrap text-sm leading-7 text-[color:var(--wp-text-muted)]">
                   {list.description ?? t("lists:detail.noDescription")}
                 </p>
-                <div className="mt-6 flex flex-wrap items-center gap-5 text-xs text-zinc-400">
+                <div className="mt-6 flex flex-wrap items-center gap-5 text-xs text-[color:var(--wp-text-muted)]">
                   <span className="inline-flex items-center gap-2">
                     <Gamepad2 size={15} />
                     {t("lists:detail.gameCount", { count: list.gameCount })}
                   </span>
                   <span className="inline-flex items-center gap-2">
                     <CalendarDays size={15} />
-                    {formatDateTime(list.createdAt)}
+                    {formatDate(list.createdAt)}
                   </span>
                   <button
                     type="button"
                     onClick={() => setIsCollaboratorsOpen(true)}
-                    className="inline-flex items-center gap-2 transition hover:text-violet-200"
+                    className="inline-flex items-center gap-2 transition hover:text-[var(--wp-accent-strong)]"
                   >
                     <Users size={15} />
                     {t("lists:detail.collaboratorCount", {
@@ -432,11 +693,15 @@ export function GameListDetailPage() {
               </div>
 
               <div className="flex shrink-0 flex-wrap gap-3">
+                <CopyShareButton
+                  path={`/lists/${list.id}`}
+                  className="game-list-action flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold transition"
+                />
                 {isAuthenticated && !isPendingInvite && (
                   <button
                     type="button"
                     onClick={() => setIsCloneOpen(true)}
-                    className="flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold wp-action-btn transition"
+                    className="game-list-action flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold transition"
                   >
                     <Copy size={16} />
                     {t("lists:actions.clone")}
@@ -446,7 +711,7 @@ export function GameListDetailPage() {
                   <button
                     type="button"
                     onClick={() => setIsCollaboratorsOpen(true)}
-                    className="flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold wp-action-btn-accent transition"
+                    className="game-list-action-accent flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold transition"
                   >
                     <UserRoundPlus size={16} />
                     {t("lists:actions.collaborators")}
@@ -457,7 +722,7 @@ export function GameListDetailPage() {
                     <button
                       type="button"
                       onClick={() => setIsEditorOpen(true)}
-                      className="flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold wp-action-btn transition"
+                      className="game-list-action flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold transition"
                     >
                       <Pencil size={16} />
                       {t("lists:actions.edit")}
@@ -465,12 +730,10 @@ export function GameListDetailPage() {
                     <button
                       type="button"
                       onClick={() => {
-                        if (window.confirm(t("lists:confirm.deleteList"))) {
-                          deleteMutation.mutate();
-                        }
+                        void handleDeleteList();
                       }}
                       disabled={deleteMutation.isPending}
-                      className="flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold wp-action-btn-danger transition disabled:opacity-50"
+                      className="game-list-action-danger flex h-11 items-center gap-2 rounded-xl px-4 text-sm font-bold transition disabled:opacity-50"
                     >
                       <Trash2 size={16} />
                       {t("lists:actions.delete")}
@@ -545,280 +808,692 @@ export function GameListDetailPage() {
             </section>
           )}
 
-          <section className="mb-8 overflow-hidden rounded-3xl border border-white/[0.07] bg-[#101015] shadow-xl shadow-black/10">
-            <div className="flex items-center gap-5 px-5 py-4 text-sm text-zinc-500 sm:px-6">
-              <span className="inline-flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={!isAuthenticated || list.isOwner || likeMutation.isPending}
-                  onClick={() => likeMutation.mutate()}
-                  className={`group inline-flex items-center transition disabled:cursor-not-allowed disabled:opacity-45 ${
-                    list.isLikedByCurrentUser ? "text-rose-300" : "hover:text-rose-300"
-                  }`}
-                  aria-label={t("lists:actions.like")}
-                >
-                  <Heart
-                    size={17}
-                    className={`transition ${
-                      list.isLikedByCurrentUser
-                        ? "fill-current"
-                        : "fill-transparent group-hover:fill-current"
-                    }`}
-                  />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsLikesOpen(true)}
-                  className="font-semibold transition hover:text-rose-300"
-                >
-                  {t("lists:detail.likeCount", { count: list.likeCount })}
-                </button>
-              </span>
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_20rem] lg:items-start">
+            <div className="min-w-0">
+              {list.canEditGames && (
+                <section className="mb-8 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 shadow-xl shadow-black/10 sm:p-6">
+                  <div className="flex items-center gap-2">
+                    <Plus size={19} className="text-violet-300" />
+                    <h2 className="font-black text-white">{t("lists:addGame.title")}</h2>
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-zinc-600">
+                    {t("lists:addGame.description")}
+                  </p>
 
-              <button
-                type="button"
-                onClick={() => setIsCommentsOpen((current) => !current)}
-                className={`inline-flex items-center gap-2 font-semibold transition hover:text-violet-300 ${
-                  isCommentsOpen ? "text-violet-300" : ""
-                }`}
-              >
-                <MessageCircle size={17} />
-                {t("lists:detail.commentCount", { count: list.commentCount })}
-              </button>
-            </div>
+                  <div className="relative mt-5">
+                    <Search
+                      size={18}
+                      className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600"
+                    />
+                    <input
+                      type="search"
+                      autoComplete="off"
+                      value={searchText}
+                      onChange={(event) => setSearchText(event.target.value)}
+                      placeholder={t("lists:addGame.placeholder")}
+                      className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.035] pl-11 pr-4 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/45 focus:ring-4 focus:ring-violet-500/10"
+                    />
+                  </div>
 
-            {isCommentsOpen && (
-              <InteractionCommentsPanel
-                contentType="game-list"
-                contentId={listId}
-                isAuthenticated={isAuthenticated}
-                placeholder={t("lists:comments.placeholder")}
-                emptyText={t("lists:comments.empty")}
-                invalidateQueryKeys={[
-                  ["game-list", listId],
-                  ["user-game-lists"],
-                ]}
-              />
-            )}
-          </section>
-
-          {list.canEditGames && (
-            <section className="mb-8 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 shadow-xl shadow-black/10 sm:p-6">
-              <div className="flex items-center gap-2">
-                <Plus size={19} className="text-violet-300" />
-                <h2 className="font-black text-white">{t("lists:addGame.title")}</h2>
-              </div>
-              <p className="mt-2 text-sm leading-6 text-zinc-600">
-                {t("lists:addGame.description")}
-              </p>
-
-              <div className="relative mt-5">
-                <Search
-                  size={18}
-                  className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-600"
-                />
-                <input
-                  type="search"
-                  autoComplete="off"
-                  value={searchText}
-                  onChange={(event) => setSearchText(event.target.value)}
-                  placeholder={t("lists:addGame.placeholder")}
-                  className="h-12 w-full rounded-2xl border border-white/[0.08] bg-white/[0.035] pl-11 pr-4 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-700 focus:border-violet-400/45 focus:ring-4 focus:ring-violet-500/10"
-                />
-              </div>
-
-              {normalizedSearch.length >= 2 && (
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {searchQuery.isLoading ? (
-                    <div className="col-span-full flex items-center justify-center gap-3 py-8 text-sm text-zinc-600">
-                      <LoaderCircle size={17} className="animate-spin" />
-                      {t("lists:addGame.searching")}
-                    </div>
-                  ) : searchQuery.isError ? (
-                    <p className="col-span-full py-6 text-center text-sm text-red-300">
-                      {t("lists:addGame.searchError")}
-                    </p>
-                  ) : searchResults.length === 0 ? (
-                    <p className="col-span-full py-6 text-center text-sm text-zinc-600">
-                      {t("lists:addGame.noResults")}
-                    </p>
-                  ) : (
-                    searchResults.map((game) => {
-                      const isAdded = currentGameKeys.has(`${game.source}:${game.id}`);
-                      return (
-                        <div
-                          key={`${game.source}-${game.id}`}
-                          className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3"
-                        >
-                          <GameCover title={game.title} coverImageUrl={game.coverImageUrl} />
-                          <div className="min-w-0 flex-1">
-                            <p className="line-clamp-2 text-sm font-bold text-zinc-100">
-                              {game.title}
-                            </p>
-                            <p className="mt-2 text-xs text-zinc-600">
-                              {getReleaseYear(game.releaseDate)}
-                            </p>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => addMutation.mutate(game)}
-                            disabled={isAdded || addMutation.isPending}
-                            className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-violet-600 px-3 text-xs font-bold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.05] disabled:text-zinc-600"
-                          >
-                            {isAdded ? <Check size={15} /> : <Plus size={15} />}
-                            {isAdded
-                              ? t("lists:addGame.added")
-                              : t("lists:addGame.add")}
-                          </button>
+                  {normalizedSearch.length >= 2 && (
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      {searchQuery.isLoading ? (
+                        <div className="col-span-full flex items-center justify-center gap-3 py-8 text-sm text-zinc-600">
+                          <LoaderCircle size={17} className="animate-spin" />
+                          {t("lists:addGame.searching")}
                         </div>
-                      );
-                    })
+                      ) : searchQuery.isError ? (
+                        <p className="col-span-full py-6 text-center text-sm text-red-300">
+                          {t("lists:addGame.searchError")}
+                        </p>
+                      ) : searchResults.length === 0 ? (
+                        <p className="col-span-full py-6 text-center text-sm text-zinc-600">
+                          {t("lists:addGame.noResults")}
+                        </p>
+                      ) : (
+                        searchResults.map((game) => {
+                          const isAdded = currentGameKeys.has(`${game.source}:${game.id}`);
+                          return (
+                            <div
+                              key={`${game.source}-${game.id}`}
+                              className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3"
+                            >
+                              <GameCover title={game.title} coverImageUrl={game.coverImageUrl} />
+                              <div className="min-w-0 flex-1">
+                                <p className="line-clamp-2 text-sm font-bold text-zinc-100">
+                                  {game.title}
+                                </p>
+                                <p className="mt-2 text-xs text-zinc-600">
+                                  {getReleaseYear(game.releaseDate)}
+                                </p>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => addMutation.mutate(game)}
+                                disabled={isAdded || addMutation.isPending}
+                                className="flex h-10 shrink-0 items-center gap-2 rounded-xl bg-violet-600 px-3 text-xs font-bold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.05] disabled:text-zinc-600"
+                              >
+                                {isAdded ? <Check size={15} /> : <Plus size={15} />}
+                                {isAdded
+                                  ? t("lists:addGame.added")
+                                  : t("lists:addGame.add")}
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   )}
+                </section>
+              )}
+
+              {list.games.length > 0 && (
+                <div className="relative z-40 mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
+                  <span className="text-sm font-medium text-zinc-500">
+                    {t("lists:detail.gameCount", { count: list.gameCount })}
+                  </span>
+
+                  <div
+                    ref={displayMenuRef}
+                    className="relative flex items-center gap-2"
+                  >
+                    <span className="text-xs font-semibold text-zinc-600">
+                      {t("lists:display.label")}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setIsDisplayMenuOpen((current) => !current)}
+                      className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/[0.08] bg-[#101015] px-3 text-sm font-bold text-zinc-200 transition hover:border-violet-300/25 hover:bg-white/[0.045]"
+                      aria-expanded={isDisplayMenuOpen}
+                      aria-haspopup="menu"
+                    >
+                      {displayMode === "grid" ? (
+                        <Grid2X2 size={16} className="text-violet-300" />
+                      ) : (
+                        <Rows3 size={17} className="text-violet-300" />
+                      )}
+                      {displayMode === "grid"
+                        ? t("lists:display.grid")
+                        : t("lists:display.detail")}
+                      <ChevronDown
+                        size={15}
+                        className={`text-zinc-500 transition ${
+                          isDisplayMenuOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {isDisplayMenuOpen && (
+                      <div
+                        role="menu"
+                        className="game-list-display-menu absolute right-0 top-12 z-50 w-56 overflow-hidden rounded-2xl border border-white/[0.09] bg-[#14141a] p-2 shadow-[0_24px_70px_rgba(0,0,0,0.55)]"
+                      >
+                        <button
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={displayMode === "grid"}
+                          onClick={() => {
+                            setDisplayMode("grid");
+                            setIsDisplayMenuOpen(false);
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.055]"
+                        >
+                          <Grid2X2 size={17} className="text-violet-300" />
+                          <span className="flex-1">{t("lists:display.grid")}</span>
+                          {displayMode === "grid" && (
+                            <Check size={16} className="text-violet-300" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          role="menuitemradio"
+                          aria-checked={displayMode === "detail"}
+                          onClick={() => {
+                            setDisplayMode("detail");
+                            setIsDisplayMenuOpen(false);
+                          }}
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.055]"
+                        >
+                          <Rows3 size={18} className="text-violet-300" />
+                          <span className="flex-1">{t("lists:display.detail")}</span>
+                          {displayMode === "detail" && (
+                            <Check size={16} className="text-violet-300" />
+                          )}
+                        </button>
+
+                        <div className="my-2 border-t border-white/[0.07]" />
+
+                        <button
+                          type="button"
+                          role="menuitemcheckbox"
+                          aria-checked={fadePlayedGames}
+                          disabled={!isAuthenticated}
+                          onClick={() => setFadePlayedGames((current) => !current)}
+                          className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.055] disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          <EyeOff size={17} className="text-zinc-400" />
+                          <span className="flex-1">{t("lists:display.fadePlayed")}</span>
+                          <span
+                            className={`flex h-5 w-5 items-center justify-center rounded-md border transition ${
+                              fadePlayedGames
+                                ? "border-violet-400/50 bg-violet-500 text-white"
+                                : "border-white/[0.14] bg-white/[0.025]"
+                            }`}
+                          >
+                            {fadePlayedGames && <Check size={13} />}
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               )}
-            </section>
-          )}
 
-          {list.isRanked && list.canEditGames && list.games.length > 1 && (
-            <div className="mb-4 flex items-center gap-2 rounded-2xl border border-violet-300/10 bg-violet-500/[0.05] px-4 py-3 text-xs text-violet-200/75">
-              <GripVertical size={16} />
-              {t("lists:drag.hint")}
-            </div>
-          )}
+              {list.games.length === 0 ? (
+                <div className="rounded-3xl border border-dashed border-white/[0.08] p-14 text-center">
+                  <ListChecks size={34} className="mx-auto text-zinc-700" />
+                  <h2 className="mt-4 font-bold text-zinc-300">
+                    {t("lists:empty.title")}
+                  </h2>
+                  <p className="mt-2 text-sm text-zinc-600">
+                    {list.canEditGames
+                      ? t("lists:empty.editor")
+                      : t("lists:empty.viewer")}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {displayMode === "grid" ? (
+                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+                      {visibleGames.map((game, index) => {
+                        const globalIndex = pageStartIndex + index;
+                        const rankPosition = globalIndex + 1;
+                        const key = gameKey(game);
+                        const isDragging = draggedGameKey === key;
+                        const imageUrl = resolveAssetUrl(game.coverImageUrl);
+                        const shouldFade =
+                          fadePlayedGames && game.currentUserStatus === "Played";
+                        const statusBadgeStyles = game.currentUserStatus
+                          ? getStatusBadgeStyles(game.currentUserStatus)
+                          : null;
 
-          {list.games.length === 0 ? (
-            <div className="rounded-3xl border border-dashed border-white/[0.08] p-14 text-center">
-              <ListChecks size={34} className="mx-auto text-zinc-700" />
-              <h2 className="mt-4 font-bold text-zinc-300">
-                {t("lists:empty.title")}
-              </h2>
-              <p className="mt-2 text-sm text-zinc-600">
-                {list.canEditGames
-                  ? t("lists:empty.editor")
-                  : t("lists:empty.viewer")}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {list.games.map((game, index) => {
-                const rankPosition = list.isRanked ? index + 1 : game.position ?? index + 1;
-                const key = gameKey(game);
-                const isDragging = draggedGameKey === key;
+                        return (
+                          <article
+                            key={key}
+                            draggable={list.isRanked && list.canEditGames && !reorderMutation.isPending}
+                            onDragStart={(event) => {
+                              setDraggedGameKey(key);
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData("text/plain", key);
+                            }}
+                            onDragOver={(event) => {
+                              if (list.isRanked && list.canEditGames) {
+                                event.preventDefault();
+                                event.dataTransfer.dropEffect = "move";
+                              }
+                            }}
+                            onDrop={(event) => {
+                              event.preventDefault();
+                              handleDrop(globalIndex);
+                            }}
+                            onDragEnd={() => setDraggedGameKey(null)}
+                            className={`group relative flex h-full flex-col ${
+                              list.isRanked ? "pt-6" : ""
+                            } transition duration-200 ${
+                              list.isRanked && list.canEditGames
+                                ? "cursor-grab active:cursor-grabbing"
+                                : ""
+                            } ${
+                              isDragging
+                                ? "scale-[0.98] opacity-45"
+                                : "hover:-translate-y-1"
+                            }`}
+                          >
+                            {list.isRanked && rankPosition === 1 && (
+                              <span className="pointer-events-none absolute left-1/2 top-0 z-20 flex h-6 w-6 -translate-x-1/2 items-center justify-center text-amber-300 drop-shadow-[0_0_7px_rgba(245,158,11,0.45)]">
+                                <Crown size={23} strokeWidth={2.1} />
+                              </span>
+                            )}
 
-                return (
-                  <article
-                    key={key}
-                    draggable={list.isRanked && list.canEditGames && !reorderMutation.isPending}
-                    onDragStart={(event) => {
-                      setDraggedGameKey(key);
-                      event.dataTransfer.effectAllowed = "move";
-                      event.dataTransfer.setData("text/plain", key);
-                    }}
-                    onDragOver={(event) => {
-                      if (list.isRanked && list.canEditGames) {
-                        event.preventDefault();
-                        event.dataTransfer.dropEffect = "move";
-                      }
-                    }}
-                    onDrop={(event) => {
-                      event.preventDefault();
-                      handleDrop(index);
-                    }}
-                    onDragEnd={() => setDraggedGameKey(null)}
-                    className={`group flex items-center gap-4 rounded-3xl border bg-[#101015] p-4 shadow-lg shadow-black/10 transition sm:p-5 ${
-                      isDragging
-                        ? "scale-[0.99] border-violet-400/35 opacity-50"
-                        : "border-white/[0.07] hover:border-white/[0.12]"
-                    }`}
-                  >
-                    {list.isRanked && list.canEditGames && (
-                      <span
-                        className="flex h-12 w-8 shrink-0 cursor-grab items-center justify-center rounded-xl text-zinc-700 transition group-hover:bg-white/[0.04] group-hover:text-zinc-400 active:cursor-grabbing"
-                        aria-label={t("lists:drag.handle")}
-                      >
-                        <GripVertical size={20} />
-                      </span>
-                    )}
+                            <div className="relative">
+                              <Link
+                                to={`/games/${game.source}/${game.id}`}
+                                className={`relative block aspect-[3/4] w-full overflow-hidden rounded-2xl border bg-[#101015] shadow-xl shadow-black/20 transition duration-300 ${
+                                  isDragging
+                                    ? "border-violet-400/40"
+                                    : "border-white/[0.08] group-hover:border-violet-300/30 group-hover:shadow-violet-950/30"
+                                } ${
+                                  shouldFade
+                                    ? "opacity-[0.34] grayscale brightness-[0.72] saturate-0 group-hover:opacity-100 group-hover:grayscale-0 group-hover:brightness-100 group-hover:saturate-100"
+                                    : ""
+                                }`}
+                                aria-label={game.title}
+                              >
+                                {imageUrl ? (
+                                  <img
+                                    src={imageUrl}
+                                    alt={game.title}
+                                    className="h-full w-full object-cover transition duration-500 group-hover:scale-105 group-hover:blur-[2px]"
+                                  />
+                                ) : (
+                                  <span className="flex h-full w-full items-center justify-center text-zinc-700 transition duration-300 group-hover:blur-[2px]">
+                                    <Gamepad2 size={36} />
+                                  </span>
+                                )}
 
-                    {list.isRanked && (
-                      <div className="relative flex h-[4.5rem] w-14 shrink-0 items-end justify-center">
-                        {rankPosition === 1 && (
-                          <div className="absolute -top-3 left-1/2 z-10 -translate-x-1/2" aria-hidden="true">
-                            <svg
-                              viewBox="0 0 72 48"
-                              className="h-10 w-14 -rotate-3 overflow-visible drop-shadow-[0_0_10px_rgba(245,158,11,0.55)]"
+                                <span className="absolute inset-0 bg-black/0 transition duration-300 group-hover:bg-black/65" />
+                                <span className="absolute inset-0 flex items-center justify-center p-5 text-center">
+                                  <span className="game-cover-hover-title line-clamp-4 translate-y-2 text-sm font-black leading-6 text-white opacity-0 drop-shadow-lg transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">
+                                    {game.title}
+                                  </span>
+                                </span>
+                              </Link>
+
+                              {isProgressExpanded &&
+                                game.currentUserStatus &&
+                                statusBadgeStyles && (
+                                  <span
+                                    className={`pointer-events-none absolute right-2 top-2 z-20 inline-flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs font-bold shadow-lg shadow-black/25 backdrop-blur-md ${statusBadgeStyles.badge}`}
+                                  >
+                                    <span
+                                      className={`h-2 w-2 shrink-0 rounded-full ${statusBadgeStyles.dot}`}
+                                    />
+                                    <span className="truncate">
+                                      {statusBadgeLabels[game.currentUserStatus]}
+                                    </span>
+                                  </span>
+                                )}
+
+                              {list.canEditGames && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void handleRemoveGame(game);
+                                  }}
+                                  disabled={removeMutation.isPending}
+                                  className={`absolute right-2 z-30 flex h-9 w-9 items-center justify-center rounded-xl border border-red-300/15 bg-black/65 text-red-200 opacity-0 backdrop-blur-md transition hover:bg-red-500/25 group-hover:opacity-100 focus:opacity-100 disabled:opacity-40 ${
+                                    isProgressExpanded && game.currentUserStatus
+                                      ? "top-11"
+                                      : "top-2"
+                                  }`}
+                                  aria-label={t("lists:actions.removeGame")}
+                                >
+                                  <Trash2 size={15} />
+                                </button>
+                              )}
+
+                              {list.isRanked && list.canEditGames && (
+                                <span
+                                  className="pointer-events-none absolute bottom-2 right-2 z-20 flex h-9 w-9 items-center justify-center rounded-xl border border-white/[0.08] bg-black/55 text-zinc-300 opacity-0 backdrop-blur-md transition group-hover:opacity-100"
+                                  aria-hidden="true"
+                                >
+                                  <GripVertical size={17} />
+                                </span>
+                              )}
+                            </div>
+
+                            {list.isRanked && (
+                              <div className="mt-2 flex h-9 shrink-0 items-center justify-center">
+                                <span
+                                  className={`inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-3 text-sm font-black ${getRankBadgeClasses(rankPosition)}`}
+                                >
+                                  {rankPosition}
+                                </span>
+                              </div>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-white/[0.075] border-y border-white/[0.08]">
+                      {visibleGames.map((game, index) => {
+                        const globalIndex = pageStartIndex + index;
+                        const rankPosition = globalIndex + 1;
+                        const key = gameKey(game);
+                        const isDragging = draggedGameKey === key;
+                        const imageUrl = resolveAssetUrl(game.coverImageUrl);
+                        const shouldFade =
+                          fadePlayedGames && game.currentUserStatus === "Played";
+                        const statusBadgeStyles = game.currentUserStatus
+                          ? getStatusBadgeStyles(game.currentUserStatus)
+                          : null;
+
+                        return (
+                          <article
+                            key={key}
+                            draggable={list.isRanked && list.canEditGames && !reorderMutation.isPending}
+                            onDragStart={(event) => {
+                              setDraggedGameKey(key);
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData("text/plain", key);
+                            }}
+                            onDragOver={(event) => {
+                              if (list.isRanked && list.canEditGames) {
+                                event.preventDefault();
+                                event.dataTransfer.dropEffect = "move";
+                              }
+                            }}
+                            onDrop={(event) => {
+                              event.preventDefault();
+                              handleDrop(globalIndex);
+                            }}
+                            onDragEnd={() => setDraggedGameKey(null)}
+                            className={`relative flex min-h-36 items-center gap-4 py-4 ${
+                              list.isRanked && list.canEditGames
+                                ? "cursor-grab active:cursor-grabbing"
+                                : ""
+                            } ${
+                              shouldFade
+                                ? "opacity-[0.34] grayscale brightness-[0.72] saturate-0 transition duration-200 hover:opacity-100 hover:grayscale-0 hover:brightness-100 hover:saturate-100"
+                                : ""
+                            } ${isDragging ? "opacity-45" : ""}`}
+                          >
+                            <Link
+                              to={`/games/${game.source}/${game.id}`}
+                              className="flex h-28 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/[0.09] bg-[#101015]"
+                              aria-label={game.title}
                             >
-                              <defs>
-                                <linearGradient id="rank-crown-gold" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="#fff3a3" />
-                                  <stop offset="45%" stopColor="#fbbf24" />
-                                  <stop offset="100%" stopColor="#b45309" />
-                                </linearGradient>
-                              </defs>
-                              <path d="M8 37 4 13l17 11L36 4l15 20 17-11-4 24Z" fill="url(#rank-crown-gold)" stroke="#fde68a" strokeWidth="2" strokeLinejoin="round" />
-                              <path d="M10 37h52l-3 7H13Z" fill="#d97706" stroke="#fde68a" strokeWidth="2" strokeLinejoin="round" />
-                              <circle cx="21" cy="31" r="2.5" fill="#fff7cc" />
-                              <circle cx="36" cy="27" r="3" fill="#fff7cc" />
-                              <circle cx="51" cy="31" r="2.5" fill="#fff7cc" />
-                            </svg>
-                          </div>
-                        )}
-                        <span className={`flex h-12 w-12 items-center justify-center rounded-2xl border text-lg font-black ${getRankBadgeClasses(rankPosition)}`}>
-                          {rankPosition}
-                        </span>
-                      </div>
-                    )}
+                              {imageUrl ? (
+                                <img
+                                  src={imageUrl}
+                                  alt={game.title}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <Gamepad2 size={25} className="text-zinc-700" />
+                              )}
+                            </Link>
 
-                    <Link
-                      to={`/games/${game.source}/${game.id}`}
-                      className="flex min-w-0 flex-1 items-center gap-4"
+                            {list.isRanked && (
+                              <div className="relative flex h-14 w-12 shrink-0 items-end justify-center pb-1">
+                                {rankPosition === 1 && (
+                                  <span className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 text-amber-300 drop-shadow-[0_0_6px_rgba(245,158,11,0.4)]">
+                                    <Crown size={18} strokeWidth={2.1} />
+                                  </span>
+                                )}
+                                <span
+                                  className={`inline-flex h-9 min-w-9 items-center justify-center rounded-xl border px-2 text-sm font-black ${getRankBadgeClasses(rankPosition)}`}
+                                >
+                                  {rankPosition}
+                                </span>
+                              </div>
+                            )}
+
+                            <Link
+                              to={`/games/${game.source}/${game.id}`}
+                              className="min-w-0 flex-1 text-lg font-black leading-snug text-zinc-100 sm:text-xl"
+                            >
+                              {game.title}
+                            </Link>
+
+                            {isProgressExpanded &&
+                              game.currentUserStatus &&
+                              statusBadgeStyles && (
+                                <span
+                                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold shadow-lg shadow-black/20 ${statusBadgeStyles.badge}`}
+                                >
+                                  <span
+                                    className={`h-2 w-2 shrink-0 rounded-full ${statusBadgeStyles.dot}`}
+                                  />
+                                  {statusBadgeLabels[game.currentUserStatus]}
+                                </span>
+                              )}
+
+                            {list.canEditGames && (
+                              <div className="ml-auto flex shrink-0 items-center gap-2">
+                                {list.isRanked && (
+                                  <span
+                                    className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.025] text-zinc-500"
+                                    aria-label={t("lists:drag.handle")}
+                                  >
+                                    <GripVertical size={17} />
+                                  </span>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    void handleRemoveGame(game);
+                                  }}
+                                  disabled={removeMutation.isPending}
+                                  className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-300/15 bg-red-500/[0.055] text-red-200 disabled:opacity-40"
+                                  aria-label={t("lists:actions.removeGame")}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            )}
+                          </article>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {totalGamePages > 1 && (
+                    <nav
+                      className="mt-8 flex items-center justify-center gap-3"
+                      aria-label={t("lists:pagination.label")}
                     >
-                      <GameCover title={game.title} coverImageUrl={game.coverImageUrl} />
-                      <div className="min-w-0">
-                        <h2 className="line-clamp-2 text-base font-bold text-white transition hover:text-violet-200">
-                          {game.title}
-                        </h2>
-                        <div className="mt-3 flex flex-wrap items-center gap-4 text-xs text-zinc-600">
-                          <span>{getReleaseYear(game.releaseDate)}</span>
-                          {game.averageRating !== null && (
-                            <span className="inline-flex items-center gap-1.5 text-amber-300/80">
-                              <Star size={14} fill="currentColor" />
-                              {game.averageRating.toFixed(1)}
-                            </span>
-                          )}
-                          <span>
-                            {t("lists:detail.addedOn", {
-                              date: formatDate(game.addedAt),
-                            })}
-                          </span>
-                        </div>
-                      </div>
-                    </Link>
-
-                    {list.canEditGames && (
                       <button
                         type="button"
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              t("lists:confirm.removeGame", { name: game.title }),
-                            )
-                          ) {
-                            removeMutation.mutate(game);
-                          }
-                        }}
-                        disabled={removeMutation.isPending}
-                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-400/10 text-red-300/65 transition hover:bg-red-500/[0.08] hover:text-red-300 disabled:opacity-50"
-                        aria-label={t("lists:actions.removeGame")}
+                        onClick={() => goToPage(currentPage - 1)}
+                        disabled={currentPage === 1}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-[#101015] text-zinc-300 transition hover:border-violet-300/25 hover:text-violet-200 disabled:cursor-not-allowed disabled:opacity-35"
+                        aria-label={t("lists:pagination.previous")}
                       >
-                        <Trash2 size={16} />
+                        <ChevronLeft size={18} />
                       </button>
-                    )}
-                  </article>
-                );
-              })}
+
+                      <span className="min-w-28 text-center text-xs font-bold text-zinc-500">
+                        {t("lists:pagination.page", {
+                          current: currentPage,
+                          total: totalGamePages,
+                        })}
+                      </span>
+
+                      <button
+                        type="button"
+                        onClick={() => goToPage(currentPage + 1)}
+                        disabled={currentPage === totalGamePages}
+                        className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/[0.08] bg-[#101015] text-zinc-300 transition hover:border-violet-300/25 hover:text-violet-200 disabled:cursor-not-allowed disabled:opacity-35"
+                        aria-label={t("lists:pagination.next")}
+                      >
+                        <ChevronRight size={18} />
+                      </button>
+                    </nav>
+                  )}
+                </>
+              )}
             </div>
-          )}
+
+            <aside className="order-first min-w-0 lg:order-none lg:sticky lg:top-24">
+              <section className="overflow-hidden rounded-3xl border border-white/[0.08] bg-[#101015] shadow-xl shadow-black/15">
+                <div className="p-5">
+                  <Link
+                    to={`/users/${list.ownerUserName}`}
+                    className="flex items-center gap-3 rounded-2xl transition hover:bg-white/[0.025]"
+                  >
+                    <OwnerAvatar
+                      userName={list.ownerUserName}
+                      profileImageUrl={list.ownerProfileImageUrl}
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-black text-zinc-100">
+                        {list.ownerUserName}
+                      </span>
+                      <span className="mt-1 block text-[11px] font-semibold uppercase tracking-[0.15em] text-zinc-600">
+                        {t("lists:detail.listOwner")}
+                      </span>
+                    </span>
+                  </Link>
+
+                  <div className="mt-5 grid grid-cols-2 border-y border-white/[0.08] py-3 text-sm text-zinc-500">
+                    <span className="flex items-center justify-center gap-2 border-r border-white/[0.08]">
+                      <button
+                        type="button"
+                        disabled={!isAuthenticated || list.isOwner || likeMutation.isPending}
+                        onClick={() => likeMutation.mutate()}
+                        className={`group inline-flex items-center transition disabled:cursor-not-allowed disabled:opacity-45 ${
+                          list.isLikedByCurrentUser ? "text-rose-300" : "hover:text-rose-300"
+                        }`}
+                        aria-label={t("lists:actions.like")}
+                      >
+                        <Heart
+                          size={17}
+                          className={`transition ${
+                            list.isLikedByCurrentUser
+                              ? "fill-current"
+                              : "fill-transparent group-hover:fill-current"
+                          }`}
+                        />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsLikesOpen(true)}
+                        className="font-semibold transition hover:text-rose-300"
+                      >
+                        {t("lists:detail.likeCount", { count: list.likeCount })}
+                      </button>
+                    </span>
+
+                    <button
+                      type="button"
+                      onClick={() => setIsCommentsOpen((current) => !current)}
+                      className={`inline-flex items-center justify-center gap-2 font-semibold transition hover:text-violet-300 ${
+                        isCommentsOpen ? "text-violet-300" : ""
+                      }`}
+                    >
+                      <MessageCircle size={17} />
+                      {t("lists:detail.commentCount", { count: list.commentCount })}
+                    </button>
+                  </div>
+
+                  {isAuthenticated ? (
+                    <section className="game-list-progress-card mt-5 overflow-hidden rounded-2xl">
+                      <button
+                        type="button"
+                        onClick={() => setIsProgressExpanded((current) => !current)}
+                        className="flex w-full items-center justify-between gap-4 p-4 text-left"
+                        aria-expanded={isProgressExpanded}
+                      >
+                        <div className="min-w-0">
+                          <p className="game-list-progress-label text-xs font-semibold">
+                            {t("lists:progress.played")}
+                          </p>
+                          <p className="game-list-progress-value mt-1 text-sm font-black">
+                            {t("lists:progress.count", {
+                              played: playedGameCount,
+                              total: list.gameCount,
+                            })}
+                          </p>
+                          <span className="game-list-progress-toggle mt-2 inline-flex items-center gap-1.5 text-[11px] font-semibold">
+                            {isProgressExpanded
+                              ? t("lists:progress.hideDetails")
+                              : t("lists:progress.showDetails")}
+                            <ChevronDown
+                              size={13}
+                              className={`transition ${
+                                isProgressExpanded ? "rotate-180" : ""
+                              }`}
+                            />
+                          </span>
+                        </div>
+
+                        <div
+                          className="game-list-progress-ring flex h-16 w-16 shrink-0 items-center justify-center rounded-full p-[2px]"
+                          style={{
+                            background: `conic-gradient(var(--wp-accent) ${playedPercentage}%, color-mix(in srgb, var(--wp-border) 78%, transparent) ${playedPercentage}% 100%)`,
+                          }}
+                          aria-label={t("lists:progress.percentage", {
+                            percentage: playedPercentage,
+                          })}
+                        >
+                          <span className="game-list-progress-ring-center flex h-full w-full items-center justify-center rounded-full text-sm font-black">
+                            {playedPercentage}%
+                          </span>
+                        </div>
+                      </button>
+
+                      {isProgressExpanded && (
+                        <div className="game-list-progress-details border-t px-4 pb-4 pt-3">
+                          <div className="space-y-3">
+                            {statusProgressItems.map((item) => {
+                              const percentage = list.gameCount === 0
+                                ? 0
+                                : Math.round((item.count / list.gameCount) * 100);
+
+                              return (
+                                <div key={item.status}>
+                                  <div className="mb-1.5 flex items-center justify-between gap-3 text-xs">
+                                    <span className="game-list-progress-status-label font-semibold">
+                                      {item.label}
+                                    </span>
+                                    <span className="game-list-progress-status-count font-black">
+                                      {item.count}
+                                    </span>
+                                  </div>
+                                  <div className="game-list-progress-track h-1.5 overflow-hidden rounded-full">
+                                    <div
+                                      className={`h-full rounded-full ${item.barClassName}`}
+                                      style={{ width: `${percentage}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="game-list-progress-rating mt-4 flex items-center justify-between gap-3 border-t pt-3">
+                            <span className="game-list-progress-label text-xs font-semibold">
+                              {t("lists:progress.averageRating")}
+                            </span>
+                            <span className="game-list-progress-value inline-flex items-center gap-1.5 text-sm font-black">
+                              <Star
+                                size={16}
+                                className="fill-fuchsia-400 text-fuchsia-400"
+                              />
+                              {(averageUserRating ?? 0).toFixed(2)}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+                    </section>
+                  ) : (
+                    <div className="mt-5 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-4 text-xs leading-5 text-zinc-500">
+                      <Link
+                        to="/login"
+                        className="font-bold text-violet-300 transition hover:text-violet-200"
+                      >
+                        {t("lists:progress.signIn")}
+                      </Link>{" "}
+                      {t("lists:progress.signInDescription")}
+                    </div>
+                  )}
+
+                  <div className="game-list-updated-row mt-4 flex items-center justify-between gap-4 text-xs">
+                    <span>{t("lists:detail.lastUpdated")}</span>
+                    <span className="game-list-updated-value font-semibold">
+                      {formatLongDate(lastUpdatedAt)}
+                    </span>
+                  </div>
+                </div>
+
+                {isCommentsOpen && (
+                  <InteractionCommentsPanel
+                    contentType="game-list"
+                    contentId={listId}
+                    isAuthenticated={isAuthenticated}
+                    placeholder={t("lists:comments.placeholder")}
+                    emptyText={t("lists:comments.empty")}
+                    invalidateQueryKeys={[
+                      gameListQueryKey,
+                      ["user-game-lists"],
+                    ]}
+                  />
+                )}
+              </section>
+            </aside>
+          </div>
         </section>
       </main>
 

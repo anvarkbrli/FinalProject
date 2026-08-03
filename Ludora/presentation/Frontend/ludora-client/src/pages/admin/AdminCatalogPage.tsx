@@ -39,6 +39,8 @@ import {
   uploadAdminGameCover,
   type AdminCatalogKind,
   type AdminGameInput,
+  type CatalogReferenceInput,
+  type CompanyReferenceInput,
 } from "../../services/adminCatalogService";
 import {
   getGameById,
@@ -79,6 +81,17 @@ const gameTypes: GameType[] = [
   "Pack",
   "Update",
 ];
+
+const relationGameTypes: GameType[] = [
+  "DlcAddon",
+  "Expansion",
+  "StandaloneExpansion",
+  "Bundle",
+  "Remake",
+  "Remaster",
+];
+
+const gameTypesWithParent = new Set<GameType>(relationGameTypes);
 
 const emptyGameForm: AdminGameInput = {
   gameType: "MainGame",
@@ -279,6 +292,8 @@ function GamesCatalogPanel() {
         description: detail.description ?? "",
         releaseDate: detail.releaseDate ?? "",
         coverImageUrl: detail.coverImageUrl ?? "",
+        parentGameSource: detail.relatedGames.parentGame?.source,
+        parentGameId: detail.relatedGames.parentGame?.id,
         companyReferences: detail.companies.map((company) => ({
           source: company.source,
           id: company.id,
@@ -507,6 +522,57 @@ function GameEditor({
   relationPending: boolean;
   onAddRelation: () => void;
 }) {
+  const [parentSearch, setParentSearch] = useState("");
+  const [genreSearch, setGenreSearch] = useState("");
+  const [platformSearch, setPlatformSearch] = useState("");
+  const [companySearch, setCompanySearch] = useState("");
+  const requiresParent = gameTypesWithParent.has(form.gameType);
+  const parentGamesQuery = useQuery({
+    queryKey: ["admin", "catalog", "games", "parent-options", parentSearch],
+    queryFn: ({ signal }) =>
+      getGames(
+        {
+          searchName: parentSearch,
+          sortBy: "name_asc",
+          includeRelatedContent: false,
+          pageNumber: 1,
+          pageSize: 30,
+        },
+        signal,
+      ),
+    enabled: requiresParent,
+  });
+  const parentCandidates = (parentGamesQuery.data?.items ?? []).filter(
+    (game) =>
+      game.gameType === "MainGame" &&
+      !(
+        editor !== "new" &&
+        game.source === editor.source &&
+        game.id === editor.id
+      ),
+  );
+  const selectedParentValue =
+    form.parentGameSource && form.parentGameId
+      ? `${form.parentGameSource}:${form.parentGameId}`
+      : "";
+  const selectedParentInResults = parentCandidates.some(
+    (game) =>
+      game.source === form.parentGameSource && game.id === form.parentGameId,
+  );
+  const initialParent = editor === "new" ? null : editor.relatedGames.parentGame;
+  const genresQuery = useQuery({
+    queryKey: ["admin", "catalog", "genres", "game-editor-options"],
+    queryFn: ({ signal }) => getGameGenres(signal),
+  });
+  const platformsQuery = useQuery({
+    queryKey: ["admin", "catalog", "platforms", "game-editor-options"],
+    queryFn: ({ signal }) => getGamePlatforms(signal),
+  });
+  const companiesQuery = useQuery({
+    queryKey: ["admin", "catalog", "companies", "game-editor-options"],
+    queryFn: ({ signal }) => getGameCompanies(undefined, signal),
+  });
+
   return (
     <section className="rounded-2xl border border-violet-400/15 bg-violet-500/[0.04] p-5">
       <div className="flex items-center justify-between">
@@ -528,9 +594,19 @@ function GameEditor({
         <Field label="Kontent növü">
           <select
             value={form.gameType}
-            onChange={(event) =>
-              setForm({ ...form, gameType: event.target.value as GameType })
-            }
+            onChange={(event) => {
+              const gameType = event.target.value as GameType;
+              setForm({
+                ...form,
+                gameType,
+                parentGameSource: gameTypesWithParent.has(gameType)
+                  ? form.parentGameSource
+                  : undefined,
+                parentGameId: gameTypesWithParent.has(gameType)
+                  ? form.parentGameId
+                  : undefined,
+              });
+            }}
             className={inputClass}
           >
             {gameTypes.map((type) => (
@@ -540,6 +616,64 @@ function GameEditor({
             ))}
           </select>
         </Field>
+        {requiresParent && (
+          <Field label="Aid olduğu əsas oyun" wide>
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)]">
+              <input
+                type="search"
+                value={parentSearch}
+                onChange={(event) => setParentSearch(event.target.value)}
+                placeholder="Əsas oyunu adına görə axtar"
+                className={inputClass}
+              />
+              <select
+                value={selectedParentValue}
+                onChange={(event) => {
+                  const [source, id] = event.target.value.split(":");
+                  setForm({
+                    ...form,
+                    parentGameSource: source
+                      ? (source as CatalogSource)
+                      : undefined,
+                    parentGameId: id ? Number(id) : undefined,
+                  });
+                }}
+                className={inputClass}
+              >
+                <option value="">
+                  {parentGamesQuery.isPending
+                    ? "Əsas oyunlar yüklənir..."
+                    : "Əsas oyunu seç"}
+                </option>
+                {selectedParentValue && !selectedParentInResults && (
+                  <option value={selectedParentValue}>
+                    {initialParent?.source === form.parentGameSource &&
+                    initialParent?.id === form.parentGameId
+                      ? (initialParent?.title ?? selectedParentValue)
+                      : `${form.parentGameSource} #${form.parentGameId}`}
+                  </option>
+                )}
+                {parentCandidates.map((game) => (
+                  <option
+                    key={`${game.source}-${game.id}`}
+                    value={`${game.source}:${game.id}`}
+                  >
+                    {game.title} ({game.source})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <span className="mt-2 block text-xs leading-5 text-zinc-600">
+              Yaradılan kontent seçilmiş oyunun Related bölməsində avtomatik
+              görünəcək.
+            </span>
+            {parentGamesQuery.isError && (
+              <span className="mt-2 block text-xs text-red-300">
+                Əsas oyun siyahısı yüklənmədi. Axtarışı yenidən sınayın.
+              </span>
+            )}
+          </Field>
+        )}
         <Field label="Buraxılış tarixi">
           <input
             type="date"
@@ -580,10 +714,52 @@ function GameEditor({
             className="w-full resize-none rounded-xl border border-white/[0.08] bg-black/20 p-3 text-sm text-white outline-none focus:border-violet-500/50"
           />
         </Field>
+        <CatalogReferencePicker
+          label="Janrlar"
+          searchPlaceholder="Janr axtar..."
+          items={genresQuery.data ?? []}
+          selected={form.genreReferences}
+          search={genreSearch}
+          setSearch={setGenreSearch}
+          isLoading={genresQuery.isPending}
+          isError={genresQuery.isError}
+          onChange={(genreReferences) =>
+            setForm({ ...form, genreReferences })
+          }
+        />
+        <CatalogReferencePicker
+          label="Platformalar"
+          searchPlaceholder="Platforma axtar..."
+          items={platformsQuery.data ?? []}
+          selected={form.platformReferences}
+          search={platformSearch}
+          setSearch={setPlatformSearch}
+          isLoading={platformsQuery.isPending}
+          isError={platformsQuery.isError}
+          onChange={(platformReferences) =>
+            setForm({ ...form, platformReferences })
+          }
+        />
+        <CompanyReferencePicker
+          items={companiesQuery.data ?? []}
+          selected={form.companyReferences}
+          search={companySearch}
+          setSearch={setCompanySearch}
+          isLoading={companiesQuery.isPending}
+          isError={companiesQuery.isError}
+          onChange={(companyReferences) =>
+            setForm({ ...form, companyReferences })
+          }
+        />
       </div>
       <button
         type="button"
-        disabled={!form.title.trim() || isSaving}
+        disabled={
+          !form.title.trim() ||
+          isSaving ||
+          (requiresParent &&
+            (!form.parentGameSource || !form.parentGameId))
+        }
         onClick={onSave}
         className="mt-5 inline-flex h-11 items-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-bold text-white disabled:opacity-40"
       >
@@ -624,7 +800,7 @@ function GameEditor({
               }
               className={inputClass}
             >
-              {gameTypes.map((type) => (
+              {relationGameTypes.map((type) => (
                 <option key={type} value={type}>
                   {type}
                 </option>
@@ -643,6 +819,266 @@ function GameEditor({
       )}
     </section>
   );
+}
+
+function CatalogReferencePicker({
+  label,
+  searchPlaceholder,
+  items,
+  selected,
+  search,
+  setSearch,
+  isLoading,
+  isError,
+  onChange,
+}: {
+  label: string;
+  searchPlaceholder: string;
+  items: CatalogFilterItemDTO[];
+  selected: CatalogReferenceInput[];
+  search: string;
+  setSearch: (value: string) => void;
+  isLoading: boolean;
+  isError: boolean;
+  onChange: (value: CatalogReferenceInput[]) => void;
+}) {
+  const selectedKeys = new Set(
+    selected.map((reference) => catalogReferenceKey(reference)),
+  );
+  const normalizedSearch = search.trim().toLocaleLowerCase("az-AZ");
+  const filteredItems = items.filter((item) =>
+    item.name.toLocaleLowerCase("az-AZ").includes(normalizedSearch),
+  );
+
+  return (
+    <div>
+      <span className="mb-1.5 block text-xs font-medium text-zinc-500">
+        {label}
+      </span>
+      <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-black/20">
+        <div className="relative border-b border-white/[0.07]">
+          <Search
+            size={15}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder={searchPlaceholder}
+            className="h-10 w-full bg-transparent pl-9 pr-3 text-sm text-white outline-none"
+          />
+        </div>
+        <div className="max-h-48 space-y-1 overflow-y-auto p-2">
+          {isLoading ? (
+            <PickerStatus message="Siyahı yüklənir..." loading />
+          ) : isError ? (
+            <PickerStatus message="Siyahı yüklənmədi." error />
+          ) : filteredItems.length === 0 ? (
+            <PickerStatus message="Uyğun nəticə tapılmadı." />
+          ) : (
+            filteredItems.map((item) => {
+              const key = catalogReferenceKey(item);
+              const isSelected = selectedKeys.has(key);
+
+              return (
+                <label
+                  key={key}
+                  className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 text-sm transition hover:bg-white/[0.04]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() =>
+                      onChange(
+                        isSelected
+                          ? selected.filter(
+                              (reference) =>
+                                catalogReferenceKey(reference) !== key,
+                            )
+                          : [
+                              ...selected,
+                              { source: item.source, id: item.id },
+                            ],
+                      )
+                    }
+                    className="h-4 w-4 accent-violet-500"
+                  />
+                  <span className="min-w-0 flex-1 truncate text-zinc-300">
+                    {item.name}
+                  </span>
+                  <span className="text-[10px] font-semibold uppercase text-zinc-600">
+                    {item.source}
+                  </span>
+                </label>
+              );
+            })
+          )}
+        </div>
+      </div>
+      <p className="mt-1.5 text-xs text-zinc-600">
+        {selected.length} seçim
+      </p>
+    </div>
+  );
+}
+
+function CompanyReferencePicker({
+  items,
+  selected,
+  search,
+  setSearch,
+  isLoading,
+  isError,
+  onChange,
+}: {
+  items: CatalogFilterItemDTO[];
+  selected: CompanyReferenceInput[];
+  search: string;
+  setSearch: (value: string) => void;
+  isLoading: boolean;
+  isError: boolean;
+  onChange: (value: CompanyReferenceInput[]) => void;
+}) {
+  const normalizedSearch = search.trim().toLocaleLowerCase("az-AZ");
+  const filteredItems = items.filter((item) =>
+    item.name.toLocaleLowerCase("az-AZ").includes(normalizedSearch),
+  );
+  const roles: CompanyReferenceInput["role"][] = [
+    "Developer",
+    "Publisher",
+  ];
+
+  const toggleRole = (
+    item: CatalogFilterItemDTO,
+    role: CompanyReferenceInput["role"],
+  ) => {
+    const exists = selected.some(
+      (reference) =>
+        reference.source === item.source &&
+        reference.id === item.id &&
+        reference.role === role,
+    );
+
+    onChange(
+      exists
+        ? selected.filter(
+            (reference) =>
+              !(
+                reference.source === item.source &&
+                reference.id === item.id &&
+                reference.role === role
+              ),
+          )
+        : [
+            ...selected,
+            { source: item.source, id: item.id, role },
+          ],
+    );
+  };
+
+  return (
+    <div className="md:col-span-2">
+      <span className="mb-1.5 block text-xs font-medium text-zinc-500">
+        Şirkətlər
+      </span>
+      <div className="overflow-hidden rounded-xl border border-white/[0.08] bg-black/20">
+        <div className="relative border-b border-white/[0.07]">
+          <Search
+            size={15}
+            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-600"
+          />
+          <input
+            type="search"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Şirkət axtar..."
+            className="h-10 w-full bg-transparent pl-9 pr-3 text-sm text-white outline-none"
+          />
+        </div>
+        <div className="max-h-52 space-y-1 overflow-y-auto p-2">
+          {isLoading ? (
+            <PickerStatus message="Şirkətlər yüklənir..." loading />
+          ) : isError ? (
+            <PickerStatus message="Şirkətlər yüklənmədi." error />
+          ) : filteredItems.length === 0 ? (
+            <PickerStatus message="Uyğun şirkət tapılmadı." />
+          ) : (
+            filteredItems.map((item) => (
+              <div
+                key={catalogReferenceKey(item)}
+                className="flex flex-col gap-2 rounded-lg px-2.5 py-2 transition hover:bg-white/[0.04] sm:flex-row sm:items-center"
+              >
+                <span className="min-w-0 flex-1 truncate text-sm text-zinc-300">
+                  {item.name}
+                  <span className="ml-2 text-[10px] font-semibold uppercase text-zinc-600">
+                    {item.source}
+                  </span>
+                </span>
+                <div className="flex gap-2">
+                  {roles.map((role) => {
+                    const isSelected = selected.some(
+                      (reference) =>
+                        reference.source === item.source &&
+                        reference.id === item.id &&
+                        reference.role === role,
+                    );
+
+                    return (
+                      <button
+                        key={role}
+                        type="button"
+                        aria-pressed={isSelected}
+                        onClick={() => toggleRole(item, role)}
+                        className={`rounded-md border px-2.5 py-1 text-[11px] font-semibold transition ${
+                          isSelected
+                            ? "border-violet-400/40 bg-violet-500/20 text-violet-200"
+                            : "border-white/[0.08] text-zinc-500 hover:text-zinc-300"
+                        }`}
+                      >
+                        {role}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+      <p className="mt-1.5 text-xs text-zinc-600">
+        {selected.length} şirkət rolu seçilib
+      </p>
+    </div>
+  );
+}
+
+function PickerStatus({
+  message,
+  loading,
+  error,
+}: {
+  message: string;
+  loading?: boolean;
+  error?: boolean;
+}) {
+  return (
+    <div
+      className={`flex min-h-16 items-center justify-center gap-2 px-3 text-xs ${
+        error ? "text-red-300" : "text-zinc-600"
+      }`}
+    >
+      {loading && <LoaderCircle size={14} className="animate-spin" />}
+      {message}
+    </div>
+  );
+}
+
+function catalogReferenceKey(reference: {
+  source: CatalogSource;
+  id: number;
+}) {
+  return `${reference.source}:${reference.id}`;
 }
 
 function SimpleCatalogPanel({ kind }: { kind: AdminCatalogKind }) {

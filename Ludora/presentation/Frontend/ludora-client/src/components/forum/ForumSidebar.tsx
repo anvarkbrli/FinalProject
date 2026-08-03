@@ -23,7 +23,6 @@ export type ForumSection =
 interface ForumSidebarProps {
   activeSection: ForumSection;
   onSectionChange: (section: ForumSection) => void;
-  onCreateCommunity?: () => void;
 }
 
 const navigationItems = [
@@ -62,7 +61,6 @@ const navigationItems = [
 export function ForumSidebar({
   activeSection,
   onSectionChange,
-  onCreateCommunity,
 }: ForumSidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(() => {
     return localStorage.getItem(forumSidebarStorageKey) === "collapsed";
@@ -186,24 +184,6 @@ export function ForumSidebar({
         })}
       </nav>
 
-      {!isCompact && (
-        <div className="mt-auto rounded-2xl border border-violet-300/10 bg-gradient-to-br from-violet-500/[0.09] to-teal-300/[0.04] p-4">
-          <p className="text-xs font-semibold text-zinc-200">
-            Öz məkanını yarat
-          </p>
-          <p className="mt-1.5 text-[11px] leading-5 text-zinc-500">
-            Sevdiyin oyun ətrafında icma qur və oyunçuları bir araya gətir.
-          </p>
-          <button
-            type="button"
-            onClick={onCreateCommunity}
-            disabled={!onCreateCommunity}
-            className="mt-3 text-xs font-bold text-teal-300 transition hover:text-teal-200 disabled:cursor-not-allowed disabled:text-zinc-600"
-          >
-            İcma yarat
-          </button>
-        </div>
-      )}
     </>
   );
   }

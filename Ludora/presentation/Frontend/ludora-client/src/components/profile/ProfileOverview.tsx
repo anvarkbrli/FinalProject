@@ -32,7 +32,6 @@ interface ProfileOverviewProps {
   recentPlayedGamesLoading: boolean;
   favoriteGames: UserGameDTO[];
   favoriteGamesLoading: boolean;
-  canViewFavorites: boolean;
   onOpenFavorites: () => void;
   onOpenRecentPlayed: () => void;
   onOpenTopGenre: (genre: string) => void;
@@ -368,7 +367,6 @@ export function ProfileOverview({
   recentPlayedGamesLoading,
   favoriteGames,
   favoriteGamesLoading,
-  canViewFavorites,
   onOpenFavorites,
   onOpenRecentPlayed,
   onOpenTopGenre,
@@ -769,7 +767,7 @@ export function ProfileOverview({
         </div>
       </section>
 
-      <section className={`grid gap-5 ${canViewFavorites ? "xl:grid-cols-2" : ""}`}>
+      <section className="grid gap-5 xl:grid-cols-2">
         <GamePreviewPanel
           title="Son oynanan oyunlar"
           description="İstifadəçinin ən son tamamladığı 4 oyun."
@@ -779,16 +777,22 @@ export function ProfileOverview({
           onOpenAll={onOpenRecentPlayed}
         />
 
-        {canViewFavorites && (
-          <GamePreviewPanel
-            title="Sevimli oyunlar"
-            description="Yalnız sənə görünən sevimli oyun kolleksiyası."
-            games={favoritePreviewGames}
-            isLoading={favoriteGamesLoading}
-            emptyMessage="Hələ sevimli oyun yoxdur."
-            onOpenAll={onOpenFavorites}
-          />
-        )}
+        <GamePreviewPanel
+          title={language === "en" ? "Favorite games" : "Sevimli oyunlar"}
+          description={
+            language === "en"
+              ? "The favorite games selected by this user."
+              : "İstifadəçinin seçdiyi sevimli oyunlar."
+          }
+          games={favoritePreviewGames}
+          isLoading={favoriteGamesLoading}
+          emptyMessage={
+            language === "en"
+              ? "No favorite games yet."
+              : "Hələ sevimli oyun yoxdur."
+          }
+          onOpenAll={onOpenFavorites}
+        />
       </section>
 
       {selectedPlaytimePoint && (

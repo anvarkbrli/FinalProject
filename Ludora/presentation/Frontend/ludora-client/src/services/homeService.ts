@@ -6,15 +6,34 @@ import type {
   ForumCategoryDTO,
   GameListItemDTO,
   HomeDiscoveryDTO,
+  HomeInterestRecommendationsDTO,
+  HomeSocialDashboardDTO,
   PagedResultDTO,
 } from "../types/home";
 
 
-export async function getHomeDiscovery(): Promise<
+export async function getHomeDiscovery(
+  signal?: AbortSignal,
+): Promise<
   HomeDiscoveryDTO
 > {
   const response = await api.get<HomeDiscoveryDTO>(
     "/home/discovery",
+    { signal },
+  );
+
+  return response.data;
+}
+
+export async function getHomeInterestRecommendations(
+  signal?: AbortSignal,
+): Promise<HomeInterestRecommendationsDTO> {
+  const response = await api.get<HomeInterestRecommendationsDTO>(
+    "/home/interest-recommendations",
+    {
+      signal,
+      timeout: 120_000,
+    },
   );
 
   return response.data;
@@ -97,4 +116,16 @@ export async function markAnnouncementViewed(
   announcementId: number,
 ): Promise<void> {
   await api.post(`/announcements/${announcementId}/view`);
+}
+
+
+export async function getHomeSocialDashboard(
+  signal?: AbortSignal,
+): Promise<HomeSocialDashboardDTO> {
+  const response = await api.get<HomeSocialDashboardDTO>(
+    "/home/social",
+    { signal },
+  );
+
+  return response.data;
 }

@@ -255,6 +255,20 @@ export async function getUserGames(
 }
 
 
+export async function getUserFavoriteGames(
+  userId: string,
+  pageNumber: number,
+  pageSize: number,
+): Promise<PagedResultDTO<UserGameDTO>> {
+  const response = await api.get<
+    PagedResultDTO<UserGameDTO>
+  >(`/usergames/user/${userId}/favorites`, {
+    params: { pageNumber, pageSize },
+  });
+
+  return response.data;
+}
+
 export async function getUserPlaytimeStatistics(
   userId: string,
   period: UserPlaytimePeriod,

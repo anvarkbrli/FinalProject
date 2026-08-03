@@ -321,7 +321,7 @@ export function CommunityFeatureHub({
     }).format(new Date(value));
 
   return (
-    <section className="mt-6 overflow-hidden rounded-[26px] border border-white/[0.08] bg-[#0b1514]/90">
+    <section className="community-feature-hub mt-6 overflow-hidden rounded-[26px] border border-white/[0.08] bg-[#0b1514]/90">
       <div className="flex gap-1 border-b border-white/[0.07] p-2">
         {(["overview", "members", "events"] as Tab[]).map((item) => (
           <button

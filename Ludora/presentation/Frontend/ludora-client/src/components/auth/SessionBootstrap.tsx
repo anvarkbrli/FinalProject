@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, type ReactNode } from "react";
 import { restoreAuthSession } from "../../lib/api";
-import { applyTheme } from "../../lib/theme";
+import { applyTheme, getStoredTheme } from "../../lib/theme";
 import { useAuthStore } from "../../stores/authStore";
 
 interface SessionBootstrapProps {
@@ -17,7 +17,10 @@ export function SessionBootstrap({ children }: SessionBootstrapProps) {
   );
 
   useLayoutEffect(() => {
-    if (preferredTheme === "light" || preferredTheme === "dark") {
+    if (
+      getStoredTheme() === null &&
+      (preferredTheme === "light" || preferredTheme === "dark")
+    ) {
       applyTheme(preferredTheme);
     }
   }, [preferredTheme]);

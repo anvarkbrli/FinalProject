@@ -89,6 +89,14 @@ const operationLabels: Record<string, string> = {
     "Added related content to the game",
   "Oyundan əlaqəli kontenti sildi":
     "Removed related content from the game",
+  "Oyun örtük şəkli yüklədi": "Uploaded a game cover image",
+};
+
+const rawAdministrativeActionLabels: Record<string, [string, string]> = {
+  UploadCoverImage: [
+    "Oyun örtük şəkli yüklədi",
+    "Uploaded a game cover image",
+  ],
 };
 
 function getEnglishResourceNoun(resourceType?: string | null): string {
@@ -127,7 +135,17 @@ function localizeAdministrativeOperation(
     /^.+ üzrə “(.+)” əməliyyatını yerinə yetirdi$/,
   );
   if (fallbackMatch) {
-    return `Performed the “${fallbackMatch[1]}” action for the ${noun}`;
+    const rawAction = fallbackMatch[1];
+    const knownLabel = rawAdministrativeActionLabels[rawAction];
+    if (knownLabel) return knownLabel[1];
+
+    const readableAction = rawAction
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/[_-]+/g, " ")
+      .trim()
+      .toLowerCase();
+
+    return `Performed the “${readableAction}” action for the ${noun}`;
   }
 
   return operation;
@@ -155,6 +173,17 @@ export function getModerationActionTitle(
       actionType === "AdministrativeAction") &&
     entry.operation
   ) {
+    const rawActionMatch = entry.operation.match(
+      /^.+ üzrə “(.+)” əməliyyatını yerinə yetirdi$/,
+    );
+    const knownRawAction = rawActionMatch
+      ? rawAdministrativeActionLabels[rawActionMatch[1]]
+      : undefined;
+
+    if (knownRawAction) {
+      return knownRawAction[language === "en" ? 1 : 0];
+    }
+
     return language === "en"
       ? localizeAdministrativeOperation(
           entry.operation,
@@ -186,4 +215,24 @@ export function getModerationActionTitle(
       ? "Moderation action completed"
       : "Moderasiya əməliyyatı yerinə yetirildi")
   );
+}
+
+export function getModerationResourceSummary(
+  entry: ModeratorActionLog,
+  language: SupportedLanguage,
+): string | null {
+  if (!entry.resourceType) return null;
+
+  const isCoverUpload =
+    entry.operation === "Oyun örtük şəkli yüklədi" ||
+    entry.operation?.includes("UploadCoverImage") === true;
+
+  if (isCoverUpload) {
+    return language === "en" ? "Game cover image" : "Oyun örtük şəkli";
+  }
+
+  const typeLabel = getModerationResourceType(entry.resourceType, language);
+  if (entry.resourceName) return `${typeLabel}: ${entry.resourceName}`;
+  if (entry.resourceId) return `${typeLabel} #${entry.resourceId}`;
+  return typeLabel;
 }

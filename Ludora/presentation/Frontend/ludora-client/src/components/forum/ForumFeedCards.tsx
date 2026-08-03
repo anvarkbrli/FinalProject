@@ -26,6 +26,7 @@ import { InteractionCommentsPanel } from "../interactions/InteractionCommentsPan
 import { ContentReportButton } from "../reporting/ContentReportButton";
 import { ForumContentMenu } from "./ForumContentMenu";
 import { ForumMediaGallery } from "./ForumMediaGallery";
+import { DiscussionPollPreview } from "./DiscussionPollPreview";
 
 interface FeedCardProps {
   reason?: string;
@@ -153,6 +154,20 @@ export function DiscussionFeedCard({
             <p data-i18n-ignore className="mt-2 line-clamp-3 text-sm leading-6 text-zinc-500">
               {discussion.contentPreview}
             </p>
+          )}
+
+          {discussion.poll && !shouldHideSpoiler && (
+            <Link
+              to={`/forum/discussions/${discussion.slug}`}
+              className="block"
+              aria-label={
+                language === "en"
+                  ? `Open ${discussion.title} poll`
+                  : `${discussion.title} sorğusunu aç`
+              }
+            >
+              <DiscussionPollPreview poll={discussion.poll} compact />
+            </Link>
           )}
 
           {!shouldHideSpoiler && (

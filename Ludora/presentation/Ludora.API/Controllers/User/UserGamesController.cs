@@ -67,6 +67,22 @@ public class UserGamesController : ControllerBase
         return Ok(result);
     }
 
+    [Authorize]
+    [HttpGet("user/{userId:guid}/favorites")]
+    public async Task<ActionResult<PagedResultDTO<UserGameDTO>>> GetVisibleFavorites(
+        Guid userId,
+        [FromQuery] PaginationFilterDTO pagination,
+        CancellationToken cancellationToken)
+    {
+        var result = await _userGameService.GetVisibleFavoritesAsync(
+            userId,
+            GetCurrentUserId(),
+            pagination,
+            cancellationToken);
+
+        return Ok(result);
+    }
+
     [HttpGet("user/{userId:guid}/profile-collection")]
     public async Task<ActionResult<PagedResultDTO<ProfileGameEntryDTO>>> GetProfileCollection(
         Guid userId,

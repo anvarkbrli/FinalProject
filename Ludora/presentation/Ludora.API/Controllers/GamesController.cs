@@ -49,9 +49,10 @@ public sealed class GamesController : ControllerBase
 
     [Authorize(Roles = RoleNames.AdminOrModerator)]
     [HttpPost("cover-image")]
+    [Consumes("multipart/form-data")]
     [RequestSizeLimit(12 * 1024 * 1024)]
     public async Task<ActionResult<object>> UploadCoverImage(
-        [FromForm] IFormFile image,
+        IFormFile image,
         CancellationToken cancellationToken)
     {
         if (image is null || image.Length <= 0)

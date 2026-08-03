@@ -14,6 +14,7 @@ import {
   MonitorSmartphone,
   Moon,
   RefreshCw,
+  Settings,
   ShieldCheck,
   Sun,
   Trash2,
@@ -56,6 +57,7 @@ import {
   syncSteamOwnedGames,
 } from "../services/steamService";
 import { useAuthStore } from "../stores/authStore";
+import type { UserSettingsDTO } from "../types/settings";
 import type { SteamConnectionMessage } from "../types/steam";
 
 type SettingsSection =
@@ -469,6 +471,25 @@ export function SettingsPage() {
   const lastSteamSyncAt =
     steamConnectionQuery.data?.lastSyncedAtUtc;
 
+  const syncAuthenticatedUserSettings = (
+    updatedSettings: UserSettingsDTO,
+    expectedUserId: string | undefined,
+  ) => {
+    const activeUser = useAuthStore.getState().user;
+
+    if (!activeUser || activeUser.id !== expectedUserId) return;
+
+    const updatedUser = {
+      ...activeUser,
+      isPrivate: updatedSettings.isPrivate,
+      preferredLanguage: updatedSettings.preferredLanguage,
+      preferredTheme: updatedSettings.preferredTheme,
+    };
+
+    setUser(updatedUser);
+    queryClient.setQueryData(["current-user"], updatedUser);
+  };
+
   useEffect(() => {
     if (!lastSteamSyncAt) return;
 
@@ -488,10 +509,9 @@ export function SettingsPage() {
 
   const privacyMutation = useMutation({
     mutationFn: updateUserSettings,
-    onSuccess: async (settings) => {
-      if (userQuery.data) {
-        setUser({ ...userQuery.data, isPrivate: settings.isPrivate });
-      }
+    onMutate: () => ({ userId: useAuthStore.getState().user?.id }),
+    onSuccess: async (settings, _variables, context) => {
+      syncAuthenticatedUserSettings(settings, context.userId);
       setAreaNotice("privacy", {
         type: "success",
         message: "Məxfilik seçimi yeniləndi.",
@@ -516,16 +536,13 @@ export function SettingsPage() {
       applyTheme(nextTheme);
       setTheme(nextTheme);
       setAreaNotice("appearance", null);
-      return { previousTheme };
+      return {
+        previousTheme,
+        userId: useAuthStore.getState().user?.id,
+      };
     },
-    onSuccess: (updatedSettings) => {
-      if (userQuery.data) {
-        setUser({
-          ...userQuery.data,
-          preferredLanguage: updatedSettings.preferredLanguage,
-          preferredTheme: updatedSettings.preferredTheme,
-        });
-      }
+    onSuccess: (updatedSettings, _nextTheme, context) => {
+      syncAuthenticatedUserSettings(updatedSettings, context.userId);
 
       queryClient.setQueryData(["user-settings"], updatedSettings);
       setAreaNotice("appearance", {
@@ -536,6 +553,10 @@ export function SettingsPage() {
       });
     },
     onError: (error, _nextTheme, context) => {
+      const activeUserId = useAuthStore.getState().user?.id;
+
+      if (context?.userId && activeUserId !== context.userId) return;
+
       const previousTheme = context?.previousTheme ?? "dark";
       applyTheme(previousTheme);
       setTheme(previousTheme);
@@ -786,7 +807,7 @@ export function SettingsPage() {
         <div className="mt-6 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-start gap-4">
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-500/12 text-violet-300">
-              <ShieldCheck size={22} />
+              <Settings size={22} />
             </span>
             <div>
               <h1 className="text-3xl font-bold tracking-tight text-white">Parametrlər</h1>

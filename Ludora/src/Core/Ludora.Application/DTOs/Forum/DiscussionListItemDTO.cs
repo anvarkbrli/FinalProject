@@ -9,6 +9,7 @@ public record DiscussionListItemDTO
     public string Slug { get; init; } = string.Empty;
     public string ContentPreview { get; init; } = string.Empty;
     public IReadOnlyList<DiscussionMediaDTO> Media { get; init; } = [];
+    public DiscussionPollPreviewDTO? Poll { get; init; }
 
     public int CategoryId { get; init; }
     public string CategoryName { get; init; } = string.Empty;
@@ -42,4 +43,20 @@ public record DiscussionListItemDTO
 
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
+}
+
+public sealed record DiscussionPollPreviewDTO
+{
+    public int Id { get; init; }
+    public string Question { get; init; } = string.Empty;
+    public DateTime EndsAtUtc { get; init; }
+    public bool IsClosed { get; init; }
+    public IReadOnlyList<DiscussionPollPreviewOptionDTO> Options { get; init; } = [];
+}
+
+public sealed record DiscussionPollPreviewOptionDTO
+{
+    public int Id { get; init; }
+    public string Text { get; init; } = string.Empty;
+    public int DisplayOrder { get; init; }
 }

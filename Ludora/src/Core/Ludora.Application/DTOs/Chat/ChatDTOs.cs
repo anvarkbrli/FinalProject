@@ -214,6 +214,14 @@ public sealed record ChatConversationArchiveChangedDTO
     public DateTime? ArchivedAtUtc { get; init; }
 }
 
+public sealed record ChatConversationDeletedDTO
+{
+    public long ConversationId { get; init; }
+    public Guid UserId { get; init; }
+    public int DeletedMessageCount { get; init; }
+    public DateTime DeletedAtUtc { get; init; }
+}
+
 public sealed record ChatConversationParticipantsDTO
 {
     public long ConversationId { get; init; }

@@ -284,7 +284,7 @@ export function Navbar() {
               className="order-3 flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-violet-950/30 transition hover:bg-violet-500"
             >
               <Plus size={17} />
-              Rəy əlavə et
+              {language === "en" ? "Log a game" : "Oyun log et"}
             </button>
           )}
 
@@ -566,7 +566,7 @@ export function Navbar() {
                   className="mt-2 flex items-center justify-center gap-3 rounded-xl bg-violet-600 px-4 py-3 text-sm font-bold text-white transition hover:bg-violet-500"
                 >
                   <Plus size={17} />
-                  Rəy əlavə et
+                  {language === "en" ? "Log a game" : "Oyun log et"}
                 </button>
 
                 {user && (

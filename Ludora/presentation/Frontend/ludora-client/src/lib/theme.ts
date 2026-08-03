@@ -6,14 +6,13 @@ function isWellPlaydTheme(value: unknown): value is WellPlaydTheme {
   return value === "light" || value === "dark";
 }
 
-export function getPreferredTheme(): WellPlaydTheme {
+export function getStoredTheme(): WellPlaydTheme | null {
   const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  return isWellPlaydTheme(savedTheme) ? savedTheme : null;
+}
 
-  if (isWellPlaydTheme(savedTheme)) {
-    return savedTheme;
-  }
-
-  return "dark";
+export function getPreferredTheme(): WellPlaydTheme {
+  return getStoredTheme() ?? "dark";
 }
 
 export function getActiveTheme(): WellPlaydTheme {

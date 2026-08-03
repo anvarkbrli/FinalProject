@@ -1,5 +1,6 @@
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.FpsEstimator;
+using Ludora.Application.DTOs.Home;
 
 namespace Ludora.Application.Interfaces;
 
@@ -17,6 +18,13 @@ public interface IUserService
     Task<ForumInterestProfileDTO> UpdateForumInterestsAsync(
         Guid userId,
         UpdateForumInterestProfileDTO dto,
+        CancellationToken cancellationToken = default);
+    Task<HomeInterestRecommendationsDTO?> GetSavedHomeInterestRecommendationsAsync(
+        Guid userId,
+        CancellationToken cancellationToken = default);
+    Task<HomeInterestRecommendationsDTO> SaveHomeInterestRecommendationsOnceAsync(
+        Guid userId,
+        HomeInterestRecommendationsDTO recommendations,
         CancellationToken cancellationToken = default);
     Task<CurrentUserDTO> UpdatePreferredLanguageAsync(
         Guid userId,

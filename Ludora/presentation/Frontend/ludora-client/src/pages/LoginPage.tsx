@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Eye,
@@ -66,6 +66,7 @@ const featureItems = [
 ];
 
 export function LoginPage() {
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -96,6 +97,7 @@ export function LoginPage() {
     mutationFn: login,
 
     onSuccess: (response) => {
+      queryClient.clear();
       setSession(response);
 
       const destination =

@@ -10,6 +10,7 @@ import { chatQueryKeys } from "../services/chatService";
 import { useAuthStore } from "../stores/authStore";
 import type {
   ChatConversationArchiveChangedDTO,
+  ChatConversationDeletedDTO,
   ChatMessageDTO,
   ChatMessageDeletedDTO,
   ChatMessagePinChangedDTO,
@@ -144,6 +145,18 @@ export function useChatRealtime(enabled: boolean) {
         refreshConversation(event.conversationId);
       },
     );
+    connection.on(
+      "ConversationDeleted",
+      (event: ChatConversationDeletedDTO) => {
+        refreshConversation(event.conversationId);
+        void queryClient.removeQueries({
+          queryKey: chatQueryKeys.messages(event.conversationId),
+        });
+        void queryClient.removeQueries({
+          queryKey: chatQueryKeys.pinnedMessages(event.conversationId),
+        });
+      },
+    );
     connection.on("ChatStreakUpdated", (event: ChatStreakUpdatedDTO) => {
       setLatestStreakEvent(event);
       if (streakTimerRef.current) window.clearTimeout(streakTimerRef.current);
@@ -230,6 +243,7 @@ export function useChatRealtime(enabled: boolean) {
       connection.off("MessageDeliveryChanged");
       connection.off("MessageRequestUpdated");
       connection.off("ConversationArchiveChanged");
+      connection.off("ConversationDeleted");
       connection.off("ChatStreakUpdated");
       connection.off("UserPresenceChanged");
       connection.off("ChatTyping");
