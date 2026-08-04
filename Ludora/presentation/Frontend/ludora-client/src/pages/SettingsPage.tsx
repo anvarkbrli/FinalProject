@@ -69,6 +69,31 @@ type SettingsSection =
   | "sessions"
   | "blocked";
 
+
+const HOME_WELCOME_VISIBILITY_KEY = "wellplayd:hide-home-welcome";
+
+function getHomeWelcomeHiddenPreference(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.localStorage.getItem(HOME_WELCOME_VISIBILITY_KEY) === "true";
+}
+
+function persistHomeWelcomeHiddenPreference(value: boolean): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(
+    HOME_WELCOME_VISIBILITY_KEY,
+    value ? "true" : "false",
+  );
+  window.dispatchEvent(
+    new CustomEvent("wellplayd:home-welcome-visibility-changed"),
+  );
+}
+
 const settingsSections: Array<{
   id: SettingsSection;
   label: string;
@@ -277,6 +302,9 @@ export function SettingsPage() {
   );
   const [fieldErrors, setFieldErrors] = useState<SettingsFieldErrors>({});
   const [theme, setTheme] = useState<WellPlaydTheme>(() => getActiveTheme());
+  const [hideHomeWelcome, setHideHomeWelcome] = useState(() =>
+    getHomeWelcomeHiddenPreference(),
+  );
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deletePassword, setDeletePassword] = useState("");
   const [deleteConfirmation, setDeleteConfirmation] = useState("");
@@ -289,6 +317,40 @@ export function SettingsPage() {
       return next;
     });
   }, []);
+
+
+
+  const handleHomeWelcomeVisibilityToggle = useCallback(() => {
+    try {
+      const nextValue = !hideHomeWelcome;
+      persistHomeWelcomeHiddenPreference(nextValue);
+      setHideHomeWelcome(nextValue);
+      setAreaNotice(
+        "appearance",
+        {
+          type: "success",
+          message: nextValue
+            ? language === "en"
+              ? "The home welcome panel is now hidden."
+              : "Ana səhifədəki xoş gəldin paneli gizlədildi."
+            : language === "en"
+              ? "The home welcome panel is visible again."
+              : "Ana səhifədəki xoş gəldin paneli yenidən göstərilir.",
+        },
+      );
+    } catch {
+      setAreaNotice(
+        "appearance",
+        {
+          type: "error",
+          message:
+            language === "en"
+              ? "The home welcome panel preference could not be updated."
+              : "Ana səhifədəki xoş gəldin paneli seçimi yenilənmədi.",
+        },
+      );
+    }
+  }, [hideHomeWelcome, language, setAreaNotice]);
 
   const clearFieldError = (field: SettingsField) => {
     setFieldErrors((current) => {
@@ -1036,6 +1098,33 @@ export function SettingsPage() {
                   </span>
                 </span>
               </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-zinc-200">
+                    {language === "en" ? "Home welcome panel" : "Ana səhifə xoş gəldin paneli"}
+                  </h3>
+                  <p className="mt-1 text-xs leading-5 text-zinc-600">
+                    {language === "en"
+                      ? "Hide the welcome dashboard shown at the top of the home page. You can show it again at any time."
+                      : "Ana səhifənin yuxarısında görünən xoş gəldin panelini gizlət. İstədiyin vaxt yenidən göstərə bilərsən."}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={hideHomeWelcome}
+                  onClick={handleHomeWelcomeVisibilityToggle}
+                  className={`relative h-7 w-13 shrink-0 rounded-full transition ${hideHomeWelcome ? "bg-violet-600" : "bg-zinc-700"}`}
+                >
+                  <span
+                    className={`absolute top-1 h-5 w-5 rounded-full bg-white transition ${hideHomeWelcome ? "left-7" : "left-1"}`}
+                  />
+                </button>
+              </div>
             </div>
             <LocalNotice notice={notices.appearance} />
           </section>

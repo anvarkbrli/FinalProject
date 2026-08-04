@@ -82,7 +82,8 @@ public sealed class DiscussionService : IDiscussionService
         {
             query = query.Where(x =>
                 x.Title.Contains(search) ||
-                x.Content.Contains(search));
+                x.Content.Contains(search) ||
+                (x.User.UserName != null && x.User.UserName.Contains(search)));
         }
 
         if (categorySlug is not null)

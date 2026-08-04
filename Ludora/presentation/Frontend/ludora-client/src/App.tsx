@@ -9,6 +9,16 @@ const HomePage = lazy(() =>
     default: module.HomePage,
   })),
 );
+const AboutPage = lazy(() =>
+  import("./pages/AboutPage").then((module) => ({
+    default: module.AboutPage,
+  })),
+);
+const ContactPage = lazy(() =>
+  import("./pages/ContactPage").then((module) => ({
+    default: module.ContactPage,
+  })),
+);
 const LoginPage = lazy(() =>
   import("./pages/LoginPage").then((module) => ({
     default: module.LoginPage,
@@ -144,6 +154,11 @@ const AdminAnnouncementsPage = lazy(() =>
     default: module.AdminAnnouncementsPage,
   })),
 );
+const AdminContactMessagesPage = lazy(() =>
+  import("./pages/admin/AdminContactMessagesPage").then((module) => ({
+    default: module.AdminContactMessagesPage,
+  })),
+);
 const AdminAuditPage = lazy(() =>
   import("./pages/admin/AdminAuditPage").then((module) => ({
     default: module.AdminAuditPage,
@@ -201,6 +216,8 @@ function App() {
     <Suspense fallback={<RouteFallback />}>
       <Routes>
         <Route path="/" element={<HomePage />} />
+        <Route path="/about" element={<AboutPage />} />
+        <Route path="/contact" element={<ContactPage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/terms" element={<TermsPage />} />
@@ -288,6 +305,7 @@ function App() {
             element={<AdminAnnouncementsPage />}
           />
           <Route path="audit" element={<AdminAuditPage />} />
+          <Route path="contact-messages" element={<AdminContactMessagesPage />} />
           <Route path="forum" element={<AdminForumPage />} />
           <Route path="badges" element={<AdminBadgesPage />} />
           <Route path="catalog" element={<AdminCatalogPage />} />

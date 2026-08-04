@@ -153,6 +153,11 @@ public sealed class EmailOutboxWorker : BackgroundService
         try
         {
             await SendAsync(transport, message, cancellationToken);
+            await UpdateContactMessageStatusAsync(
+                context,
+                message,
+                ContactMessageStatus.Replied,
+                cancellationToken);
             message.ProcessedAtUtc = DateTime.UtcNow;
             message.LastError = null;
             message.NextAttemptAtUtc = null;
@@ -174,6 +179,11 @@ public sealed class EmailOutboxWorker : BackgroundService
             {
                 message.DeadLetteredAtUtc = DateTime.UtcNow;
                 message.NextAttemptAtUtc = null;
+                await UpdateContactMessageStatusAsync(
+                    context,
+                    message,
+                    ContactMessageStatus.ReplyFailed,
+                    cancellationToken);
                 _logger.LogError(
                     exception,
                     "Email outbox mesajı {MessageId} dead-letter edildi.",
@@ -218,9 +228,48 @@ public sealed class EmailOutboxWorker : BackgroundService
                     message.UserName,
                     message.ActionUrl,
                     cancellationToken),
+            EmailTemplateType.ContactMessageReply =>
+                transport.SendCustomEmailAsync(
+                    message.RecipientEmail,
+                    message.EmailSubject ?? throw new InvalidOperationException("Contact reply subject is missing."),
+                    message.PlainTextBody ?? throw new InvalidOperationException("Contact reply plain-text body is missing."),
+                    message.HtmlBody ?? throw new InvalidOperationException("Contact reply HTML body is missing."),
+                    cancellationToken),
             _ => throw new InvalidOperationException(
                 $"Dəstəklənməyən email template tipi: {message.TemplateType}")
         };
+
+    private static async Task UpdateContactMessageStatusAsync(
+        AppDbContext context,
+        EmailOutboxMessage message,
+        ContactMessageStatus status,
+        CancellationToken cancellationToken)
+    {
+        if (!message.ContactMessageId.HasValue)
+            return;
+
+        var contactMessage = await context.ContactMessages
+            .FirstOrDefaultAsync(
+                x => x.Id == message.ContactMessageId.Value,
+                cancellationToken);
+
+        if (contactMessage is null)
+            return;
+
+        var now = DateTime.UtcNow;
+        contactMessage.Status = status;
+        contactMessage.UpdatedAtUtc = now;
+
+        if (status == ContactMessageStatus.Replied)
+        {
+            contactMessage.RepliedAtUtc = now;
+            contactMessage.ClosedAtUtc = null;
+        }
+        else if (status == ContactMessageStatus.ReplyFailed)
+        {
+            contactMessage.RepliedAtUtc = null;
+        }
+    }
 
     private static TimeSpan GetRetryDelay(int attemptCount)
     {

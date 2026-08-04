@@ -110,6 +110,9 @@ public static class RateLimitingExtensions
             options.AddPolicy(
                 RateLimitPolicyNames.Chat,
                 context => TokenBucket(context, "chat", 30, 15, TimeSpan.FromSeconds(10), true));
+            options.AddPolicy(
+                RateLimitPolicyNames.Contact,
+                context => FixedWindow(context, "contact", 5, TimeSpan.FromHours(1), true));
         });
 
         return services;

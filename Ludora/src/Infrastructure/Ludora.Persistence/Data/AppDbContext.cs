@@ -68,6 +68,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<NotificationPreference> NotificationPreferences { get; set; }
     public DbSet<NotificationOutboxMessage> NotificationOutboxMessages { get; set; }
     public DbSet<EmailOutboxMessage> EmailOutboxMessages { get; set; }
+    public DbSet<ContactMessage> ContactMessages { get; set; }
     public DbSet<SteamLinkChallenge> SteamLinkChallenges { get; set; }
     public DbSet<SteamOwnedGame> SteamOwnedGames { get; set; }
     public DbSet<UserGamePlayLog> UserGamePlayLogs { get; set; }

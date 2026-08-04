@@ -274,7 +274,11 @@ public class UserService : IUserService
         var user = await _userManager.FindByIdOrThrowAsync(userId);
         var state = DeserializeForumInterestState(user.ForumInterestsJson);
         user.ForumInterestsJson = JsonSerializer.Serialize(
-            state with { Profile = profile });
+            state with
+            {
+                Profile = profile,
+                HomeRecommendations = null
+            });
 
         var result = await _userManager.UpdateAsync(user);
         result.ThrowIfFailed();
@@ -320,8 +324,14 @@ public class UserService : IUserService
         var user = await _userManager.FindByIdOrThrowAsync(userId);
         var state = DeserializeForumInterestState(user.ForumInterestsJson);
 
-        if (state.HomeRecommendations is { Items.Count: > 0 } existing)
+        if (state.HomeRecommendations is { Items.Count: > 0 } existing &&
+            string.Equals(
+                existing.Language,
+                recommendations.Language,
+                StringComparison.OrdinalIgnoreCase))
+        {
             return existing;
+        }
 
         if (state.Profile is null)
             throw new BadRequestException("Maraq seçimləri tamamlanmayıb.");

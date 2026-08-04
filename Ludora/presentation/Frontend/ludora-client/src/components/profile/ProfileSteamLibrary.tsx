@@ -1,4 +1,5 @@
 import {
+  ChevronLeft,
   ChevronRight,
   Clock3,
   Gamepad2,
@@ -7,7 +8,7 @@ import {
   RefreshCw,
   Unlink,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   getCurrentLanguage,
@@ -149,7 +150,18 @@ export function ProfileSteamLibrary({
   onSync,
   onResolvePlaytime,
 }: ProfileSteamLibraryProps) {
-  useI18n();
+  const { language } = useI18n();
+  const isEnglish = language === "en";
+  const gamesPerPage = 16;
+  const [currentPage, setCurrentPage] = useState(1);
+
+  const totalPages = Math.max(1, Math.ceil(games.length / gamesPerPage));
+  const activePage = Math.min(currentPage, totalPages);
+
+  const paginatedGames = useMemo(() => {
+    const startIndex = (activePage - 1) * gamesPerPage;
+    return games.slice(startIndex, startIndex + gamesPerPage);
+  }, [activePage, games]);
   if (isLoading) {
     return (
       <div className="flex items-center justify-center gap-3 py-20 text-sm text-zinc-500">
@@ -254,7 +266,7 @@ export function ProfileSteamLibrary({
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {games.map((game) => {
+          {paginatedGames.map((game) => {
             const gameHref =
               game.matchedGameSource && game.matchedGameId
                 ? `/games/${game.matchedGameSource}/${game.matchedGameId}`
@@ -328,6 +340,86 @@ export function ProfileSteamLibrary({
             );
           })}
         </div>
+      )}
+
+      {games.length > gamesPerPage && (
+        <nav
+          className="flex flex-col gap-3 rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-strong)] p-3 sm:flex-row sm:items-center sm:justify-between sm:px-4"
+          aria-label={isEnglish ? "Owned games pagination" : "Sahib olunan oyunların səhifələnməsi"}
+        >
+          <p className="text-center text-xs text-zinc-500 sm:text-left">
+            {isEnglish
+              ? `Page ${activePage} of ${totalPages} · ${games.length} games`
+              : `${activePage} / ${totalPages} səhifə · ${games.length} oyun`}
+          </p>
+
+          <div className="flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCurrentPage(Math.max(1, activePage - 1))}
+              disabled={activePage === 1}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 text-sm font-semibold text-zinc-300 transition hover:border-violet-400/25 hover:bg-violet-500/[0.08] hover:text-violet-200 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <ChevronLeft size={16} />
+              <span className="hidden sm:inline">
+                {isEnglish ? "Previous" : "Əvvəlki"}
+              </span>
+            </button>
+
+            <span className="inline-flex h-10 min-w-14 items-center justify-center rounded-xl border border-violet-400/30 bg-violet-500/[0.1] px-3 text-sm font-semibold text-violet-200 sm:hidden">
+              {activePage} / {totalPages}
+            </span>
+
+            <div className="hidden items-center gap-1 sm:flex">
+              {Array.from({ length: totalPages }, (_, index) => index + 1)
+                .filter((page) =>
+                  totalPages <= 7 ||
+                  page === 1 ||
+                  page === totalPages ||
+                  Math.abs(page - activePage) <= 1,
+                )
+                .map((page, index, visiblePages) => {
+                  const previousPage = visiblePages[index - 1];
+                  const shouldShowEllipsis =
+                    previousPage !== undefined && page - previousPage > 1;
+
+                  return (
+                    <span key={page} className="flex items-center gap-1">
+                      {shouldShowEllipsis && (
+                        <span className="px-1 text-sm text-zinc-600">…</span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setCurrentPage(page)}
+                        aria-current={page === activePage ? "page" : undefined}
+                        className={`flex h-10 min-w-10 items-center justify-center rounded-xl border px-3 text-sm font-semibold transition ${
+                          page === activePage
+                            ? "border-violet-400/40 bg-violet-500/[0.12] text-violet-200"
+                            : "border-white/[0.07] bg-white/[0.02] text-zinc-500 hover:border-violet-400/25 hover:text-zinc-200"
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    </span>
+                  );
+                })}
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentPage(Math.min(totalPages, activePage + 1))
+              }
+              disabled={activePage === totalPages}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] px-3 text-sm font-semibold text-zinc-300 transition hover:border-violet-400/25 hover:bg-violet-500/[0.08] hover:text-violet-200 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <span className="hidden sm:inline">
+                {isEnglish ? "Next" : "Növbəti"}
+              </span>
+              <ChevronRight size={16} />
+            </button>
+          </div>
+        </nav>
       )}
     </div>
   );

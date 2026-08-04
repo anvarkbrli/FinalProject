@@ -24,6 +24,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
+import { useI18n } from "../../i18n/useI18n";
 import {
   estimateFps,
   getFpsEstimatorError,
@@ -234,6 +235,7 @@ export function FpsEstimatorModal({
   gameReleaseYear,
   onClose,
 }: FpsEstimatorModalProps) {
+  const { language } = useI18n();
   const queryClient = useQueryClient();
   const modalRef = useRef<HTMLFormElement>(null);
   const gpuInputRef = useRef<HTMLInputElement>(null);
@@ -549,6 +551,7 @@ export function FpsEstimatorModal({
     }));
 
     return {
+      language,
       gameId,
       gameName,
       gameReleaseYear,

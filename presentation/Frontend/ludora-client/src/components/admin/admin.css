@@ -1,0 +1,256 @@
+.admin-theme {
+  --admin-page: #f3f5fa;
+  --admin-page-deep: #e9edf5;
+  --admin-sidebar: rgba(255, 255, 255, 0.94);
+  --admin-header: rgba(248, 250, 253, 0.9);
+  --admin-card: rgba(255, 255, 255, 0.78);
+  --admin-card-strong: #ffffff;
+  --admin-card-soft: rgba(232, 237, 246, 0.76);
+  --admin-border: rgba(30, 41, 59, 0.1);
+  --admin-border-strong: rgba(30, 41, 59, 0.16);
+  --admin-shadow: 0 14px 38px rgba(37, 47, 75, 0.08);
+  min-height: 100vh;
+  color: var(--wp-text);
+  background:
+    radial-gradient(
+      circle at 82% 8%,
+      color-mix(in srgb, var(--wp-accent) 9%, transparent),
+      transparent 30rem
+    ),
+    linear-gradient(
+      145deg,
+      var(--admin-page) 0%,
+      var(--admin-page-deep) 100%
+    );
+}
+
+[data-theme="dark"] .admin-theme {
+  --admin-page: #07070a;
+  --admin-page-deep: #09090d;
+  --admin-sidebar: #0b0b0f;
+  --admin-header: rgba(8, 8, 12, 0.9);
+  --admin-card: rgba(255, 255, 255, 0.025);
+  --admin-card-strong: #111116;
+  --admin-card-soft: rgba(0, 0, 0, 0.2);
+  --admin-border: rgba(255, 255, 255, 0.06);
+  --admin-border-strong: rgba(255, 255, 255, 0.1);
+  --admin-shadow: none;
+}
+
+.admin-sidebar {
+  border-color: var(--admin-border) !important;
+  background-color: var(--admin-sidebar) !important;
+  box-shadow: 10px 0 36px rgba(35, 45, 72, 0.05);
+}
+
+[data-theme="dark"] .admin-sidebar {
+  box-shadow: none;
+}
+
+.admin-header {
+  border-color: var(--admin-border) !important;
+  background-color: var(--admin-header) !important;
+  box-shadow: 0 10px 28px rgba(35, 45, 72, 0.05);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+}
+
+[data-theme="dark"] .admin-header {
+  box-shadow: none;
+}
+
+.admin-main {
+  min-height: calc(100vh - 5rem);
+}
+
+.admin-moderation-grid {
+  background-color: var(--admin-border);
+}
+
+.admin-moderation-item {
+  background-color: var(--admin-card-strong);
+}
+
+.admin-moderation-item:hover {
+  background-color: color-mix(
+    in srgb,
+    var(--admin-card-strong) 94%,
+    var(--wp-accent)
+  );
+}
+
+.admin-moderation-icon {
+  color: var(--wp-text-muted);
+  background-color: var(--admin-card-soft);
+}
+
+[data-theme="light"] .admin-moderation-grid {
+  background-color: rgba(124, 104, 238, 0.13);
+}
+
+[data-theme="light"] .admin-moderation-item {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255, 255, 255, 0.98),
+      rgba(247, 248, 253, 0.94)
+    );
+}
+
+[data-theme="light"] .admin-moderation-item:hover {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(248, 246, 255, 1),
+      rgba(241, 247, 255, 0.98)
+    );
+  box-shadow:
+    inset 3px 0 0 color-mix(in srgb, var(--wp-accent) 72%, #ffffff),
+    0 10px 26px rgba(73, 63, 130, 0.08);
+}
+
+[data-theme="light"] .admin-moderation-icon {
+  color: color-mix(in srgb, var(--wp-accent) 82%, #293048);
+  background-color: color-mix(
+    in srgb,
+    var(--wp-accent) 10%,
+    #ffffff
+  );
+}
+
+[data-theme="light"] .admin-moderation-item:hover .admin-moderation-icon {
+  color: #ffffff;
+  background:
+    linear-gradient(
+      145deg,
+      color-mix(in srgb, var(--wp-accent) 92%, #ffffff),
+      #7c5cff
+    );
+}
+
+[data-theme="light"] .admin-theme :where(
+  [class~="bg-[#101014]"],
+  [class~="bg-[#111116]"],
+  [class~="bg-[#111117]"]
+) {
+  background-color: var(--admin-card-strong) !important;
+}
+
+[data-theme="light"] .admin-theme :where(
+  [class~="bg-[#09090d]"],
+  [class~="bg-[#0a0a0e]"],
+  [class~="bg-[#0d0d12]"]
+) {
+  background-color: color-mix(
+    in srgb,
+    var(--admin-card-strong) 86%,
+    var(--admin-page-deep)
+  ) !important;
+}
+
+[data-theme="light"] .admin-theme :where(
+  [class~="bg-black/10"],
+  [class~="bg-black/15"],
+  [class~="bg-black/20"],
+  [class~="bg-black/30"],
+  [class~="bg-black/40"],
+  [class~="bg-black/45"]
+) {
+  background-color: var(--admin-card-soft) !important;
+}
+
+[data-theme="light"] .admin-theme [class~="to-[#0b0b0f]"] {
+  --tw-gradient-to: var(--admin-card-strong) !important;
+}
+
+[data-theme="light"] .admin-theme :where(
+  section,
+  article
+)[class*="border-white"][class*="bg-white"] {
+  background-color: var(--admin-card) !important;
+  border-color: var(--admin-border) !important;
+  box-shadow: var(--admin-shadow);
+}
+
+[data-theme="light"] .admin-theme :where(
+  input,
+  textarea,
+  select
+) {
+  color: var(--wp-text-strong);
+}
+
+[data-theme="light"] .admin-theme :where(
+  input,
+  textarea
+)::placeholder {
+  color: color-mix(
+    in srgb,
+    var(--wp-text-muted) 78%,
+    transparent
+  );
+}
+
+[data-theme="light"] .admin-theme :where(
+  [class~="shadow-black/50"],
+  [class~="shadow-black/60"],
+  [class~="shadow-black/70"]
+) {
+  box-shadow: var(--wp-shadow-floating) !important;
+}
+
+.admin-filter-select__button {
+  color: var(--wp-text-strong);
+  border: 1px solid var(--admin-border-strong);
+  background: color-mix(in srgb, var(--admin-card-strong) 94%, transparent);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+.admin-filter-select__button:hover,
+.admin-filter-select__button[aria-expanded="true"] {
+  border-color: color-mix(in srgb, var(--wp-accent) 56%, var(--admin-border));
+  background: color-mix(in srgb, var(--admin-card-strong) 90%, var(--wp-accent) 10%);
+}
+
+.admin-filter-select__button:focus-visible {
+  border-color: color-mix(in srgb, var(--wp-accent) 72%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--wp-accent) 15%, transparent);
+}
+
+.admin-filter-select__leading-icon,
+.admin-filter-select__chevron {
+  color: var(--wp-text-muted);
+}
+
+.admin-filter-select__menu {
+  color: var(--wp-text);
+  border: 1px solid var(--admin-border-strong);
+  background: color-mix(in srgb, var(--admin-card-strong) 97%, transparent);
+  box-shadow: var(--wp-shadow-floating);
+  backdrop-filter: blur(18px) saturate(145%);
+  -webkit-backdrop-filter: blur(18px) saturate(145%);
+}
+
+.admin-filter-select__option {
+  color: var(--wp-text);
+}
+
+.admin-filter-select__option:hover {
+  color: var(--wp-text-strong);
+  background: color-mix(in srgb, var(--wp-accent) 9%, transparent);
+}
+
+.admin-filter-select__option.is-selected {
+  color: var(--wp-accent-strong);
+  background: color-mix(in srgb, var(--wp-accent) 13%, transparent);
+  font-weight: 700;
+}
+
+[data-theme="dark"] .admin-filter-select__button {
+  box-shadow: none;
+  background: #0a0a0e;
+}
+
+[data-theme="dark"] .admin-filter-select__menu {
+  background: rgba(13, 13, 18, 0.98);
+}

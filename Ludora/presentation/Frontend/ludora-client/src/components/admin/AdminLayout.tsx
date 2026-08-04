@@ -7,6 +7,7 @@ import {
   Gamepad2,
   LayoutDashboard,
   Menu,
+  Mail,
   MessageSquareText,
   ScrollText,
   UsersRound,
@@ -20,64 +21,82 @@ import {
   useLocation,
 } from "react-router-dom";
 import { useNotificationRealtime } from "../../hooks/useNotificationRealtime";
+import { useI18n } from "../../i18n/useI18n";
 import {
   hasAuthRole,
 } from "../../lib/authRoles";
+import { resolveAssetUrl } from "../../lib/helpers";
 import { useAuthStore } from "../../stores/authStore";
 import { BrandLogo } from "../common/BrandLogo";
 import "./admin.css";
 
 const activeItems = [
   {
-    label: "İdarə paneli",
+    labelAz: "İdarə paneli",
+    labelEn: "Dashboard",
     to: "/admin",
     icon: LayoutDashboard,
     end: true,
   },
   {
-    label: "İstifadəçilər",
+    labelAz: "İstifadəçilər",
+    labelEn: "Users",
     to: "/admin/users",
     icon: UsersRound,
     end: false,
   },
   {
-    label: "Şikayətlər",
+    labelAz: "Şikayətlər",
+    labelEn: "Reports",
     to: "/admin/reports",
     icon: Flag,
     end: false,
   },
   {
-    label: "Postlar",
+    labelAz: "Postlar",
+    labelEn: "Posts",
     to: "/admin/posts",
     icon: FileText,
     end: false,
   },
   {
-    label: "Elanlar",
+    labelAz: "Elanlar",
+    labelEn: "Announcements",
     to: "/admin/announcements",
     icon: BellRing,
     end: false,
   },
   {
-    label: "Audit jurnalı",
+    labelAz: "Əlaqə mesajları",
+    labelEn: "Contact messages",
+    to: "/admin/contact-messages",
+    icon: Mail,
+    end: false,
+  },
+  {
+    labelAz: "Audit jurnalı",
+    labelEn: "Audit log",
     to: "/admin/audit",
     icon: ScrollText,
     end: false,
   },
   {
-    label: "Forum",
+    labelAz: "Forum",
+    labelEn: "Forum",
     to: "/admin/forum",
     icon: MessageSquareText,
     end: false,
   },
   {
-    label: "Nişanlar",
+    labelAz: "Nişanlar",
+    labelEn: "Badges",
     to: "/admin/badges",
     icon: Award,
     end: false,
   },
   {
-    label: "Kataloq",
+    labelAz: "Kataloq",
+    labelEn: "Catalog",
     to: "/admin/catalog",
     icon: Gamepad2,
     end: false,
@@ -85,7 +104,11 @@ const activeItems = [
 ];
 
 export function AdminLayout() {
+  const { language } = useI18n();
+  const isEnglish = language === "en";
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [failedProfileImageUrl, setFailedProfileImageUrl] =
+    useState<string | null>(null);
   const location = useLocation();
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -96,27 +119,33 @@ export function AdminLayout() {
   );
   useNotificationRealtime(Boolean(accessToken));
 
+  const profileImageUrl = resolveAssetUrl(user?.profileImageUrl);
+  const userInitial =
+    user?.userName.trim().charAt(0).toUpperCase() || "A";
+
   const pageTitle = location.pathname === "/admin"
-    ? "İdarə paneli"
+    ? (isEnglish ? "Dashboard" : "İdarə paneli")
     : location.pathname.startsWith("/admin/catalog")
-      ? "Kataloq idarəetməsi"
+      ? (isEnglish ? "Catalog management" : "Kataloq idarəetməsi")
     : location.pathname.startsWith("/admin/badges")
-      ? "Nişan idarəetməsi"
+      ? (isEnglish ? "Badge management" : "Nişan idarəetməsi")
     : location.pathname.startsWith("/admin/forum")
-      ? "Forum idarəetməsi"
+      ? (isEnglish ? "Forum management" : "Forum idarəetməsi")
     : location.pathname.startsWith("/admin/audit")
-      ? "Audit jurnalı"
+      ? (isEnglish ? "Audit log" : "Audit jurnalı")
+    : location.pathname.startsWith("/admin/contact-messages")
+      ? (isEnglish ? "Contact messages" : "Əlaqə mesajları")
     : location.pathname.startsWith("/admin/announcements")
-      ? "Elanlar"
+      ? (isEnglish ? "Announcements" : "Elanlar")
     : location.pathname.startsWith("/admin/posts")
-      ? "Postlar"
+      ? (isEnglish ? "Posts" : "Postlar")
     : location.pathname.startsWith("/admin/reports/users/")
-      ? "Şikayət detalları"
+      ? (isEnglish ? "Report details" : "Şikayət detalları")
       : location.pathname.startsWith("/admin/reports")
-        ? "Şikayətlər"
+        ? (isEnglish ? "Reports" : "Şikayətlər")
     : location.pathname.startsWith("/admin/users/")
-      ? "İstifadəçi detalı"
-      : "İstifadəçilər";
+      ? (isEnglish ? "User details" : "İstifadəçi detalı")
+      : (isEnglish ? "Users" : "İstifadəçilər");
 
   const sidebar = (
     <div className="flex h-full flex-col">
@@ -140,7 +169,7 @@ export function AdminLayout() {
 
       <nav className="flex-1 overflow-y-auto px-4 py-5">
         <p className="px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600">
-          İdarəetmə
+          {isEnglish ? "Management" : "İdarəetmə"}
         </p>
         <div className="mt-3 space-y-1">
           {activeItems.map((item) => {
@@ -160,7 +189,7 @@ export function AdminLayout() {
                 }
               >
                 <Icon size={18} />
-                {item.label}
+                {isEnglish ? item.labelEn : item.labelAz}
               </NavLink>
             );
           })}
@@ -174,7 +203,7 @@ export function AdminLayout() {
           className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm text-zinc-400 transition hover:bg-white/[0.05] hover:text-white"
         >
           <ChevronLeft size={18} />
-          Sayta qayıt
+          {isEnglish ? "Back to site" : "Sayta qayıt"}
         </Link>
       </div>
     </div>
@@ -230,8 +259,24 @@ export function AdminLayout() {
           </div>
 
           <div className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] px-3 py-2">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/15 text-xs font-bold text-violet-200">
-              {user?.userName.charAt(0).toUpperCase() ?? "A"}
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-violet-300/15 bg-violet-500/15 text-xs font-bold text-violet-200">
+              {profileImageUrl &&
+              profileImageUrl !== failedProfileImageUrl ? (
+                <img
+                  src={profileImageUrl}
+                  alt={
+                    isEnglish
+                      ? `${user?.userName ?? "Admin"} profile picture`
+                      : `${user?.userName ?? "Admin"} profil şəkli`
+                  }
+                  className="h-full w-full object-cover"
+                  onError={() => {
+                    setFailedProfileImageUrl(profileImageUrl);
+                  }}
+                />
+              ) : (
+                userInitial
+              )}
             </span>
             <div className="hidden sm:block">
               <p className="text-sm font-semibold text-zinc-200">

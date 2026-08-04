@@ -31,9 +31,9 @@ import {
   type SearchableSelectOption,
 } from "../components/common/SearchableSelect";
 import { GameCard } from "../components/home/GameCard";
-import { GameCardSkeleton } from "../components/home/GameCardSkeleton";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
+import { useI18n } from "../i18n/useI18n";
 import { getApiErrorMessage } from "../lib/api";
 import { canViewCatalogSources } from "../lib/authRoles";
 import {
@@ -371,6 +371,7 @@ interface CatalogFilterNavigationState {
 }
 
 export function GamesPage() {
+  const { language } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
 
@@ -766,6 +767,23 @@ export function GamesPage() {
 
   const totalPages =
     currentPageData?.totalPages ?? 0;
+
+  const isInitialResultsLoad =
+    gamesQuery.isLoading && gamesQuery.data === undefined;
+
+  const isResultsPending =
+    isReleaseYearValid &&
+    (isInitialResultsLoad ||
+      gamesQuery.isPlaceholderData ||
+      (gamesQuery.isFetching && currentPageData === undefined));
+
+  const hasResolvedEmptyResults =
+    isReleaseYearValid &&
+    gamesQuery.isSuccess &&
+    !gamesQuery.isFetching &&
+    !gamesQuery.isPlaceholderData &&
+    currentPageData !== undefined &&
+    games.length === 0;
 
   const paginationItems = useMemo(
     () =>
@@ -1234,7 +1252,25 @@ export function GamesPage() {
                 Oyunlar
               </h2>
 
-              {!gamesQuery.isLoading && (
+              {isResultsPending ? (
+                <p
+                  className="mt-2 flex items-center gap-2 text-sm text-zinc-500"
+                  role="status"
+                  aria-live="polite"
+                >
+                  <LoaderCircle
+                    size={14}
+                    className="shrink-0 animate-spin text-violet-400"
+                  />
+                  {language === "en"
+                    ? isInitialResultsLoad
+                      ? "Loading games..."
+                      : "Searching for games..."
+                    : isInitialResultsLoad
+                      ? "Oyunlar yüklənir..."
+                      : "Oyunlar axtarılır..."}
+                </p>
+              ) : gamesQuery.isSuccess && currentPageData ? (
                 <p className="mt-2 text-sm text-zinc-500">
                   {gamesQuery.isFetching && (
                     <LoaderCircle
@@ -1243,13 +1279,15 @@ export function GamesPage() {
                     />
                   )}
 
-                  Ümumi{" "}
-                  {totalCount.toLocaleString(
-                    "az-AZ",
-                  )}{" "}
-                  uyğun oyun tapıldı
+                  {language === "en"
+                    ? `${totalCount.toLocaleString("en-US")} matching ${
+                        totalCount === 1 ? "game" : "games"
+                      } found`
+                    : `Ümumi ${totalCount.toLocaleString(
+                        "az-AZ",
+                      )} uyğun oyun tapıldı`}
                 </p>
-              )}
+              ) : null}
             </div>
 
             {activeFilterCount > 0 && (
@@ -1264,13 +1302,35 @@ export function GamesPage() {
             )}
           </div>
 
-          {gamesQuery.isLoading ? (
-            <div className="mt-7 grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
-              {Array.from({
-                length: PAGE_SIZE,
-              }).map((_, index) => (
-                <GameCardSkeleton key={index} />
-              ))}
+          {isResultsPending ? (
+            <div
+              className="mt-7 rounded-3xl border border-dashed border-white/[0.09] bg-white/[0.02] px-6 py-16 text-center"
+              role="status"
+              aria-live="polite"
+              aria-busy="true"
+            >
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/10 shadow-[0_16px_40px_rgba(124,58,237,0.14)]">
+                <LoaderCircle
+                  size={28}
+                  className="animate-spin text-violet-400"
+                />
+              </div>
+
+              <h3 className="mt-5 text-lg font-semibold text-zinc-300">
+                {language === "en"
+                  ? isInitialResultsLoad
+                    ? "Loading games"
+                    : "Searching for games"
+                  : isInitialResultsLoad
+                    ? "Oyunlar yüklənir"
+                    : "Oyunlar axtarılır"}
+              </h3>
+
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-600">
+                {language === "en"
+                  ? "Please wait while the catalog is updated for the selected page and filters."
+                  : "Seçilmiş səhifə və filtrlərə uyğun kataloq yenilənir. Bir qədər gözlə."}
+              </p>
             </div>
           ) : gamesError ? (
             <div className="mt-7 rounded-2xl border border-red-400/15 bg-red-500/[0.06] p-8 text-center">
@@ -1289,7 +1349,7 @@ export function GamesPage() {
                 Yenidən yoxla
               </button>
             </div>
-          ) : games.length === 0 ? (
+          ) : hasResolvedEmptyResults ? (
             <div className="mt-7 rounded-3xl border border-dashed border-white/[0.09] bg-white/[0.02] px-6 py-16 text-center">
               <Gamepad2
                 size={36}
@@ -1297,24 +1357,28 @@ export function GamesPage() {
               />
 
               <h3 className="mt-5 text-lg font-semibold text-zinc-300">
-                Uyğun oyun tapılmadı
+                {language === "en"
+                  ? "No matching games found"
+                  : "Uyğun oyun tapılmadı"}
               </h3>
 
               <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-zinc-600">
-                Axtarış mətnini və ya
-                filterləri dəyişərək yenidən
-                yoxla.
+                {language === "en"
+                  ? "Try changing the search text or filters and search again."
+                  : "Axtarış mətnini və ya filtrləri dəyişərək yenidən yoxla."}
               </p>
 
               <button
                 type="button"
                 onClick={resetFilters}
-                className="mt-6 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white"
+                className="mt-6 rounded-xl bg-violet-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-violet-500"
               >
-                Filterləri təmizlə
+                {language === "en"
+                  ? "Clear filters"
+                  : "Filtrləri təmizlə"}
               </button>
             </div>
-          ) : (
+          ) : games.length > 0 ? (
             <>
               <div className="mt-7 grid grid-cols-2 gap-4 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
                 {games.map((game) => (
@@ -1419,7 +1483,7 @@ export function GamesPage() {
                 </nav>
               )}
             </>
-          )}
+          ) : null}
         </section>
       </main>
 

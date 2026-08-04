@@ -8,7 +8,7 @@ import {
   Sparkles,
   Star,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useI18n } from "../../i18n/useI18n";
 import { resolveAssetUrl } from "../../lib/helpers";
@@ -54,11 +54,23 @@ function formatRating(value: number): string {
     : value.toFixed(1);
 }
 
+const HOME_WELCOME_VISIBILITY_KEY = "wellplayd:hide-home-welcome";
+
+function isHomeWelcomeHidden(): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.localStorage.getItem(HOME_WELCOME_VISIBILITY_KEY) === "true";
+}
+
 export function UserWelcomePanel() {
   const { language } = useI18n();
   const statusLabels = getStatusLabels(language);
   const [failedProfileImageUrl, setFailedProfileImageUrl] =
     useState<string | null>(null);
+  const [isHiddenByPreference, setIsHiddenByPreference] =
+    useState<boolean>(() => isHomeWelcomeHidden());
 
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore(
@@ -78,6 +90,33 @@ export function UserWelcomePanel() {
       getMyUserGameDashboard(signal),
     enabled: hasValidSession,
   });
+
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const syncHiddenPreference = () => {
+      setIsHiddenByPreference(isHomeWelcomeHidden());
+    };
+
+    syncHiddenPreference();
+
+    window.addEventListener("storage", syncHiddenPreference);
+    window.addEventListener(
+      "wellplayd:home-welcome-visibility-changed",
+      syncHiddenPreference as EventListener,
+    );
+
+    return () => {
+      window.removeEventListener("storage", syncHiddenPreference);
+      window.removeEventListener(
+        "wellplayd:home-welcome-visibility-changed",
+        syncHiddenPreference as EventListener,
+      );
+    };
+  }, []);
 
   const dashboardData = useMemo(() => {
     const statusCounts: Record<UserGameStatus, number> =
@@ -105,7 +144,7 @@ export function UserWelcomePanel() {
     };
   }, [userGamesQuery.data]);
 
-  if (!hasValidSession || !user) {
+  if (isHiddenByPreference || !hasValidSession || !user) {
     return null;
   }
 
@@ -171,10 +210,13 @@ export function UserWelcomePanel() {
   ];
 
   return (
-    <section className="border-b border-white/5 bg-transparent">
-      <div className="mx-auto max-w-7xl px-5 py-6 lg:px-8 lg:py-8">
-        <div className="relative overflow-hidden rounded-[26px] border border-white/[0.08] bg-white/[0.025] shadow-2xl shadow-black/20 backdrop-blur-xl">
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_0%,rgba(124,58,237,0.16),transparent_32%),radial-gradient(circle_at_88%_100%,rgba(217,70,239,0.08),transparent_30%)]" />
+    <section className="home-welcome-shell relative overflow-hidden border-b border-white/5 bg-transparent">
+      <div className="home-welcome-shell-aurora pointer-events-none absolute inset-0" />
+      <div className="home-welcome-shell-grid pointer-events-none absolute inset-0" />
+
+      <div className="relative mx-auto max-w-7xl px-5 py-6 lg:px-8 lg:py-8">
+        <div className="home-welcome-card relative overflow-hidden rounded-[26px] border backdrop-blur-xl">
+          <div className="home-welcome-aurora pointer-events-none absolute inset-0" />
 
           <div className="relative flex flex-col gap-5 border-b border-white/[0.06] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-7">
             <div className="flex min-w-0 items-center gap-4">

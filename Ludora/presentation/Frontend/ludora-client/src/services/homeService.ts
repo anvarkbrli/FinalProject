@@ -26,6 +26,7 @@ export async function getHomeDiscovery(
 }
 
 export async function getHomeInterestRecommendations(
+  language: "az" | "en",
   signal?: AbortSignal,
 ): Promise<HomeInterestRecommendationsDTO> {
   const response = await api.get<HomeInterestRecommendationsDTO>(
@@ -33,6 +34,7 @@ export async function getHomeInterestRecommendations(
     {
       signal,
       timeout: 120_000,
+      params: { language },
     },
   );
 

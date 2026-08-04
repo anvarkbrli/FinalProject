@@ -26,6 +26,7 @@ export type FpsUpscalerMode =
   | "Ultra Performance";
 
 export interface FpsEstimateRequest {
+  language: "az" | "en";
   gameId?: number;
   gameName: string;
   gameReleaseYear?: number;

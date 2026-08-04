@@ -9,6 +9,10 @@ public sealed class EmailOutboxMessage
     public string RecipientEmail { get; set; } = string.Empty;
     public string UserName { get; set; } = string.Empty;
     public string ActionUrl { get; set; } = string.Empty;
+    public string? EmailSubject { get; set; }
+    public string? PlainTextBody { get; set; }
+    public string? HtmlBody { get; set; }
+    public int? ContactMessageId { get; set; }
     public DateTime CreatedAtUtc { get; set; }
     public DateTime? ProcessedAtUtc { get; set; }
     public DateTime? DeadLetteredAtUtc { get; set; }

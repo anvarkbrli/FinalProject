@@ -11,6 +11,7 @@ public sealed record HomeInterestRecommendationDTO
 
 public sealed record HomeInterestRecommendationsDTO
 {
+    public string Language { get; init; } = string.Empty;
     public IReadOnlyList<HomeInterestRecommendationDTO> Items { get; init; } = [];
     public string Summary { get; init; } = string.Empty;
     public bool IsAiGenerated { get; init; }

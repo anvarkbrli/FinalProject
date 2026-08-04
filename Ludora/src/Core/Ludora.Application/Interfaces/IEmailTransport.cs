@@ -19,4 +19,12 @@ public interface IEmailTransport
         string userName,
         string resetLink,
         CancellationToken cancellationToken = default);
+
+    Task SendCustomEmailAsync(
+        string email,
+        string subject,
+        string plainTextBody,
+        string htmlBody,
+        CancellationToken cancellationToken = default);
+
 }

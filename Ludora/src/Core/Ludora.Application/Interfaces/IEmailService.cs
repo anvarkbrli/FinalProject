@@ -19,4 +19,16 @@ public interface IEmailService
         string userName,
         string resetLink,
         CancellationToken cancellationToken = default);
+
+    Task SendContactMessageReplyAsync(
+        string email,
+        string recipientName,
+        string subject,
+        string replyBody,
+        string originalSubject,
+        string originalMessage,
+        string language,
+        int contactMessageId,
+        CancellationToken cancellationToken = default);
+
 }

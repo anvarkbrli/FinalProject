@@ -15,8 +15,13 @@ public sealed class EmailOutboxMessageConfiguration : IEntityTypeConfiguration<E
         builder.Property(x => x.RecipientEmail).IsRequired().HasMaxLength(320);
         builder.Property(x => x.UserName).IsRequired().HasMaxLength(256);
         builder.Property(x => x.ActionUrl).IsRequired().HasMaxLength(2048);
+        builder.Property(x => x.EmailSubject).HasMaxLength(300);
+        builder.Property(x => x.PlainTextBody);
+        builder.Property(x => x.HtmlBody);
         builder.Property(x => x.CreatedAtUtc).IsRequired();
         builder.Property(x => x.LastError).HasMaxLength(2000);
+
+        builder.HasIndex(x => x.ContactMessageId);
 
         builder.HasIndex(x => new
         {

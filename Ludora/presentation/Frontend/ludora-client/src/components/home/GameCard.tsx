@@ -41,7 +41,7 @@ export function GameCard({
       to={`/games/${game.source}/${game.id}`}
       className="block h-full"
     >
-      <article className="group overflow-hidden rounded-2xl border border-white/[0.07] bg-[#111116] transition duration-300 hover:-translate-y-1 hover:border-violet-400/30 hover:shadow-2xl hover:shadow-violet-950/20">
+      <article className="home-game-card group overflow-hidden rounded-2xl border border-white/[0.07] bg-[#111116] transition duration-300 hover:-translate-y-1 hover:border-violet-400/30 hover:shadow-2xl hover:shadow-violet-950/20">
       <div className="relative aspect-[3/4] overflow-hidden bg-gradient-to-br from-zinc-800 to-zinc-950">
         {isComingSoon && (
           <span className="coming-soon-badge">

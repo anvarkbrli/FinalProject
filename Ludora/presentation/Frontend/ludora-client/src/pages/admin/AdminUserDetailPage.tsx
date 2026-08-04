@@ -9,6 +9,7 @@ import {
   Ban,
   BellRing,
   CalendarDays,
+  ChevronRight,
   CircleAlert,
   FileText,
   History,
@@ -474,34 +475,44 @@ export function AdminUserDetailPage() {
           icon={<UsersRound size={17} />}
           label="İzləyici"
           value={user.followerCount}
+          to={`/users/${encodeURIComponent(user.userName)}?connections=followers`}
         />
         <StatCard
           icon={<UserRound size={17} />}
           label="İzlənən"
           value={user.followingCount}
+          to={`/users/${encodeURIComponent(user.userName)}?connections=following`}
         />
         <StatCard
           icon={<FileText size={17} />}
           label="Post"
           value={user.postCount}
           detail={`${user.deletedPostCount} silinib`}
+          to={`/admin/posts?userId=${encodeURIComponent(user.id)}`}
         />
         <StatCard
           icon={<MessageSquareText size={17} />}
           label="Müzakirə"
           value={user.discussionCount}
+          to={`/admin/forum?tab=discussions&search=${encodeURIComponent(user.userName)}`}
         />
         <StatCard
           icon={<BellRing size={17} />}
           label="Warning"
           value={user.warningCount}
           detail={`${user.unreadWarningCount} oxunmayıb`}
+          href="#warning-history"
         />
         <StatCard
           icon={<TriangleAlert size={17} />}
           label="Şikayət"
           value={user.reportCount}
           detail={`${user.pendingReportCount} açıq`}
+          to={
+            user.reportCount > 0
+              ? `/admin/reports/users/${encodeURIComponent(user.id)}`
+              : `/admin/reports?search=${encodeURIComponent(user.userName)}`
+          }
         />
       </section>
 
@@ -773,8 +784,12 @@ export function AdminUserDetailPage() {
                       disabled={isBusy}
                       className="h-11 w-full rounded-xl border border-white/[0.08] bg-[#09090d] px-3 text-sm text-zinc-200 outline-none focus:border-red-500/40"
                     >
-                      <option value={1}>Müddətli</option>
-                      <option value={2}>Müddətsiz</option>
+                      <option value={1}>
+                        {language === "en" ? "Temporary" : "Müddətli"}
+                      </option>
+                      <option value={2}>
+                        {language === "en" ? "Permanent" : "Müddətsiz"}
+                      </option>
                     </select>
                   </label>
                   {banType === 1 && (
@@ -821,11 +836,12 @@ export function AdminUserDetailPage() {
         </div>
 
         <div className="space-y-6">
-          <Panel
-            title="Xəbərdarlıq tarixçəsi"
-            description={`${warningsQuery.data?.totalWarningCount ?? user.warningCount} qeyd`}
-            icon={<BellRing size={18} />}
-          >
+          <div id="warning-history" className="scroll-mt-24">
+            <Panel
+              title="Xəbərdarlıq tarixçəsi"
+              description={`${warningsQuery.data?.totalWarningCount ?? user.warningCount} qeyd`}
+              icon={<BellRing size={18} />}
+            >
             {warningsQuery.isPending ? (
               <InlineLoader />
             ) : warningsQuery.data && warningsQuery.data.items.length > 0 ? (
@@ -854,10 +870,11 @@ export function AdminUserDetailPage() {
                   </article>
                 ))}
               </div>
-            ) : (
-              <EmptyText text="Xəbərdarlıq tarixçəsi boşdur." />
-            )}
-          </Panel>
+              ) : (
+                <EmptyText text="Xəbərdarlıq tarixçəsi boşdur." />
+              )}
+            </Panel>
+          </div>
 
           <Panel
             title="Ban tarixçəsi"
@@ -952,6 +969,8 @@ interface StatCardProps {
   label: string;
   value: number;
   detail?: string;
+  to?: string;
+  href?: string;
 }
 
 function StatCard({
@@ -959,17 +978,47 @@ function StatCard({
   label,
   value,
   detail,
+  to,
+  href,
 }: StatCardProps) {
-  return (
-    <article className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-4">
-      <span className="text-violet-300">{icon}</span>
+  const content = (
+    <>
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-violet-300">{icon}</span>
+        {(to || href) && (
+          <ChevronRight
+            size={15}
+            className="text-zinc-700 transition group-hover:translate-x-0.5 group-hover:text-violet-300"
+          />
+        )}
+      </div>
       <p className="mt-4 text-xl font-bold text-white">{value}</p>
       <p className="mt-1 text-xs text-zinc-500">{label}</p>
       {detail && (
         <p className="mt-2 text-[10px] text-zinc-700">{detail}</p>
       )}
-    </article>
+    </>
   );
+  const className =
+    "group block rounded-xl border border-white/[0.07] bg-white/[0.025] p-4 transition hover:-translate-y-0.5 hover:border-violet-400/25 hover:bg-violet-500/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/60";
+
+  if (to) {
+    return (
+      <Link to={to} className={className}>
+        {content}
+      </Link>
+    );
+  }
+
+  if (href) {
+    return (
+      <a href={href} className={className}>
+        {content}
+      </a>
+    );
+  }
+
+  return <article className={className}>{content}</article>;
 }
 
 interface PanelProps {

@@ -23,6 +23,9 @@ public static class CapabilityNames
     public const string ViewAnnouncements = "admin.announcements.view";
     public const string ManageAnnouncements = "admin.announcements.manage";
 
+    public const string ViewContactMessages = "admin.contact-messages.view";
+    public const string ManageContactMessages = "admin.contact-messages.manage";
+
     public const string ViewModerationAudit = "admin.audit.view";
 
     public const string ViewForumModeration = "admin.forum.view";
@@ -59,6 +62,8 @@ public static class CapabilityNames
             RestorePosts,
             ViewAnnouncements,
             ManageAnnouncements,
+            ViewContactMessages,
+            ManageContactMessages,
             ViewModerationAudit,
             ViewForumModeration,
             ModerateForum,

@@ -20,6 +20,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { AdminLiveSearch } from "../../components/admin/AdminLiveSearch";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
 import { hasAuthRole } from "../../lib/authRoles";
 import {
@@ -37,6 +38,7 @@ import type { AdminPost } from "../../types/admin";
 const pageSize = 20;
 
 export function AdminPostsPage() {
+  const { language } = useI18n();
   const [searchParams, setSearchParams] = useSearchParams();
   const [postToDelete, setPostToDelete] =
     useState<AdminPost | null>(null);
@@ -56,9 +58,11 @@ export function AdminPostsPage() {
   );
   const search = searchParams.get("search") ?? "";
   const state = searchParams.get("state") ?? "";
+  const userId = searchParams.get("userId") ?? "";
   const sortBy = searchParams.get("sort") ?? "newest";
   const filter = {
     search: search || undefined,
+    userId: userId || undefined,
     isDeleted:
       state === "deleted"
         ? true
@@ -146,6 +150,23 @@ export function AdminPostsPage() {
       </section>
 
       <section className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
+        {userId && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-400/15 bg-violet-500/[0.06] px-3 py-2.5">
+            <p className="text-xs font-medium text-violet-200">
+              {language === "en"
+                ? "Showing posts from the selected user."
+                : "Seçilmiş istifadəçinin postları göstərilir."}
+            </p>
+            <button
+              type="button"
+              onClick={() => updateParam("userId", "")}
+              className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-zinc-400 transition hover:bg-white/[0.06] hover:text-white"
+            >
+              <X size={13} />
+              {language === "en" ? "Clear filter" : "Filtri sil"}
+            </button>
+          </div>
+        )}
         <div className="grid gap-3 lg:grid-cols-[minmax(18rem,1fr)_auto_auto]">
           <AdminLiveSearch
             placeholder="Post mətni və ya istifadəçi..."

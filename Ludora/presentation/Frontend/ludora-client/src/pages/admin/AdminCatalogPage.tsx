@@ -23,7 +23,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { getApiErrorMessage } from "../../lib/api";
 import { hasAuthRole } from "../../lib/authRoles";
-import { resolveAssetUrl } from "../../lib/helpers";
+import { formatDate, resolveAssetUrl } from "../../lib/helpers";
 import {
   addAdminGameRelation,
   createAdminGame,
@@ -415,7 +415,7 @@ function GamesCatalogPanel() {
                     {game.title}
                   </h3>
                   <p className="mt-2 text-xs text-zinc-600">
-                    {game.releaseDate ?? "Tarix yoxdur"}
+                    {game.releaseDate ? formatDate(game.releaseDate) : "Tarix yoxdur"}
                   </p>
                 </div>
               </div>

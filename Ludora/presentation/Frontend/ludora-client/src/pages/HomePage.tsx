@@ -19,6 +19,7 @@ import { HomeCommunityHub } from "../components/home/HomeCommunityHub";
 import { UserWelcomePanel } from "../components/home/UserWelcomePanel";
 import { Footer } from "../components/layout/Footer";
 import { Navbar } from "../components/layout/Navbar";
+import { useI18n } from "../i18n/useI18n";
 import { resolveAssetUrl } from "../lib/helpers";
 import {
   getFeaturedGames,
@@ -83,6 +84,7 @@ function HeroGameCover({
 }
 
 export function HomePage() {
+  const { language } = useI18n();
   const queryClient = useQueryClient();
   const user = useAuthStore((state) => state.user);
   const accessToken = useAuthStore((state) => state.accessToken);
@@ -105,8 +107,10 @@ export function HomePage() {
       "interest-recommendations",
       user?.id,
       interestProfile?.completedAtUtc,
+      language,
     ],
-    queryFn: ({ signal }) => getHomeInterestRecommendations(signal),
+    queryFn: ({ signal }) =>
+      getHomeInterestRecommendations(language, signal),
     enabled:
       isAuthenticated &&
       interestsQuery.isSuccess &&
@@ -153,7 +157,7 @@ export function HomePage() {
   const featuredDiscussion = homeDiscussions[0];
 
   return (
-    <div className="min-h-screen overflow-x-hidden wellplayd-page-bg text-zinc-100">
+    <div className="home-theme min-h-screen overflow-x-hidden wellplayd-page-bg text-zinc-100">
       <Navbar />
 
       <main>
@@ -161,15 +165,15 @@ export function HomePage() {
 
         <section
           id="home"
-          className="relative isolate overflow-hidden border-b border-white/5"
+          className="home-hero relative isolate overflow-hidden border-b border-white/5"
         >
-          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(124,58,237,0.18),transparent_32%),radial-gradient(circle_at_85%_30%,rgba(217,70,239,0.10),transparent_28%)]" />
+          <div className="home-hero-aurora pointer-events-none absolute inset-0" />
 
-          <div className="pointer-events-none absolute inset-0 opacity-[0.035] [background-image:linear-gradient(to_right,#fff_1px,transparent_1px),linear-gradient(to_bottom,#fff_1px,transparent_1px)] [background-size:48px_48px]" />
+          <div className="home-hero-grid pointer-events-none absolute inset-0" />
 
           <div className="relative mx-auto grid max-w-7xl gap-14 px-5 py-20 lg:grid-cols-[1.08fr_0.92fr] lg:items-center lg:px-8 lg:py-28">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-500/10 px-3 py-1.5 text-xs font-semibold text-violet-200">
+              <div className="home-hero-kicker inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold">
                 <Sparkles size={14} />
                 Oyun izləmə və icma bir platformada
               </div>
@@ -177,7 +181,7 @@ export function HomePage() {
               <h1 className="mt-7 max-w-3xl text-4xl font-bold leading-[1.08] tracking-[-0.04em] text-white sm:text-5xl lg:text-6xl">
                 Oynadıqların bir yerdə.
 
-                <span className="mt-2 block bg-gradient-to-r from-violet-300 via-fuchsia-300 to-rose-300 bg-clip-text text-transparent">
+                <span className="home-hero-title-gradient mt-2 block bg-clip-text text-transparent">
                   Söhbət etdiyin insanlar yanında.
                 </span>
               </h1>
@@ -191,7 +195,7 @@ export function HomePage() {
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a
                   href="#games"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-violet-600 px-5 py-3.5 text-sm font-semibold text-white shadow-xl shadow-violet-950/40 transition hover:bg-violet-500"
+                  className="home-primary-action inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3.5 text-sm font-semibold text-white transition"
                 >
                   Oyunları kəşf et
                   <ArrowRight size={17} />
@@ -199,7 +203,7 @@ export function HomePage() {
 
                 <a
                   href="#forum"
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3.5 text-sm font-semibold text-zinc-200 transition hover:border-white/20 hover:bg-white/10"
+                  className="home-secondary-action inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-5 py-3.5 text-sm font-semibold text-zinc-200 transition"
                 >
                   <MessageSquareText size={17} />
                   İcmada nələr olur?
@@ -209,9 +213,9 @@ export function HomePage() {
             </div>
 
             <div className="relative">
-              <div className="absolute -inset-8 rounded-full bg-violet-600/10 blur-3xl" />
+              <div className="home-hero-preview-glow absolute -inset-8 rounded-full blur-3xl" />
 
-              <div className="relative rounded-[28px] border border-white/10 bg-white/[0.035] p-5 shadow-2xl shadow-black/40 backdrop-blur-xl">
+              <div className="home-hero-preview relative rounded-[28px] border p-5 backdrop-blur-xl">
                 <div className="grid grid-cols-3 gap-3 pb-9">
                   {[0, 1, 2].map((index) => (
                     <HeroGameCover
@@ -222,14 +226,14 @@ export function HomePage() {
                   ))}
                 </div>
 
-                <div className="rounded-2xl border border-white/[0.08] bg-[#0b0b0f]/90 p-4">
+                <div className="home-trend-card rounded-2xl border p-4">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-fuchsia-500/10 text-fuchsia-300">
+                    <span className="home-trend-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl">
                       <MessageSquareText size={19} />
                     </span>
 
                     <div className="min-w-0">
-                      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-fuchsia-300">
+                      <p className="home-trend-label text-[10px] font-bold uppercase tracking-[0.2em]">
                         İcmada trend
                       </p>
 
@@ -291,7 +295,7 @@ export function HomePage() {
             className="scroll-mt-24"
           >
             <div className="mb-7">
-              <p className="text-xs font-bold uppercase tracking-[0.22em] text-violet-400">
+              <p className="home-section-eyebrow-green text-xs font-bold uppercase tracking-[0.22em]">
                 Oyun kataloqu
               </p>
 
@@ -358,7 +362,7 @@ export function HomePage() {
           >
             <div className="lg:sticky lg:top-[88px]">
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.22em] text-fuchsia-400">
+                <p className="home-section-eyebrow-green text-xs font-bold uppercase tracking-[0.22em]">
                   Forum
                 </p>
 
@@ -398,7 +402,7 @@ export function HomePage() {
               </div>
 
               {categories.length > 0 && (
-                <div className="mt-7 rounded-2xl border border-white/[0.07] bg-[#101015] p-5">
+                <div className="home-forum-summary mt-7 rounded-2xl border p-5">
                   <p className="text-sm font-semibold text-zinc-200">
                     Aktiv kateqoriyalar
                   </p>
@@ -423,9 +427,9 @@ export function HomePage() {
           </aside>
         </section>
 
-        <section className="border-y border-white/5 bg-white/[0.015]">
+        <section className="home-feature-band border-y border-white/5">
           <div className="mx-auto grid max-w-7xl gap-4 px-5 py-16 md:grid-cols-3 lg:px-8">
-            <article className="rounded-2xl border border-white/[0.07] bg-[#0e0e13] p-6">
+            <article className="rounded-2xl border border-white/[0.07] bg-[#0e0e13] p-6 home-feature-card">
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-500/10 text-violet-300">
                 <Gamepad2 size={21} />
               </span>
@@ -441,7 +445,7 @@ export function HomePage() {
               </p>
             </article>
 
-            <article className="rounded-2xl border border-white/[0.07] bg-[#0e0e13] p-6">
+            <article className="rounded-2xl border border-white/[0.07] bg-[#0e0e13] p-6 home-feature-card">
               <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-fuchsia-500/10 text-fuchsia-300">
                 <ListChecks size={21} />
               </span>
@@ -456,8 +460,8 @@ export function HomePage() {
               </p>
             </article>
 
-            <article className="rounded-2xl border border-white/[0.07] bg-[#0e0e13] p-6">
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-rose-500/10 text-rose-300">
+            <article className="home-feature-card-community rounded-2xl border p-6 home-feature-card">
+              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-300">
                 <BookOpen size={21} />
               </span>
 
@@ -475,8 +479,8 @@ export function HomePage() {
         </section>
 
         <section className="px-5 py-20 lg:px-8">
-          <div className="mx-auto max-w-5xl overflow-hidden rounded-[28px] border border-violet-400/15 bg-gradient-to-br from-violet-500/15 via-fuchsia-500/[0.07] to-transparent p-8 text-center sm:p-12">
-            <p className="text-xs font-bold uppercase tracking-[0.25em] text-violet-300">
+          <div className="home-final-cta mx-auto max-w-5xl overflow-hidden rounded-[28px] border p-8 text-center sm:p-12">
+            <p className="home-section-eyebrow-green text-xs font-bold uppercase tracking-[0.25em]">
               Bir oyundan daha çoxu
             </p>
 

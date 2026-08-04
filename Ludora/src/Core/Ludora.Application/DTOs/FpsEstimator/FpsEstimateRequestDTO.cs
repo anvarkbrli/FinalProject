@@ -4,6 +4,9 @@ namespace Ludora.Application.DTOs.FpsEstimator;
 
 public sealed class FpsEstimateRequestDTO
 {
+    [RegularExpression("^(az|en)$", ErrorMessage = "Dil yalnız az və ya en ola bilər.")]
+    public string Language { get; set; } = "az";
+
     [Range(1, long.MaxValue, ErrorMessage = "Oyun ID-si müsbət olmalıdır.")]
     public long? GameId { get; set; }
 

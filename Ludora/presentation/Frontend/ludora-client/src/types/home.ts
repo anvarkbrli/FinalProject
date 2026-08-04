@@ -196,6 +196,7 @@ export interface HomeInterestRecommendationDTO {
 }
 
 export interface HomeInterestRecommendationsDTO {
+  language: "az" | "en";
   items: HomeInterestRecommendationDTO[];
   summary: string;
   isAiGenerated: boolean;

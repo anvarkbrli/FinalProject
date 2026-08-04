@@ -24,8 +24,8 @@ export function HomeInterestRecommendations({
   }
 
   return (
-    <section className="relative overflow-hidden border-b border-white/5 py-16">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(20,184,166,0.09),transparent_30%),radial-gradient(circle_at_88%_10%,rgba(124,58,237,0.12),transparent_28%)]" />
+    <section className="home-interest-section relative overflow-hidden border-b border-white/5 py-16">
+      <div className="pointer-events-none absolute inset-0" />
 
       <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
@@ -88,7 +88,7 @@ export function HomeInterestRecommendations({
               >
                 <GameCard game={item.game} />
 
-                <div className="relative -mt-2 mx-2 flex-1 rounded-b-2xl border border-t-0 border-white/[0.07] bg-[#0d1515] px-3 pb-3 pt-4">
+                <div className="home-interest-reason relative -mt-2 mx-2 flex-1 rounded-b-2xl border border-t-0 px-3 pb-3 pt-4">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-teal-300">
                       {language === "en" ? "Why this game" : "Niyə bu oyun"}

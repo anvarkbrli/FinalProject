@@ -545,3 +545,53 @@ export async function revokeAdminBadgeFromUser(
 ): Promise<void> {
   await api.delete(`/admin/badges/${badgeId}/users/${userId}`);
 }
+
+export async function getAdminContactMessages(
+  filter: {
+    search?: string;
+    subject?: import("../types/admin").AdminContactMessageSubject;
+    status?: import("../types/admin").AdminContactMessageStatus;
+    sortBy?: string;
+    pageNumber?: number;
+    pageSize?: number;
+  },
+  signal?: AbortSignal,
+): Promise<import("../types/admin").PagedResult<import("../types/admin").AdminContactMessage>> {
+  const response = await api.get<
+    import("../types/admin").PagedResult<import("../types/admin").AdminContactMessage>
+  >("/admin/contact-messages", { params: filter, signal });
+  return response.data;
+}
+
+export async function getAdminContactMessage(
+  contactMessageId: number,
+  signal?: AbortSignal,
+): Promise<import("../types/admin").AdminContactMessage> {
+  const response = await api.get<import("../types/admin").AdminContactMessage>(
+    `/admin/contact-messages/${contactMessageId}`,
+    { signal },
+  );
+  return response.data;
+}
+
+export async function updateAdminContactMessageStatus(
+  contactMessageId: number,
+  status: "New" | "InProgress" | "Closed",
+): Promise<import("../types/admin").AdminContactMessage> {
+  const response = await api.patch<import("../types/admin").AdminContactMessage>(
+    `/admin/contact-messages/${contactMessageId}/status`,
+    { status },
+  );
+  return response.data;
+}
+
+export async function replyToAdminContactMessage(
+  contactMessageId: number,
+  request: { subject: string; body: string },
+): Promise<import("../types/admin").AdminContactMessage> {
+  const response = await api.post<import("../types/admin").AdminContactMessage>(
+    `/admin/contact-messages/${contactMessageId}/reply`,
+    request,
+  );
+  return response.data;
+}

@@ -56,13 +56,20 @@ public sealed class HomeInterestRecommendationService
         if (profile is null)
             return Empty(language);
 
+        var normalizedLanguage = NormalizeLanguage(language);
         var saved = await _userService
             .GetSavedHomeInterestRecommendationsAsync(
                 userId,
                 cancellationToken);
 
-        if (saved is { Items.Count: > 0 })
+        if (saved is { Items.Count: > 0 } &&
+            string.Equals(
+                saved.Language,
+                normalizedLanguage,
+                StringComparison.OrdinalIgnoreCase))
+        {
             return saved;
+        }
 
         if (!_researchClient.IsEnabled || !_igdbClient.IsEnabled)
         {
@@ -70,12 +77,6 @@ public sealed class HomeInterestRecommendationService
                 "AI oyun tövsiyə xidməti hazırda aktiv deyil.");
         }
 
-        var normalizedLanguage = string.Equals(
-            language,
-            "en",
-            StringComparison.OrdinalIgnoreCase)
-            ? "en"
-            : "az";
         var result = await ResearchWithGroqAsync(
             profile,
             normalizedLanguage,
@@ -160,6 +161,7 @@ public sealed class HomeInterestRecommendationService
 
         return new HomeInterestRecommendationsDTO
         {
+            Language = language,
             Items = recommendations,
             Summary = string.IsNullOrWhiteSpace(ranking.Summary)
                 ? language == "en"
@@ -385,13 +387,24 @@ public sealed class HomeInterestRecommendationService
             : normalized[..maxLength].TrimEnd() + "…";
     }
 
-    private static HomeInterestRecommendationsDTO Empty(string language) => new()
+    private static string NormalizeLanguage(string? language) =>
+        string.Equals(language, "en", StringComparison.OrdinalIgnoreCase)
+            ? "en"
+            : "az";
+
+    private static HomeInterestRecommendationsDTO Empty(string language)
     {
-        Summary = string.Equals(language, "en", StringComparison.OrdinalIgnoreCase)
+        var normalizedLanguage = NormalizeLanguage(language);
+
+        return new HomeInterestRecommendationsDTO
+        {
+            Language = normalizedLanguage,
+            Summary = normalizedLanguage == "en"
             ? "Choose your interests to receive personalized game recommendations."
-            : "Fərdi oyun tövsiyələri almaq üçün maraqlarını seç.",
-        GeneratedAtUtc = DateTime.UtcNow
-    };
+                : "Fərdi oyun tövsiyələri almaq üçün maraqlarını seç.",
+            GeneratedAtUtc = DateTime.UtcNow
+        };
+    }
 
     private sealed record ResolvedRankingItem(
         GroqRankingItem Item,

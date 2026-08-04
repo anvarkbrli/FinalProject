@@ -47,17 +47,28 @@ public sealed class HomeController : ControllerBase
     [Authorize]
     [HttpGet("interest-recommendations")]
     public async Task<IActionResult> GetInterestRecommendations(
+        [FromQuery] string? language,
         CancellationToken cancellationToken)
     {
         var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
         if (!Guid.TryParse(userIdValue, out var userId))
             return Unauthorized();
 
-        var language = CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+        var requestedLanguage = string.Equals(
+            language,
+            "en",
+            StringComparison.OrdinalIgnoreCase)
+            ? "en"
+            : string.Equals(
+                language,
+                "az",
+                StringComparison.OrdinalIgnoreCase)
+                ? "az"
+                : CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
 
         return Ok(await _homeInterestRecommendationService.GetAsync(
             userId,
-            language,
+            requestedLanguage,
             cancellationToken));
     }
 }

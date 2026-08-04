@@ -62,6 +62,22 @@ function parseBackendDateTime(
     : date;
 }
 
+function getNumericDateParts(
+  date: Date,
+): { day: string; month: string; year: string } | null {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: azerbaijanTimeZone,
+  }).formatToParts(date);
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+
+  return day && month && year ? { day, month, year } : null;
+}
+
 export function formatDate(
   value: string | null | undefined,
 ): string {
@@ -82,26 +98,10 @@ export function formatDate(
     return value;
   }
 
-  if (getCurrentLanguage() === "az") {
-    const parts = new Intl.DateTimeFormat("en-GB", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      timeZone: azerbaijanTimeZone,
-    }).formatToParts(date);
-    const day = parts.find((part) => part.type === "day")?.value ?? "";
-    const month = parts.find((part) => part.type === "month")?.value ?? "";
-    const year = parts.find((part) => part.type === "year")?.value ?? "";
-
-    return day && month && year ? `${day}.${month}.${year}` : value;
-  }
-
-  return new Intl.DateTimeFormat(getCurrentLocale(), {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    timeZone: azerbaijanTimeZone,
-  }).format(date);
+  const dateParts = getNumericDateParts(date);
+  return dateParts
+    ? `${dateParts.day}.${dateParts.month}.${dateParts.year}`
+    : value;
 }
 
 export function formatLongDate(
@@ -199,15 +199,22 @@ export function formatDateTime(
     return formatDate(value);
   }
 
-  return new Intl.DateTimeFormat(getCurrentLocale(), {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
+  const dateParts = getNumericDateParts(date);
+  const timeParts = new Intl.DateTimeFormat("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
     timeZone: azerbaijanTimeZone,
-  }).format(date);
+  }).formatToParts(date);
+  const hour = timeParts.find((part) => part.type === "hour")?.value ?? "";
+  const minute = timeParts.find((part) => part.type === "minute")?.value ?? "";
+
+  if (!dateParts) {
+    return value;
+  }
+
+  const formattedDate = `${dateParts.day}.${dateParts.month}.${dateParts.year}`;
+  return hour && minute ? `${formattedDate}, ${hour}:${minute}` : formattedDate;
 }
 
 function parseDateOnly(

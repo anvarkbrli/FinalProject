@@ -187,6 +187,19 @@ public sealed class SmtpEmailService : IEmailTransport
             cancellationToken);
     }
 
+    public Task SendCustomEmailAsync(
+        string email,
+        string subject,
+        string plainTextBody,
+        string htmlBody,
+        CancellationToken cancellationToken = default) =>
+        SendAsync(
+            email,
+            subject,
+            plainTextBody,
+            htmlBody,
+            cancellationToken);
+
     private async Task SendAsync(
         string recipient,
         string subject,

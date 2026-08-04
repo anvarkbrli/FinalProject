@@ -138,39 +138,42 @@
   min-height: 100vh;
   background-color: var(--forum-page);
   background-image:
-    radial-gradient(circle at 88% 5%, rgba(13, 148, 136, 0.09), transparent 32rem),
-    radial-gradient(circle at 18% 100%, rgba(109, 74, 255, 0.055), transparent 34rem),
+    radial-gradient(circle at 86% 4%, rgba(13, 148, 136, 0.085), transparent 32rem),
+    radial-gradient(circle at 14% 96%, rgba(109, 74, 255, 0.075), transparent 35rem),
+    radial-gradient(circle at 58% 18%, rgba(192, 68, 207, 0.025), transparent 28rem),
     linear-gradient(180deg, var(--forum-page-deep), var(--forum-page) 42%, var(--forum-page-deep));
   color: var(--wp-text);
   transition: background-color 220ms ease, color 220ms ease;
 }
 
 [data-theme="dark"] .forum-theme {
-  --forum-page: #07100f;
-  --forum-page-deep: #07100f;
-  --forum-sidebar: rgba(9, 18, 17, 0.9);
-  --forum-surface: rgba(13, 23, 22, 0.8);
-  --forum-surface-strong: rgba(12, 23, 22, 0.9);
-  --forum-surface-soft: rgba(12, 23, 22, 0.7);
-  --forum-surface-raised: #111c1b;
-  --forum-control: rgba(255, 255, 255, 0.025);
-  --forum-control-strong: rgba(255, 255, 255, 0.055);
-  --forum-hover: #101c1b;
-  --forum-border: rgba(255, 255, 255, 0.075);
-  --forum-border-soft: rgba(255, 255, 255, 0.06);
-  --forum-branch: rgba(94, 234, 212, 0.3);
-  --forum-branch-soft: rgba(94, 234, 212, 0.16);
-  --forum-match: rgba(94, 234, 212, 0.045);
-  --forum-gradient-middle: #101719;
-  --forum-overlay: rgba(2, 8, 8, 0.82);
-  --forum-shadow-card: none;
-  --forum-shadow-menu: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-  --forum-shadow-floating: 0 30px 100px rgba(0, 0, 0, 0.65);
+  --forum-page: #171c25;
+  --forum-page-deep: #141822;
+  --forum-sidebar: rgba(25, 32, 40, 0.92);
+  --forum-surface: rgba(31, 41, 46, 0.86);
+  --forum-surface-strong: rgba(35, 47, 51, 0.94);
+  --forum-surface-soft: rgba(39, 51, 56, 0.82);
+  --forum-surface-raised: #2a373d;
+  --forum-control: rgba(255, 255, 255, 0.04);
+  --forum-control-strong: rgba(255, 255, 255, 0.075);
+  --forum-hover: #304047;
+  --forum-border: rgba(167, 243, 208, 0.115);
+  --forum-border-soft: rgba(196, 181, 253, 0.075);
+  --forum-branch: rgba(94, 234, 212, 0.34);
+  --forum-branch-soft: rgba(94, 234, 212, 0.18);
+  --forum-match: rgba(94, 234, 212, 0.065);
+  --forum-gradient-middle: #28343c;
+  --forum-overlay: rgba(10, 14, 22, 0.76);
+  --forum-shadow-card: 0 16px 44px rgba(6, 9, 18, 0.2);
+  --forum-shadow-menu: 0 24px 54px -12px rgba(6, 9, 18, 0.44);
+  --forum-shadow-floating: 0 30px 88px rgba(6, 9, 18, 0.5);
 
   background-image:
-    radial-gradient(circle at 88% 5%, rgba(45, 212, 191, 0.055), transparent 34rem),
-    radial-gradient(circle at 18% 100%, rgba(139, 92, 246, 0.045), transparent 30rem),
-    linear-gradient(180deg, #07100f, #07100f);
+    radial-gradient(circle at 10% 4%, rgba(139, 92, 246, 0.105), transparent 34rem),
+    radial-gradient(circle at 80% 12%, rgba(217, 70, 239, 0.04), transparent 29rem),
+    radial-gradient(circle at 94% 38%, rgba(45, 212, 191, 0.095), transparent 35rem),
+    radial-gradient(circle at 32% 100%, rgba(82, 219, 166, 0.045), transparent 30rem),
+    linear-gradient(180deg, var(--forum-page-deep), var(--forum-page) 48%, var(--forum-page-deep));
 }
 
 /* Hard-coded forum surfaces are redirected to semantic theme tokens. */

@@ -20,6 +20,8 @@ public static class RoleCapabilityMatrix
                     CapabilityNames.ViewPosts,
                     CapabilityNames.ViewAnnouncements,
                     CapabilityNames.ManageAnnouncements,
+                    CapabilityNames.ViewContactMessages,
+                    CapabilityNames.ManageContactMessages,
                     CapabilityNames.ViewModerationAudit,
                     CapabilityNames.ViewForumModeration,
                     CapabilityNames.ModerateForum

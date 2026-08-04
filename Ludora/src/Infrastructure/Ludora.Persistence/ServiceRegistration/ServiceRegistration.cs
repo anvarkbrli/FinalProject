@@ -68,6 +68,7 @@ public static class ServiceRegistration
         services.AddScoped<IMalwareScanner, ClamAvMalwareScanner>();
 
         services.AddScoped<IEmailService, EmailOutboxService>();
+        services.AddScoped<IContactMessageService, ContactMessageService>();
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IAccountDeletionService, AccountDeletionService>();
         services.AddScoped<IAdminDashboardService, AdminDashboardService>();

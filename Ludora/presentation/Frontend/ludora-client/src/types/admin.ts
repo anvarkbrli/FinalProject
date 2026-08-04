@@ -384,3 +384,39 @@ export interface DiscussionReply {
   createdAt: string;
   updatedAt: string | null;
 }
+
+export type AdminContactMessageStatus =
+  | "New"
+  | "InProgress"
+  | "ReplyQueued"
+  | "Replied"
+  | "ReplyFailed"
+  | "Closed";
+
+export type AdminContactMessageSubject =
+  | "general"
+  | "account"
+  | "bug"
+  | "feedback"
+  | "moderation";
+
+export interface AdminContactMessage {
+  id: number;
+  userId: string | null;
+  userName: string | null;
+  name: string;
+  email: string;
+  subject: AdminContactMessageSubject;
+  message: string;
+  language: "az" | "en";
+  status: AdminContactMessageStatus;
+  createdAtUtc: string;
+  updatedAtUtc: string | null;
+  repliedByAdminUserId: string | null;
+  repliedByAdminUserName: string | null;
+  replySubject: string | null;
+  replyBody: string | null;
+  replyQueuedAtUtc: string | null;
+  repliedAtUtc: string | null;
+  closedAtUtc: string | null;
+}

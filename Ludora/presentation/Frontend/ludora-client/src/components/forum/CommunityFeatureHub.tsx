@@ -99,6 +99,7 @@ export function CommunityFeatureHub({
   const [editor, setEditor] = useState<Editor>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [editorError, setEditorError] = useState("");
   const [memberSearch, setMemberSearch] = useState("");
   const [debouncedMemberSearch, setDebouncedMemberSearch] = useState("");
   const [memberPage, setMemberPage] = useState(1);
@@ -262,7 +263,10 @@ export function CommunityFeatureHub({
     } catch (caught) {
       setError(
         isEn
-          ? "The operation could not be completed. Check the details and try again."
+          ? getApiErrorMessage(
+              caught,
+              "The operation could not be completed. Check the details and try again.",
+            )
           : getApiErrorMessage(caught, "Əməliyyatı tamamlamaq mümkün olmadı."),
       );
     } finally {
@@ -270,12 +274,41 @@ export function CommunityFeatureHub({
     }
   }
 
+  async function runEditorAction(action: () => Promise<void>) {
+    setEditorError("");
+    setBusy(true);
+    try {
+      await action();
+    } catch (caught) {
+      setEditorError(
+        isEn
+          ? getApiErrorMessage(
+              caught,
+              "The event could not be saved. Check the entered information and try again.",
+            )
+          : getApiErrorMessage(
+              caught,
+              "Tədbir yadda saxlanılmadı. Daxil etdiyin məlumatları yoxlayıb yenidən cəhd et.",
+            ),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function closeEditor() {
+    setEditor(null);
+    setEditorError("");
+  }
+
   function openRulesEditor() {
+    setEditorError("");
     setRulesDraft((rulesQuery.data ?? []).map((rule) => ({ id: rule.id, title: rule.title, description: rule.description })));
     setEditor("rules");
   }
 
   function openFlairsEditor() {
+    setEditorError("");
     setFlairsDraft((flairsQuery.data ?? []).map((flair) => ({
       id: flair.id,
       name: flair.name,
@@ -286,6 +319,8 @@ export function CommunityFeatureHub({
   }
 
   function openEventEditor(event?: ForumCommunityEventDTO) {
+    setError("");
+    setEditorError("");
     setEditingEvent(event ?? null);
     setEventDraft(
       event
@@ -446,23 +481,23 @@ export function CommunityFeatureHub({
                     </button></div>}</div>
                 <p data-user-content className="mt-3 line-clamp-3 text-sm leading-6 text-zinc-500">{event.description}</p>
                 <div className="mt-4 space-y-2 text-xs text-zinc-500"><p className="flex items-center gap-2"><CalendarDays size={14} className="text-teal-300" />{dateTime(event.startsAtUtc)}</p>{event.gameName && <p className="flex items-center gap-2"><Gamepad2 size={14} className="text-violet-300" />{event.gameName}{event.platform ? ` · ${event.platform}` : ""}</p>}<p className="flex items-center gap-2"><UsersRound size={14} />{event.participantCount}{event.maxParticipants ? ` / ${event.maxParticipants}` : ""} {text.participants}</p><p>{text.hostedBy}: <Link to={`/users/${encodeURIComponent(event.createdByUserName)}`} className="font-bold text-zinc-300 hover:text-teal-300">{event.createdByUserName}</Link></p></div>
-                <div className="mt-5 flex flex-wrap items-center gap-2">{event.isCancelled ? <span className="rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs font-bold text-rose-300">{text.cancelled}</span> : isActiveMember && !showPastEvents ? <button type="button" disabled={busy || (full && !event.isJoinedByCurrentUser)} onClick={() => run(async () => { await setCommunityEventParticipation(communityId, event.id, !event.isJoinedByCurrentUser); await eventsQuery.refetch(); })} className={`rounded-xl px-4 py-2 text-xs font-black ${event.isJoinedByCurrentUser ? "border border-white/10 text-zinc-300" : "bg-teal-300 text-[#07100f]"}`}>{event.isJoinedByCurrentUser ? text.leave : full ? text.full : text.join}</button> : null}{event.joinUrl && event.isJoinedByCurrentUser && <a href={event.joinUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-xl border border-violet-400/20 px-3 py-2 text-xs font-bold text-violet-300"><ExternalLink size={13} />{isEn ? "Open link" : "Linki aç"}</a>}</div>
+                <div className="mt-5 flex flex-wrap items-center gap-2">{event.isCancelled ? <span className="rounded-xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs font-bold text-rose-300">{text.cancelled}</span> : isActiveMember && !showPastEvents && (!full || event.isJoinedByCurrentUser) ? <button type="button" disabled={busy} onClick={() => run(async () => { await setCommunityEventParticipation(communityId, event.id, !event.isJoinedByCurrentUser); await eventsQuery.refetch(); })} className={`rounded-xl px-4 py-2 text-xs font-black ${event.isJoinedByCurrentUser ? "border border-white/10 text-zinc-300" : "bg-teal-300 text-[#07100f]"}`}>{event.isJoinedByCurrentUser ? text.leave : text.join}</button> : null}{event.joinUrl && event.isJoinedByCurrentUser && <a href={event.joinUrl} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 rounded-xl border border-violet-400/20 px-3 py-2 text-xs font-bold text-violet-300"><ExternalLink size={13} />{isEn ? "Open link" : "Linki aç"}</a>}</div>
               </article>;
             })}
           </div>
         </div>
       )}
 
-      {editor && <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setEditor(null); }}><div className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-[26px] border border-white/10 bg-[#101918] p-5 shadow-2xl"><div className="flex items-center justify-between"><h2 className="text-lg font-black text-white">{editor === "rules" ? text.rules : editor === "flairs" ? text.flair : editingEvent ? text.edit : text.createEvent}</h2><button type="button" onClick={() => setEditor(null)} className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-500 hover:bg-white/[0.05] hover:text-white"><X size={17} /></button></div>
-        {editor === "rules" && <div className="mt-5 space-y-3">{rulesDraft.map((rule, index) => <div key={rule.id ?? `new-${index}`} className="rounded-2xl border border-white/[0.08] p-4"><div className="flex items-center justify-between"><span className="text-xs font-black text-teal-300">#{index + 1}</span><button type="button" onClick={() => setRulesDraft((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="text-rose-400"><Trash2 size={15} /></button></div><input value={rule.title} onChange={(event) => setRulesDraft((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item))} placeholder={text.title} className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /><textarea value={rule.description} onChange={(event) => setRulesDraft((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item))} placeholder={text.description} className="mt-2 min-h-24 w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none" /></div>)}<button type="button" onClick={() => setRulesDraft((items) => [...items, { title: "", description: "" }])} className="flex items-center gap-2 text-xs font-bold text-teal-300"><Plus size={14} />{text.addRule}</button><button type="button" disabled={busy} onClick={() => run(async () => { await replaceCommunityRules(communityId, rulesDraft); await rulesQuery.refetch(); setEditor(null); })} className="h-11 w-full rounded-xl bg-teal-300 text-sm font-black text-[#07100f]">{text.save}</button></div>}
-        {editor === "flairs" && <div className="mt-5 space-y-3">{flairsDraft.map((flair, index) => <div key={flair.id ?? `new-${index}`} className="grid gap-3 rounded-2xl border border-white/[0.08] p-4 sm:grid-cols-[1fr_110px_110px_auto]"><input value={flair.name} onChange={(event) => setFlairsDraft((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} placeholder={text.flairName} className="h-10 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /><input type="color" value={flair.backgroundColor} title={text.background} onChange={(event) => setFlairsDraft((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, backgroundColor: event.target.value } : item))} className="h-10 w-full rounded-xl border border-white/10 bg-black/20 p-1" /><input type="color" value={flair.textColor} title={text.color} onChange={(event) => setFlairsDraft((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, textColor: event.target.value } : item))} className="h-10 w-full rounded-xl border border-white/10 bg-black/20 p-1" /><button type="button" onClick={() => setFlairsDraft((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="flex h-10 w-10 items-center justify-center text-rose-400"><Trash2 size={15} /></button></div>)}<button type="button" onClick={() => setFlairsDraft((items) => [...items, { name: "", backgroundColor: "#134e4a", textColor: "#99f6e4" }])} className="flex items-center gap-2 text-xs font-bold text-violet-300"><Plus size={14} />{text.addFlair}</button><button type="button" disabled={busy} onClick={() => run(async () => { await replaceCommunityFlairs(communityId, flairsDraft); await flairsQuery.refetch(); setEditor(null); })} className="h-11 w-full rounded-xl bg-teal-300 text-sm font-black text-[#07100f]">{text.save}</button></div>}
+      {editor && <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget && !busy) closeEditor(); }}><div className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-[26px] border border-white/10 bg-[#101918] p-5 shadow-2xl"><div className="flex items-center justify-between"><h2 className="text-lg font-black text-white">{editor === "rules" ? text.rules : editor === "flairs" ? text.flair : editingEvent ? text.edit : text.createEvent}</h2><button type="button" disabled={busy} onClick={closeEditor} className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-500 hover:bg-white/[0.05] hover:text-white disabled:cursor-not-allowed disabled:opacity-40"><X size={17} /></button></div>{editorError && <div role="alert" className="mt-4 rounded-xl border border-rose-400/25 bg-rose-400/[0.08] px-4 py-3 text-sm leading-6 text-rose-200">{editorError}</div>}
+        {editor === "rules" && <div className="mt-5 space-y-3">{rulesDraft.map((rule, index) => <div key={rule.id ?? `new-${index}`} className="rounded-2xl border border-white/[0.08] p-4"><div className="flex items-center justify-between"><span className="text-xs font-black text-teal-300">#{index + 1}</span><button type="button" onClick={() => setRulesDraft((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="text-rose-400"><Trash2 size={15} /></button></div><input value={rule.title} onChange={(event) => setRulesDraft((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item))} placeholder={text.title} className="mt-3 h-10 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /><textarea value={rule.description} onChange={(event) => setRulesDraft((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, description: event.target.value } : item))} placeholder={text.description} className="mt-2 min-h-24 w-full rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none" /></div>)}<button type="button" onClick={() => setRulesDraft((items) => [...items, { title: "", description: "" }])} className="flex items-center gap-2 text-xs font-bold text-teal-300"><Plus size={14} />{text.addRule}</button><button type="button" disabled={busy} onClick={() => run(async () => { await replaceCommunityRules(communityId, rulesDraft); await rulesQuery.refetch(); closeEditor(); })} className="h-11 w-full rounded-xl bg-teal-300 text-sm font-black text-[#07100f]">{text.save}</button></div>}
+        {editor === "flairs" && <div className="mt-5 space-y-3">{flairsDraft.map((flair, index) => <div key={flair.id ?? `new-${index}`} className="grid gap-3 rounded-2xl border border-white/[0.08] p-4 sm:grid-cols-[1fr_110px_110px_auto]"><input value={flair.name} onChange={(event) => setFlairsDraft((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, name: event.target.value } : item))} placeholder={text.flairName} className="h-10 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /><input type="color" value={flair.backgroundColor} title={text.background} onChange={(event) => setFlairsDraft((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, backgroundColor: event.target.value } : item))} className="h-10 w-full rounded-xl border border-white/10 bg-black/20 p-1" /><input type="color" value={flair.textColor} title={text.color} onChange={(event) => setFlairsDraft((items) => items.map((item, itemIndex) => itemIndex === index ? { ...item, textColor: event.target.value } : item))} className="h-10 w-full rounded-xl border border-white/10 bg-black/20 p-1" /><button type="button" onClick={() => setFlairsDraft((items) => items.filter((_, itemIndex) => itemIndex !== index))} className="flex h-10 w-10 items-center justify-center text-rose-400"><Trash2 size={15} /></button></div>)}<button type="button" onClick={() => setFlairsDraft((items) => [...items, { name: "", backgroundColor: "#134e4a", textColor: "#99f6e4" }])} className="flex items-center gap-2 text-xs font-bold text-violet-300"><Plus size={14} />{text.addFlair}</button><button type="button" disabled={busy} onClick={() => run(async () => { await replaceCommunityFlairs(communityId, flairsDraft); await flairsQuery.refetch(); closeEditor(); })} className="h-11 w-full rounded-xl bg-teal-300 text-sm font-black text-[#07100f]">{text.save}</button></div>}
         {editor === "event" && <div className="mt-5 grid gap-3 sm:grid-cols-2"><input value={eventDraft.title} onChange={(event) => setEventDraft((value) => ({ ...value, title: event.target.value }))} placeholder={text.eventTitle} className="h-11 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none sm:col-span-2" /><textarea value={eventDraft.description} onChange={(event) => setEventDraft((value) => ({ ...value, description: event.target.value }))} placeholder={text.description} className="min-h-28 rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-white outline-none sm:col-span-2" /><select value={eventDraft.type} onChange={(event) => setEventDraft((value) => ({ ...value, type: event.target.value as ForumCommunityEventType }))} className="h-11 rounded-xl border border-white/10 bg-[#111b1a] px-3 text-sm text-white">{eventTypes.map((type) => <option key={type} value={type}>{eventTypeLabel(type)}</option>)}</select><input value={eventDraft.gameName ?? ""} onChange={(event) => setEventDraft((value) => ({ ...value, gameName: event.target.value || null }))} placeholder={text.game} className="h-11 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /><input value={eventDraft.platform ?? ""} onChange={(event) => setEventDraft((value) => ({ ...value, platform: event.target.value || null }))} placeholder={text.platform} className="h-11 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /><input type="number" min={2} max={500} value={eventDraft.maxParticipants ?? ""} onChange={(event) => setEventDraft((value) => ({ ...value, maxParticipants: event.target.value ? Number(event.target.value) : null }))} placeholder={text.capacity} className="h-11 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /><label className="text-xs font-bold text-zinc-500">{text.start}<input type="datetime-local" value={toLocalInputValue(eventDraft.startsAtUtc)} onChange={(event) => {
         if (!event.target.value) return;
         setEventDraft((value) => ({
           ...value,
           startsAtUtc: new Date(event.target.value).toISOString(),
         }));
-      }} className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /></label><label className="text-xs font-bold text-zinc-500">{text.end}<input type="datetime-local" value={toLocalInputValue(eventDraft.endsAtUtc)} onChange={(event) => setEventDraft((value) => ({ ...value, endsAtUtc: event.target.value ? new Date(event.target.value).toISOString() : null }))} className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /></label><input value={eventDraft.joinUrl ?? ""} onChange={(event) => setEventDraft((value) => ({ ...value, joinUrl: event.target.value || null }))} placeholder={text.joinUrl} className="h-11 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none sm:col-span-2" /><button type="button" disabled={busy} onClick={() => run(async () => { if (editingEvent) await updateCommunityEvent(communityId, editingEvent.id, eventDraft); else await createCommunityEvent(communityId, eventDraft); await queryClient.invalidateQueries({ queryKey: ["community-features", communityId, "events"] }); setEditor(null); })} className="h-11 rounded-xl bg-teal-300 text-sm font-black text-[#07100f] sm:col-span-2">{text.save}</button></div>}
+      }} className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /></label><label className="text-xs font-bold text-zinc-500">{text.end}<input type="datetime-local" value={toLocalInputValue(eventDraft.endsAtUtc)} onChange={(event) => setEventDraft((value) => ({ ...value, endsAtUtc: event.target.value ? new Date(event.target.value).toISOString() : null }))} className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none" /></label><input value={eventDraft.joinUrl ?? ""} onChange={(event) => setEventDraft((value) => ({ ...value, joinUrl: event.target.value || null }))} placeholder={text.joinUrl} className="h-11 rounded-xl border border-white/10 bg-black/20 px-3 text-sm text-white outline-none sm:col-span-2" /><button type="button" disabled={busy} onClick={() => runEditorAction(async () => { if (editingEvent) await updateCommunityEvent(communityId, editingEvent.id, eventDraft); else await createCommunityEvent(communityId, eventDraft); await queryClient.invalidateQueries({ queryKey: ["community-features", communityId, "events"] }); closeEditor(); })} className="h-11 rounded-xl bg-teal-300 text-sm font-black text-[#07100f] disabled:cursor-not-allowed disabled:opacity-60 sm:col-span-2">{busy ? <span className="inline-flex items-center justify-center gap-2"><LoaderCircle size={16} className="animate-spin" />{isEn ? "Saving..." : "Yadda saxlanılır..."}</span> : text.save}</button></div>}
       </div></div>}
     </section>
   );

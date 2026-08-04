@@ -14,4 +14,5 @@ public static class RateLimitPolicyNames
     public const string SteamSync = "SteamSync";
     public const string Search = "Search";
     public const string Chat = "Chat";
+    public const string Contact = "Contact";
 }

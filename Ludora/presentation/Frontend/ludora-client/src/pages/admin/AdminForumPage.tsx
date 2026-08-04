@@ -21,7 +21,9 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
+import { AdminLiveSearch } from "../../components/admin/AdminLiveSearch";
+import { useI18n } from "../../i18n/useI18n";
 import { getApiErrorMessage } from "../../lib/api";
 import { hasAuthRole } from "../../lib/authRoles";
 import { formatDateTime } from "../../lib/helpers";
@@ -44,7 +46,20 @@ import type { ForumCategory } from "../../types/admin";
 type Tab = "discussions" | "categories" | "trash";
 
 export function AdminForumPage() {
-  const [tab, setTab] = useState<Tab>("discussions");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const tab: Tab =
+    tabParam === "categories" || tabParam === "trash"
+      ? tabParam
+      : "discussions";
+
+  function setTab(nextTab: Tab) {
+    const next = new URLSearchParams(searchParams);
+    if (nextTab === "discussions") next.delete("tab");
+    else next.set("tab", nextTab);
+    if (nextTab !== "discussions") next.delete("search");
+    setSearchParams(next);
+  }
 
   return (
     <div className="space-y-6">
@@ -88,6 +103,9 @@ export function AdminForumPage() {
 }
 
 function DiscussionsPanel() {
+  const { language } = useI18n();
+  const [searchParams] = useSearchParams();
+  const search = searchParams.get("search") ?? "";
   const queryClient = useQueryClient();
   const accessToken = useAuthStore((state) => state.accessToken);
   const user = useAuthStore((state) => state.user);
@@ -95,9 +113,17 @@ function DiscussionsPanel() {
   const [error, setError] = useState<string | null>(null);
 
   const discussionsQuery = useQuery({
-    queryKey: ["admin", "forum", "active-discussions"],
+    queryKey: ["admin", "forum", "active-discussions", search],
     queryFn: ({ signal }) =>
-      getForumDiscussions("newest", undefined, signal, undefined, undefined, 1, 50),
+      getForumDiscussions(
+        "newest",
+        undefined,
+        signal,
+        undefined,
+        search || undefined,
+        1,
+        100,
+      ),
   });
 
   const stateMutation = useMutation({
@@ -143,6 +169,27 @@ function DiscussionsPanel() {
 
   return (
     <section className="space-y-4">
+      <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
+        <AdminLiveSearch
+          placeholder={
+            language === "en"
+              ? "Discussion, text, or username..."
+              : "Müzakirə, mətn və ya istifadəçi adı..."
+          }
+          ariaLabel={
+            language === "en"
+              ? "Search forum discussions"
+              : "Forum müzakirələrində axtarış"
+          }
+        />
+        {search && (
+          <p className="mt-2 text-xs text-zinc-600">
+            {language === "en"
+              ? `Showing results for “${search}”.`
+              : `“${search}” üzrə nəticələr göstərilir.`}
+          </p>
+        )}
+      </div>
       {error && <InlineError message={error} />}
       {items.map((discussion) => (
         <article
