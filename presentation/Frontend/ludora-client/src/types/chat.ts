@@ -1,7 +1,7 @@
 import type { CatalogSource } from "./home";
 
 export type ChatRequestStatus = "Pending" | "Accepted" | "Rejected";
-export type ChatMessageKind = "Text" | "Image" | "Video" | "GameRecommendation";
+export type ChatMessageKind = "Text" | "Image" | "Video" | "GameRecommendation" | "System";
 export type ChatMessageDeliveryStatus = "Sent" | "Delivered" | "Read";
 export type ChatMessageDeleteScope = "ForMe" | "ForEveryone";
 export type ChatReactionType =
@@ -69,6 +69,7 @@ export interface ChatMessageDTO {
   id: number;
   conversationId: number;
   senderUserId: string;
+  senderUser: ChatUserDTO | null;
   kind: ChatMessageKind;
   text: string | null;
   mediaUrl: string | null;
@@ -99,7 +100,7 @@ export interface ChatSendMessageResultDTO {
 
 export interface ChatForwardedMessageDTO {
   conversationId: number;
-  recipientUserId: string;
+  recipientUserIds: string[];
   message: ChatMessageDTO;
   streakUpdate: ChatStreakUpdatedDTO | null;
 }
@@ -110,7 +111,13 @@ export interface ChatForwardMessagesResultDTO {
 
 export interface ChatConversationDTO {
   id: number;
-  otherUser: ChatUserDTO;
+  otherUser: ChatUserDTO | null;
+  isGroup: boolean;
+  groupName: string | null;
+  groupDescription: string | null;
+  groupImageUrl: string | null;
+  isGroupCreator: boolean;
+  memberCount: number;
   requestStatus: ChatRequestStatus;
   isIncomingRequest: boolean;
   canSendMessage: boolean;
@@ -136,7 +143,8 @@ export interface ChatMessageSearchPageDTO {
 }
 
 export interface ChatSendMessageRequest {
-  recipientUserId: string;
+  recipientUserId?: string | null;
+  conversationId?: number | null;
   text?: string;
   media?: File[];
   replyToMessageId?: number | null;
@@ -204,4 +212,40 @@ export interface ChatTypingDTO {
   userId: string;
   isTyping: boolean;
   expiresAtUtc: string;
+}
+
+export interface ChatGroupMemberDTO {
+  id: string;
+  userName: string;
+  profileImageUrl: string | null;
+  isCreator: boolean;
+  joinedAtUtc: string;
+}
+
+export interface ChatGroupDTO {
+  conversationId: number;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+  creatorUserId: string;
+  isCurrentUserCreator: boolean;
+  members: ChatGroupMemberDTO[];
+  createdAtUtc: string;
+  updatedAtUtc: string;
+}
+
+export interface ChatGroupChangedDTO {
+  conversationId: number;
+  changeType: string;
+  participantUserIds: string[];
+  affectedUserId: string | null;
+  newCreatorUserId: string | null;
+  groupDeleted: boolean;
+  group: ChatGroupDTO | null;
+}
+
+export interface ChatBulkDeleteResultDTO {
+  conversationId: number;
+  scope: ChatMessageDeleteScope;
+  items: ChatMessageDeletedDTO[];
 }

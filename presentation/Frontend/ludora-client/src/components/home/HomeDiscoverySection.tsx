@@ -268,6 +268,7 @@ function DiscoveryGameCard({
             src={coverUrl}
             alt={`${game.title} oyun örtüyü`}
             loading="lazy"
+            decoding="async"
             className="h-full w-full object-cover transition duration-500 group-hover:scale-105"
             onError={() => {
               setFailedCoverUrl(coverUrl);
@@ -355,6 +356,8 @@ function DiscoveryCarousel({
   const containerRef = useRef<HTMLDivElement>(null);
   const normalizeTimerRef = useRef<number | null>(null);
   const [isPaused, setIsPaused] = useState(false);
+  const [isInViewport, setIsInViewport] = useState(true);
+  const [isPageVisible, setIsPageVisible] = useState(true);
 
   const repeatedGames = useMemo(
     () =>
@@ -444,6 +447,41 @@ function DiscoveryCarousel({
   useEffect(() => {
     const container = containerRef.current;
 
+    if (!container || typeof IntersectionObserver === "undefined") {
+      setIsInViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsInViewport(entry.isIntersecting);
+      },
+      { rootMargin: "240px 0px" },
+    );
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, []);
+
+  useEffect(() => {
+    const updateVisibility = () => {
+      setIsPageVisible(document.visibilityState === "visible");
+    };
+
+    updateVisibility();
+    document.addEventListener("visibilitychange", updateVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", updateVisibility);
+    };
+  }, []);
+
+  useEffect(() => {
+    const container = containerRef.current;
+
     if (!container || games.length < 2) {
       return;
     }
@@ -473,7 +511,12 @@ function DiscoveryCarousel({
   }, [games.length, getCarouselMetrics]);
 
   useEffect(() => {
-    if (games.length < 2 || isPaused) {
+    if (
+      games.length < 2 ||
+      isPaused ||
+      !isInViewport ||
+      !isPageVisible
+    ) {
       return;
     }
 
@@ -492,7 +535,13 @@ function DiscoveryCarousel({
     return () => {
       window.clearInterval(intervalId);
     };
-  }, [games.length, isPaused, moveCarousel]);
+  }, [
+    games.length,
+    isInViewport,
+    isPageVisible,
+    isPaused,
+    moveCarousel,
+  ]);
 
   useEffect(
     () => () => {
@@ -524,7 +573,7 @@ function DiscoveryCarousel({
       <div
         ref={containerRef}
         className="home-discovery-carousel flex snap-x snap-mandatory gap-4 overflow-x-auto py-1"
-        onScroll={scheduleNormalize}
+        onScroll={isInViewport ? scheduleNormalize : undefined}
       >
         {repeatedGames.map((game, index) => (
           <div

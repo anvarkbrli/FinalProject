@@ -1,4 +1,5 @@
 using Ludora.API.Security;
+using Ludora.API.Models;
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
@@ -24,10 +25,10 @@ public class PostsController : ControllerBase
     [HttpPost]
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<PostDTO>> Create(
-        [FromForm] string? content,
-        IFormFile? image,
+        [FromForm] PostCreateFormRequest request,
         CancellationToken cancellationToken)
     {
+        var image = request.Image;
         await using var imageStream = image is { Length: > 0 }
             ? image.OpenReadStream()
             : null;
@@ -36,7 +37,7 @@ public class PostsController : ControllerBase
             GetCurrentUserId(),
             new PostCreateDTO
             {
-                Content = content,
+                Content = request.Content,
                 Image = CreateImageUpload(image, imageStream)
             },
             cancellationToken);
@@ -95,11 +96,10 @@ public class PostsController : ControllerBase
     [Consumes("multipart/form-data")]
     public async Task<ActionResult<PostDTO>> Update(
         long postId,
-        [FromForm] string? content,
-        IFormFile? image,
-        [FromForm] bool removeImage,
+        [FromForm] PostUpdateFormRequest request,
         CancellationToken cancellationToken)
     {
+        var image = request.Image;
         await using var imageStream = image is { Length: > 0 }
             ? image.OpenReadStream()
             : null;
@@ -109,9 +109,9 @@ public class PostsController : ControllerBase
             postId,
             new PostUpdateDTO
             {
-                Content = content,
+                Content = request.Content,
                 Image = CreateImageUpload(image, imageStream),
-                RemoveImage = removeImage
+                RemoveImage = request.RemoveImage
             },
             cancellationToken);
 

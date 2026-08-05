@@ -17,6 +17,7 @@ import type {
   ChatMessageReactionChangedDTO,
   ChatPresenceChangedDTO,
   ChatConversationDTO,
+  ChatGroupChangedDTO,
   ChatReadReceiptDTO,
   ChatRequestDecisionDTO,
   ChatStreakUpdatedDTO,
@@ -37,6 +38,7 @@ function getChatHubUrl(): string {
 export function useChatRealtime(enabled: boolean) {
   const queryClient = useQueryClient();
   const accessToken = useAuthStore((state) => state.accessToken);
+  const currentUserId = useAuthStore((state) => state.user?.id ?? null);
   const connectionRef = useRef<HubConnection | null>(null);
   const typingTimersRef = useRef(new Map<number, number>());
   const streakTimerRef = useRef<number | null>(null);
@@ -157,6 +159,43 @@ export function useChatRealtime(enabled: boolean) {
         });
       },
     );
+    connection.on("ChatGroupChanged", (event: ChatGroupChangedDTO) => {
+      refreshConversation(event.conversationId);
+      void queryClient.invalidateQueries({
+        queryKey: ["chat", "group", event.conversationId],
+      });
+
+      const currentUserMembershipEnded = Boolean(
+        currentUserId &&
+          event.affectedUserId === currentUserId &&
+          ["MemberRemoved", "MemberLeft", "GroupDeleted"].includes(event.changeType),
+      );
+      if (currentUserMembershipEnded) {
+        void connection
+          .invoke("LeaveConversation", event.conversationId)
+          .catch(() => undefined);
+        void queryClient.removeQueries({
+          queryKey: chatQueryKeys.messages(event.conversationId),
+        });
+        void queryClient.removeQueries({
+          queryKey: chatQueryKeys.pinnedMessages(event.conversationId),
+        });
+        window.dispatchEvent(
+          new CustomEvent("wellplayd:chat-group-membership-removed", {
+            detail: {
+              conversationId: event.conversationId,
+              reason: event.changeType,
+              groupDeleted: event.groupDeleted,
+            },
+          }),
+        );
+        return;
+      }
+
+      void connection
+        .invoke("JoinConversation", event.conversationId)
+        .catch(() => undefined);
+    });
     connection.on("ChatStreakUpdated", (event: ChatStreakUpdatedDTO) => {
       setLatestStreakEvent(event);
       if (streakTimerRef.current) window.clearTimeout(streakTimerRef.current);
@@ -169,7 +208,7 @@ export function useChatRealtime(enabled: boolean) {
     connection.on("UserPresenceChanged", (event: ChatPresenceChangedDTO) => {
       const updateConversations = (current: ChatConversationDTO[] | undefined) =>
         current?.map((conversation) =>
-          conversation.otherUser.id === event.userId
+          conversation.otherUser?.id === event.userId
             ? {
                 ...conversation,
                 otherUser: {
@@ -244,12 +283,13 @@ export function useChatRealtime(enabled: boolean) {
       connection.off("MessageRequestUpdated");
       connection.off("ConversationArchiveChanged");
       connection.off("ConversationDeleted");
+      connection.off("ChatGroupChanged");
       connection.off("ChatStreakUpdated");
       connection.off("UserPresenceChanged");
       connection.off("ChatTyping");
       void connection.stop();
     };
-  }, [accessToken, enabled, queryClient]);
+  }, [accessToken, currentUserId, enabled, queryClient]);
 
   return {
     typingByConversation,

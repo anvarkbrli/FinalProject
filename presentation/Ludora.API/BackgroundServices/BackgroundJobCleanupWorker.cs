@@ -6,6 +6,10 @@ namespace Ludora.API.BackgroundServices;
 
 public sealed class BackgroundJobCleanupWorker : BackgroundService
 {
+    private static readonly TimeSpan InitialDelay = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan CleanupInterval = TimeSpan.FromHours(12);
+    private static readonly TimeSpan FailureRetryDelay = TimeSpan.FromMinutes(1);
+
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly ILogger<BackgroundJobCleanupWorker> _logger;
 
@@ -19,11 +23,12 @@ public sealed class BackgroundJobCleanupWorker : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
-        using var timer = new PeriodicTimer(TimeSpan.FromHours(12));
+        if (!await DelayAsync(InitialDelay, stoppingToken))
+            return;
 
-        do
+        while (!stoppingToken.IsCancellationRequested)
         {
+            var nextDelay = CleanupInterval;
             try
             {
                 await CleanupAsync(stoppingToken);
@@ -34,10 +39,16 @@ public sealed class BackgroundJobCleanupWorker : BackgroundService
             }
             catch (Exception exception)
             {
-                _logger.LogError(exception, "Background job cleanup failed.");
+                nextDelay = FailureRetryDelay;
+                _logger.LogError(
+                    exception,
+                    "Background job cleanup failed. The API will stay online and cleanup will retry in {RetryMinutes} minute(s).",
+                    FailureRetryDelay.TotalMinutes);
             }
+
+            if (!await DelayAsync(nextDelay, stoppingToken))
+                return;
         }
-        while (await timer.WaitForNextTickAsync(stoppingToken));
     }
 
     private async Task CleanupAsync(CancellationToken cancellationToken)
@@ -60,6 +71,21 @@ public sealed class BackgroundJobCleanupWorker : BackgroundService
             _logger.LogInformation(
                 "Removed {DeletedCount} expired background job records.",
                 deleted);
+        }
+    }
+
+    private static async Task<bool> DelayAsync(
+        TimeSpan delay,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(delay, cancellationToken);
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return false;
         }
     }
 }

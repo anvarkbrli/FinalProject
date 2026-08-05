@@ -1,5 +1,7 @@
 using System.Security.Claims;
 using Ludora.Application.Common;
+using Ludora.Application.Exceptions;
+using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
@@ -8,6 +10,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Mvc.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ludora.API.Filters;
 
@@ -23,6 +26,13 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
             "AdminUserReports.UpdateStatus"
         };
 
+    private static readonly HashSet<string> SnapshotActionNames =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Delete",
+            "Restore"
+        };
+
     private static readonly string[] ResourceIdKeys =
     [
         "badgeId",
@@ -36,13 +46,16 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
     ];
 
     private readonly AppDbContext _context;
+    private readonly IIgdbClient _igdbClient;
     private readonly ILogger<AdminActionAuditFilter> _logger;
 
     public AdminActionAuditFilter(
         AppDbContext context,
+        IIgdbClient igdbClient,
         ILogger<AdminActionAuditFilter> logger)
     {
         _context = context;
+        _igdbClient = igdbClient;
         _logger = logger;
     }
 
@@ -56,6 +69,19 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
             return;
         }
 
+        var descriptor = (ControllerActionDescriptor)context.ActionDescriptor;
+        var resourceType = GetResourceType(descriptor, context);
+        var requestResourceId = GetRequestResourceId(context);
+        var source = TryGetCatalogSource(context);
+
+        var resourceSnapshot = SnapshotActionNames.Contains(descriptor.ActionName)
+            ? await ResolveResourceSnapshotAsync(
+                resourceType,
+                requestResourceId,
+                source,
+                context.HttpContext.RequestAborted)
+            : AuditResourceSnapshot.Empty;
+
         var executedContext = await next();
 
         if (!WasSuccessful(executedContext))
@@ -67,11 +93,12 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
         if (!Guid.TryParse(adminUserIdValue, out var adminUserId))
             return;
 
-        var descriptor = (ControllerActionDescriptor)context.ActionDescriptor;
-        var targetUserId = TryGetTargetUserId(context);
-        var resourceType = GetResourceType(descriptor, context);
-        var resourceId = GetResourceId(context, executedContext);
-        var resourceName = GetResourceName(context, executedContext);
+        var targetUserId =
+            TryGetTargetUserId(context) ?? resourceSnapshot.OwnerUserId;
+        var resourceId =
+            GetResourceId(context, executedContext) ?? requestResourceId;
+        var resourceName =
+            GetResourceName(context, executedContext) ?? resourceSnapshot.Name;
         var operation = GetOperation(descriptor.ActionName, resourceType);
 
         _context.ModeratorActionLogs.Add(new ModeratorActionLog
@@ -119,8 +146,11 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
         if (AlreadyAuditedActions.Contains(actionKey))
             return false;
 
-        return context.ActionDescriptor.EndpointMetadata
+        var authorizationData = context.ActionDescriptor.EndpointMetadata
             .OfType<IAuthorizeData>()
+            .ToArray();
+
+        var hasAdministrativeRole = authorizationData
             .Where(x => !string.IsNullOrWhiteSpace(x.Roles))
             .SelectMany(x => x.Roles!.Split(
                 ',',
@@ -129,6 +159,16 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
             .Any(role =>
                 role.Equals(RoleNames.Admin, StringComparison.OrdinalIgnoreCase) ||
                 role.Equals(RoleNames.Moderator, StringComparison.OrdinalIgnoreCase));
+
+        if (hasAdministrativeRole)
+            return true;
+
+        var isAdministrativeController = descriptor.ControllerTypeInfo.Namespace?.StartsWith(
+                "Ludora.API.Controllers.Admin",
+                StringComparison.Ordinal) == true;
+
+        return isAdministrativeController &&
+               authorizationData.Any(x => !string.IsNullOrWhiteSpace(x.Policy));
     }
 
     private static bool WasSuccessful(ActionExecutedContext context)
@@ -164,6 +204,23 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
         }
 
         return null;
+    }
+
+    private static CatalogSource? TryGetCatalogSource(
+        ActionExecutingContext context)
+    {
+        if (!context.RouteData.Values.TryGetValue("source", out var value))
+            return null;
+
+        if (value is CatalogSource source)
+            return source;
+
+        return Enum.TryParse<CatalogSource>(
+            Convert.ToString(value),
+            true,
+            out source)
+            ? source
+            : null;
     }
 
     private static string GetResourceType(
@@ -216,9 +273,8 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
         };
     }
 
-    private static string? GetResourceId(
-        ActionExecutingContext context,
-        ActionExecutedContext executedContext)
+    private static string? GetRequestResourceId(
+        ActionExecutingContext context)
     {
         foreach (var key in ResourceIdKeys)
         {
@@ -228,6 +284,17 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
                 return Convert.ToString(value);
             }
         }
+
+        return null;
+    }
+
+    private static string? GetResourceId(
+        ActionExecutingContext context,
+        ActionExecutedContext executedContext)
+    {
+        var requestResourceId = GetRequestResourceId(context);
+        if (!string.IsNullOrWhiteSpace(requestResourceId))
+            return requestResourceId;
 
         var resultValue = (executedContext.Result as ObjectResult)?.Value;
         return ReadProperty(resultValue, "Id");
@@ -249,6 +316,169 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
 
         var resultValue = (executedContext.Result as ObjectResult)?.Value;
         return ReadDisplayName(resultValue);
+    }
+
+    private async Task<AuditResourceSnapshot> ResolveResourceSnapshotAsync(
+        string resourceType,
+        string? resourceId,
+        CatalogSource? source,
+        CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(resourceId, out var id) || id <= 0)
+            return AuditResourceSnapshot.Empty;
+
+        if (resourceType == "Post")
+        {
+            var post = await _context.UserPosts
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(x => x.Id == id)
+                .Select(x => new
+                {
+                    x.UserId,
+                    UserName = x.User.UserName ?? string.Empty
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            return post is null
+                ? AuditResourceSnapshot.Empty
+                : new AuditResourceSnapshot(
+                    null,
+                    post.UserId,
+                    post.UserName);
+        }
+
+        if (resourceType is not ("Oyun" or "Janr" or "Platforma"))
+            return AuditResourceSnapshot.Empty;
+
+        if (source is null or CatalogSource.Local)
+        {
+            var localName = await ResolveLocalCatalogNameAsync(
+                resourceType,
+                id,
+                cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(localName) ||
+                source == CatalogSource.Local)
+            {
+                return new AuditResourceSnapshot(localName, null, null);
+            }
+        }
+
+        if (source is null or CatalogSource.Igdb)
+        {
+            var overrideName = await ResolveIgdbOverrideNameAsync(
+                resourceType,
+                id,
+                cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(overrideName))
+                return new AuditResourceSnapshot(overrideName, null, null);
+
+            var igdbName = await ResolveIgdbNameAsync(
+                resourceType,
+                id,
+                cancellationToken);
+
+            return new AuditResourceSnapshot(igdbName, null, null);
+        }
+
+        return AuditResourceSnapshot.Empty;
+    }
+
+    private async Task<string?> ResolveLocalCatalogNameAsync(
+        string resourceType,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        if (id > int.MaxValue)
+            return null;
+
+        var localId = (int)id;
+
+        return resourceType switch
+        {
+            "Oyun" => await _context.Games
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(x => x.Id == localId)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync(cancellationToken),
+            "Janr" => await _context.Genres
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(x => x.Id == localId)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync(cancellationToken),
+            "Platforma" => await _context.Platforms
+                .IgnoreQueryFilters()
+                .AsNoTracking()
+                .Where(x => x.Id == localId)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync(cancellationToken),
+            _ => null
+        };
+    }
+
+    private Task<string?> ResolveIgdbOverrideNameAsync(
+        string resourceType,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        return resourceType switch
+        {
+            "Oyun" => _context.IgdbGameOverrides
+                .AsNoTracking()
+                .Where(x => x.IgdbGameId == id)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync(cancellationToken),
+            "Janr" => _context.IgdbGenreOverrides
+                .AsNoTracking()
+                .Where(x => x.IgdbGenreId == id)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync(cancellationToken),
+            "Platforma" => _context.IgdbPlatformOverrides
+                .AsNoTracking()
+                .Where(x => x.IgdbPlatformId == id)
+                .Select(x => x.Name)
+                .FirstOrDefaultAsync(cancellationToken),
+            _ => Task.FromResult<string?>(null)
+        };
+    }
+
+    private async Task<string?> ResolveIgdbNameAsync(
+        string resourceType,
+        long id,
+        CancellationToken cancellationToken)
+    {
+        if (!_igdbClient.IsEnabled)
+            return null;
+
+        try
+        {
+            return resourceType switch
+            {
+                "Oyun" => (await _igdbClient.GetGameByIdAsync(
+                    id,
+                    cancellationToken))?.Name,
+                "Janr" => (await _igdbClient.GetGenreByIdAsync(
+                    id,
+                    cancellationToken))?.Name,
+                "Platforma" => (await _igdbClient.GetPlatformByIdAsync(
+                    id,
+                    cancellationToken))?.Name,
+                _ => null
+            };
+        }
+        catch (ExternalServiceException exception)
+        {
+            _logger.LogWarning(
+                exception,
+                "Audit resurs adı IGDB-dən alınmadı. ResourceType: {ResourceType}, ResourceId: {ResourceId}",
+                resourceType,
+                id);
+            return null;
+        }
     }
 
     private static string? ReadDisplayName(object? value)
@@ -278,5 +508,14 @@ public sealed class AdminActionAuditFilter : IAsyncActionFilter
             : text.Length <= 300
                 ? text
                 : text[..300];
+    }
+
+    private sealed record AuditResourceSnapshot(
+        string? Name,
+        Guid? OwnerUserId,
+        string? OwnerUserName)
+    {
+        public static AuditResourceSnapshot Empty { get; } =
+            new(null, null, null);
     }
 }

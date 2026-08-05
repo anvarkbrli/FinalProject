@@ -1,4 +1,5 @@
 using Ludora.API.Security;
+using Ludora.API.Models;
 using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Badge;
@@ -70,11 +71,16 @@ public sealed class AdminBadgesController : ControllerBase
 
     [HttpPut("{id:int}/icon")]
     [Authorize(Policy = CapabilityNames.ManageBadges)]
+    [Consumes("multipart/form-data")]
     public async Task<ActionResult<BadgeDTO>> UpdateIcon(
         int id,
-        IFormFile image,
+        [FromForm] SingleImageFormRequest request,
         CancellationToken cancellationToken)
     {
+        var image = request.Image;
+        if (image is null || image.Length <= 0)
+            return BadRequest(new { message = "Nişan şəkli seçilməyib." });
+
         await using var stream = image.OpenReadStream();
         var upload = new ProfileImageUploadDTO
         {

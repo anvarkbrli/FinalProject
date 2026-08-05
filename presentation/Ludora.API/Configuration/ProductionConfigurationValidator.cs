@@ -35,6 +35,7 @@ public static class ProductionConfigurationValidator
         ValidateStorage(configuration, errors);
         ValidateDataProtection(configuration, errors);
         ValidateCache(configuration, errors);
+        ValidatePresence(configuration, errors);
         ValidateMalwareScanning(configuration, errors);
         ValidateForwardedHeaders(configuration, errors);
         ValidateEmail(configuration, errors);
@@ -236,6 +237,36 @@ public static class ProductionConfigurationValidator
 
         if (string.IsNullOrWhiteSpace(settings.InstanceName))
             errors.Add("Cache:InstanceName boş ola bilməz.");
+    }
+
+    private static void ValidatePresence(
+        IConfiguration configuration,
+        ICollection<string> errors)
+    {
+        var settings = configuration
+            .GetSection(PresenceSettings.SectionName)
+            .Get<PresenceSettings>() ?? new PresenceSettings();
+        var cache = configuration
+            .GetSection(CacheSettings.SectionName)
+            .Get<CacheSettings>() ?? new CacheSettings();
+
+        if (settings.UseDistributedStore && !cache.RedisEnabled)
+        {
+            errors.Add(
+                "Presence:UseDistributedStore true olduqda Cache:RedisEnabled true olmalıdır.");
+        }
+
+        if (settings.HeartbeatSeconds is < 5 or > 60)
+            errors.Add("Presence:HeartbeatSeconds 5-60 aralığında olmalıdır.");
+
+        if (settings.OfflineAfterSeconds is < 30 or > 600)
+            errors.Add("Presence:OfflineAfterSeconds 30-600 aralığında olmalıdır.");
+
+        if (settings.OfflineAfterSeconds < settings.HeartbeatSeconds * 2)
+        {
+            errors.Add(
+                "Presence:OfflineAfterSeconds heartbeat intervalının ən azı iki qatı olmalıdır.");
+        }
     }
 
     private static void ValidateMalwareScanning(

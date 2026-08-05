@@ -101,6 +101,21 @@ public class LocalFileStorageService : IFileStorageService
             cancellationToken);
     }
 
+    public Task<string> SaveChatGroupImageAsync(
+        ProfileImageUploadDTO dto,
+        CancellationToken cancellationToken = default)
+    {
+        dto.ValidateUpload(MaxProfileImageSize, FileSize.MB);
+        return SavePublicImageAsync(
+            dto.Stream,
+            dto.Length,
+            ToBytes(MaxProfileImageSize),
+            dto.FileName,
+            dto.ContentType,
+            "chat-group-images",
+            cancellationToken);
+    }
+
     public Task<string> SaveCommunityCoverImageAsync(
         ProfileImageUploadDTO dto,
         CancellationToken cancellationToken = default)

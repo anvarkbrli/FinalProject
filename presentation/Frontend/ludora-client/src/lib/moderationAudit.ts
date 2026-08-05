@@ -73,6 +73,14 @@ const resourceTypeLabels: Record<string, string> = {
   "Forum müzakirəsi": "Forum discussion",
 };
 
+
+const resourcesWithoutNumericFallback = new Set([
+  "Oyun",
+  "Janr",
+  "Platforma",
+  "Post",
+]);
+
 const operationLabels: Record<string, string> = {
   "Nişan şəklini dəyişdi": "Updated the badge image",
   "İstifadəçinin nişanlarını yenidən hesabladı":
@@ -233,6 +241,17 @@ export function getModerationResourceSummary(
 
   const typeLabel = getModerationResourceType(entry.resourceType, language);
   if (entry.resourceName) return `${typeLabel}: ${entry.resourceName}`;
+
+  if (resourcesWithoutNumericFallback.has(entry.resourceType)) {
+    return typeLabel;
+  }
+
   if (entry.resourceId) return `${typeLabel} #${entry.resourceId}`;
   return typeLabel;
+}
+
+export function isPostModerationResource(
+  entry: ModeratorActionLog,
+): boolean {
+  return entry.resourceType === "Post";
 }

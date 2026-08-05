@@ -81,6 +81,7 @@ public class AppDbContext : IdentityDbContext<AppUser, IdentityRole<Guid>, Guid>
     public DbSet<ChatMessageUserState> ChatMessageUserStates { get; set; }
     public DbSet<ChatMessageReaction> ChatMessageReactions { get; set; }
     public DbSet<ChatConversationUserState> ChatConversationUserStates { get; set; }
+    public DbSet<ChatConversationMember> ChatConversationMembers { get; set; }
     public DbSet<BadgeDefinition> BadgeDefinitions { get; set; }
     public DbSet<UserBadge> UserBadges { get; set; }
     public DbSet<RefreshSession> RefreshSessions { get; set; }

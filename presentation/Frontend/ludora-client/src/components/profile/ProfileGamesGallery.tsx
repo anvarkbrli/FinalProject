@@ -501,6 +501,10 @@ export function ProfileGamesGallery({
                   const coverUrl = resolveAssetUrl(
                     game.coverUrl,
                   );
+                  const reviewId =
+                    typeof game.reviewId === "number" && game.reviewId > 0
+                      ? game.reviewId
+                      : null;
 
                   return (
                     <div key={`${game.source}-${game.gameId}`}>
@@ -538,9 +542,7 @@ export function ProfileGamesGallery({
                           </div>
                         </Link>
 
-                        {(game.status ||
-                          (typeof game.reviewId === "number" &&
-                            game.reviewId > 0)) && (
+                        {(game.status || reviewId !== null) && (
                           <div className="px-3.5 py-3.5">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] text-zinc-500">
@@ -551,12 +553,11 @@ export function ProfileGamesGallery({
                                 )}
                               </div>
 
-                              {typeof game.reviewId === "number" &&
-                                game.reviewId > 0 && (
+                              {reviewId !== null && (
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      onOpenReview(game.reviewId);
+                                      onOpenReview(reviewId);
                                     }}
                                     className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-zinc-300 transition hover:border-violet-400/20 hover:bg-violet-500/[0.08] hover:text-violet-200"
                                     title="Rəyə keç"

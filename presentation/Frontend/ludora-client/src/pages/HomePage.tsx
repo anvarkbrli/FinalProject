@@ -7,7 +7,7 @@ import {
   MessageSquareText,
   Sparkles,
 } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { InterestOnboardingModal } from "../components/home/InterestOnboardingModal";
 import { DiscussionCard } from "../components/home/DiscussionCard";
 import { DiscussionCardSkeleton } from "../components/home/DiscussionCardSkeleton";
@@ -58,6 +58,7 @@ function HeroGameCover({
           src={coverUrl}
           alt={game?.title ?? "Oyun örtüyü"}
           className="h-full w-full object-cover"
+          decoding="async"
           onError={(event) => {
             event.currentTarget.style.display = "none";
           }}
@@ -118,6 +119,11 @@ export function HomePage() {
     staleTime: 6 * 60 * 60 * 1000,
     retry: 0,
   });
+
+  const refetchRecommendations = recommendationsQuery.refetch;
+  const retryRecommendations = useCallback(() => {
+    void refetchRecommendations();
+  }, [refetchRecommendations]);
 
   const shouldShowOnboarding =
     isAuthenticated &&
@@ -281,9 +287,7 @@ export function HomePage() {
             data={recommendationsQuery.data}
             isLoading={recommendationsQuery.isLoading}
             isError={recommendationsQuery.isError}
-            onRetry={() => {
-              void recommendationsQuery.refetch();
-            }}
+            onRetry={retryRecommendations}
           />
         )}
 

@@ -38,3 +38,7 @@ Thumbs.db
 .idea/
 
 **/data-protection-keys/
+
+# Production database backups
+deployment/backups/*
+!deployment/backups/.gitkeep

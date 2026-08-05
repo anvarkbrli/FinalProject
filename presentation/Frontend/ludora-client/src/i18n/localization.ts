@@ -77,10 +77,12 @@ function escapeRegExp(value: string) {
 }
 
 function addAutomaticTemplate(value: string, key: string) {
-  // Placeholder-only templates such as "{value1} {value2}" match almost
-  // every two-part UI label and can corrupt unrelated text across the app.
-  const literalText = value.replace(/\{\w+\}/g, "").trim();
-  if (!literalText) return;
+  // Placeholder-only or one-word templates such as "{value1} game" are too
+  // broad and can corrupt unrelated labels across the app. Dynamic text with
+  // a generic suffix must use an explicit t(...) key instead.
+  const literalText = value.replace(/\{\w+\}/g, " ").trim();
+  const literalWords = literalText.match(/\p{L}+/gu) ?? [];
+  if (literalWords.length < 2) return;
 
   const parameterNames: string[] = [];
   let cursor = 0;

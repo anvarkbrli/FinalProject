@@ -1,0 +1,219 @@
+name: ${COMPOSE_PROJECT_NAME:-wellplayd}
+
+x-api-environment: &api-environment
+  ASPNETCORE_ENVIRONMENT: Production
+  ASPNETCORE_URLS: http://+:8080
+  ConnectionStrings__default: Server=sqlserver;Database=${DB_NAME};User Id=sa;Password=${MSSQL_SA_PASSWORD};Encrypt=true;TrustServerCertificate=true
+  JwtSettings__Key: ${JWT_SIGNING_KEY}
+  JwtSettings__Issuer: ${JWT_ISSUER:-WellPlayd.API}
+  JwtSettings__Audience: ${JWT_AUDIENCE:-WellPlayd.Client}
+  JwtSettings__ExpiresInMinutes: ${JWT_EXPIRES_MINUTES:-60}
+  Cors__AllowedOrigins__0: ${PUBLIC_FRONTEND_ORIGIN}
+  AllowedHosts: ${API_ALLOWED_HOSTS};localhost;127.0.0.1;api
+  ForwardedHeaders__Enabled: "true"
+  ForwardedHeaders__ForwardLimit: "1"
+  ForwardedHeaders__KnownNetworks__0: ${DOCKER_SUBNET:-172.28.0.0/16}
+  ForwardedHeaders__AllowedHosts__0: ${API_ALLOWED_HOSTS}
+  FileStorageSettings__WebRootPath: /data/wellplayd/public
+  FileStorageSettings__PrivateStoragePath: /data/wellplayd/private
+  DataProtection__ApplicationName: WellPlayd
+  DataProtection__KeyRingPath: /data/wellplayd/data-protection-keys
+  Cache__RedisEnabled: "true"
+  Cache__RedisConnectionString: redis:6379,abortConnect=false
+  Cache__InstanceName: ${REDIS_INSTANCE_NAME:-wellplayd:prod:}
+  Cache__LocalFallbackSeconds: "30"
+  Presence__UseDistributedStore: "true"
+  Presence__HeartbeatSeconds: "20"
+  Presence__OfflineAfterSeconds: "90"
+  MalwareScanning__Enabled: "true"
+  MalwareScanning__Host: clamav
+  MalwareScanning__Port: "3310"
+  MalwareScanning__TimeoutSeconds: "30"
+  MalwareScanning__ChunkSizeBytes: "65536"
+  MalwareScanning__FailClosed: "true"
+  EmailSettings__Enabled: "true"
+  EmailSettings__Host: ${SMTP_HOST}
+  EmailSettings__Port: ${SMTP_PORT:-587}
+  EmailSettings__UserName: ${SMTP_USERNAME}
+  EmailSettings__Password: ${SMTP_PASSWORD}
+  EmailSettings__FromEmail: ${SMTP_FROM_EMAIL}
+  EmailSettings__FromName: ${SMTP_FROM_NAME:-WellPlayd}
+  EmailSettings__EnableSsl: ${SMTP_ENABLE_SSL:-true}
+  EmailSettings__PublicApiBaseUrl: ${PUBLIC_API_BASE_URL}
+  EmailSettings__PublicFrontendBaseUrl: ${PUBLIC_FRONTEND_ORIGIN}
+  EmailSettings__MaxRetryAttempts: "3"
+  EmailSettings__RetryDelaySeconds: "2"
+  EmailSettings__SendTimeoutSeconds: "30"
+  Authentication__Google__Enabled: ${GOOGLE_AUTH_ENABLED:-false}
+  Authentication__Google__ClientId: ${GOOGLE_CLIENT_ID:-}
+  Authentication__Google__ClientSecret: ${GOOGLE_CLIENT_SECRET:-}
+  Authentication__Google__CallbackPath: /signin-google
+  Authentication__Google__FrontendCallbackUrl: ${PUBLIC_FRONTEND_ORIGIN}/auth/google/callback
+  Authentication__Google__TicketLifetimeMinutes: "10"
+  Igdb__Enabled: ${IGDB_ENABLED:-false}
+  Igdb__ClientId: ${IGDB_CLIENT_ID:-}
+  Igdb__ClientSecret: ${IGDB_CLIENT_SECRET:-}
+  Steam__Enabled: ${STEAM_ENABLED:-false}
+  Steam__ApiKey: ${STEAM_API_KEY:-}
+  Steam__OpenIdRealm: ${PUBLIC_API_BASE_URL}/
+  Steam__OpenIdCallbackUrl: ${PUBLIC_API_BASE_URL}/api/settings/export/steam/callback
+  Steam__FrontendSettingsUrl: ${PUBLIC_FRONTEND_ORIGIN}/settings?section=export
+  Steam__FrontendOrigin: ${PUBLIC_FRONTEND_ORIGIN}
+  FpsResearch__Enabled: ${FPS_RESEARCH_ENABLED:-false}
+  FpsResearch__ApiKey: ${FPS_RESEARCH_API_KEY:-}
+  Translation__Provider: ${TRANSLATION_PROVIDER:-}
+  Translation__ApiKey: ${TRANSLATION_API_KEY:-}
+  Translation__Region: ${TRANSLATION_REGION:-}
+  Logging__LogLevel__Default: Information
+  Logging__LogLevel__Microsoft.AspNetCore: Warning
+  Logging__LogLevel__Microsoft.EntityFrameworkCore.Database.Command: Warning
+
+x-api-volumes: &api-volumes
+  - public_uploads:/data/wellplayd/public
+  - private_storage:/data/wellplayd/private
+  - data_protection_keys:/data/wellplayd/data-protection-keys
+
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: ${MSSQL_SA_PASSWORD}
+      MSSQL_PID: ${MSSQL_PID:-Express}
+      WELLPLAYD_DB_NAME: ${DB_NAME}
+    volumes:
+      - sql_data:/var/opt/mssql
+      - ./backups:/var/opt/mssql/backup
+    networks:
+      - wellplayd
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          SQLCMD=$$(command -v sqlcmd || true);
+          if [ -z "$$SQLCMD" ] && [ -x /opt/mssql-tools18/bin/sqlcmd ]; then SQLCMD=/opt/mssql-tools18/bin/sqlcmd; fi;
+          if [ -z "$$SQLCMD" ] && [ -x /opt/mssql-tools/bin/sqlcmd ]; then SQLCMD=/opt/mssql-tools/bin/sqlcmd; fi;
+          test -n "$$SQLCMD" && "$$SQLCMD" -S localhost -U sa -P "$$MSSQL_SA_PASSWORD" -C -Q "SELECT 1" >/dev/null
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    logging: *default-logging
+    command: ["redis-server", "--appendonly", "yes", "--save", "60", "1"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - wellplayd
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    logging: *default-logging
+    volumes:
+      - clamav_data:/var/lib/clamav
+    networks:
+      - wellplayd
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --ping 3 >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  migrate:
+    image: ${API_IMAGE:-wellplayd-api}:${IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: Dockerfile.api
+    command: ["--migrate-only"]
+    environment: *api-environment
+    volumes: *api-volumes
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    networks:
+      - wellplayd
+    profiles: ["tools"]
+    restart: "no"
+    logging: *default-logging
+
+  api:
+    image: ${API_IMAGE:-wellplayd-api}:${IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    logging: *default-logging
+    environment: *api-environment
+    volumes: *api-volumes
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clamav:
+        condition: service_healthy
+    networks:
+      - wellplayd
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--header", "Host: localhost", "http://127.0.0.1:8080/health/ready"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-wellplayd-frontend}:${IMAGE_TAG:-local}
+    build:
+      context: ..
+      dockerfile: Dockerfile.frontend
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_API_ORIGIN: ""
+    restart: unless-stopped
+    logging: *default-logging
+    environment:
+      API_UPSTREAM: http://api:8080
+    ports:
+      - ${PUBLIC_BIND_ADDRESS:-127.0.0.1}:${PUBLIC_HTTP_PORT:-8080}:8080
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - wellplayd
+
+volumes:
+  sql_data:
+  redis_data:
+  clamav_data:
+  public_uploads:
+  private_storage:
+  data_protection_keys:
+
+networks:
+  wellplayd:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${DOCKER_SUBNET:-172.28.0.0/16}

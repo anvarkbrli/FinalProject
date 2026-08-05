@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
+using Ludora.API.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
@@ -32,18 +33,12 @@ public sealed class UserReportsController : ControllerBase
     [RequestFormLimits(MultipartBodyLengthLimit = 110 * 1024 * 1024)]
     public async Task<ActionResult<UserReportDTO>> Create(
         Guid reportedUserId,
-        [FromForm] Ludora.Domain.Enums.UserReportCategory category,
-        [FromForm] string? description,
-        [FromForm] Ludora.Domain.Enums.UserReportContentType reportedContentType,
-        [FromForm] long? reportedContentId,
-        [FromForm] List<IFormFile>? evidenceFiles,
-        [FromForm] List<IFormFile>? evidenceImages,
-        IFormFile? evidenceImage,
+        [FromForm] UserReportCreateFormRequest request,
         CancellationToken cancellationToken)
     {
-        var allFiles = (evidenceFiles ?? [])
-            .Concat(evidenceImages ?? [])
-            .Concat(evidenceImage is { Length: > 0 } ? [evidenceImage] : [])
+        var allFiles = request.EvidenceFiles
+            .Concat(request.EvidenceImages)
+            .Concat(request.EvidenceImage is { Length: > 0 } ? [request.EvidenceImage] : [])
             .Where(x => x.Length > 0)
             .Take(6)
             .ToList();
@@ -65,10 +60,10 @@ public sealed class UserReportsController : ControllerBase
                 reportedUserId,
                 new UserReportCreateDTO
                 {
-                    Category = category,
-                    Description = description,
-                    ReportedContentType = reportedContentType,
-                    ReportedContentId = reportedContentId,
+                    Category = request.Category,
+                    Description = request.Description,
+                    ReportedContentType = request.ReportedContentType,
+                    ReportedContentId = request.ReportedContentId,
                     EvidenceImages = allFiles
                         .Zip(streams)
                         .Select(pair => CreateEvidenceUpload(

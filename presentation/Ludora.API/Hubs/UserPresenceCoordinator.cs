@@ -30,7 +30,7 @@ public sealed class UserPresenceCoordinator
         string connectionId,
         CancellationToken cancellationToken)
     {
-        if (!_tracker.Connect(userId, connectionId))
+        if (!await _tracker.ConnectAsync(userId, connectionId, cancellationToken))
             return;
 
         await BroadcastAsync(
@@ -48,7 +48,7 @@ public sealed class UserPresenceCoordinator
         Guid? sessionId,
         string connectionId)
     {
-        if (!_tracker.Disconnect(userId, connectionId))
+        if (!await _tracker.DisconnectAsync(userId, connectionId))
             return;
 
         var now = DateTime.UtcNow;

@@ -11,6 +11,10 @@ public sealed class ChatConversationConfiguration
     public void Configure(EntityTypeBuilder<ChatConversation> builder)
     {
         builder.HasKey(x => x.Id);
+        builder.Property(x => x.IsGroup).IsRequired().HasDefaultValue(false);
+        builder.Property(x => x.GroupName).HasMaxLength(100);
+        builder.Property(x => x.GroupDescription).HasMaxLength(500);
+        builder.Property(x => x.GroupImageUrl).HasMaxLength(2048);
         builder.Property(x => x.RequestStatus)
             .IsRequired()
             .HasDefaultValue(ChatRequestStatus.Pending);
@@ -23,8 +27,9 @@ public sealed class ChatConversationConfiguration
         builder.ToTable("ChatConversations", table =>
         {
             table.HasCheckConstraint(
-                "CK_ChatConversations_DifferentUsers",
-                "[UserOneId] <> [UserTwoId]");
+                "CK_ChatConversations_ParticipantShape",
+                "([IsGroup] = 0 AND [UserOneId] IS NOT NULL AND [UserTwoId] IS NOT NULL AND [UserOneId] <> [UserTwoId] AND [GroupName] IS NULL) OR " +
+                "([IsGroup] = 1 AND [UserOneId] IS NULL AND [UserTwoId] IS NULL AND [GroupName] IS NOT NULL)");
             table.HasCheckConstraint(
                 "CK_ChatConversations_RequestStatus",
                 "[RequestStatus] BETWEEN 0 AND 2");
@@ -33,7 +38,11 @@ public sealed class ChatConversationConfiguration
                 "[CurrentStreak] >= 0 AND [LongestStreak] >= [CurrentStreak]");
         });
 
-        builder.HasIndex(x => new { x.UserOneId, x.UserTwoId }).IsUnique();
+        builder.HasIndex(x => new { x.UserOneId, x.UserTwoId })
+            .HasFilter("[IsGroup] = 0 AND [UserOneId] IS NOT NULL AND [UserTwoId] IS NOT NULL")
+            .IsUnique();
+        builder.HasIndex(x => new { x.IsGroup, x.UpdatedAtUtc })
+            .IsDescending(false, true);
         builder.HasIndex(x => new { x.UserOneId, x.RequestStatus, x.UpdatedAtUtc })
             .IsDescending(false, false, true);
         builder.HasIndex(x => new { x.UserTwoId, x.RequestStatus, x.UpdatedAtUtc })

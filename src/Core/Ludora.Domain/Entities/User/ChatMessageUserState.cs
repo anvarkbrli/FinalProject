@@ -7,6 +7,8 @@ public sealed class ChatMessageUserState
     public bool IsDeleted { get; set; }
     public DateTime? DeletedAtUtc { get; set; }
     public DateTime? PinnedAtUtc { get; set; }
+    public DateTime? DeliveredAtUtc { get; set; }
+    public DateTime? ReadAtUtc { get; set; }
 
     public ChatMessage Message { get; set; } = null!;
     public AppUser User { get; set; } = null!;

@@ -5,13 +5,31 @@ namespace Ludora.API.HealthChecks;
 
 public static class HealthCheckResponseWriter
 {
-    public static Task WriteAsync(HttpContext context, HealthReport report)
+    private static readonly JsonSerializerOptions JsonOptions =
+        new(JsonSerializerDefaults.Web);
+
+    public static Task WritePublicAsync(HttpContext context, HealthReport report)
     {
-        context.Response.ContentType = "application/json; charset=utf-8";
+        PrepareResponse(context);
 
         var payload = new
         {
             status = report.Status.ToString(),
+            traceId = context.TraceIdentifier
+        };
+
+        return context.Response.WriteAsync(
+            JsonSerializer.Serialize(payload, JsonOptions));
+    }
+
+    public static Task WriteDetailedAsync(HttpContext context, HealthReport report)
+    {
+        PrepareResponse(context);
+
+        var payload = new
+        {
+            status = report.Status.ToString(),
+            traceId = context.TraceIdentifier,
             durationMilliseconds = Math.Round(report.TotalDuration.TotalMilliseconds, 2),
             checks = report.Entries.ToDictionary(
                 pair => pair.Key,
@@ -25,8 +43,13 @@ public static class HealthCheckResponseWriter
         };
 
         return context.Response.WriteAsync(
-            JsonSerializer.Serialize(
-                payload,
-                new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+            JsonSerializer.Serialize(payload, JsonOptions));
+    }
+
+    private static void PrepareResponse(HttpContext context)
+    {
+        context.Response.ContentType = "application/json; charset=utf-8";
+        context.Response.Headers["Cache-Control"] = "no-store, no-cache";
+        context.Response.Headers["Pragma"] = "no-cache";
     }
 }

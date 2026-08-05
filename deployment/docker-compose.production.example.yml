@@ -1,0 +1,111 @@
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: presentation/Ludora.API/Dockerfile
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    env_file:
+      - .env.production
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_HTTP_PORTS: 8080
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - wellplayd_public:/data/wellplayd/public
+      - wellplayd_private:/data/wellplayd/private
+      - wellplayd_data_protection:/data/wellplayd/data-protection-keys
+    depends_on:
+      clamav:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:8080/health/ready"]
+      interval: 30s
+      timeout: 5s
+      start_period: 45s
+      retries: 5
+    networks:
+      - wellplayd
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: presentation/Frontend/ludora-client/Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:?VITE_API_BASE_URL is required}
+        VITE_API_ORIGIN: ${VITE_API_ORIGIN:?VITE_API_ORIGIN is required}
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 15s
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - "127.0.0.1:8081:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - wellplayd
+
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 60s
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - clamav_database:/var/lib/clamav
+    healthcheck:
+      test: ["CMD-SHELL", "clamdscan --ping 1 --wait >/dev/null 2>&1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 120s
+      retries: 10
+    networks:
+      - wellplayd
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+    logging: *default-logging
+    security_opt:
+      - no-new-privileges:true
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - wellplayd
+
+networks:
+  wellplayd:
+    driver: bridge
+
+volumes:
+  wellplayd_public:
+  wellplayd_private:
+  wellplayd_data_protection:
+  clamav_database:
+  redis_data:

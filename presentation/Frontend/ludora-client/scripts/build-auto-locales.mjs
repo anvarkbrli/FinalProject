@@ -12,6 +12,7 @@ const outputRoots = {
 };
 const listOnly = process.argv.includes("--list");
 const checkOnly = process.argv.includes("--check");
+const strictCheck = process.argv.includes("--strict");
 const syncMissingOnly = process.argv.includes("--sync-missing");
 const englishOverridesPath = path.join(projectRoot, "scripts", "auto-ui.en-overrides.json");
 const azerbaijaniLetters = /[ƏəĞğİıÖöÜüŞşÇç]/;
@@ -152,6 +153,63 @@ const knownSingleWords = new Set([
 ]);
 const azerbaijaniWordHint =
   /\b(?:ana səhifə|artıq|buglar|daxil|digər|filterlər|göndər|hamısı|hesab|icma|icmalar|istifadəçi|istifadəçilər|kateqoriya|kateqoriyalar|kolleksiya|ləğv|mesajlar|müzakirə|müzakirələr|nəticələr|növbəti|oyun|oyunlar|oynayır|paylaş|postlar|profil|reytinq|rəylər|sevimlilər|siyahı|siyahılar|sıralama|sorğu|statuslar|təmizlə|yüklənir|əlavə|əvvəlki)\b/iu;
+
+
+function extractPlaceholders(value) {
+  return [...value.matchAll(/\{(\w+)\}/g)]
+    .map((match) => match[1])
+    .sort();
+}
+
+function isUnsafeAutomaticTemplate(value) {
+  const placeholders = extractPlaceholders(value);
+  if (!placeholders.length) return false;
+
+  const literalText = normalize(value.replace(/\{\w+\}/g, " "));
+  const literalWords = literalText.match(/\p{L}+/gu) ?? [];
+
+  // Generic one-word patterns such as "{value1} game" can match unrelated
+  // labels across the app. Runtime localization deliberately ignores them.
+  return literalWords.length < 2;
+}
+
+function validateAutomaticCatalogs(azCatalog, enCatalog) {
+  const errors = [];
+  const warnings = [];
+  const keys = new Set([...Object.keys(azCatalog), ...Object.keys(enCatalog)]);
+
+  for (const key of keys) {
+    const azValue = azCatalog[key];
+    const enValue = enCatalog[key];
+
+    if (typeof azValue !== "string") {
+      errors.push(`AZ auto-ui catalog is missing string key: ${key}`);
+      continue;
+    }
+    if (typeof enValue !== "string") {
+      errors.push(`EN auto-ui catalog is missing string key: ${key}`);
+      continue;
+    }
+    if (!azValue.trim() || !enValue.trim()) {
+      errors.push(`Auto-ui catalog contains an empty value: ${key}`);
+      continue;
+    }
+
+    const azPlaceholders = extractPlaceholders(azValue);
+    const enPlaceholders = extractPlaceholders(enValue);
+    if (azPlaceholders.join("|") !== enPlaceholders.join("|")) {
+      errors.push(
+        `Placeholder mismatch for ${key}: AZ [${azPlaceholders.join(", ")}] / EN [${enPlaceholders.join(", ")}]`,
+      );
+    }
+
+    if (isUnsafeAutomaticTemplate(azValue) || isUnsafeAutomaticTemplate(enValue)) {
+      warnings.push(key);
+    }
+  }
+
+  return { errors, warnings };
+}
 
 function normalize(value) {
   return value.replace(/\s+/g, " ").trim();
@@ -341,17 +399,42 @@ if (listOnly) {
   process.exit(0);
 }
 if (checkOnly) {
-  const existing = JSON.parse(await readFile(outputRoots.az, "utf8"));
-  const catalogValues = new Set(Object.values(existing).map(normalize));
-  const missing = values.filter((value) => !catalogValues.has(value));
-  if (missing.length) {
-    console.error(
-      `${missing.length} UI text fragments are missing from auto-ui.json:\n` +
-        missing.join("\n"),
-    );
+  const [existingAz, existingEn] = await Promise.all([
+    readJsonOrEmpty(outputRoots.az),
+    readJsonOrEmpty(outputRoots.en),
+  ]);
+  const { errors, warnings } = validateAutomaticCatalogs(existingAz, existingEn);
+
+  if (errors.length) {
+    console.error(errors.join("\n"));
     process.exit(1);
   }
-  console.log("All extracted UI text fragments exist in the AZ/EN catalog.");
+
+  const catalogValues = new Set(Object.values(existingAz).map(normalize));
+  const missing = values.filter((value) => !catalogValues.has(value));
+
+  if (warnings.length) {
+    console.warn(
+      `${warnings.length} generic auto-translation templates are present but are ignored at runtime for safety.`,
+    );
+  }
+
+  if (missing.length) {
+    const message =
+      `${missing.length} source UI fragments are not in auto-ui.json. ` +
+      "This is informational because explicit t(...) keys are the preferred path.";
+
+    if (strictCheck) {
+      console.error(`${message}\n${missing.join("\n")}`);
+      process.exit(1);
+    }
+
+    console.warn(message);
+  }
+
+  console.log(
+    "Automatic AZ/EN catalogs are structurally valid and placeholder-safe.",
+  );
   process.exit(0);
 }
 

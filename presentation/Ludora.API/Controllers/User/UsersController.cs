@@ -1,4 +1,5 @@
 using Ludora.API.Security;
+using Ludora.API.Models;
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
@@ -220,8 +221,14 @@ public class UsersController : ControllerBase
     [Authorize]
     [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
     [HttpPut("me/profile-image")]
-    public async Task<IActionResult> UpdateProfileImage(IFormFile image)
+    [Consumes("multipart/form-data")]
+    public async Task<IActionResult> UpdateProfileImage(
+        [FromForm] SingleImageFormRequest request)
     {
+        var image = request.Image;
+        if (image is null || image.Length <= 0)
+            return BadRequest(new { message = "Profil şəkli seçilməyib." });
+
         await using var stream = image.OpenReadStream();
         var dto = new ProfileImageUploadDTO
         {

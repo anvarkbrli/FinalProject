@@ -2,6 +2,7 @@ using Ludora.Application.Interfaces;
 using Ludora.Application.Settings;
 using Ludora.Domain.Entities.User;
 using Ludora.Persistence.Data;
+using Ludora.Persistence.Resilience;
 using Ludora.Persistence.Services;
 using Ludora.Persistence.Services.Admin;
 using Ludora.Persistence.Services.Security;
@@ -22,6 +23,15 @@ public static class ServiceRegistration
                 sqlOptions =>
                 {
                     sqlOptions.MaxBatchSize(100);
+                    sqlOptions.EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(10),
+                        errorNumbersToAdd: null);
+                    sqlOptions.ExecutionStrategy(dependencies =>
+                        new TransactionAwareSqlServerRetryingExecutionStrategy(
+                            dependencies,
+                            maxRetryCount: 5,
+                            maxRetryDelay: TimeSpan.FromSeconds(10)));
                 }),
             poolSize: 64);
 

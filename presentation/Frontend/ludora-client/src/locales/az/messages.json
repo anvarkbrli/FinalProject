@@ -171,5 +171,8 @@
     "forwardedLabel": "Yönləndirildi",
     "close": "Bağla",
     "failed": "Mesaj yönləndirilmədi."
+  },
+  "system": {
+    "memberAdded": "{addedUserName} {actorName} tərəfindən qrupa əlavə olundu."
   }
 }

@@ -1,4 +1,4 @@
-﻿using System.Globalization;
+using System.Globalization;
 using System.Security.Claims;
 using System.IO.Compression;
 using System.Text;
@@ -36,6 +36,7 @@ using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using StackExchange.Redis;
 
 namespace Ludora.API;
 
@@ -44,6 +45,17 @@ public class Program
     public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
+
+        if (!builder.Environment.IsDevelopment())
+        {
+            builder.Logging.ClearProviders();
+            builder.Logging.AddJsonConsole(options =>
+            {
+                options.IncludeScopes = true;
+                options.UseUtcTimestamp = true;
+                options.TimestampFormat = "yyyy-MM-dd'T'HH:mm:ss.fff'Z'";
+            });
+        }
 
         ProductionConfigurationValidator.Validate(
             builder.Configuration,
@@ -106,7 +118,28 @@ public class Program
             options.Level = CompressionLevel.Fastest);
         builder.Services.Configure<GzipCompressionProviderOptions>(options =>
             options.Level = CompressionLevel.Fastest);
+        var cacheSettings = builder.Configuration
+            .GetSection(CacheSettings.SectionName)
+            .Get<CacheSettings>() ?? new CacheSettings();
+
         builder.Services
+            .AddOptions<PresenceSettings>()
+            .Bind(builder.Configuration.GetSection(PresenceSettings.SectionName))
+            .Validate(
+                settings => settings.HeartbeatSeconds is >= 5 and <= 60,
+                "Presence:HeartbeatSeconds 5-60 aralığında olmalıdır.")
+            .Validate(
+                settings => settings.OfflineAfterSeconds is >= 30 and <= 600,
+                "Presence:OfflineAfterSeconds 30-600 aralığında olmalıdır.")
+            .Validate(
+                settings => settings.OfflineAfterSeconds >= settings.HeartbeatSeconds * 2,
+                "Presence:OfflineAfterSeconds heartbeat intervalının ən azı iki qatı olmalıdır.")
+            .Validate(
+                settings => !settings.UseDistributedStore || cacheSettings.RedisEnabled,
+                "Distributed presence üçün Cache:RedisEnabled true olmalıdır.")
+            .ValidateOnStart();
+
+        var signalRBuilder = builder.Services
             .AddSignalR(options =>
             {
                 options.EnableDetailedErrors = builder.Environment.IsDevelopment();
@@ -114,9 +147,38 @@ public class Program
             .AddJsonProtocol(options =>
                 options.PayloadSerializerOptions.Converters.Add(
                     new JsonStringEnumConverter()));
+
+        if (cacheSettings.RedisEnabled)
+        {
+            signalRBuilder.AddStackExchangeRedis(
+                cacheSettings.RedisConnectionString,
+                options =>
+                {
+                    options.Configuration.ChannelPrefix = RedisChannel.Literal(
+                        $"{cacheSettings.InstanceName}signalr");
+                });
+        }
+
         builder.Services.AddHostedService<NotificationOutboxWorker>();
         builder.Services.AddHostedService<EmailOutboxWorker>();
-        builder.Services.AddSingleton<IUserPresenceTracker, UserPresenceTracker>();
+
+        var presenceSettings = builder.Configuration
+            .GetSection(PresenceSettings.SectionName)
+            .Get<PresenceSettings>() ?? new PresenceSettings();
+        if (presenceSettings.UseDistributedStore && cacheSettings.RedisEnabled)
+        {
+            builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+                ConnectionMultiplexer.Connect(cacheSettings.RedisConnectionString));
+            builder.Services.AddSingleton<RedisUserPresenceTracker>();
+            builder.Services.AddSingleton<IUserPresenceTracker>(serviceProvider =>
+                serviceProvider.GetRequiredService<RedisUserPresenceTracker>());
+            builder.Services.AddHostedService<PresenceHeartbeatWorker>();
+        }
+        else
+        {
+            builder.Services.AddSingleton<IUserPresenceTracker, UserPresenceTracker>();
+        }
+
         builder.Services.AddScoped<UserPresenceCoordinator>();
         builder.Services.AddSingleton<IBadgeEvaluationQueue, BadgeEvaluationQueue>();
         builder.Services.AddSingleton<ISteamSyncQueue, SteamSyncQueue>();
@@ -473,9 +535,6 @@ public class Program
                 failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
                 tags: ["ready"]);
 
-        var cacheSettings = builder.Configuration
-            .GetSection(CacheSettings.SectionName)
-            .Get<CacheSettings>() ?? new CacheSettings();
         if (cacheSettings.RedisEnabled)
         {
             healthChecks.AddCheck<RedisHealthCheck>(
@@ -502,6 +561,14 @@ public class Program
         }));
 
         var app = builder.Build();
+
+        if (args.Any(argument =>
+                string.Equals(argument, "--migrate-only", StringComparison.OrdinalIgnoreCase)))
+        {
+            await DatabaseMigrationRunner.ApplyPendingMigrationsAsync(app.Services);
+            return;
+        }
+
         await EnsureRolesAsync(app.Services);
 
         if (app.Environment.IsDevelopment())
@@ -514,15 +581,20 @@ public class Program
             app.UseForwardedHeaders();
 
         app.UseRequestLocalization();
-        app.UseMiddleware<SecurityHeadersMiddleware>();
+        app.UseMiddleware<RequestTelemetryMiddleware>();
         app.UseMiddleware<GlobalExceptionMiddleware>();
+        app.UseMiddleware<SecurityHeadersMiddleware>();
         app.UseResponseCompression();
 
         if (!app.Environment.IsDevelopment())
             app.UseHsts();
 
-        app.UseHttpsRedirection();
-        app.UseStaticFiles();
+        // Liveness/readiness are queried directly inside the container over HTTP.
+        // All user-facing routes still enforce HTTPS after trusted forwarded headers
+        // have been processed.
+        app.UseWhen(
+            context => !context.Request.Path.StartsWithSegments("/health"),
+            branch => branch.UseHttpsRedirection());
 
         var fileStorageSettings = app.Services
             .GetRequiredService<FileStorageSettings>();
@@ -542,6 +614,10 @@ public class Program
             }
         });
 
+        // Keep the dedicated /uploads middleware first so its cache and
+        // security headers are not bypassed by the default web-root provider.
+        app.UseStaticFiles();
+
         app.UseCors("Frontend");
         app.UseAuthentication();
         app.UseRateLimiter();
@@ -552,7 +628,7 @@ public class Program
                 new HealthCheckOptions
                 {
                     Predicate = _ => false,
-                    ResponseWriter = HealthCheckResponseWriter.WriteAsync
+                    ResponseWriter = HealthCheckResponseWriter.WritePublicAsync
                 })
             .AllowAnonymous();
 
@@ -561,9 +637,18 @@ public class Program
                 new HealthCheckOptions
                 {
                     Predicate = registration => registration.Tags.Contains("ready"),
-                    ResponseWriter = HealthCheckResponseWriter.WriteAsync
+                    ResponseWriter = HealthCheckResponseWriter.WritePublicAsync
                 })
             .AllowAnonymous();
+
+        app.MapHealthChecks(
+                "/health/details",
+                new HealthCheckOptions
+                {
+                    Predicate = registration => registration.Tags.Contains("ready"),
+                    ResponseWriter = HealthCheckResponseWriter.WriteDetailedAsync
+                })
+            .RequireAuthorization(CapabilityNames.AccessAdminPanel);
 
         app.MapControllers();
         app.MapHub<NotificationHub>("/hubs/notifications");

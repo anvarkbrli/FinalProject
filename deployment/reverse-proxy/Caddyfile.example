@@ -1,0 +1,20 @@
+# Replace wellplayd.az with the production domain.
+# Caddy automatically obtains/renews TLS certificates and proxies WebSockets.
+wellplayd.az {
+    encode zstd gzip
+
+    reverse_proxy 127.0.0.1:8080 {
+        header_up Host {host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    log {
+        output file /var/log/caddy/wellplayd-access.log {
+            roll_size 20MiB
+            roll_keep 10
+            roll_keep_for 720h
+        }
+        format json
+    }
+}

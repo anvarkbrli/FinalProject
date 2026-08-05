@@ -4,6 +4,9 @@ import type {
   ChatConversationDeletedDTO,
   ChatConversationDTO,
   ChatForwardMessagesResultDTO,
+  ChatGroupChangedDTO,
+  ChatGroupDTO,
+  ChatBulkDeleteResultDTO,
   ChatMessageDTO,
   ChatMessageDeletedDTO,
   ChatMessageDeleteScope,
@@ -99,7 +102,12 @@ export async function sendChatMessage(
   request: ChatSendMessageRequest,
 ): Promise<ChatSendMessageResultDTO> {
   const formData = new FormData();
-  formData.append("recipientUserId", request.recipientUserId);
+  if (request.recipientUserId) {
+    formData.append("recipientUserId", request.recipientUserId);
+  }
+  if (request.conversationId) {
+    formData.append("conversationId", request.conversationId.toString());
+  }
 
   if (request.text?.trim()) {
     formData.append("text", request.text.trim());
@@ -241,5 +249,97 @@ export async function setChatMessageReaction(
     : await api.delete<ChatMessageReactionChangedDTO>(
         `/chat/messages/${messageId}/reaction`,
       );
+  return response.data;
+}
+
+
+export interface ChatGroupWriteRequest {
+  name: string;
+  description?: string;
+  image?: File | null;
+  removeImage?: boolean;
+  memberUserIdsToAdd?: string[];
+}
+
+export async function createChatGroup(
+  request: ChatGroupWriteRequest & { memberUserIds: string[] },
+): Promise<ChatGroupDTO> {
+  const formData = new FormData();
+  formData.append("name", request.name.trim());
+  if (request.description?.trim()) formData.append("description", request.description.trim());
+  for (const userId of request.memberUserIds) formData.append("memberUserIds", userId);
+  if (request.image) formData.append("image", request.image);
+
+  const response = await api.post<ChatGroupDTO>("/chat/groups", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    timeout: 60_000,
+  });
+  return response.data;
+}
+
+export async function getChatGroup(conversationId: number): Promise<ChatGroupDTO> {
+  const response = await api.get<ChatGroupDTO>(`/chat/groups/${conversationId}`);
+  return response.data;
+}
+
+export async function updateChatGroup(
+  conversationId: number,
+  request: ChatGroupWriteRequest,
+): Promise<ChatGroupDTO> {
+  const formData = new FormData();
+  formData.append("name", request.name.trim());
+  if (request.description?.trim()) formData.append("description", request.description.trim());
+  formData.append("removeImage", request.removeImage ? "true" : "false");
+  for (const userId of request.memberUserIdsToAdd ?? []) {
+    formData.append("memberUserIdsToAdd", userId);
+  }
+  if (request.image) formData.append("image", request.image);
+
+  const response = await api.put<ChatGroupDTO>(
+    `/chat/groups/${conversationId}`,
+    formData,
+    { headers: { "Content-Type": "multipart/form-data" }, timeout: 60_000 },
+  );
+  return response.data;
+}
+
+export async function addChatGroupMembers(
+  conversationId: number,
+  userIds: string[],
+): Promise<ChatGroupChangedDTO> {
+  const response = await api.post<ChatGroupChangedDTO>(
+    `/chat/groups/${conversationId}/members`,
+    { userIds },
+  );
+  return response.data;
+}
+
+export async function removeChatGroupMember(
+  conversationId: number,
+  userId: string,
+): Promise<ChatGroupChangedDTO> {
+  const response = await api.delete<ChatGroupChangedDTO>(
+    `/chat/groups/${conversationId}/members/${userId}`,
+  );
+  return response.data;
+}
+
+export async function leaveChatGroup(
+  conversationId: number,
+): Promise<ChatGroupChangedDTO> {
+  const response = await api.post<ChatGroupChangedDTO>(
+    `/chat/groups/${conversationId}/leave`,
+  );
+  return response.data;
+}
+
+export async function deleteChatMessages(
+  messageIds: number[],
+  scope: ChatMessageDeleteScope,
+): Promise<ChatBulkDeleteResultDTO> {
+  const response = await api.post<ChatBulkDeleteResultDTO>(
+    "/chat/messages/bulk-delete",
+    { messageIds, scope },
+  );
   return response.data;
 }

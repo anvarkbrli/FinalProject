@@ -171,5 +171,8 @@
     "forwardedLabel": "Forwarded",
     "close": "Close",
     "failed": "The message could not be forwarded."
+  },
+  "system": {
+    "memberAdded": "{addedUserName} was added to the group by {actorName}."
   }
 }

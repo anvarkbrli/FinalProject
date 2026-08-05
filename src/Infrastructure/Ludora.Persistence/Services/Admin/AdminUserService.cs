@@ -120,10 +120,14 @@ public sealed class AdminUserService : IAdminUserService
             })
             .ToListAsync(cancellationToken);
 
+        var onlineUserIds = await _presenceTracker.GetOnlineUserIdsAsync(
+            items.Select(item => item.Id).ToArray(),
+            cancellationToken);
+
         items = items
             .Select(item => item with
             {
-                IsOnline = _presenceTracker.IsOnline(item.Id)
+                IsOnline = onlineUserIds.Contains(item.Id)
             })
             .ToList();
 
@@ -173,7 +177,9 @@ public sealed class AdminUserService : IAdminUserService
             ProfileImageUrl = user.ProfileImageUrl,
             Role = role,
             IsPrivate = user.IsPrivate,
-            IsOnline = _presenceTracker.IsOnline(user.Id),
+            IsOnline = await _presenceTracker.IsOnlineAsync(
+                user.Id,
+                cancellationToken),
             IsBanned = user.IsPermanentlyBanned ||
                        (user.BannedUntilUtc.HasValue && user.BannedUntilUtc > now),
             IsPermanentlyBanned = user.IsPermanentlyBanned,

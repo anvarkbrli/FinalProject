@@ -55,7 +55,7 @@ const navigationItems = [
 ];
 
 export function Navbar() {
-  const { language } = useI18n();
+  const { language, t } = useI18n();
   const location = useLocation();
 
   const userMenuRef =
@@ -353,7 +353,7 @@ export function Navbar() {
                         className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-violet-200 transition hover:bg-violet-500/[0.08]"
                       >
                         <ShieldCheck size={17} />
-                        Admin panel
+                        {language === "en" ? "Admin panel" : "Admin paneli"}
                       </Link>
                     )}
 
@@ -364,7 +364,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                     >
                       <UserRound size={17} />
-                      Profilim
+                      {t("profile:tabs.overview")}
                     </Link>
 
                     <Link
@@ -374,7 +374,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                     >
                       <ListChecks size={17} />
-                      Siyahılar
+                      {t("profile:tabs.lists")}
                     </Link>
 
                     <Link
@@ -384,7 +384,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                     >
                       <Star size={17} />
-                      Rəylər
+                      {t("profile:tabs.reviews")}
                     </Link>
 
                     <Link
@@ -394,7 +394,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                     >
                       <Bookmark size={17} />
-                      Wishlist
+                      {t("profile:tabs.wishlist")}
                     </Link>
 
                     <Link
@@ -404,7 +404,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                     >
                       <Heart size={17} />
-                      Sevimlilər
+                      {t("profile:tabs.favorites")}
                     </Link>
 
                     <Link
@@ -414,7 +414,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                     >
                       <Activity size={17} />
-                      {language === "en" ? "Activity" : "Axın"}
+                      {t("profile:tabs.activity")}
                     </Link>
 
                     <Link
@@ -424,7 +424,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                     >
                       <MessageCircle size={17} />
-                      Mesajlar
+                      {t("messages:title")}
                     </Link>
                   </div>
 
@@ -436,7 +436,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
                     >
                       <Settings size={17} />
-                      Parametrlər
+                      {language === "en" ? "Settings" : "Parametrlər"}
                     </Link>
                   </div>
 
@@ -448,7 +448,7 @@ export function Navbar() {
                       className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-red-300 transition hover:bg-red-500/[0.08]"
                     >
                       <LogOut size={17} />
-                      Hesabdan çıx
+                      {language === "en" ? "Sign out" : "Hesabdan çıx"}
                     </button>
                   </div>
                 </div>
@@ -462,7 +462,7 @@ export function Navbar() {
                 className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-zinc-300 transition hover:bg-white/10 hover:text-white"
               >
                 <LogIn size={17} />
-                Daxil ol
+                {language === "en" ? "Sign in" : "Daxil ol"}
               </Link>
 
               <Link
@@ -471,7 +471,7 @@ export function Navbar() {
                 className="flex items-center gap-2 rounded-xl bg-violet-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-violet-950/30 transition hover:bg-violet-500"
               >
                 <UserPlus size={17} />
-                Qeydiyyat
+                {language === "en" ? "Sign up" : "Qeydiyyat"}
               </Link>
             </div>
           )}
@@ -577,7 +577,7 @@ export function Navbar() {
                       className="mt-2 flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.07]"
                     >
                       <UserRound size={17} />
-                      Profilim
+                      {t("profile:tabs.overview")}
                     </Link>
                     <Link
                       to={`/users/${user.userName}?tab=lists`}
@@ -585,7 +585,7 @@ export function Navbar() {
                       className="mt-2 flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06]"
                     >
                       <ListChecks size={17} />
-                      Siyahılar
+                      {t("profile:tabs.lists")}
                     </Link>
                     <Link
                       to={`/users/${user.userName}?tab=reviews`}
@@ -593,7 +593,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06]"
                     >
                       <Star size={17} />
-                      Rəylər
+                      {t("profile:tabs.reviews")}
                     </Link>
                     <Link
                       to={`/users/${user.userName}?tab=wishlist`}
@@ -601,7 +601,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06]"
                     >
                       <Bookmark size={17} />
-                      Wishlist
+                      {t("profile:tabs.wishlist")}
                     </Link>
                     <Link
                       to={`/users/${user.userName}?tab=favorites`}
@@ -609,7 +609,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06]"
                     >
                       <Heart size={17} />
-                      Sevimlilər
+                      {t("profile:tabs.favorites")}
                     </Link>
                     <Link
                       to={`/users/${user.userName}?tab=feed`}
@@ -617,7 +617,7 @@ export function Navbar() {
                       className="flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06]"
                     >
                       <Activity size={17} />
-                      {language === "en" ? "Activity" : "Axın"}
+                      {t("profile:tabs.activity")}
                     </Link>
                   </>
                 )}
@@ -628,7 +628,7 @@ export function Navbar() {
                   className="mt-2 flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.07]"
                 >
                   <MessageCircle size={17} />
-                  Mesajlar
+                  {t("messages:title")}
                 </Link>
 
                 {canAccessAdmin && (
@@ -638,7 +638,7 @@ export function Navbar() {
                     className="mt-2 flex items-center gap-3 rounded-xl border border-violet-400/15 bg-violet-500/[0.07] px-4 py-3 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/[0.12]"
                   >
                     <ShieldCheck size={17} />
-                    Admin panel
+                    {language === "en" ? "Admin panel" : "Admin paneli"}
                   </Link>
                 )}
 
@@ -648,7 +648,7 @@ export function Navbar() {
                   className="mt-2 flex items-center gap-3 rounded-xl border border-white/[0.07] bg-white/[0.035] px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.07]"
                 >
                   <Settings size={17} />
-                  Parametrlər
+                  {language === "en" ? "Settings" : "Parametrlər"}
                 </Link>
 
                 <button
@@ -657,7 +657,7 @@ export function Navbar() {
                   className="mt-2 flex items-center gap-3 rounded-xl border border-red-400/15 bg-red-500/[0.07] px-4 py-3 text-sm font-semibold text-red-300 transition hover:bg-red-500/15"
                 >
                   <LogOut size={17} />
-                  Hesabdan çıx
+                  {language === "en" ? "Sign out" : "Hesabdan çıx"}
                 </button>
               </>
             ) : (
@@ -668,7 +668,7 @@ export function Navbar() {
                   className="flex items-center justify-center gap-3 rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.08]"
                 >
                   <LogIn size={17} />
-                  Daxil ol
+                  {language === "en" ? "Sign in" : "Daxil ol"}
                 </Link>
 
                 <Link
@@ -677,7 +677,7 @@ export function Navbar() {
                   className="flex items-center justify-center gap-3 rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-500"
                 >
                   <UserPlus size={17} />
-                  Qeydiyyat
+                  {language === "en" ? "Sign up" : "Qeydiyyat"}
                 </Link>
               </div>
             )}

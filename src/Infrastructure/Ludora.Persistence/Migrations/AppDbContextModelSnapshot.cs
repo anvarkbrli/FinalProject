@@ -2380,8 +2380,25 @@ namespace Ludora.Persistence.Migrations
                         .HasColumnType("int")
                         .HasDefaultValue(0);
 
+                    b.Property<string>("GroupDescription")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("GroupImageUrl")
+                        .HasMaxLength(2048)
+                        .HasColumnType("nvarchar(2048)");
+
+                    b.Property<string>("GroupName")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
                     b.Property<Guid>("InitiatedByUserId")
                         .HasColumnType("uniqueidentifier");
+
+                    b.Property<bool>("IsGroup")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<DateOnly?>("LastCompletedStreakDate")
                         .HasColumnType("date");
@@ -2402,18 +2419,22 @@ namespace Ludora.Persistence.Migrations
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("datetime2");
 
-                    b.Property<Guid>("UserOneId")
+                    b.Property<Guid?>("UserOneId")
                         .HasColumnType("uniqueidentifier");
 
-                    b.Property<Guid>("UserTwoId")
+                    b.Property<Guid?>("UserTwoId")
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
 
                     b.HasIndex("InitiatedByUserId");
 
+                    b.HasIndex("IsGroup", "UpdatedAtUtc")
+                        .IsDescending(false, true);
+
                     b.HasIndex("UserOneId", "UserTwoId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[IsGroup] = 0 AND [UserOneId] IS NOT NULL AND [UserTwoId] IS NOT NULL");
 
                     b.HasIndex("UserOneId", "RequestStatus", "UpdatedAtUtc")
                         .IsDescending(false, false, true);
@@ -2423,12 +2444,35 @@ namespace Ludora.Persistence.Migrations
 
                     b.ToTable("ChatConversations", null, t =>
                         {
-                            t.HasCheckConstraint("CK_ChatConversations_DifferentUsers", "[UserOneId] <> [UserTwoId]");
+                            t.HasCheckConstraint("CK_ChatConversations_ParticipantShape", "([IsGroup] = 0 AND [UserOneId] IS NOT NULL AND [UserTwoId] IS NOT NULL AND [UserOneId] <> [UserTwoId] AND [GroupName] IS NULL) OR ([IsGroup] = 1 AND [UserOneId] IS NULL AND [UserTwoId] IS NULL AND [GroupName] IS NOT NULL)");
 
                             t.HasCheckConstraint("CK_ChatConversations_RequestStatus", "[RequestStatus] BETWEEN 0 AND 2");
 
                             t.HasCheckConstraint("CK_ChatConversations_Streaks", "[CurrentStreak] >= 0 AND [LongestStreak] >= [CurrentStreak]");
                         });
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.ChatConversationMember", b =>
+                {
+                    b.Property<long>("ConversationId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("AddedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("JoinedAtUtc")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("ConversationId", "UserId");
+
+                    b.HasIndex("AddedByUserId");
+
+                    b.HasIndex("UserId", "JoinedAtUtc");
+
+                    b.ToTable("ChatConversationMembers");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.ChatConversationUserState", b =>
@@ -2442,12 +2486,20 @@ namespace Ludora.Persistence.Migrations
                     b.Property<DateTime?>("ArchivedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeletedAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("IsArchived")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.HasKey("ConversationId", "UserId");
 
                     b.HasIndex("UserId", "IsArchived", "ArchivedAtUtc");
+
+                    b.HasIndex("UserId", "IsDeleted", "DeletedAtUtc");
 
                     b.ToTable("ChatConversationUserStates", (string)null);
                 });
@@ -2535,7 +2587,7 @@ namespace Ludora.Persistence.Migrations
                         {
                             t.HasCheckConstraint("CK_ChatMessages_Content", "[DeletedForEveryoneAtUtc] IS NOT NULL OR [Text] IS NOT NULL OR [MediaStorageKey] IS NOT NULL OR [GameId] IS NOT NULL");
 
-                            t.HasCheckConstraint("CK_ChatMessages_Kind", "[Kind] BETWEEN 0 AND 3");
+                            t.HasCheckConstraint("CK_ChatMessages_Kind", "[Kind] BETWEEN 0 AND 4");
                         });
                 });
 
@@ -2621,17 +2673,27 @@ namespace Ludora.Persistence.Migrations
                     b.Property<DateTime?>("DeletedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("DeliveredAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
                     b.Property<DateTime?>("PinnedAtUtc")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("ReadAtUtc")
+                        .HasColumnType("datetime2");
+
                     b.HasKey("MessageId", "UserId");
+
+                    b.HasIndex("UserId", "DeliveredAtUtc");
 
                     b.HasIndex("UserId", "IsDeleted");
 
                     b.HasIndex("UserId", "PinnedAtUtc");
+
+                    b.HasIndex("UserId", "ReadAtUtc");
 
                     b.ToTable("ChatMessageUserStates", null, t =>
                         {
@@ -4716,20 +4778,45 @@ namespace Ludora.Persistence.Migrations
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "UserOne")
                         .WithMany("ChatConversationsAsUserOne")
                         .HasForeignKey("UserOneId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("Ludora.Domain.Entities.User.AppUser", "UserTwo")
                         .WithMany("ChatConversationsAsUserTwo")
                         .HasForeignKey("UserTwoId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("InitiatedByUser");
 
                     b.Navigation("UserOne");
 
                     b.Navigation("UserTwo");
+                });
+
+            modelBuilder.Entity("Ludora.Domain.Entities.User.ChatConversationMember", b =>
+                {
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "AddedByUser")
+                        .WithMany("AddedChatConversationMembers")
+                        .HasForeignKey("AddedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.ChatConversation", "Conversation")
+                        .WithMany("Members")
+                        .HasForeignKey("ConversationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ludora.Domain.Entities.User.AppUser", "User")
+                        .WithMany("ChatConversationMemberships")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AddedByUser");
+
+                    b.Navigation("Conversation");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.ChatConversationUserState", b =>
@@ -5437,6 +5524,10 @@ namespace Ludora.Persistence.Migrations
 
                     b.Navigation("ChatConversationStates");
 
+                    b.Navigation("AddedChatConversationMembers");
+
+                    b.Navigation("ChatConversationMemberships");
+
                     b.Navigation("ChatConversationsAsUserOne");
 
                     b.Navigation("ChatConversationsAsUserTwo");
@@ -5521,6 +5612,8 @@ namespace Ludora.Persistence.Migrations
 
             modelBuilder.Entity("Ludora.Domain.Entities.User.ChatConversation", b =>
                 {
+                    b.Navigation("Members");
+
                     b.Navigation("Messages");
 
                     b.Navigation("UserStates");

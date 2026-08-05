@@ -18,9 +18,11 @@ import { formatDateTime } from "../../lib/helpers";
 import {
   getModerationActionTitle,
   getModerationResourceSummary,
+  isPostModerationResource,
 } from "../../lib/moderationAudit";
 import { useI18n } from "../../i18n/useI18n";
 import { getModerationAudit } from "../../services/adminService";
+import type { ModeratorActionLog } from "../../types/admin";
 
 const pageSize = 20;
 
@@ -217,22 +219,10 @@ export function AdminAuditPage() {
                       <ScrollText size={16} className="text-amber-300" />
                       {getModerationActionTitle(entry, language)}
                     </p>
-                    {getModerationResourceSummary(entry, language) && (
-                      <p className="mt-2 text-sm text-zinc-500">
-                        {getModerationResourceSummary(entry, language)}
-                      </p>
-                    )}
-                    {entry.targetUserId && (
-                      <p className="mt-2 flex items-center gap-2 text-sm text-zinc-500">
-                        <UserRound size={14} />
-                        <Link
-                          to={`/admin/users/${entry.targetUserId}`}
-                          className="transition hover:text-violet-200"
-                        >
-                          {entry.targetUserName}
-                        </Link>
-                      </p>
-                    )}
+                    <AuditResourceDetails
+                      entry={entry}
+                      language={language}
+                    />
                     {entry.reason && (
                       <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-600">
                         {entry.reason}
@@ -273,6 +263,71 @@ export function AdminAuditPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function AuditResourceDetails({
+  entry,
+  language,
+}: {
+  entry: ModeratorActionLog;
+  language: "az" | "en";
+}) {
+  const resourceSummary = getModerationResourceSummary(entry, language);
+  const isPost = isPostModerationResource(entry);
+
+  if (isPost && entry.targetUserId && entry.targetUserName) {
+    const profileUrl = `/users/${encodeURIComponent(entry.targetUserName)}`;
+
+    return (
+      <p className="mt-2 flex items-center gap-2 text-sm text-zinc-500">
+        <UserRound size={14} className="shrink-0" />
+        <span>
+          {language === "en" ? (
+            <>
+              <Link
+                to={profileUrl}
+                className="font-medium text-violet-300 transition hover:text-violet-200"
+              >
+                {entry.targetUserName}
+              </Link>
+              {"'s post"}
+            </>
+          ) : (
+            <>
+              <Link
+                to={profileUrl}
+                className="font-medium text-violet-300 transition hover:text-violet-200"
+              >
+                {entry.targetUserName}
+              </Link>{" "}
+              istifadəçisinin postu
+            </>
+          )}
+        </span>
+      </p>
+    );
+  }
+
+  return (
+    <>
+      {resourceSummary && (
+        <p className="mt-2 text-sm text-zinc-500">
+          {resourceSummary}
+        </p>
+      )}
+      {entry.targetUserId && (
+        <p className="mt-2 flex items-center gap-2 text-sm text-zinc-500">
+          <UserRound size={14} />
+          <Link
+            to={`/admin/users/${entry.targetUserId}`}
+            className="transition hover:text-violet-200"
+          >
+            {entry.targetUserName}
+          </Link>
+        </p>
+      )}
+    </>
   );
 }
 

@@ -82,6 +82,8 @@ public class AppUser : IdentityUser<Guid>
     public ICollection<ChatMessageUserState> ChatMessageStates { get; set; } = [];
     public ICollection<ChatMessageReaction> ChatMessageReactions { get; set; } = [];
     public ICollection<ChatConversationUserState> ChatConversationStates { get; set; } = [];
+    public ICollection<ChatConversationMember> ChatConversationMemberships { get; set; } = [];
+    public ICollection<ChatConversationMember> AddedChatConversationMembers { get; set; } = [];
     public ICollection<UserBadge> Badges { get; set; } = [];
     public ICollection<RefreshSession> RefreshSessions { get; set; } = [];
 }

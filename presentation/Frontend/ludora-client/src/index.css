@@ -1028,10 +1028,18 @@ select optgroup {
 }
 
 .home-interest-section {
+  contain: layout paint style;
+  isolation: isolate;
   background:
     radial-gradient(circle at 9% 18%, color-mix(in srgb, var(--home-teal) 7%, transparent), transparent 30rem),
     radial-gradient(circle at 82% 8%, color-mix(in srgb, var(--home-violet) 12%, transparent), transparent 30rem),
     radial-gradient(circle at 98% 82%, color-mix(in srgb, var(--home-emerald) 5%, transparent), transparent 26rem);
+}
+
+.home-interest-item {
+  contain: layout paint style;
+  content-visibility: auto;
+  contain-intrinsic-size: 34rem;
 }
 
 .home-interest-reason {
@@ -1781,6 +1789,18 @@ select optgroup {
   color: var(--wp-accent-strong);
 }
 
+.chat-group-message-avatar {
+  border: 1px solid color-mix(in srgb, var(--wp-border-strong) 72%, transparent);
+  box-shadow:
+    0 5px 14px color-mix(in srgb, var(--wp-page-deep) 14%, transparent),
+    0 0 0 2px color-mix(in srgb, var(--wp-surface-strong) 88%, transparent);
+}
+
+.chat-group-sender-name {
+  color: hsl(var(--chat-sender-hue, 268deg) 66% 38%);
+  letter-spacing: 0.01em;
+}
+
 [data-theme="dark"] .chat-message-bubble-received {
   border-color: rgba(255, 255, 255, 0.1) !important;
   background: #2a3140;
@@ -1801,6 +1821,17 @@ select optgroup {
 
 [data-theme="dark"] .chat-message-reply-author {
   color: #c4b5fd;
+}
+
+[data-theme="dark"] .chat-group-message-avatar {
+  border-color: rgba(255, 255, 255, 0.11);
+  box-shadow:
+    0 6px 16px rgba(5, 9, 18, 0.24),
+    0 0 0 2px #202634;
+}
+
+[data-theme="dark"] .chat-group-sender-name {
+  color: hsl(var(--chat-sender-hue, 268deg) 78% 72%);
 }
 
 /* Footer, About and Contact */
@@ -1997,4 +2028,77 @@ select optgroup {
 [data-theme="dark"] .site-footer,
 [data-theme="dark"] .info-principles-band {
   background-color: color-mix(in srgb, var(--wp-page-deep) 92%, black);
+}
+
+/* Chat overlays and menus keep usable contrast in both themes. */
+.chat-media-lightbox {
+  background: rgba(5, 7, 12, 0.86);
+}
+
+.chat-media-lightbox-control {
+  border-color: rgba(255, 255, 255, 0.18) !important;
+  background: rgba(10, 12, 18, 0.78) !important;
+  color: #ffffff !important;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.28);
+}
+
+.chat-media-lightbox-control:hover {
+  border-color: rgba(255, 255, 255, 0.3) !important;
+  background: rgba(30, 34, 44, 0.92) !important;
+}
+
+.chat-media-lightbox-counter {
+  background: rgba(10, 12, 18, 0.74);
+  color: rgba(255, 255, 255, 0.9) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2);
+}
+
+.chat-message-menu {
+  border-color: var(--wp-border-strong) !important;
+  background: var(--wp-surface-strong) !important;
+  color: var(--wp-text);
+  box-shadow: var(--wp-shadow-floating) !important;
+}
+
+.chat-message-menu-reactions {
+  border-color: var(--wp-border) !important;
+}
+
+.chat-message-menu-reaction:hover,
+.chat-message-menu-action:hover {
+  background: var(--wp-surface-hover) !important;
+}
+
+.chat-message-menu-action {
+  color: var(--wp-text) !important;
+}
+
+.chat-message-menu-action:hover {
+  color: var(--wp-text-strong) !important;
+}
+
+.chat-message-menu-delete-action {
+  color: var(--color-red-400) !important;
+}
+
+.chat-message-menu-delete-action:hover {
+  background: color-mix(in srgb, var(--color-red-500) 10%, transparent) !important;
+  color: var(--color-red-500) !important;
+}
+
+.chat-message-time-sent {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.chat-message-delivery-icon {
+  color: rgba(255, 255, 255, 0.74) !important;
+}
+
+.chat-message-delivery-icon.is-read {
+  color: #7dd3fc !important;
+}
+
+[data-theme="dark"] .chat-message-menu {
+  border-color: rgba(255, 255, 255, 0.11) !important;
+  background: #202634 !important;
 }

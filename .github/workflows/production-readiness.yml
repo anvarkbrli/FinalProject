@@ -1,0 +1,118 @@
+name: Production Readiness
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-readiness-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      JwtSettings__Key: ci-only-signing-key-that-is-longer-than-thirty-two-characters
+      ConnectionStrings__default: Server=127.0.0.1,1433;Database=WellPlaydCi;User Id=sa;Password=CiOnlyPassword!123;Encrypt=false;TrustServerCertificate=true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore
+        run: dotnet restore Ludora.sln
+
+      - name: Build release
+        run: dotnet build Ludora.sln --configuration Release --no-restore
+
+      - name: Run tests
+        run: >-
+          dotnet test tests/Ludora.API.Tests/Ludora.API.Tests.csproj
+          --configuration Release
+          --no-build
+          --logger "trx;LogFileName=tests.trx"
+          --collect "XPlat Code Coverage"
+          --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-results
+          path: TestResults
+          if-no-files-found: ignore
+
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: presentation/Frontend/ludora-client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: presentation/Frontend/ludora-client/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify source
+        run: npm run verify
+
+      - name: Build production bundle
+        env:
+          VITE_API_BASE_URL: /api
+          VITE_API_ORIGIN: ""
+        run: npm run build
+
+      - name: Upload frontend bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-dist
+          path: presentation/Frontend/ludora-client/dist
+          if-no-files-found: error
+
+  containers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.api
+          push: false
+          tags: wellplayd-api:ci
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.frontend
+          push: false
+          tags: wellplayd-frontend:ci
+          build-args: |
+            VITE_API_BASE_URL=/api
+            VITE_API_ORIGIN=
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend

@@ -21,6 +21,8 @@ public sealed class ChatMessageUserStateConfiguration
 
         builder.HasIndex(x => new { x.UserId, x.PinnedAtUtc });
         builder.HasIndex(x => new { x.UserId, x.IsDeleted });
+        builder.HasIndex(x => new { x.UserId, x.ReadAtUtc });
+        builder.HasIndex(x => new { x.UserId, x.DeliveredAtUtc });
 
         builder.HasOne(x => x.Message)
             .WithMany(x => x.UserStates)

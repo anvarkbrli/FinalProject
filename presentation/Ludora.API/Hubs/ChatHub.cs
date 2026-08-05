@@ -62,16 +62,7 @@ public sealed class ChatHub : Hub
             Context.ConnectionAborted);
         foreach (var receipt in receipts)
         {
-            var conversation = allConversations
-                .FirstOrDefault(x => x.Id == receipt.ConversationId);
-            var groups = new List<string>
-            {
-                UserGroup(userId)
-            };
-            if (conversation is not null)
-                groups.Add(UserGroup(conversation.OtherUser.Id));
-
-            await Clients.Groups(groups)
+            await Clients.Group(ConversationGroup(receipt.ConversationId))
                 .SendAsync("MessageDeliveryChanged", receipt);
         }
 
@@ -102,6 +93,11 @@ public sealed class ChatHub : Hub
             Context.ConnectionId,
             ConversationGroup(conversationId));
     }
+
+    public Task LeaveConversation(long conversationId) =>
+        Groups.RemoveFromGroupAsync(
+            Context.ConnectionId,
+            ConversationGroup(conversationId));
 
     public async Task SetTyping(long conversationId, bool isTyping)
     {
@@ -146,11 +142,7 @@ public sealed class ChatHub : Hub
             conversationId,
             Context.ConnectionAborted);
 
-        await Clients.Groups(new[]
-            {
-                UserGroup(participants.UserOneId),
-                UserGroup(participants.UserTwoId)
-            })
+        await Clients.Groups(participants.UserIds.Select(UserGroup).ToArray())
             .SendAsync("MessagesRead", receipt);
     }
 

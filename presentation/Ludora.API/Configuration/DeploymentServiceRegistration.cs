@@ -1,3 +1,4 @@
+using Ludora.API.BackgroundServices;
 using System.Net;
 using Ludora.Application.Settings;
 using Microsoft.AspNetCore.DataProtection;
@@ -82,6 +83,12 @@ public static class DeploymentServiceRegistration
             .PersistKeysToFileSystem(
                 new DirectoryInfo(resolvedDataProtection.KeyRingPath));
         services.AddHostedService<StorageInitializationHostedService>();
+
+        var singleInstanceSettings = configuration
+            .GetSection(SingleInstanceSettings.SectionName)
+            .Get<SingleInstanceSettings>() ?? new SingleInstanceSettings();
+        services.AddSingleton(singleInstanceSettings);
+        services.AddHostedService<SingleInstanceLockHostedService>();
 
         var forwardedHeadersSettings = configuration
             .GetSection(ForwardedHeadersSettings.SectionName)

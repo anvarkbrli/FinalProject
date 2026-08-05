@@ -1,0 +1,43 @@
+# syntax=docker/dockerfile:1.7
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS restore
+WORKDIR /src
+
+COPY Ludora.sln ./
+COPY presentation/Ludora.API/Ludora.API.csproj presentation/Ludora.API/
+COPY src/Core/Ludora.Application/Ludora.Application.csproj src/Core/Ludora.Application/
+COPY src/Core/Ludora.Domain/Ludora.Domain.csproj src/Core/Ludora.Domain/
+COPY src/Infrastructure/Ludora.Infrastructure/Ludora.Infrastructure.csproj src/Infrastructure/Ludora.Infrastructure/
+COPY src/Infrastructure/Ludora.Persistence/Ludora.Persistence.csproj src/Infrastructure/Ludora.Persistence/
+RUN dotnet restore presentation/Ludora.API/Ludora.API.csproj
+
+FROM restore AS build
+COPY . .
+RUN dotnet publish presentation/Ludora.API/Ludora.API.csproj \
+    --configuration Release \
+    --no-restore \
+    --output /app/publish \
+    /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p \
+        /data/wellplayd/public/uploads \
+        /data/wellplayd/private/quarantine \
+        /data/wellplayd/data-protection-keys \
+    && chown -R app:app /app /data/wellplayd
+
+COPY --from=build --chown=app:app /app/publish .
+
+USER app
+ENV ASPNETCORE_URLS=http://+:8080 \
+    DOTNET_EnableDiagnostics=0
+EXPOSE 8080
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD curl --fail --silent --header "Host: localhost" http://127.0.0.1:8080/health/live >/dev/null || exit 1
+
+ENTRYPOINT ["dotnet", "Ludora.API.dll"]

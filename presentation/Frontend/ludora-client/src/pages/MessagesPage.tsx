@@ -8,6 +8,7 @@ import {
   Archive,
   Check,
   CheckCheck,
+  CheckSquare,
   ChevronLeft,
   ChevronRight,
   Flame,
@@ -20,6 +21,8 @@ import {
   MessageCircle,
   MoreVertical,
   Pin,
+  Settings2,
+  Square,
   PinOff,
   Play,
   Plus,
@@ -29,6 +32,7 @@ import {
   ShieldQuestion,
   Trash2,
   Undo2,
+  Users,
   X,
 } from "lucide-react";
 import {
@@ -44,6 +48,7 @@ import {
 import { createPortal } from "react-dom";
 import { Link, useSearchParams } from "react-router-dom";
 import { ChatEmojiPicker } from "../components/chat/ChatEmojiPicker";
+import { ChatGroupModal } from "../components/chat/ChatGroupModal";
 import { Navbar } from "../components/layout/Navbar";
 import { useChatRealtime } from "../hooks/useChatRealtime";
 import {
@@ -60,6 +65,7 @@ import {
   chatQueryKeys,
   deleteChatConversation,
   deleteChatMessage,
+  deleteChatMessages,
   forwardChatMessage,
   getChatConversations,
   getChatMediaBlob,
@@ -104,6 +110,19 @@ const AZERBAIJANI_MONTH_NAMES = [
 
 const MAX_CHAT_MEDIA_FILES = 10;
 const MAX_CHAT_MEDIA_TOTAL_BYTES = 150 * 1024 * 1024;
+
+function getConversationName(conversation: ChatConversationDTO): string {
+  return conversation.isGroup
+    ? conversation.groupName ?? (getCurrentLanguage() === "en" ? "Group" : "Qrup")
+    : conversation.otherUser?.userName ??
+        translateText("messages:userFallback", undefined, "İstifadəçi");
+}
+
+function getConversationImage(conversation: ChatConversationDTO): string | null {
+  return conversation.isGroup
+    ? conversation.groupImageUrl
+    : conversation.otherUser?.profileImageUrl ?? null;
+}
 
 const REACTION_OPTIONS: ReadonlyArray<{
   type: ChatReactionType;
@@ -235,9 +254,25 @@ function deliveryIcon(status: ChatMessageDeliveryStatus) {
   );
 }
 
+function getSystemMessageText(message: ChatMessageDTO): string {
+  const actorName =
+    message.senderUser?.userName ??
+    translateText("messages:userFallback", undefined, "İstifadəçi");
+  const addedUserName =
+    message.text ??
+    translateText("messages:userFallback", undefined, "İstifadəçi");
+
+  return translateText(
+    "messages:system.memberAdded",
+    { addedUserName, actorName },
+    `${addedUserName} ${actorName} tərəfindən qrupa əlavə olundu.`,
+  );
+}
+
 function getMessagePreview(message: ChatMessageDTO | null): string {
   if (!message) return translateText("messages:preview.newConversation", undefined, "Yeni söhbət");
   if (message.isDeletedForEveryone) return translateText("messages:preview.deleted", undefined, "Bu mesaj silindi");
+  if (message.kind === "System") return getSystemMessageText(message);
   if (message.kind === "GameRecommendation") {
     return `🎮 ${message.gameName ?? translateText("messages:preview.gameRecommendation", undefined, "Oyun tövsiyəsi")}`;
   }
@@ -248,6 +283,7 @@ function getMessagePreview(message: ChatMessageDTO | null): string {
 
 function getReplyPreview(message: ChatMessageDTO): string {
   if (message.isDeletedForEveryone) return translateText("messages:preview.deleted", undefined, "Bu mesaj silindi");
+  if (message.kind === "System") return getSystemMessageText(message);
   if (message.kind === "GameRecommendation") {
     return `🎮 ${message.gameName ?? translateText("messages:preview.gameRecommendation", undefined, "Oyun tövsiyəsi")}`;
   }
@@ -258,6 +294,7 @@ function getReplyPreview(message: ChatMessageDTO): string {
 
 function getReplyReferencePreview(message: ChatMessageDTO["replyTo"]): string {
   if (!message || message.isDeleted) return translateText("messages:preview.deleted", undefined, "Bu mesaj silindi");
+  if (message.kind === "System") return message.text ?? translateText("messages:preview.message", undefined, "Mesaj");
   if (message.kind === "GameRecommendation") {
     return `🎮 ${message.gameName ?? translateText("messages:preview.gameRecommendation", undefined, "Oyun tövsiyəsi")}`;
   }
@@ -899,7 +936,13 @@ function ConversationItem({
   onSelect: () => void;
   onContextMenu?: (event: ReactMouseEvent<HTMLDivElement>) => void;
 }) {
-  const preview = getMessagePreview(conversation.lastMessage);
+  const messagePreview = getMessagePreview(conversation.lastMessage);
+  const preview =
+    conversation.isGroup && conversation.lastMessage?.senderUser
+      ? `${conversation.lastMessage.senderUser.userName}: ${messagePreview}`
+      : messagePreview;
+  const name = getConversationName(conversation);
+  const image = getConversationImage(conversation);
 
   return (
     <div
@@ -914,24 +957,26 @@ function ConversationItem({
         }`}
       >
         <span className="relative shrink-0">
-          <UserAvatar
-            userName={conversation.otherUser.userName}
-            profileImageUrl={conversation.otherUser.profileImageUrl}
-          />
-          {conversation.otherUser.isOnline && (
+          <UserAvatar userName={name} profileImageUrl={image} />
+          {!conversation.isGroup && conversation.otherUser?.isOnline && (
             <span
               className="chat-presence-indicator absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2"
               aria-label={translateText("messages:header.online", undefined, "onlayn")}
             />
           )}
+          {conversation.isGroup && (
+            <span className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-[var(--wp-page)] bg-violet-500 px-1 text-[8px] font-bold text-white">
+              {conversation.memberCount}
+            </span>
+          )}
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center justify-between gap-2">
             <strong className="chat-conversation-name truncate text-sm">
-              {conversation.otherUser.userName}
+              {name}
             </strong>
             <span className="flex shrink-0 items-center gap-1.5">
-              {conversation.streak.currentCount > 0 && (
+              {!conversation.isGroup && conversation.streak.currentCount > 0 && (
                 <span className="chat-conversation-streak flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-bold">
                   <Flame size={11} fill="currentColor" />
                   {conversation.streak.currentCount}
@@ -952,7 +997,6 @@ function ConversationItem({
           </span>
         </span>
       </button>
-
     </div>
   );
 }
@@ -1049,6 +1093,11 @@ export function MessagesPage() {
     x: number;
     y: number;
   } | null>(null);
+  const [groupModalConversationId, setGroupModalConversationId] =
+    useState<number | null | undefined>(undefined);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedMessageIds, setSelectedMessageIds] = useState<number[]>([]);
+  const [bulkDeleteChoiceOpen, setBulkDeleteChoiceOpen] = useState(false);
 
   const messageListRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -1066,6 +1115,46 @@ export function MessagesPage() {
     joinConversation,
     sendTyping,
   } = useChatRealtime(Boolean(currentUser));
+
+  useEffect(() => {
+    const handleGroupRemoval = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        conversationId: number;
+        reason?: string;
+        groupDeleted?: boolean;
+      }>).detail;
+      if (!detail || typeof detail.conversationId !== "number") return;
+
+      setSelectedConversationId((current) =>
+        current === detail.conversationId ? null : current,
+      );
+      setSelectionMode(false);
+      setSelectedMessageIds([]);
+      setBulkDeleteChoiceOpen(false);
+      setOpenMessageMenuId(null);
+      setReplyTarget(null);
+      setValidationMessage(
+        detail.reason === "MemberLeft" || detail.reason === "GroupDeleted"
+          ? language === "en"
+            ? "You left the group."
+            : "Qrupdan çıxdın."
+          : language === "en"
+            ? "You were removed from this group."
+            : "Bu qrupdan çıxarıldın.",
+      );
+    };
+
+    window.addEventListener(
+      "wellplayd:chat-group-membership-removed",
+      handleGroupRemoval,
+    );
+    return () => {
+      window.removeEventListener(
+        "wellplayd:chat-group-membership-removed",
+        handleGroupRemoval,
+      );
+    };
+  }, [language]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -1140,21 +1229,19 @@ export function MessagesPage() {
       ) {
         continue;
       }
-      if (
-        search &&
-        !conversation.otherUser.userName.toLocaleLowerCase().includes(search)
-      ) {
+      const conversationName = getConversationName(conversation);
+      if (search && !conversationName.toLocaleLowerCase().includes(search)) {
         continue;
       }
       unique.set(conversation.id, conversation);
     }
     return [...unique.values()].sort((left, right) =>
-      left.otherUser.userName.localeCompare(right.otherUser.userName),
+      getConversationName(left).localeCompare(getConversationName(right)),
     );
   }, [allConversations, forwardMessage?.conversationId, forwardSearchText]);
 
   const defaultConversationId =
-    allConversations.find((item) => item.otherUser.id === initialRecipientId)?.id ??
+    allConversations.find((item) => item.otherUser?.id === initialRecipientId)?.id ??
     (!initialRecipientId ? conversations[0]?.id : undefined) ??
     null;
   const selectedConversationId =
@@ -1166,8 +1253,15 @@ export function MessagesPage() {
       allConversations.find((item) => item.id === selectedConversationId) ?? null,
     [allConversations, selectedConversationId],
   );
-  const recipientId = selectedConversation?.otherUser.id ?? initialRecipientId ?? null;
-  const recipientName = selectedConversation?.otherUser.userName ?? initialRecipientName;
+  const recipientId = selectedConversation?.isGroup
+    ? null
+    : selectedConversation?.otherUser?.id ?? initialRecipientId ?? null;
+  const recipientName = selectedConversation
+    ? getConversationName(selectedConversation)
+    : initialRecipientName;
+  const recipientImage = selectedConversation
+    ? getConversationImage(selectedConversation)
+    : null;
   const isOutgoingRequestAwaitingDecision =
     selectedConversation?.requestStatus === "Pending" &&
     !selectedConversation.isIncomingRequest &&
@@ -1189,6 +1283,9 @@ export function MessagesPage() {
     setMessageSearchText("");
     setDebouncedMessageSearch("");
     setMessageSearchPage(1);
+    setSelectionMode(false);
+    setSelectedMessageIds([]);
+    setBulkDeleteChoiceOpen(false);
     setSelectedConversationId(conversationId);
   };
 
@@ -1274,6 +1371,21 @@ export function MessagesPage() {
       return difference !== 0 ? difference : first.id - second.id;
     });
   }, [messages, pinnedMessages, revealedPinnedMessageIds, revealedSearchMessages]);
+
+  const selectableMessages = useMemo(
+    () => displayedMessages.filter((message) => message.kind !== "System"),
+    [displayedMessages],
+  );
+  const selectedMessages = useMemo(
+    () => selectableMessages.filter((message) => selectedMessageIds.includes(message.id)),
+    [selectableMessages, selectedMessageIds],
+  );
+  const selectedMessagesAreAllMine =
+    selectedMessages.length > 0 &&
+    selectedMessages.every((message) => message.senderUserId === currentUser?.id);
+  const selectedMessagesContainOthers = selectedMessages.some(
+    (message) => message.senderUserId !== currentUser?.id,
+  );
 
   const latestIncomingMessageId = useMemo(
     () =>
@@ -1459,6 +1571,39 @@ export function MessagesPage() {
           queryKey: chatQueryKeys.pinnedMessages(event.conversationId),
         }),
       ]);
+    },
+  });
+  const bulkDeleteMutation = useMutation({
+    mutationFn: ({
+      messageIds,
+      scope,
+    }: {
+      messageIds: number[];
+      scope: ChatMessageDeleteScope;
+    }) => deleteChatMessages(messageIds, scope),
+    onSuccess: async (result) => {
+      setSelectionMode(false);
+      setSelectedMessageIds([]);
+      setBulkDeleteChoiceOpen(false);
+      await Promise.all([
+        refreshChat(),
+        queryClient.invalidateQueries({
+          queryKey: chatQueryKeys.messages(result.conversationId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: chatQueryKeys.pinnedMessages(result.conversationId),
+        }),
+      ]);
+    },
+    onError: (error) => {
+      setValidationMessage(
+        getApiErrorMessage(
+          error,
+          language === "en"
+            ? "The selected messages could not be deleted."
+            : "Seçilmiş mesajlar silinə bilmədi.",
+        ),
+      );
     },
   });
   const pinMessageMutation = useMutation({
@@ -1672,9 +1817,13 @@ export function MessagesPage() {
   }
 
   function submitCurrentMessage() {
-    if (!recipientId || (!messageText.trim() && mediaFiles.length === 0)) return;
+    const hasTarget = selectedConversation?.isGroup
+      ? Boolean(selectedConversationId)
+      : Boolean(recipientId);
+    if (!hasTarget || (!messageText.trim() && mediaFiles.length === 0)) return;
     sendMutation.mutate({
-      recipientUserId: recipientId,
+      recipientUserId: selectedConversation?.isGroup ? null : recipientId,
+      conversationId: selectedConversation?.isGroup ? selectedConversationId : null,
       text: messageText,
       media: mediaFiles,
       replyToMessageId: replyTarget?.id ?? null,
@@ -1706,6 +1855,70 @@ export function MessagesPage() {
     forwardMessageMutation.mutate({
       messageId: forwardMessage.id,
       targetConversationIds: forwardTargetConversationIds,
+    });
+  }
+
+  function startMessageSelection(message: ChatMessageDTO) {
+    setOpenMessageMenuId(null);
+    setSelectionMode(true);
+    setSelectedMessageIds([message.id]);
+  }
+
+  function toggleMessageSelection(messageId: number) {
+    setSelectedMessageIds((current) =>
+      current.includes(messageId)
+        ? current.filter((id) => id !== messageId)
+        : [...current, messageId],
+    );
+  }
+
+  function cancelMessageSelection() {
+    setSelectionMode(false);
+    setSelectedMessageIds([]);
+    setBulkDeleteChoiceOpen(false);
+  }
+
+  async function requestBulkDelete() {
+    if (selectedMessages.length === 0 || bulkDeleteMutation.isPending) return;
+
+    if (selectedMessagesContainOthers) {
+      const confirmed = await requestConfirmation({
+        title:
+          language === "en"
+            ? "Delete selected messages for you?"
+            : "Seçilmiş mesajlar səndən silinsin?",
+        description:
+          language === "en"
+            ? "Your selection includes messages sent by other people. All selected messages can only be removed from your own chat history."
+            : "Seçimdə başqa istifadəçilərin göndərdiyi mesajlar da var. Bütün seçilmiş mesajlar yalnız sənin söhbət tarixçəndən silinə bilər.",
+        detail:
+          language === "en"
+            ? "The messages will remain visible to the other participants."
+            : "Mesajlar digər iştirakçılarda görünməyə davam edəcək.",
+        confirmLabel: language === "en" ? "Delete for me" : "Məndən sil",
+        kind: "remove-user",
+        tone: "danger",
+      });
+      if (confirmed) {
+        bulkDeleteMutation.mutate({
+          messageIds: selectedMessages.map((message) => message.id),
+          scope: "ForMe",
+        });
+      }
+      return;
+    }
+
+    if (selectedMessagesAreAllMine) {
+      setBulkDeleteChoiceOpen(true);
+    }
+  }
+
+  function chooseBulkDeleteScope(scope: ChatMessageDeleteScope) {
+    if (selectedMessages.length === 0) return;
+    setBulkDeleteChoiceOpen(false);
+    bulkDeleteMutation.mutate({
+      messageIds: selectedMessages.map((message) => message.id),
+      scope,
     });
   }
 
@@ -1803,8 +2016,8 @@ export function MessagesPage() {
         "messages:conversationActions.deleteTitle",
         undefined,
         language === "en"
-          ? `Delete chat with ${conversation.otherUser.userName}?`
-          : `${conversation.otherUser.userName} ilə söhbət silinsin?`,
+          ? `Delete ${getConversationName(conversation)}?`
+          : `${getConversationName(conversation)} söhbəti silinsin?`,
       ),
       description: t(
         "messages:conversationActions.deleteDescription",
@@ -1883,7 +2096,18 @@ export function MessagesPage() {
                   {t("messages:title", undefined, "Mesajlar")}
                 </h1>
               </div>
-              <MessageCircle size={22} className="text-violet-300" />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setGroupModalConversationId(null)}
+                  className="flex h-9 w-9 items-center justify-center rounded-xl text-violet-300 transition hover:bg-violet-500/10 hover:text-violet-200"
+                  aria-label={language === "en" ? "Create group chat" : "Qrup söhbəti yarat"}
+                  title={language === "en" ? "Create group chat" : "Qrup söhbəti yarat"}
+                >
+                  <Users size={20} />
+                </button>
+                <MessageCircle size={22} className="text-violet-300" />
+              </div>
             </div>
 
             <div className="relative mb-3 px-1">
@@ -2018,7 +2242,7 @@ export function MessagesPage() {
               selectedConversationId || initialRecipientId ? "flex" : "hidden md:flex"
             }`}
           >
-            {recipientId ? (
+            {selectedConversation || recipientId ? (
               <>
                 <header className="chat-conversation-header relative z-30 flex shrink-0 items-center gap-3 border-b px-4 py-3 sm:px-5">
                   <button
@@ -2039,10 +2263,10 @@ export function MessagesPage() {
                   <span className="relative shrink-0">
                     <UserAvatar
                       userName={recipientName}
-                      profileImageUrl={selectedConversation?.otherUser.profileImageUrl ?? null}
+                      profileImageUrl={recipientImage}
                       className="h-10 w-10"
                     />
-                    {selectedConversation?.otherUser.isOnline && (
+                    {!selectedConversation?.isGroup && selectedConversation?.otherUser?.isOnline && (
                       <span
                         className="chat-presence-indicator absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2"
                         aria-hidden="true"
@@ -2051,13 +2275,46 @@ export function MessagesPage() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <Link
-                        to={`/users/${encodeURIComponent(recipientName)}`}
-                        className="chat-conversation-title truncate text-sm font-bold transition hover:text-violet-200"
-                      >
-                        {recipientName}
-                      </Link>
-                      {(selectedConversation?.streak.currentCount ?? 0) > 0 && (
+                      {selectedConversation?.isGroup ? (
+                        <span className="chat-conversation-title truncate text-sm font-bold">
+                          {recipientName}
+                        </span>
+                      ) : (
+                        <Link
+                          to={`/users/${encodeURIComponent(recipientName)}`}
+                          className="chat-conversation-title truncate text-sm font-bold transition hover:text-violet-200"
+                        >
+                          {recipientName}
+                        </Link>
+                      )}
+                      {selectedConversation?.isGroup && (
+                        <button
+                          type="button"
+                          onClick={() => setGroupModalConversationId(selectedConversation.id)}
+                          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-zinc-500 transition hover:bg-white/[0.06] hover:text-violet-200"
+                          aria-label={
+                            selectedConversation.isGroupCreator
+                              ? language === "en"
+                                ? "Manage group"
+                                : "Qrupu idarə et"
+                              : language === "en"
+                                ? "Group information"
+                                : "Qrup məlumatları"
+                          }
+                          title={
+                            selectedConversation.isGroupCreator
+                              ? language === "en"
+                                ? "Manage group"
+                                : "Qrupu idarə et"
+                              : language === "en"
+                                ? "Group information"
+                                : "Qrup məlumatları"
+                          }
+                        >
+                          <Settings2 size={15} />
+                        </button>
+                      )}
+                      {!selectedConversation?.isGroup && (selectedConversation?.streak.currentCount ?? 0) > 0 && (
                         <span
                           className={`chat-conversation-streak flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-extrabold ${
                             selectedConversation?.streak.isCompletedToday
@@ -2081,19 +2338,35 @@ export function MessagesPage() {
                     </div>
                     <p className="chat-conversation-presence mt-0.5 text-[11px]">
                       {otherUserIsTyping
-                        ? t("messages:header.typing", undefined, "yazır...")
-                        : selectedConversation?.requestStatus === "Pending"
-                          ? t("messages:requests.status", undefined, "Mesaj istəyi")
-                          : selectedConversation
-                            ? formatPresenceStatus(
-                                selectedConversation.otherUser.isOnline,
-                                selectedConversation.otherUser.lastSeenAtUtc,
-                              )
-                            : t(
-                                "messages:header.realtime",
-                                undefined,
-                                "Real-vaxtlı söhbət",
-                              )}
+                        ? selectedConversation?.isGroup
+                          ? language === "en"
+                            ? "Someone is typing..."
+                            : "Kimsə yazır..."
+                          : t("messages:header.typing", undefined, "yazır...")
+                        : selectedConversation?.isGroup
+                          ? `${selectedConversation.memberCount} ${
+                              language === "en"
+                                ? selectedConversation.memberCount === 1
+                                  ? "member"
+                                  : "members"
+                                : "üzv"
+                            }${
+                              selectedConversation.groupDescription
+                                ? ` · ${selectedConversation.groupDescription}`
+                                : ""
+                            }`
+                          : selectedConversation?.requestStatus === "Pending"
+                            ? t("messages:requests.status", undefined, "Mesaj istəyi")
+                            : selectedConversation?.otherUser
+                              ? formatPresenceStatus(
+                                  selectedConversation.otherUser.isOnline,
+                                  selectedConversation.otherUser.lastSeenAtUtc,
+                                )
+                              : t(
+                                  "messages:header.realtime",
+                                  undefined,
+                                  "Real-vaxtlı söhbət",
+                                )}
                     </p>
                   </div>
                   {selectedConversationId && (
@@ -2241,6 +2514,56 @@ export function MessagesPage() {
                   )}
                 </header>
 
+                {selectionMode && (
+                  <div className="flex shrink-0 items-center gap-2 border-b border-white/[0.07] bg-violet-500/[0.055] px-4 py-2.5 sm:px-5">
+                    <CheckSquare size={18} className="shrink-0 text-violet-300" />
+                    <span className="min-w-0 flex-1 text-sm font-semibold text-zinc-200">
+                      {language === "en"
+                        ? `${selectedMessageIds.length} selected`
+                        : `${selectedMessageIds.length} mesaj seçilib`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const selectableIds = selectableMessages.map((message) => message.id);
+                        setSelectedMessageIds((current) =>
+                          current.length === selectableIds.length ? [] : selectableIds,
+                        );
+                      }}
+                      className="rounded-xl px-3 py-2 text-xs font-semibold text-zinc-400 transition hover:bg-white/[0.06] hover:text-zinc-100"
+                    >
+                      {selectedMessageIds.length === selectableMessages.length && selectableMessages.length > 0
+                        ? language === "en"
+                          ? "Clear all"
+                          : "Hamısını təmizlə"
+                        : language === "en"
+                          ? "Select all"
+                          : "Hamısını seç"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void requestBulkDelete()}
+                      disabled={selectedMessageIds.length === 0 || bulkDeleteMutation.isPending}
+                      className="flex h-9 items-center gap-2 rounded-xl bg-red-500/10 px-3 text-xs font-bold text-red-300 transition hover:bg-red-500/15 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {bulkDeleteMutation.isPending ? (
+                        <LoaderCircle size={15} className="animate-spin" />
+                      ) : (
+                        <Trash2 size={15} />
+                      )}
+                      {language === "en" ? "Delete" : "Sil"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelMessageSelection}
+                      className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-500 transition hover:bg-white/[0.06] hover:text-white"
+                      aria-label={language === "en" ? "Cancel selection" : "Seçimi ləğv et"}
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+                )}
+
                 {pinnedMessageToOpen && (
                   <button
                     type="button"
@@ -2306,7 +2629,7 @@ export function MessagesPage() {
                       (reaction) => reaction.reactedByCurrentUser,
                     )?.reactionType;
 
-                    const messageMenu = (
+                    const messageMenu = selectionMode ? null : (
                       <div className="relative mt-1 shrink-0">
                         <button
                           type="button"
@@ -2398,6 +2721,14 @@ export function MessagesPage() {
                             )}
                             <button
                               type="button"
+                              onClick={() => startMessageSelection(message)}
+                              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-zinc-300 transition hover:bg-white/[0.06]"
+                            >
+                              <CheckSquare size={16} />
+                              {language === "en" ? "Select" : "Seç"}
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => openDeleteFlow(message)}
                               className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm text-red-300 transition hover:bg-red-500/[0.09]"
                             >
@@ -2428,13 +2759,59 @@ export function MessagesPage() {
                             <span className="h-px flex-1 bg-white/[0.06]" />
                           </div>
                         )}
+                        {message.kind === "System" ? (
+                          <div className="my-2 flex justify-center px-3">
+                            <div className="inline-flex max-w-full items-center gap-2 rounded-full border border-[var(--wp-border)] bg-[var(--wp-surface-soft)] px-3.5 py-2 text-center text-xs font-semibold text-[var(--wp-text-muted)] shadow-sm">
+                              <Users size={14} className="shrink-0 text-violet-400" />
+                              <span>{getSystemMessageText(message)}</span>
+                            </div>
+                          </div>
+                        ) : (
                         <div
                           className={`flex items-start gap-1 ${
                             mine ? "justify-end" : "justify-start"
                           }`}
                         >
+                          {selectionMode && (
+                            <button
+                              type="button"
+                              onClick={() => toggleMessageSelection(message.id)}
+                              className={`mt-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition ${
+                                selectedMessageIds.includes(message.id)
+                                  ? "border-violet-400/50 bg-violet-500/20 text-violet-200"
+                                  : "border-white/[0.09] bg-white/[0.025] text-zinc-600 hover:border-violet-400/30 hover:text-violet-300"
+                              }`}
+                              aria-label={
+                                selectedMessageIds.includes(message.id)
+                                  ? language === "en"
+                                    ? "Deselect message"
+                                    : "Mesajın seçimini ləğv et"
+                                  : language === "en"
+                                    ? "Select message"
+                                    : "Mesajı seç"
+                              }
+                            >
+                              {selectedMessageIds.includes(message.id) ? (
+                                <CheckSquare size={17} />
+                              ) : (
+                                <Square size={17} />
+                              )}
+                            </button>
+                          )}
                           {mine && messageMenu}
                           <div className="max-w-[85%] sm:max-w-[70%]">
+                            {selectedConversation?.isGroup && !mine && message.senderUser && (
+                              <div className="mb-1 flex items-center gap-2 px-1">
+                                <UserAvatar
+                                  userName={message.senderUser.userName}
+                                  profileImageUrl={message.senderUser.profileImageUrl}
+                                  className="h-5 w-5"
+                                />
+                                <span className="truncate text-[11px] font-semibold text-zinc-500">
+                                  {message.senderUser.userName}
+                                </span>
+                              </div>
+                            )}
                             <article
                               className={`chat-message-bubble rounded-2xl px-3.5 py-2.5 shadow-sm ${
                                 message.isDeletedForEveryone
@@ -2565,6 +2942,7 @@ export function MessagesPage() {
                           </div>
                           {!mine && messageMenu}
                         </div>
+                        )}
                       </div>
                     );
                   })}
@@ -2575,11 +2953,15 @@ export function MessagesPage() {
                         <i className="chat-typing-dot h-1.5 w-1.5 rounded-full bg-violet-300" />
                         <i className="chat-typing-dot h-1.5 w-1.5 rounded-full bg-violet-300" />
                       </span>
-                      {t(
-                        "messages:header.typingWithName",
-                        { userName: recipientName },
-                        `${recipientName} yazır...`,
-                      )}
+                      {selectedConversation?.isGroup
+                        ? language === "en"
+                          ? "Someone is typing..."
+                          : "Kimsə yazır..."
+                        : t(
+                            "messages:header.typingWithName",
+                            { userName: recipientName },
+                            `${recipientName} yazır...`,
+                          )}
                     </div>
                   )}
                 </div>
@@ -2600,8 +2982,8 @@ export function MessagesPage() {
                           const confirmed = await requestConfirmation({
                             title: t(
                               "messages:requests.rejectTitle",
-                              { userName: selectedConversation.otherUser.userName },
-                              `${selectedConversation.otherUser.userName} istifadəçisinin mesaj istəyi rədd edilsin?`,
+                              { userName: selectedConversation.otherUser?.userName ?? recipientName },
+                              `${selectedConversation.otherUser?.userName ?? recipientName} istifadəçisinin mesaj istəyi rədd edilsin?`,
                             ),
                             description: t(
                               "messages:requests.rejectDescription",
@@ -2794,7 +3176,7 @@ export function MessagesPage() {
                         type="submit"
                         disabled={
                           sendMutation.isPending ||
-                          !recipientId ||
+                          (!(selectedConversation?.isGroup ? selectedConversationId : recipientId)) ||
                           (!messageText.trim() && mediaFiles.length === 0) ||
                           selectedConversation?.canSendMessage === false
                         }
@@ -2993,6 +3375,75 @@ export function MessagesPage() {
           document.body,
         )}
 
+      {bulkDeleteChoiceOpen &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[170] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget && !bulkDeleteMutation.isPending) {
+                setBulkDeleteChoiceOpen(false);
+              }
+            }}
+          >
+            <div className="w-full max-w-md rounded-3xl border border-[var(--wp-border)] bg-[var(--wp-surface-strong)] p-5 text-[var(--wp-text)] shadow-2xl">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h2 className="text-lg font-bold text-[var(--wp-text-strong)]">
+                    {language === "en" ? "Delete selected messages" : "Seçilmiş mesajları sil"}
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-[var(--wp-text-muted)]">
+                    {language === "en"
+                      ? `Choose where ${selectedMessages.length} selected messages should be deleted.`
+                      : `${selectedMessages.length} seçilmiş mesajın haradan silinəcəyini seç.`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBulkDeleteChoiceOpen(false)}
+                  disabled={bulkDeleteMutation.isPending}
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[var(--wp-text-muted)] transition hover:bg-violet-500/10 hover:text-violet-400 disabled:opacity-40"
+                  aria-label={language === "en" ? "Close" : "Bağla"}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="mt-5 space-y-2">
+                <button
+                  type="button"
+                  onClick={() => chooseBulkDeleteScope("ForMe")}
+                  disabled={bulkDeleteMutation.isPending}
+                  className="w-full rounded-2xl border border-[var(--wp-border)] bg-[var(--wp-surface-soft)] p-4 text-left transition hover:border-violet-400/30 hover:bg-violet-500/[0.06] disabled:opacity-40"
+                >
+                  <strong className="block text-sm text-[var(--wp-text-strong)]">
+                    {language === "en" ? "Delete for me" : "Məndən sil"}
+                  </strong>
+                  <span className="mt-1 block text-xs leading-5 text-[var(--wp-text-muted)]">
+                    {language === "en"
+                      ? "The messages will only disappear from your chat history."
+                      : "Mesajlar yalnız sənin söhbət tarixçəndən silinəcək."}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => chooseBulkDeleteScope("ForEveryone")}
+                  disabled={bulkDeleteMutation.isPending}
+                  className="w-full rounded-2xl border border-red-400/20 bg-red-500/[0.055] p-4 text-left transition hover:border-red-400/35 hover:bg-red-500/[0.09] disabled:opacity-40"
+                >
+                  <strong className="block text-sm text-red-300">
+                    {language === "en" ? "Delete for everyone" : "Hamıdan sil"}
+                  </strong>
+                  <span className="mt-1 block text-xs leading-5 text-red-300/70">
+                    {language === "en"
+                      ? "All selected messages were sent by you and will be removed for every participant."
+                      : "Seçilmiş mesajların hamısı sənin tərəfindən göndərilib və bütün iştirakçılardan silinəcək."}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
       {forwardMessage &&
         createPortal(
           <div
@@ -3063,13 +3514,13 @@ export function MessagesPage() {
                       }`}
                     >
                       <UserAvatar
-                        userName={conversation.otherUser.userName}
-                        profileImageUrl={conversation.otherUser.profileImageUrl}
+                        userName={getConversationName(conversation)}
+                        profileImageUrl={getConversationImage(conversation)}
                         className="h-10 w-10"
                       />
                       <span className="min-w-0 flex-1">
                         <strong className="block truncate text-sm text-zinc-100">
-                          {conversation.otherUser.userName}
+                          {getConversationName(conversation)}
                         </strong>
                         <span className="mt-0.5 block truncate text-xs text-zinc-600">
                           {getMessagePreview(conversation.lastMessage)}
@@ -3137,6 +3588,30 @@ export function MessagesPage() {
           document.body,
         )}
 
+      {groupModalConversationId !== undefined && currentUser && (
+        <ChatGroupModal
+          open
+          conversationId={groupModalConversationId}
+          currentUserId={currentUser.id}
+          onClose={() => setGroupModalConversationId(undefined)}
+          onSaved={(conversationId) => {
+            setGroupModalConversationId(undefined);
+            void refreshChat().then(() => {
+              selectConversation(conversationId);
+            });
+          }}
+          onLeft={(conversationId) => {
+            setGroupModalConversationId(undefined);
+            setSelectedConversationId((current) =>
+              current === conversationId ? null : current,
+            );
+            setSelectionMode(false);
+            setSelectedMessageIds([]);
+            void refreshChat();
+          }}
+        />
+      )}
+
       {gamePickerOpen && (
         <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
           <div className="w-full max-w-2xl rounded-3xl border border-white/[0.09] bg-[#111116] p-5 shadow-2xl">
@@ -3177,9 +3652,11 @@ export function MessagesPage() {
                   key={`${game.source}-${game.id}`}
                   type="button"
                   onClick={() => {
-                    if (!recipientId) return;
+                    if (!selectedConversation?.isGroup && !recipientId) return;
+                    if (selectedConversation?.isGroup && !selectedConversationId) return;
                     sendMutation.mutate({
-                      recipientUserId: recipientId,
+                      recipientUserId: selectedConversation?.isGroup ? null : recipientId,
+                      conversationId: selectedConversation?.isGroup ? selectedConversationId : null,
                       replyToMessageId: replyTarget?.id ?? null,
                       game: {
                         source: game.source,

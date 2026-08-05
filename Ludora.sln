@@ -21,6 +21,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ludora.Persistence", "src\I
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ludora.API", "presentation\Ludora.API\Ludora.API.csproj", "{73D69B4A-4ECC-43EA-95A3-4515C4BA72BE}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{1A4CB87E-0EF1-4A10-83B0-C72E511A54A7}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Ludora.API.Tests", "tests\Ludora.API.Tests\Ludora.API.Tests.csproj", "{7F27A72B-9F55-41F6-B0F2-577C639F6B75}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -47,6 +51,10 @@ Global
 		{73D69B4A-4ECC-43EA-95A3-4515C4BA72BE}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{73D69B4A-4ECC-43EA-95A3-4515C4BA72BE}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{73D69B4A-4ECC-43EA-95A3-4515C4BA72BE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7F27A72B-9F55-41F6-B0F2-577C639F6B75}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7F27A72B-9F55-41F6-B0F2-577C639F6B75}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7F27A72B-9F55-41F6-B0F2-577C639F6B75}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7F27A72B-9F55-41F6-B0F2-577C639F6B75}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -59,6 +67,7 @@ Global
 		{869A9E6F-952D-4729-A20E-23C7A605ABDF} = {35003145-7C78-40DA-A7FD-81DC3D924050}
 		{2D6028FB-6A82-499D-84F6-1A87AA04AD5C} = {35003145-7C78-40DA-A7FD-81DC3D924050}
 		{73D69B4A-4ECC-43EA-95A3-4515C4BA72BE} = {B9845BE8-4978-43D3-A9ED-7FB1EC1ACBAF}
+		{7F27A72B-9F55-41F6-B0F2-577C639F6B75} = {1A4CB87E-0EF1-4A10-83B0-C72E511A54A7}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {8344C3A0-83E6-4D27-B77D-5E6D70DDAE1C}

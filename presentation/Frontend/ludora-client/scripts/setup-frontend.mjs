@@ -2,9 +2,24 @@ import { existsSync, rmSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import process from "node:process";
 
-const nodeMajor = Number.parseInt(process.versions.node.split(".")[0] ?? "0", 10);
-if (!Number.isFinite(nodeMajor) || nodeMajor < 20) {
-  console.error("WellPlayd frontend requires Node.js 20 or newer.");
+const requiredNodeVersion = [22, 23, 2];
+const currentNodeVersion = process.versions.node
+  .split(".")
+  .slice(0, 3)
+  .map((part) => Number.parseInt(part, 10));
+
+const isSupportedNodeVersion =
+  currentNodeVersion.length === 3 &&
+  currentNodeVersion.every(Number.isFinite) &&
+  currentNodeVersion[0] === requiredNodeVersion[0] &&
+  (currentNodeVersion[1] > requiredNodeVersion[1] ||
+    (currentNodeVersion[1] === requiredNodeVersion[1] &&
+      currentNodeVersion[2] >= requiredNodeVersion[2]));
+
+if (!isSupportedNodeVersion) {
+  console.error(
+    `WellPlayd frontend requires Node.js 22.23.2 or newer within the Node 22 LTS line. Current: ${process.versions.node}`,
+  );
   process.exit(1);
 }
 

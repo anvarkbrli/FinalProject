@@ -1,4 +1,5 @@
 using Ludora.API.Security;
+using Ludora.API.Models;
 using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -70,16 +71,10 @@ public sealed class DiscussionsController : ControllerBase
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(220_000_000)]
     public async Task<ActionResult<DiscussionDetailDTO>> Create(
-        [FromForm] string title,
-        [FromForm] string? content,
-        [FromForm] int categoryId,
-        [FromForm] int? communityId,
-        [FromForm] bool isSpoiler,
-        [FromForm] string? pollJson,
-        [FromForm] List<IFormFile>? mediaFiles,
+        [FromForm] DiscussionCreateFormRequest request,
         CancellationToken cancellationToken)
     {
-        var uploads = (mediaFiles ?? [])
+        var uploads = request.MediaFiles
             .Select(file => new DiscussionMediaUploadDTO
             {
                 Stream = file.OpenReadStream(),
@@ -93,12 +88,12 @@ public sealed class DiscussionsController : ControllerBase
             GetCurrentUserId(),
             new DiscussionCreateDTO
             {
-                Title = title,
-                Content = content,
-                CategoryId = categoryId,
-                CommunityId = communityId,
-                IsSpoiler = isSpoiler,
-                Poll = ParsePoll(pollJson),
+                Title = request.Title,
+                Content = request.Content,
+                CategoryId = request.CategoryId,
+                CommunityId = request.CommunityId,
+                IsSpoiler = request.IsSpoiler,
+                Poll = ParsePoll(request.PollJson),
                 Media = uploads
             },
             cancellationToken);
@@ -135,16 +130,10 @@ public sealed class DiscussionsController : ControllerBase
     [RequestSizeLimit(220_000_000)]
     public async Task<ActionResult<DiscussionDetailDTO>> UpdateWithMedia(
         int id,
-        [FromForm] string title,
-        [FromForm] string? content,
-        [FromForm] int categoryId,
-        [FromForm] bool isSpoiler,
-        [FromForm] string? pollJson,
-        [FromForm] List<int>? keptMediaIds,
-        [FromForm] List<IFormFile>? mediaFiles,
+        [FromForm] DiscussionUpdateMediaFormRequest request,
         CancellationToken cancellationToken)
     {
-        var uploads = (mediaFiles ?? [])
+        var uploads = request.MediaFiles
             .Select(file => new DiscussionMediaUploadDTO
             {
                 Stream = file.OpenReadStream(),
@@ -160,12 +149,12 @@ public sealed class DiscussionsController : ControllerBase
             CanManageContent(),
             new DiscussionUpdateDTO
             {
-                Title = title,
-                Content = content ?? string.Empty,
-                CategoryId = categoryId,
-                IsSpoiler = isSpoiler,
-                Poll = ParsePoll(pollJson),
-                KeptMediaIds = keptMediaIds ?? [],
+                Title = request.Title,
+                Content = request.Content ?? string.Empty,
+                CategoryId = request.CategoryId,
+                IsSpoiler = request.IsSpoiler,
+                Poll = ParsePoll(request.PollJson),
+                KeptMediaIds = request.KeptMediaIds,
                 Media = uploads
             },
             cancellationToken);

@@ -11,7 +11,9 @@ public sealed class ChatConversationUserStateConfiguration
     {
         builder.HasKey(x => new { x.ConversationId, x.UserId });
         builder.Property(x => x.IsArchived).IsRequired();
+        builder.Property(x => x.IsDeleted).IsRequired();
         builder.HasIndex(x => new { x.UserId, x.IsArchived, x.ArchivedAtUtc });
+        builder.HasIndex(x => new { x.UserId, x.IsDeleted, x.DeletedAtUtc });
 
         builder.HasOne(x => x.Conversation)
             .WithMany(x => x.UserStates)

@@ -100,44 +100,58 @@ function persistHomeWelcomeHiddenPreference(value: boolean): void {
 
 const settingsSections: Array<{
   id: SettingsSection;
-  label: string;
-  description: string;
+  labelAz: string;
+  labelEn: string;
+  descriptionAz: string;
+  descriptionEn: string;
   icon: typeof UserRoundPen;
 }> = [
   {
     id: "profile",
-    label: "Profil",
-    description: "Şəkil, istifadəçi adı, bio və sosial linklər",
+    labelAz: "Profil",
+    labelEn: "Profile",
+    descriptionAz: "Şəkil, istifadəçi adı, bio və sosial linklər",
+    descriptionEn: "Profile picture, username, bio, and social links",
     icon: UserRoundPen,
   },
   {
     id: "appearance",
-    label: "Görünüş və dil",
-    description: "Dil və rəng rejimi seçimləri",
+    labelAz: "Görünüş və dil",
+    labelEn: "Appearance & language",
+    descriptionAz: "Dil və rəng rejimi seçimləri",
+    descriptionEn: "Language and color mode options",
     icon: Languages,
   },
   {
     id: "account",
-    label: "Hesab",
-    description: "Email, şifrə, məxfilik və təhlükəsizlik",
+    labelAz: "Hesab",
+    labelEn: "Account",
+    descriptionAz: "Email, şifrə, məxfilik və təhlükəsizlik",
+    descriptionEn: "Email, password, privacy, and security",
     icon: ShieldCheck,
   },
   {
     id: "notifications",
-    label: "Bildirişlər",
-    description: "Fəaliyyət bildirişlərinin idarəsi",
+    labelAz: "Bildirişlər",
+    labelEn: "Notifications",
+    descriptionAz: "Fəaliyyət bildirişlərinin idarəsi",
+    descriptionEn: "Manage activity notifications",
     icon: BellRing,
   },
   {
     id: "integrations",
-    label: "İnteqrasiyalar",
-    description: "Steam və xarici hesab bağlantıları",
+    labelAz: "İnteqrasiyalar",
+    labelEn: "Integrations",
+    descriptionAz: "Steam və xarici hesab bağlantıları",
+    descriptionEn: "Steam and external account links",
     icon: Gamepad2,
   },
   {
     id: "blocked",
-    label: "Bloklanmış istifadəçilər",
-    description: "Blok siyahısına nəzarət",
+    labelAz: "Bloklanmış istifadəçilər",
+    labelEn: "Blocked users",
+    descriptionAz: "Blok siyahısına nəzarət",
+    descriptionEn: "Manage blocked users",
     icon: Ban,
   },
 ];
@@ -981,10 +995,10 @@ export function SettingsPage() {
                     </span>
                     <span className="min-w-0 flex-1">
                       <strong className="block text-sm font-semibold">
-                        {section.label}
+                        {language === "en" ? section.labelEn : section.labelAz}
                       </strong>
                       <span className="mt-0.5 hidden text-[11px] leading-4 text-zinc-600 xl:block">
-                        {section.description}
+                        {language === "en" ? section.descriptionEn : section.descriptionAz}
                       </span>
                     </span>
                     <ChevronRight

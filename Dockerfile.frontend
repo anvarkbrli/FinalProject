@@ -1,0 +1,23 @@
+# syntax=docker/dockerfile:1.7
+FROM node:22-alpine AS build
+WORKDIR /app
+
+COPY presentation/Frontend/ludora-client/package.json presentation/Frontend/ludora-client/package-lock.json ./
+RUN npm ci
+
+COPY presentation/Frontend/ludora-client/ ./
+
+ARG VITE_API_BASE_URL=/api
+ARG VITE_API_ORIGIN=
+ENV VITE_API_BASE_URL=${VITE_API_BASE_URL} \
+    VITE_API_ORIGIN=${VITE_API_ORIGIN}
+RUN npm run verify && npm run build
+
+FROM nginx:1.27-alpine AS runtime
+COPY deployment/nginx/default.conf.template /etc/nginx/templates/default.conf.template
+COPY --from=build /app/dist /usr/share/nginx/html
+
+ENV API_UPSTREAM=http://api:8080
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD wget -q -O /dev/null http://127.0.0.1:8080/ || exit 1

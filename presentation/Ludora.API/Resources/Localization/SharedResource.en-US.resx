@@ -108,4 +108,61 @@
   <data name="Siyahını klonlamaq üçün əməkdaşlıq dəvətini əvvəlcə qəbul edin." xml:space="preserve">
     <value>Accept the collaboration invitation before cloning this list.</value>
   </data>
+  <data name="Qrup yaratmaq üçün ən azı bir istifadəçi seçilməlidir." xml:space="preserve">
+    <value>Select at least one user to create a group.</value>
+  </data>
+  <data name="Seçilmiş istifadəçilərdən biri tapılmadı və ya hazırda qrupa əlavə edilə bilməz." xml:space="preserve">
+    <value>One of the selected users was not found or cannot currently be added to a group.</value>
+  </data>
+  <data name="Blok münasibəti olan istifadəçilər eyni qrupa əlavə edilə bilməz." xml:space="preserve">
+    <value>Users with a blocking relationship cannot be added to the same group.</value>
+  </data>
+  <data name="Qrup tapılmadı." xml:space="preserve">
+    <value>The group was not found.</value>
+  </data>
+  <data name="Əlavə ediləcək yeni istifadəçi seçilməyib." xml:space="preserve">
+    <value>No new user was selected to add.</value>
+  </data>
+  <data name="Qrupu yaradan istifadəçi qrupdan çıxarıla bilməz." xml:space="preserve">
+    <value>The group creator cannot be removed from the group.</value>
+  </data>
+  <data name="İstifadəçi bu qrupda deyil." xml:space="preserve">
+    <value>This user is not a member of the group.</value>
+  </data>
+  <data name="Bu qrupun ayarlarını yalnız qrupu yaradan istifadəçi dəyişə bilər." xml:space="preserve">
+    <value>Only the group creator can change the group settings.</value>
+  </data>
+  <data name="Qrup adı 2-100 simvol aralığında olmalıdır." xml:space="preserve">
+    <value>The group name must be between 2 and 100 characters.</value>
+  </data>
+  <data name="Qrup açıqlaması maksimum 500 simvol ola bilər." xml:space="preserve">
+    <value>The group description can contain at most 500 characters.</value>
+  </data>
+  <data name="Mesaj silmə növü düzgün deyil." xml:space="preserve">
+    <value>The message deletion scope is invalid.</value>
+  </data>
+  <data name="Silinəcək mesaj seçilməyib." xml:space="preserve">
+    <value>No messages were selected for deletion.</value>
+  </data>
+  <data name="Bir əməliyyatda maksimum 500 mesaj silinə bilər." xml:space="preserve">
+    <value>You can delete at most 500 messages in one operation.</value>
+  </data>
+  <data name="Seçilmiş mesajlardan biri tapılmadı." xml:space="preserve">
+    <value>One of the selected messages was not found.</value>
+  </data>
+  <data name="Mesajlar eyni söhbətdən seçilməlidir." xml:space="preserve">
+    <value>The selected messages must belong to the same conversation.</value>
+  </data>
+  <data name="Bu söhbətə giriş yoxdur." xml:space="preserve">
+    <value>You do not have access to this conversation.</value>
+  </data>
+  <data name="Başqa istifadəçinin mesajını hər kəsdən silmək olmaz." xml:space="preserve">
+    <value>You cannot delete another user’s message for everyone.</value>
+  </data>
+  <data name="Bu qrupda mesaj yazmaq icazən yoxdur." xml:space="preserve">
+    <value>You do not have permission to send messages in this group.</value>
+  </data>
+  <data name="Söhbət identifikatoru yalnız qrup mesajı üçün istifadə edilə bilər." xml:space="preserve">
+    <value>A conversation ID can only be used when sending a group message.</value>
+  </data>
 </root>

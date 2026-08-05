@@ -1,4 +1,5 @@
 using Ludora.API.Security;
+using Ludora.API.Models;
 using System.Security.Claims;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
@@ -60,19 +61,13 @@ public sealed class ForumCommunitiesController : ControllerBase
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(20_000_000)]
     public async Task<ActionResult<ForumCommunitySummaryDTO>> Create(
-        [FromForm] string name,
-        [FromForm] string description,
-        [FromForm] ForumCommunityCategory category,
-        [FromForm] ForumCommunityVisibility visibility,
-        [FromForm] bool hasIcon,
-        [FromForm] bool hasCoverImage,
-        [FromForm] List<IFormFile>? imageFiles,
+        [FromForm] ForumCommunityCreateFormRequest request,
         CancellationToken cancellationToken)
     {
-        var files = imageFiles ?? [];
-        var icon = hasIcon ? files.ElementAtOrDefault(0) : null;
-        var coverIndex = hasIcon ? 1 : 0;
-        var coverImage = hasCoverImage
+        var files = request.ImageFiles;
+        var icon = request.HasIcon ? files.ElementAtOrDefault(0) : null;
+        var coverIndex = request.HasIcon ? 1 : 0;
+        var coverImage = request.HasCoverImage
             ? files.ElementAtOrDefault(coverIndex)
             : null;
 
@@ -80,10 +75,10 @@ public sealed class ForumCommunitiesController : ControllerBase
             GetCurrentUserId(),
             new ForumCommunityCreateDTO
             {
-                Name = name,
-                Description = description,
-                Category = category,
-                Visibility = visibility,
+                Name = request.Name,
+                Description = request.Description,
+                Category = request.Category,
+                Visibility = request.Visibility,
                 Icon = ToUpload(icon),
                 CoverImage = ToUpload(coverImage)
             },

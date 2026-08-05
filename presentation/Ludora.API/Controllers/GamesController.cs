@@ -1,4 +1,5 @@
 using Ludora.Application.Common;
+using Ludora.API.Models;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
@@ -52,9 +53,10 @@ public sealed class GamesController : ControllerBase
     [Consumes("multipart/form-data")]
     [RequestSizeLimit(12 * 1024 * 1024)]
     public async Task<ActionResult<object>> UploadCoverImage(
-        IFormFile image,
+        [FromForm] SingleImageFormRequest request,
         CancellationToken cancellationToken)
     {
+        var image = request.Image;
         if (image is null || image.Length <= 0)
             return BadRequest(new { message = "Oyun şəkli seçilməyib." });
 

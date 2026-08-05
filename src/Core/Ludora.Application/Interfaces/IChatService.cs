@@ -5,6 +5,33 @@ namespace Ludora.Application.Interfaces;
 
 public interface IChatService
 {
+    Task<ChatGroupDTO> CreateGroupAsync(
+        Guid creatorUserId,
+        ChatGroupCreateDTO dto,
+        CancellationToken cancellationToken = default);
+    Task<ChatGroupDTO> GetGroupAsync(
+        Guid userId,
+        long conversationId,
+        CancellationToken cancellationToken = default);
+    Task<ChatGroupDTO> UpdateGroupAsync(
+        Guid userId,
+        long conversationId,
+        ChatGroupUpdateDTO dto,
+        CancellationToken cancellationToken = default);
+    Task<ChatGroupChangedDTO> AddGroupMembersAsync(
+        Guid userId,
+        long conversationId,
+        IReadOnlyCollection<Guid> userIds,
+        CancellationToken cancellationToken = default);
+    Task<ChatGroupChangedDTO> RemoveGroupMemberAsync(
+        Guid userId,
+        long conversationId,
+        Guid memberUserId,
+        CancellationToken cancellationToken = default);
+    Task<ChatGroupChangedDTO> LeaveGroupAsync(
+        Guid userId,
+        long conversationId,
+        CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ChatConversationDTO>> GetConversationsAsync(
         Guid userId,
         bool archived = false,
@@ -62,6 +89,11 @@ public interface IChatService
     Task<IReadOnlyList<ChatMessageDTO>> GetPinnedMessagesAsync(
         Guid userId,
         long conversationId,
+        CancellationToken cancellationToken = default);
+    Task<ChatBulkDeleteResultDTO> DeleteMessagesAsync(
+        Guid userId,
+        IReadOnlyCollection<long> messageIds,
+        ChatMessageDeleteScope scope,
         CancellationToken cancellationToken = default);
     Task<ChatMessageDeletedDTO> DeleteMessageAsync(
         Guid userId,

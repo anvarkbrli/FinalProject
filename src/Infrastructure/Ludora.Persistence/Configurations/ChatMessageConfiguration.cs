@@ -26,7 +26,7 @@ public sealed class ChatMessageConfiguration : IEntityTypeConfiguration<ChatMess
                 "[DeletedForEveryoneAtUtc] IS NOT NULL OR [Text] IS NOT NULL OR [MediaStorageKey] IS NOT NULL OR [GameId] IS NOT NULL");
             table.HasCheckConstraint(
                 "CK_ChatMessages_Kind",
-                "[Kind] BETWEEN 0 AND 3");
+                "[Kind] BETWEEN 0 AND 4");
         });
 
         builder.HasIndex(x => new { x.ConversationId, x.SentAtUtc, x.Id })
