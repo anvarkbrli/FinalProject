@@ -15,7 +15,9 @@
     "expandImage": "Expand image",
     "messageImageAlt": "Message image",
     "closePreview": "Close media preview",
-    "expandedImageAlt": "Expanded message image"
+    "expandedImageAlt": "Expanded message image",
+    "previous": "Previous media",
+    "next": "Next media"
   },
   "streak": {
     "celebrationTitle": "{count}-day streak!",
@@ -111,7 +113,9 @@
     "unsupportedMedia": "Only images, MP4 and WEBM files can be sent.",
     "videoTooLarge": "Videos can be up to 50 MB.",
     "imageTooLarge": "Images can be up to 10 MB.",
-    "sendFailed": "Message could not be sent."
+    "sendFailed": "Message could not be sent.",
+    "tooManyMedia": "You can send up to {count} media files in one message.",
+    "mediaTotalTooLarge": "The selected media files can be up to {size} MB in total."
   },
   "delete": {
     "forEveryoneTitle": "Delete the message for everyone?",

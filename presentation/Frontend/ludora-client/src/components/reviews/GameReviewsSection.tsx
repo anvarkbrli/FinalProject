@@ -345,6 +345,40 @@ export function GameReviewsSection({
                     )}
                   </header>
 
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[color:var(--wp-border)] px-5 py-3 text-xs text-[color:var(--wp-text-muted)] sm:px-6">
+                    <span className="inline-flex min-w-0 items-center gap-2">
+                      <Gamepad2
+                        size={14}
+                        className="shrink-0 text-[var(--wp-accent-strong)]"
+                      />
+                      <span className="font-medium">
+                        {language === "en" ? "Platform:" : "Platforma:"}
+                      </span>
+                      <span className="max-w-[18rem] truncate font-semibold text-[var(--wp-text-strong)]">
+                        {platform}
+                      </span>
+                    </span>
+
+                    <span
+                      aria-hidden="true"
+                      className="hidden h-1 w-1 rounded-full bg-[color:var(--wp-border-strong)] sm:block"
+                    />
+
+                    <span className="inline-flex items-center gap-2">
+                      <Clock3
+                        size={14}
+                        className="shrink-0 text-[var(--wp-accent-strong)]"
+                      />
+                      <span className="font-medium">
+                        {language === "en" ? "Playtime:" : "Oyun müddəti:"}
+                      </span>
+                      <span className="font-semibold text-[var(--wp-text-strong)]">
+                        {playtime ??
+                          (language === "en" ? "Not shared" : "Paylaşılmayıb")}
+                      </span>
+                    </span>
+                  </div>
+
                   <div className="px-5 py-5 sm:px-6 sm:py-6">
                     {review.containsSpoilers &&
                     !review.isMine &&
@@ -386,51 +420,6 @@ export function GameReviewsSection({
                         </p>
                       </div>
                     )}
-
-                    <dl className="mt-4 grid gap-3 sm:grid-cols-3">
-                      <div className="wp-review-meta-item flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3">
-                        <span className="wp-review-meta-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
-                          <Gamepad2 size={17} />
-                        </span>
-                        <div className="min-w-0">
-                          <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--wp-text-muted)]">
-                            {language === "en" ? "Platform" : "Platforma"}
-                          </dt>
-                          <dd className="mt-1 truncate text-sm font-bold text-[var(--wp-text-strong)]">
-                            {platform}
-                          </dd>
-                        </div>
-                      </div>
-
-                      <div className="wp-review-meta-item flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3">
-                        <span className="wp-review-meta-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
-                          <Clock3 size={17} />
-                        </span>
-                        <div className="min-w-0">
-                          <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--wp-text-muted)]">
-                            {language === "en" ? "Playtime" : "Oyun müddəti"}
-                          </dt>
-                          <dd className="mt-1 truncate text-sm font-bold text-[var(--wp-text-strong)]">
-                            {playtime ??
-                              (language === "en" ? "Not shared" : "Paylaşılmayıb")}
-                          </dd>
-                        </div>
-                      </div>
-
-                      <div className="wp-review-meta-item flex min-w-0 items-center gap-3 rounded-2xl px-4 py-3">
-                        <span className="wp-review-meta-icon flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
-                          <MessageCircle size={17} />
-                        </span>
-                        <div className="min-w-0">
-                          <dt className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--wp-text-muted)]">
-                            {language === "en" ? "Comments" : "Şərhlər"}
-                          </dt>
-                          <dd className="mt-1 text-sm font-bold text-[var(--wp-text-strong)]">
-                            {review.commentCount}
-                          </dd>
-                        </div>
-                      </div>
-                    </dl>
 
                     {review.showHardwareProfile && (
                       <div className="mt-4">

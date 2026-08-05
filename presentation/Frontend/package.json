@@ -1,0 +1,10 @@
+{
+  "name": "wellplayd-frontend-launcher",
+  "private": true,
+  "scripts": {
+    "setup": "npm --prefix ludora-client run setup",
+    "dev": "npm --prefix ludora-client run dev",
+    "verify": "npm --prefix ludora-client run verify",
+    "build": "npm --prefix ludora-client run build:clean"
+  }
+}

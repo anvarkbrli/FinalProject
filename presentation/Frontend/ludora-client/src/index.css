@@ -116,47 +116,47 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  /* WellPlayd dark theme */
-  --wp-page: #0d1018;
-  --wp-page-deep: #10141e;
-  --wp-surface: rgba(25, 28, 38, 0.86);
-  --wp-surface-strong: #191c26;
-  --wp-surface-soft: rgba(31, 35, 47, 0.78);
-  --wp-surface-hover: rgba(132, 96, 255, 0.08);
-  --wp-nav: rgba(13, 16, 24, 0.82);
-  --wp-footer: #0b0e15;
-  --wp-text: #d6dbe5;
-  --wp-text-strong: #f7f8fb;
-  --wp-text-muted: #8791a3;
-  --wp-border: rgba(255, 255, 255, 0.08);
-  --wp-border-strong: rgba(255, 255, 255, 0.14);
-  --wp-accent: #8460ff;
-  --wp-accent-strong: #7650f2;
-  --wp-accent-soft: rgba(132, 96, 255, 0.14);
-  --wp-accent-glow: rgba(132, 96, 255, 0.28);
-  --wp-electric: #43a5ff;
-  --wp-emerald: #45d49b;
+  /* WellPlayd dark theme — lifted charcoal tones with softer contrast. */
+  --wp-page: #151a24;
+  --wp-page-deep: #1a202c;
+  --wp-surface: rgba(34, 40, 53, 0.88);
+  --wp-surface-strong: #242b39;
+  --wp-surface-soft: rgba(43, 50, 66, 0.82);
+  --wp-surface-hover: rgba(69, 212, 155, 0.09);
+  --wp-nav: rgba(20, 25, 35, 0.9);
+  --wp-footer: #131823;
+  --wp-text: #dce3ed;
+  --wp-text-strong: #fbfcfe;
+  --wp-text-muted: #9aa6b8;
+  --wp-border: rgba(255, 255, 255, 0.1);
+  --wp-border-strong: rgba(255, 255, 255, 0.17);
+  --wp-accent: #8d72ff;
+  --wp-accent-strong: #a28cff;
+  --wp-accent-soft: rgba(141, 114, 255, 0.15);
+  --wp-accent-glow: rgba(141, 114, 255, 0.24);
+  --wp-electric: #58afff;
+  --wp-emerald: #52dba6;
   --wp-solid-light: #ffffff;
   --wp-solid-light-text: #111318;
   --wp-utility-white-text: #ffffff;
-  --wp-image-overlay: rgba(5, 7, 13, 0.76);
-  --wp-shadow-card: 0 18px 52px rgba(0, 0, 0, 0.22);
-  --wp-shadow-hover: 0 24px 64px rgba(25, 13, 65, 0.38);
-  --wp-shadow-floating: 0 30px 90px rgba(0, 0, 0, 0.48);
-  --wp-focus: 0 0 0 4px rgba(132, 96, 255, 0.14);
+  --wp-image-overlay: rgba(10, 14, 23, 0.7);
+  --wp-shadow-card: 0 16px 44px rgba(5, 9, 18, 0.2);
+  --wp-shadow-hover: 0 22px 58px rgba(17, 24, 39, 0.34);
+  --wp-shadow-floating: 0 28px 78px rgba(5, 9, 18, 0.42);
+  --wp-focus: 0 0 0 4px rgba(82, 219, 166, 0.13);
 
   --color-white: #ffffff;
   --color-zinc-50: #ffffff;
-  --color-zinc-100: #f3f5f8;
-  --color-zinc-200: #dde2ea;
-  --color-zinc-300: #c0c7d2;
-  --color-zinc-400: #9ba4b5;
-  --color-zinc-500: #7b8495;
-  --color-zinc-600: #596273;
-  --color-zinc-700: #353d4d;
-  --color-zinc-800: #202633;
-  --color-zinc-900: #151923;
-  --color-zinc-950: #0d1018;
+  --color-zinc-100: #f4f7fb;
+  --color-zinc-200: #e1e7ef;
+  --color-zinc-300: #c9d1dc;
+  --color-zinc-400: #a9b3c2;
+  --color-zinc-500: #8c97a9;
+  --color-zinc-600: #687487;
+  --color-zinc-700: #414b5d;
+  --color-zinc-800: #2d3545;
+  --color-zinc-900: #202634;
+  --color-zinc-950: #151a24;
 
   --color-violet-100: #ede9fe;
   --color-violet-200: #ddd6fe;
@@ -460,11 +460,11 @@ img {
 }
 
 [data-theme="dark"] .wp-profile-hero {
-  background-color: #0a0a0e !important;
+  background-color: #1a202c !important;
 }
 
 [data-theme="dark"] .wp-profile-action-menu {
-  background-color: #15151b !important;
+  background-color: #242b39 !important;
 }
 
 [data-theme="dark"] .wp-profile-stat-card {
@@ -475,7 +475,7 @@ img {
 [data-theme="dark"] .wp-private-profile-inline {
   background:
     radial-gradient(circle at 50% 0%, rgba(124, 58, 237, 0.12), transparent 15rem),
-    rgba(17, 17, 24, 0.82);
+    rgba(34, 40, 53, 0.9);
 }
 
 [class~="bg-[#101015]/95"] {
@@ -855,6 +855,263 @@ select optgroup {
   ) !important;
 }
 
+/* Homepage color language: violet/fuchsia stay as the WellPlayd brand
+   foundation. Emerald and teal appear as secondary light shifts instead of
+   replacing the original purple accents and decorative background glows. */
+.home-theme {
+  --home-violet: var(--wp-accent);
+  --home-violet-strong: var(--wp-accent-strong);
+  --home-fuchsia: var(--color-fuchsia-400);
+  --home-emerald: var(--wp-emerald);
+  --home-teal: var(--color-teal-400);
+  --home-blended-accent: color-mix(in srgb, var(--home-violet) 72%, var(--home-emerald) 28%);
+  --home-blended-border: color-mix(in srgb, var(--home-violet) 62%, var(--home-emerald) 38%);
+  --home-blended-surface: color-mix(in srgb, var(--home-violet) 4%, color-mix(in srgb, var(--home-emerald) 3%, var(--wp-surface-strong)));
+}
+
+.home-theme.wellplayd-page-bg {
+  background-image:
+    radial-gradient(circle at 7% 3%, color-mix(in srgb, var(--home-violet) 17%, transparent), transparent 33rem),
+    radial-gradient(circle at 78% 10%, color-mix(in srgb, var(--home-fuchsia) 9%, transparent), transparent 31rem),
+    radial-gradient(circle at 94% 30%, color-mix(in srgb, var(--home-emerald) 8%, transparent), transparent 36rem),
+    radial-gradient(circle at 48% 98%, color-mix(in srgb, var(--home-teal) 5%, transparent), transparent 42rem),
+    linear-gradient(180deg, color-mix(in srgb, var(--wp-page-deep) 96%, transparent), var(--wp-page) 48%, var(--wp-page-deep));
+}
+
+.home-welcome-shell {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--home-violet) 3%, transparent), color-mix(in srgb, var(--home-emerald) 1.6%, transparent) 54%, transparent 100%);
+}
+
+.home-welcome-shell-aurora {
+  background:
+    radial-gradient(circle at 8% 12%, color-mix(in srgb, var(--home-violet) 14%, transparent), transparent 28rem),
+    radial-gradient(circle at 38% 0%, color-mix(in srgb, var(--home-fuchsia) 8%, transparent), transparent 23rem),
+    radial-gradient(circle at 92% 18%, color-mix(in srgb, var(--home-emerald) 8%, transparent), transparent 30rem),
+    radial-gradient(circle at 78% 92%, color-mix(in srgb, var(--home-teal) 5%, transparent), transparent 24rem);
+}
+
+.home-welcome-shell-grid {
+  opacity: 0.038;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--home-violet) 68%, var(--home-emerald) 32%) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--home-violet) 68%, var(--home-emerald) 32%) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.9) 58%, transparent 100%);
+}
+
+.home-hero {
+  border-color: color-mix(in srgb, var(--home-blended-border) 18%, var(--wp-border)) !important;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--home-violet) 2.5%, transparent), color-mix(in srgb, var(--home-emerald) 1.5%, transparent) 52%, transparent 100%);
+}
+
+.home-hero-aurora {
+  background:
+    radial-gradient(circle at 18% 18%, color-mix(in srgb, var(--home-violet) 19%, transparent), transparent 32rem),
+    radial-gradient(circle at 82% 22%, color-mix(in srgb, var(--home-fuchsia) 11%, transparent), transparent 29rem),
+    radial-gradient(circle at 92% 64%, color-mix(in srgb, var(--home-emerald) 9%, transparent), transparent 29rem),
+    radial-gradient(circle at 56% 96%, color-mix(in srgb, var(--home-teal) 5%, transparent), transparent 27rem);
+}
+
+.home-hero-grid {
+  opacity: 0.038;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--home-violet) 68%, var(--home-emerald) 32%) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--home-violet) 68%, var(--home-emerald) 32%) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.96), rgba(0, 0, 0, 0.86) 64%, transparent 100%);
+}
+
+.home-hero-kicker {
+  border: 1px solid color-mix(in srgb, var(--home-blended-border) 38%, var(--wp-border));
+  color: var(--home-violet-strong);
+  background:
+    linear-gradient(110deg, color-mix(in srgb, var(--home-violet) 10%, var(--wp-surface-strong)), color-mix(in srgb, var(--home-emerald) 6%, var(--wp-surface-strong)));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 8%, transparent);
+}
+
+.home-hero-kicker svg {
+  color: color-mix(in srgb, var(--home-violet) 45%, var(--home-emerald) 55%);
+}
+
+.home-hero-title-gradient {
+  background-image: linear-gradient(92deg, var(--color-violet-300) 0%, var(--home-fuchsia) 48%, var(--home-emerald) 100%);
+}
+
+.home-primary-action {
+  border: 1px solid color-mix(in srgb, var(--home-violet) 72%, var(--home-emerald) 28%);
+  background: linear-gradient(135deg, var(--home-violet-strong) 0%, color-mix(in srgb, var(--home-violet) 72%, var(--home-fuchsia) 28%) 58%, color-mix(in srgb, var(--home-violet) 68%, var(--home-emerald) 32%) 100%);
+  box-shadow: 0 16px 34px color-mix(in srgb, var(--home-violet) 24%, transparent);
+}
+
+.home-primary-action:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.08);
+  box-shadow:
+    0 20px 42px color-mix(in srgb, var(--home-violet) 18%, transparent),
+    0 10px 30px color-mix(in srgb, var(--home-emerald) 9%, transparent);
+}
+
+.home-secondary-action:hover {
+  border-color: color-mix(in srgb, var(--home-blended-border) 42%, var(--wp-border)) !important;
+  color: var(--home-violet-strong) !important;
+  background: linear-gradient(110deg, color-mix(in srgb, var(--home-violet) 7%, var(--wp-surface-strong)), color-mix(in srgb, var(--home-emerald) 5%, var(--wp-surface-strong))) !important;
+}
+
+.home-hero-preview-glow {
+  background: linear-gradient(115deg, color-mix(in srgb, var(--home-violet) 18%, transparent), color-mix(in srgb, var(--home-fuchsia) 8%, transparent) 48%, color-mix(in srgb, var(--home-emerald) 12%, transparent));
+}
+
+.home-hero-preview {
+  border-color: color-mix(in srgb, var(--home-blended-border) 30%, var(--wp-border)) !important;
+  background:
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--home-violet) 7%, transparent), transparent 18rem),
+    radial-gradient(circle at 94% 100%, color-mix(in srgb, var(--home-emerald) 5%, transparent), transparent 18rem),
+    linear-gradient(145deg, color-mix(in srgb, var(--wp-surface-strong) 91%, transparent), color-mix(in srgb, var(--wp-surface) 96%, transparent)) !important;
+  box-shadow: 0 26px 70px color-mix(in srgb, var(--wp-page-deep) 42%, transparent);
+}
+
+.home-trend-card {
+  border-color: color-mix(in srgb, var(--home-blended-border) 28%, var(--wp-border)) !important;
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--home-fuchsia) 6%, transparent), transparent 14rem),
+    radial-gradient(circle at 100% 100%, color-mix(in srgb, var(--home-emerald) 6%, transparent), transparent 14rem),
+    color-mix(in srgb, var(--home-violet) 3%, var(--wp-surface-strong)) !important;
+}
+
+.home-trend-icon {
+  color: var(--home-violet-strong);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--home-violet) 13%, var(--wp-surface-strong)), color-mix(in srgb, var(--home-emerald) 10%, var(--wp-surface-strong)));
+}
+
+.home-trend-label {
+  display: inline-block;
+  color: var(--home-violet-strong) !important;
+}
+
+.home-section-eyebrow-green {
+  display: inline-block;
+  color: color-mix(in srgb, var(--home-violet-strong) 62%, var(--home-emerald) 38%) !important;
+}
+
+.home-forum-summary,
+.home-final-cta {
+  border-color: color-mix(in srgb, var(--home-blended-border) 30%, var(--wp-border)) !important;
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--home-violet) 13%, transparent), transparent 20rem),
+    radial-gradient(circle at 72% 8%, color-mix(in srgb, var(--home-fuchsia) 6%, transparent), transparent 18rem),
+    radial-gradient(circle at 94% 88%, color-mix(in srgb, var(--home-emerald) 9%, transparent), transparent 20rem),
+    linear-gradient(145deg, color-mix(in srgb, var(--home-violet) 5%, var(--wp-surface-strong)), color-mix(in srgb, var(--home-emerald) 3%, var(--wp-surface-strong))) !important;
+}
+
+.home-feature-band {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--home-violet) 2.8%, var(--wp-surface)), color-mix(in srgb, var(--home-emerald) 2%, var(--wp-surface)) 72%, color-mix(in srgb, var(--home-fuchsia) 1.5%, var(--wp-surface))) !important;
+}
+
+.home-feature-card {
+  background: color-mix(in srgb, var(--wp-surface-strong) 94%, transparent) !important;
+}
+
+.home-feature-card-community {
+  border-color: color-mix(in srgb, var(--home-blended-border) 28%, var(--wp-border)) !important;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--home-violet) 4%, var(--wp-surface-strong)), color-mix(in srgb, var(--home-emerald) 5%, var(--wp-surface-strong))) !important;
+}
+
+.home-community-hub .wp-surface-card {
+  border-color: color-mix(in srgb, var(--home-blended-border) 20%, var(--wp-border));
+}
+
+.home-community-hub .wp-surface-card:hover {
+  border-color: color-mix(in srgb, var(--home-blended-border) 40%, var(--wp-border));
+}
+
+.home-interest-section {
+  background:
+    radial-gradient(circle at 9% 18%, color-mix(in srgb, var(--home-teal) 7%, transparent), transparent 30rem),
+    radial-gradient(circle at 82% 8%, color-mix(in srgb, var(--home-violet) 12%, transparent), transparent 30rem),
+    radial-gradient(circle at 98% 82%, color-mix(in srgb, var(--home-emerald) 5%, transparent), transparent 26rem);
+}
+
+.home-interest-reason {
+  border-color: color-mix(in srgb, var(--home-blended-border) 20%, var(--wp-border)) !important;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--home-violet) 5%, var(--wp-surface-strong)), color-mix(in srgb, var(--home-emerald) 5%, var(--wp-surface-strong))) !important;
+}
+
+.home-welcome-card {
+  border-color: color-mix(in srgb, var(--home-blended-border) 24%, var(--wp-border)) !important;
+  background:
+    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--home-violet) 8%, transparent), transparent 18rem),
+    radial-gradient(circle at 96% 100%, color-mix(in srgb, var(--home-emerald) 6%, transparent), transparent 18rem),
+    linear-gradient(145deg, color-mix(in srgb, var(--wp-surface-strong) 92%, transparent), color-mix(in srgb, var(--wp-surface) 96%, transparent)) !important;
+  box-shadow: var(--wp-shadow-card);
+}
+
+.home-welcome-aurora {
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--home-violet) 16%, transparent), transparent 32rem),
+    radial-gradient(circle at 78% 12%, color-mix(in srgb, var(--home-fuchsia) 7%, transparent), transparent 27rem),
+    radial-gradient(circle at 92% 100%, color-mix(in srgb, var(--home-emerald) 7%, transparent), transparent 30rem);
+}
+
+.home-discovery-section {
+  background:
+    radial-gradient(circle at 10% 50%, color-mix(in srgb, var(--home-violet) 3.5%, transparent), transparent 30rem),
+    radial-gradient(circle at 92% 50%, color-mix(in srgb, var(--home-emerald) 3%, transparent), transparent 30rem),
+    linear-gradient(180deg, transparent, color-mix(in srgb, var(--home-violet) 1.5%, transparent) 48%, transparent);
+}
+
+.home-discovery-game-card:hover,
+.home-game-card:hover,
+.home-discussion-card:hover {
+  border-color: color-mix(in srgb, var(--home-blended-border) 46%, var(--wp-border)) !important;
+  box-shadow:
+    0 20px 48px color-mix(in srgb, var(--home-violet) 8%, transparent),
+    0 10px 34px color-mix(in srgb, var(--home-emerald) 5%, transparent) !important;
+}
+
+[data-theme="light"] .home-theme {
+  --home-fuchsia: var(--color-fuchsia-400);
+}
+
+[data-theme="light"] .home-hero-grid,
+[data-theme="light"] .home-welcome-shell-grid {
+  opacity: 0.055;
+}
+
+[data-theme="light"] .home-primary-action {
+  color: #ffffff;
+}
+
+[data-theme="light"] .home-hero-kicker {
+  color: var(--wp-accent-strong);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--home-violet) 8%, transparent);
+}
+
+[data-theme="light"] .home-hero-preview,
+[data-theme="light"] .home-welcome-card,
+[data-theme="light"] .home-trend-card,
+[data-theme="light"] .home-interest-reason {
+  box-shadow: 0 16px 42px rgba(43, 52, 79, 0.09);
+}
+
+[data-theme="dark"] .home-hero-preview,
+[data-theme="dark"] .home-welcome-card {
+  box-shadow: 0 24px 64px rgba(5, 9, 18, 0.28);
+}
+
+[data-theme="dark"] .home-welcome-shell-grid {
+  opacity: 0.04;
+}
+
+[data-theme="dark"] .home-welcome-card {
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--home-violet) 10%, transparent), transparent 20rem),
+    radial-gradient(circle at 96% 100%, color-mix(in srgb, var(--home-emerald) 7%, transparent), transparent 20rem),
+    linear-gradient(145deg, rgba(35, 42, 57, 0.95), rgba(29, 36, 49, 0.94)) !important;
+}
+
 /* Home / Trend və Tezliklə çıxacaq carousels */
 .home-discovery-carousel {
   scrollbar-width: none;
@@ -916,12 +1173,12 @@ select optgroup {
 }
 
 [data-theme="dark"] .chat-conversation-header {
-  background: rgba(13, 13, 18, 0.94) !important;
-  box-shadow: none;
+  background: rgba(31, 37, 50, 0.96) !important;
+  box-shadow: 0 10px 28px rgba(5, 9, 18, 0.18);
 }
 
 [data-theme="dark"] .chat-presence-indicator {
-  border-color: #0d0d12 !important;
+  border-color: #202634 !important;
 }
 
 @keyframes chat-streak-pop {
@@ -1104,11 +1361,11 @@ select optgroup {
 }
 
 [data-theme="dark"] .wp-collaboration-list-card {
-  background: #101015 !important;
+  background: #202634 !important;
 }
 
 [data-theme="dark"] .wp-collaboration-list-card-overlay {
-  background: linear-gradient(to top, #0c0c12, rgba(12, 12, 18, 0.88), rgba(12, 12, 18, 0.5)) !important;
+  background: linear-gradient(to top, #171d29, rgba(23, 29, 41, 0.9), rgba(23, 29, 41, 0.48)) !important;
 }
 
 .wp-game-hero-overlay-vertical {
@@ -1120,11 +1377,11 @@ select optgroup {
 }
 
 [data-theme="dark"] .wp-game-hero-overlay-vertical {
-  background: linear-gradient(to bottom, rgba(7, 7, 10, 0.28), rgba(7, 7, 10, 0.72) 45%, #0a0a0e 100%);
+  background: linear-gradient(to bottom, rgba(15, 20, 30, 0.24), rgba(15, 20, 30, 0.7) 45%, #151a24 100%);
 }
 
 [data-theme="dark"] .wp-game-hero-overlay-horizontal {
-  background: linear-gradient(to right, #07070a 0%, rgba(7, 7, 10, 0.45) 45%, rgba(7, 7, 10, 0.82) 100%);
+  background: linear-gradient(to right, #121824 0%, rgba(18, 24, 36, 0.45) 45%, rgba(18, 24, 36, 0.82) 100%);
 }
 
 .wp-review-card {
@@ -1181,13 +1438,13 @@ select optgroup {
 }
 
 [data-theme="dark"] .wp-review-card {
-  background: linear-gradient(145deg, rgba(18, 18, 24, 0.98), rgba(13, 13, 18, 0.96));
+  background: linear-gradient(145deg, rgba(39, 46, 61, 0.98), rgba(30, 36, 49, 0.96));
 }
 
 [data-theme="dark"] .wp-review-content-box,
 [data-theme="dark"] .wp-review-meta-item,
 [data-theme="dark"] .wp-review-hardware {
-  background: rgba(255, 255, 255, 0.025);
+  background: rgba(255, 255, 255, 0.045);
 }
 
 [data-theme="dark"] .wp-review-rating {
@@ -1235,7 +1492,7 @@ select optgroup {
 }
 
 [data-theme="dark"] .wp-list-hero {
-  background: #09090d;
+  background: #171d29;
 }
 
 [data-theme="dark"] .wp-list-hero-image {
@@ -1244,11 +1501,11 @@ select optgroup {
 }
 
 [data-theme="dark"] .wp-list-hero-overlay-horizontal {
-  background: linear-gradient(90deg, #09090d 0%, rgba(9, 9, 13, 0.85) 52%, rgba(9, 9, 13, 0.65) 100%);
+  background: linear-gradient(90deg, #171d29 0%, rgba(23, 29, 41, 0.85) 52%, rgba(23, 29, 41, 0.65) 100%);
 }
 
 [data-theme="dark"] .wp-list-hero-overlay-vertical {
-  background: linear-gradient(0deg, #09090d 0%, transparent 58%, rgba(9, 9, 13, 0.3) 100%);
+  background: linear-gradient(0deg, #171d29 0%, transparent 58%, rgba(23, 29, 41, 0.3) 100%);
 }
 
 [data-theme="dark"] .wp-list-hero-accents {
@@ -1292,7 +1549,7 @@ select optgroup {
 [data-theme="dark"] .wp-private-profile-card {
   background:
     radial-gradient(circle at 50% 0%, rgba(124, 58, 237, 0.13), transparent 18rem),
-    rgba(17, 17, 24, 0.96);
+    rgba(35, 42, 56, 0.97);
   box-shadow: 0 28px 70px rgba(0, 0, 0, 0.36);
 }
 
@@ -1525,23 +1782,219 @@ select optgroup {
 }
 
 [data-theme="dark"] .chat-message-bubble-received {
-  border-color: rgba(255, 255, 255, 0.07) !important;
-  background: #17171d;
-  color: #e4e4e7;
-  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: #2a3140;
+  color: #eef2f7;
+  box-shadow: 0 8px 18px rgba(5, 9, 18, 0.14);
 }
 
 [data-theme="dark"] .chat-message-bubble-deleted {
-  border-color: rgba(255, 255, 255, 0.08) !important;
-  background: rgba(255, 255, 255, 0.035);
-  color: #71717a;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.055);
+  color: #8f9aac;
 }
 
 [data-theme="dark"] .chat-message-muted,
 [data-theme="dark"] .chat-message-time-received {
-  color: #71717a;
+  color: #939eaf;
 }
 
 [data-theme="dark"] .chat-message-reply-author {
   color: #c4b5fd;
+}
+
+/* Footer, About and Contact */
+.site-footer {
+  border-color: color-mix(in srgb, var(--wp-accent) 12%, var(--wp-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--wp-page-deep) 92%, transparent), var(--wp-footer));
+}
+
+.site-footer-aurora {
+  background:
+    radial-gradient(circle at 8% 8%, color-mix(in srgb, var(--wp-accent) 13%, transparent), transparent 28rem),
+    radial-gradient(circle at 50% 0%, color-mix(in srgb, var(--color-fuchsia-400) 6%, transparent), transparent 24rem),
+    radial-gradient(circle at 94% 24%, color-mix(in srgb, var(--wp-emerald) 8%, transparent), transparent 30rem);
+}
+
+.site-footer-grid,
+.info-page-grid {
+  opacity: 0.035;
+  background-image:
+    linear-gradient(to right, color-mix(in srgb, var(--wp-accent) 70%, var(--wp-emerald) 30%) 1px, transparent 1px),
+    linear-gradient(to bottom, color-mix(in srgb, var(--wp-accent) 70%, var(--wp-emerald) 30%) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.9), transparent 90%);
+}
+
+.site-footer-cta {
+  border-color: color-mix(in srgb, var(--wp-accent) 24%, var(--wp-border));
+  background:
+    radial-gradient(circle at 5% 0%, color-mix(in srgb, var(--wp-accent) 10%, transparent), transparent 18rem),
+    radial-gradient(circle at 98% 100%, color-mix(in srgb, var(--wp-emerald) 7%, transparent), transparent 18rem),
+    color-mix(in srgb, var(--wp-surface-strong) 91%, transparent);
+  box-shadow: var(--wp-shadow-card);
+}
+
+.site-footer-cta-icon {
+  color: color-mix(in srgb, var(--wp-accent) 65%, var(--wp-emerald) 35%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--wp-accent) 14%, var(--wp-surface-strong)), color-mix(in srgb, var(--wp-emerald) 11%, var(--wp-surface-strong)));
+  border: 1px solid color-mix(in srgb, var(--wp-accent) 25%, var(--wp-border));
+}
+
+.site-footer-primary-action,
+.info-page-primary-action,
+.contact-primary-action {
+  border: 1px solid color-mix(in srgb, var(--wp-accent) 72%, var(--wp-emerald) 28%);
+  background: linear-gradient(135deg, var(--wp-accent-strong), color-mix(in srgb, var(--wp-accent) 72%, var(--color-fuchsia-400) 28%) 58%, color-mix(in srgb, var(--wp-accent) 70%, var(--wp-emerald) 30%));
+  box-shadow: 0 14px 32px color-mix(in srgb, var(--wp-accent) 20%, transparent);
+}
+
+.site-footer-primary-action:hover,
+.info-page-primary-action:hover,
+.contact-primary-action:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.07);
+  box-shadow:
+    0 18px 40px color-mix(in srgb, var(--wp-accent) 18%, transparent),
+    0 8px 26px color-mix(in srgb, var(--wp-emerald) 7%, transparent);
+}
+
+.site-footer-link:hover {
+  color: color-mix(in srgb, var(--wp-accent-strong) 78%, var(--wp-emerald) 22%);
+}
+
+.site-footer-feature {
+  border-color: color-mix(in srgb, var(--wp-accent) 10%, var(--wp-border));
+  background: color-mix(in srgb, var(--wp-surface-strong) 86%, transparent);
+}
+
+.info-page-hero {
+  border-color: color-mix(in srgb, var(--wp-accent) 15%, var(--wp-border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--wp-accent) 3%, transparent), color-mix(in srgb, var(--wp-emerald) 1.4%, transparent) 68%, transparent);
+}
+
+.info-page-aurora {
+  background:
+    radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--wp-accent) 17%, transparent), transparent 31rem),
+    radial-gradient(circle at 54% 0%, color-mix(in srgb, var(--color-fuchsia-400) 8%, transparent), transparent 26rem),
+    radial-gradient(circle at 92% 32%, color-mix(in srgb, var(--wp-emerald) 8%, transparent), transparent 32rem);
+}
+
+.info-page-kicker {
+  border-color: color-mix(in srgb, var(--wp-accent) 28%, var(--wp-border));
+  background: linear-gradient(110deg, color-mix(in srgb, var(--wp-accent) 8%, var(--wp-surface-strong)), color-mix(in srgb, var(--wp-emerald) 5%, var(--wp-surface-strong)));
+}
+
+.info-page-title-gradient {
+  background-image: linear-gradient(92deg, var(--color-violet-300), var(--color-fuchsia-400) 52%, var(--wp-emerald));
+}
+
+.info-page-secondary-action,
+.contact-secondary-action {
+  border-color: color-mix(in srgb, var(--wp-accent) 18%, var(--wp-border));
+  background: color-mix(in srgb, var(--wp-surface-strong) 82%, transparent);
+}
+
+.info-page-secondary-action:hover,
+.contact-secondary-action:hover {
+  border-color: color-mix(in srgb, var(--wp-accent) 36%, var(--wp-border));
+  color: var(--wp-text-strong);
+  background: linear-gradient(110deg, color-mix(in srgb, var(--wp-accent) 7%, var(--wp-surface-strong)), color-mix(in srgb, var(--wp-emerald) 4%, var(--wp-surface-strong)));
+}
+
+.info-feature-card,
+.info-principle-card,
+.contact-channel-card,
+.contact-form-card {
+  border-color: color-mix(in srgb, var(--wp-accent) 12%, var(--wp-border));
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--wp-accent) 5%, transparent), transparent 14rem),
+    color-mix(in srgb, var(--wp-surface-strong) 91%, transparent);
+  box-shadow: var(--wp-shadow-card);
+}
+
+.info-feature-card {
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+
+.info-feature-card:hover {
+  transform: translateY(-3px);
+  border-color: color-mix(in srgb, var(--wp-accent) 32%, var(--wp-border));
+  box-shadow:
+    var(--wp-shadow-hover),
+    0 8px 28px color-mix(in srgb, var(--wp-emerald) 5%, transparent);
+}
+
+.info-feature-icon {
+  color: color-mix(in srgb, var(--wp-accent) 66%, var(--wp-emerald) 34%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--wp-accent) 14%, var(--wp-surface-strong)), color-mix(in srgb, var(--wp-emerald) 9%, var(--wp-surface-strong)));
+  border: 1px solid color-mix(in srgb, var(--wp-accent) 22%, var(--wp-border));
+}
+
+.info-principles-band {
+  border-color: color-mix(in srgb, var(--wp-accent) 10%, var(--wp-border));
+  background:
+    radial-gradient(circle at 8% 24%, color-mix(in srgb, var(--wp-accent) 6%, transparent), transparent 28rem),
+    radial-gradient(circle at 92% 68%, color-mix(in srgb, var(--wp-emerald) 5%, transparent), transparent 28rem),
+    color-mix(in srgb, var(--wp-surface) 74%, transparent);
+}
+
+.info-page-closing {
+  border-color: color-mix(in srgb, var(--wp-accent) 26%, var(--wp-border));
+  background:
+    radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--wp-accent) 12%, transparent), transparent 22rem),
+    radial-gradient(circle at 96% 100%, color-mix(in srgb, var(--wp-emerald) 8%, transparent), transparent 22rem),
+    linear-gradient(145deg, color-mix(in srgb, var(--wp-accent) 4%, var(--wp-surface-strong)), color-mix(in srgb, var(--wp-emerald) 3%, var(--wp-surface-strong)));
+  box-shadow: var(--wp-shadow-card);
+}
+
+.contact-field-label {
+  color: var(--wp-text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.contact-field {
+  border-color: var(--wp-border);
+  color: var(--wp-text);
+  background: color-mix(in srgb, var(--wp-surface-soft) 82%, transparent);
+}
+
+.contact-field::placeholder {
+  color: color-mix(in srgb, var(--wp-text-muted) 72%, transparent);
+}
+
+.contact-field:hover {
+  border-color: color-mix(in srgb, var(--wp-accent) 26%, var(--wp-border));
+}
+
+.contact-field:focus {
+  border-color: color-mix(in srgb, var(--wp-accent) 56%, var(--wp-border));
+  box-shadow: var(--wp-focus);
+}
+
+.contact-field option {
+  color: var(--wp-text);
+  background: var(--wp-surface-strong);
+}
+
+[data-theme="light"] .site-footer-grid,
+[data-theme="light"] .info-page-grid {
+  opacity: 0.05;
+}
+
+[data-theme="light"] .site-footer-cta,
+[data-theme="light"] .info-feature-card,
+[data-theme="light"] .info-principle-card,
+[data-theme="light"] .contact-channel-card,
+[data-theme="light"] .contact-form-card,
+[data-theme="light"] .info-page-closing {
+  box-shadow: 0 16px 42px rgba(43, 52, 79, 0.09);
+}
+
+[data-theme="dark"] .site-footer,
+[data-theme="dark"] .info-principles-band {
+  background-color: color-mix(in srgb, var(--wp-page-deep) 92%, black);
 }

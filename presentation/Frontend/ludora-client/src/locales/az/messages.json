@@ -15,7 +15,9 @@
     "expandImage": "Şəkli böyüt",
     "messageImageAlt": "Mesaj şəkli",
     "closePreview": "Media önizləməsini bağla",
-    "expandedImageAlt": "Böyüdülmüş mesaj şəkli"
+    "expandedImageAlt": "Böyüdülmüş mesaj şəkli",
+    "previous": "Əvvəlki media",
+    "next": "Növbəti media"
   },
   "streak": {
     "celebrationTitle": "{count} günlük streak!",
@@ -111,7 +113,9 @@
     "unsupportedMedia": "Yalnız şəkil, MP4 və WEBM faylları göndərilə bilər.",
     "videoTooLarge": "Video maksimum 50 MB ola bilər.",
     "imageTooLarge": "Şəkil maksimum 10 MB ola bilər.",
-    "sendFailed": "Mesaj göndərilmədi."
+    "sendFailed": "Mesaj göndərilmədi.",
+    "tooManyMedia": "Bir mesajda maksimum {count} media faylı göndərə bilərsən.",
+    "mediaTotalTooLarge": "Seçilən media fayllarının ümumi ölçüsü maksimum {size} MB ola bilər."
   },
   "delete": {
     "forEveryoneTitle": "Mesaj hər kəsdən silinsin?",

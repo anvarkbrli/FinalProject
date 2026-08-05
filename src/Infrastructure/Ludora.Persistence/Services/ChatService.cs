@@ -560,7 +560,7 @@ public sealed class ChatService : IChatService
             var loadedMessage = await MessageGraphQuery(senderUserId)
                 .FirstAsync(x => x.Id == message.Id, cancellationToken);
 
-            _badgeQueue.Enqueue(senderUserId);
+            await _badgeQueue.EnqueueAsync(senderUserId, cancellationToken);
             return new ChatSendMessageResultDTO
             {
                 Message = MapMessage(loadedMessage, senderUserId),
@@ -714,7 +714,7 @@ public sealed class ChatService : IChatService
             .Where(message => createdIds.Contains(message.Id))
             .ToDictionaryAsync(message => message.Id, cancellationToken);
 
-        _badgeQueue.Enqueue(userId);
+        await _badgeQueue.EnqueueAsync(userId, cancellationToken);
         return new ChatForwardMessagesResultDTO
         {
             Items = created

@@ -1,21 +1,40 @@
-# .NET
+# .NET build output and local IDE state
 **/bin/
 **/obj/
 .vs/
+**/*.user
+**/*.suo
 
-# Frontend
+# Frontend dependencies and generated output
 **/node_modules/
 **/dist/
 **/.vite/
 
-# Local configuration and runtime data
+# Local configuration and secrets
 .env
 .env.*
 !.env.example
-**/private-storage/
-**/uploads/
+!.env.*.example
+**/appsettings.Production.json
+!**/appsettings.Production.example.json
+**/appsettings.Local.json
 
-# Tooling and logs
+# Runtime and user-generated data
+**/private-storage/
+**/wwwroot/uploads/
+**/uploads/
+**/quarantine/
+
+# Tooling, test output and logs
 .tools/
+**/TestResults/
+**/coverage/
 *.log
 
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+**/data-protection-keys/
