@@ -1,10 +1,11 @@
 using Ludora.Application.DTOs.Home;
 
-namespace Ludora.Application.Interfaces;
-
-public interface IHomeSocialService
+namespace Ludora.Application.Interfaces
 {
-    Task<HomeSocialDashboardDTO> GetAsync(
-        Guid userId,
-        CancellationToken cancellationToken = default);
+    public interface IHomeSocialService
+    {
+        Task<HomeSocialDashboardDTO> GetAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default);
+    }
 }

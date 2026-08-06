@@ -1,12 +1,13 @@
 using System.Text.Json.Serialization;
 
-namespace Ludora.Infrastructure.IGDB.Models;
-
-internal sealed class IgdbCompanyResponse
+namespace Ludora.Infrastructure.IGDB.Models
 {
-    [JsonPropertyName("id")]
-    public long Id { get; set; }
+    internal sealed class IgdbCompanyResponse
+    {
+        [JsonPropertyName("id")]
+        public long Id { get; set; }
 
-    [JsonPropertyName("name")]
-    public string Name { get; set; } = string.Empty;
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+    }
 }

@@ -1,19 +1,20 @@
 using Ludora.Persistence.Data;
+
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Ludora.Persistence.Migrations;
-
-[DbContext(typeof(AppDbContext))]
-[Migration("20260731193000_AdvancedChatFeatures")]
-public partial class AdvancedChatFeatures : Migration
+namespace Ludora.Persistence.Migrations
 {
-    protected override void Up(MigrationBuilder migrationBuilder)
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260731193000_AdvancedChatFeatures")]
+    public partial class AdvancedChatFeatures : Migration
     {
-        migrationBuilder.Sql(
-            """
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF COL_LENGTH(N'dbo.ChatConversations', N'CurrentStreak') IS NULL
             BEGIN
                 ALTER TABLE [dbo].[ChatConversations]
@@ -41,8 +42,8 @@ public partial class AdvancedChatFeatures : Migration
             END;
             """);
 
-        migrationBuilder.Sql(
-            """
+            migrationBuilder.Sql(
+                """
             IF OBJECT_ID(N'dbo.ChatConversationUserStates', N'U') IS NULL
             BEGIN
                 CREATE TABLE [dbo].[ChatConversationUserStates]
@@ -83,8 +84,8 @@ public partial class AdvancedChatFeatures : Migration
             END;
             """);
 
-        migrationBuilder.Sql(
-            """
+            migrationBuilder.Sql(
+                """
             IF NOT EXISTS
             (
                 SELECT 1
@@ -147,8 +148,8 @@ public partial class AdvancedChatFeatures : Migration
             END;
             """);
 
-        migrationBuilder.Sql(
-            """
+            migrationBuilder.Sql(
+                """
             IF NOT EXISTS
             (
                 SELECT 1
@@ -175,8 +176,8 @@ public partial class AdvancedChatFeatures : Migration
             END;
             """);
 
-        migrationBuilder.Sql(
-            """
+            migrationBuilder.Sql(
+                """
             ;WITH CompletedDays AS
             (
                 SELECT
@@ -244,12 +245,12 @@ public partial class AdvancedChatFeatures : Migration
             LEFT JOIN CurrentRuns cr ON cr.[ConversationId] = c.[Id]
             LEFT JOIN LongestRuns lr ON lr.[ConversationId] = c.[Id];
             """);
-    }
+        }
 
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.Sql(
-            """
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF EXISTS
             (
                 SELECT 1 FROM sys.foreign_keys
@@ -314,5 +315,6 @@ public partial class AdvancedChatFeatures : Migration
                 ALTER TABLE [dbo].[ChatConversations] DROP COLUMN [CurrentStreak];
             END;
             """);
+        }
     }
 }

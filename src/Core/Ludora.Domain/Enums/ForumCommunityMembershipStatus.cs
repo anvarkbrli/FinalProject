@@ -1,8 +1,9 @@
-namespace Ludora.Domain.Enums;
-
-public enum ForumCommunityMembershipStatus
+namespace Ludora.Domain.Enums
 {
-    Pending = 0,
-    Active = 1,
-    Invited = 2
+    public enum ForumCommunityMembershipStatus
+    {
+        Pending = 0,
+        Active = 1,
+        Invited = 2
+    }
 }

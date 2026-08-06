@@ -1,84 +1,85 @@
 using System.Text.Encodings.Web;
+
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
 
-namespace Ludora.Persistence.Services;
-
-public sealed class EmailOutboxService : IEmailService
+namespace Ludora.Persistence.Services
 {
-    private readonly AppDbContext _context;
-
-    public EmailOutboxService(AppDbContext context)
+    public sealed class EmailOutboxService : IEmailService
     {
-        _context = context;
-    }
+        private readonly AppDbContext _context;
 
-    public Task SendEmailConfirmationAsync(
-        string email,
-        string userName,
-        string confirmationLink,
-        CancellationToken cancellationToken = default) =>
-        EnqueueAsync(
-            EmailTemplateType.EmailConfirmation,
-            email,
-            userName,
-            confirmationLink,
-            cancellationToken);
+        public EmailOutboxService(AppDbContext context)
+        {
+            _context = context;
+        }
 
-    public Task SendEmailChangeConfirmationAsync(
-        string newEmail,
-        string userName,
-        string confirmationLink,
-        CancellationToken cancellationToken = default) =>
-        EnqueueAsync(
-            EmailTemplateType.EmailChangeConfirmation,
-            newEmail,
-            userName,
-            confirmationLink,
-            cancellationToken);
+        public Task SendEmailConfirmationAsync(
+            string email,
+            string userName,
+            string confirmationLink,
+            CancellationToken cancellationToken = default) =>
+            EnqueueAsync(
+                EmailTemplateType.EmailConfirmation,
+                email,
+                userName,
+                confirmationLink,
+                cancellationToken);
 
-    public Task SendPasswordResetAsync(
-        string email,
-        string userName,
-        string resetLink,
-        CancellationToken cancellationToken = default) =>
-        EnqueueAsync(
-            EmailTemplateType.PasswordReset,
-            email,
-            userName,
-            resetLink,
-            cancellationToken);
+        public Task SendEmailChangeConfirmationAsync(
+            string newEmail,
+            string userName,
+            string confirmationLink,
+            CancellationToken cancellationToken = default) =>
+            EnqueueAsync(
+                EmailTemplateType.EmailChangeConfirmation,
+                newEmail,
+                userName,
+                confirmationLink,
+                cancellationToken);
+
+        public Task SendPasswordResetAsync(
+            string email,
+            string userName,
+            string resetLink,
+            CancellationToken cancellationToken = default) =>
+            EnqueueAsync(
+                EmailTemplateType.PasswordReset,
+                email,
+                userName,
+                resetLink,
+                cancellationToken);
 
 
 
-    public async Task SendContactMessageReplyAsync(
-        string email,
-        string recipientName,
-        string subject,
-        string replyBody,
-        string originalSubject,
-        string originalMessage,
-        string language,
-        int contactMessageId,
-        CancellationToken cancellationToken = default)
-    {
-        var isEnglish = string.Equals(language, "en", StringComparison.OrdinalIgnoreCase);
-        var normalizedName = string.IsNullOrWhiteSpace(recipientName)
-            ? (isEnglish ? "WellPlayd user" : "WellPlayd istifadəçisi")
-            : recipientName.Trim();
-        var safeName = HtmlEncoder.Default.Encode(normalizedName);
-        var safeReply = HtmlEncoder.Default.Encode(replyBody.Trim())
-            .Replace("\r\n", "<br>")
-            .Replace("\n", "<br>");
-        var safeOriginalSubject = HtmlEncoder.Default.Encode(originalSubject.Trim());
-        var safeOriginalMessage = HtmlEncoder.Default.Encode(originalMessage.Trim())
-            .Replace("\r\n", "<br>")
-            .Replace("\n", "<br>");
+        public async Task SendContactMessageReplyAsync(
+            string email,
+            string recipientName,
+            string subject,
+            string replyBody,
+            string originalSubject,
+            string originalMessage,
+            string language,
+            int contactMessageId,
+            CancellationToken cancellationToken = default)
+        {
+            var isEnglish = string.Equals(language, "en", StringComparison.OrdinalIgnoreCase);
+            var normalizedName = string.IsNullOrWhiteSpace(recipientName)
+                ? (isEnglish ? "WellPlayd user" : "WellPlayd istifadəçisi")
+                : recipientName.Trim();
+            var safeName = HtmlEncoder.Default.Encode(normalizedName);
+            var safeReply = HtmlEncoder.Default.Encode(replyBody.Trim())
+                .Replace("\r\n", "<br>")
+                .Replace("\n", "<br>");
+            var safeOriginalSubject = HtmlEncoder.Default.Encode(originalSubject.Trim());
+            var safeOriginalMessage = HtmlEncoder.Default.Encode(originalMessage.Trim())
+                .Replace("\r\n", "<br>")
+                .Replace("\n", "<br>");
 
-        var plainTextBody = isEnglish
-            ? $"""
+            var plainTextBody = isEnglish
+                ? $"""
               Hello, {normalizedName}.
 
               WellPlayd support replied to your message:
@@ -91,7 +92,7 @@ public sealed class EmailOutboxService : IEmailService
 
               This email was sent in response to a message submitted through WellPlayd.
               """
-            : $"""
+                : $"""
               Salam, {normalizedName}.
 
               WellPlayd dəstək komandası mesajına cavab verdi:
@@ -105,8 +106,8 @@ public sealed class EmailOutboxService : IEmailService
               Bu email WellPlayd əlaqə səhifəsindən göndərdiyin mesaja cavab olaraq göndərilib.
               """;
 
-        var htmlBody = isEnglish
-            ? $"""
+            var htmlBody = isEnglish
+                ? $"""
               <!doctype html>
               <html lang="en">
               <body style="margin:0;background:#f4f4f5;font-family:Arial,sans-serif;line-height:1.65;color:#1f2937">
@@ -126,7 +127,7 @@ public sealed class EmailOutboxService : IEmailService
               </body>
               </html>
               """
-            : $"""
+                : $"""
               <!doctype html>
               <html lang="az">
               <body style="margin:0;background:#f4f4f5;font-family:Arial,sans-serif;line-height:1.65;color:#1f2937">
@@ -147,42 +148,43 @@ public sealed class EmailOutboxService : IEmailService
               </html>
               """;
 
-        var message = new EmailOutboxMessage
+            var message = new EmailOutboxMessage
+            {
+                TemplateType = EmailTemplateType.ContactMessageReply,
+                RecipientEmail = email.Trim(),
+                UserName = normalizedName,
+                ActionUrl = string.Empty,
+                EmailSubject = subject.Trim(),
+                PlainTextBody = plainTextBody,
+                HtmlBody = htmlBody,
+                ContactMessageId = contactMessageId,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+
+            _context.EmailOutboxMessages.Add(message);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
+
+        private async Task EnqueueAsync(
+            EmailTemplateType templateType,
+            string recipientEmail,
+            string userName,
+            string actionUrl,
+            CancellationToken cancellationToken)
         {
-            TemplateType = EmailTemplateType.ContactMessageReply,
-            RecipientEmail = email.Trim(),
-            UserName = normalizedName,
-            ActionUrl = string.Empty,
-            EmailSubject = subject.Trim(),
-            PlainTextBody = plainTextBody,
-            HtmlBody = htmlBody,
-            ContactMessageId = contactMessageId,
-            CreatedAtUtc = DateTime.UtcNow
-        };
+            var message = new EmailOutboxMessage
+            {
+                TemplateType = templateType,
+                RecipientEmail = recipientEmail.Trim(),
+                UserName = string.IsNullOrWhiteSpace(userName)
+                    ? "WellPlayd istifadəçisi"
+                    : userName.Trim(),
+                ActionUrl = actionUrl.Trim(),
+                CreatedAtUtc = DateTime.UtcNow
+            };
 
-        _context.EmailOutboxMessages.Add(message);
-        await _context.SaveChangesAsync(cancellationToken);
-    }
-
-    private async Task EnqueueAsync(
-        EmailTemplateType templateType,
-        string recipientEmail,
-        string userName,
-        string actionUrl,
-        CancellationToken cancellationToken)
-    {
-        var message = new EmailOutboxMessage
-        {
-            TemplateType = templateType,
-            RecipientEmail = recipientEmail.Trim(),
-            UserName = string.IsNullOrWhiteSpace(userName)
-                ? "WellPlayd istifadəçisi"
-                : userName.Trim(),
-            ActionUrl = actionUrl.Trim(),
-            CreatedAtUtc = DateTime.UtcNow
-        };
-
-        _context.EmailOutboxMessages.Add(message);
-        await _context.SaveChangesAsync(cancellationToken);
+            _context.EmailOutboxMessages.Add(message);
+            await _context.SaveChangesAsync(cancellationToken);
+        }
     }
 }

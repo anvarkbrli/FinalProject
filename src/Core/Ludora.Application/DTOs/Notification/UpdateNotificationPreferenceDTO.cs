@@ -1,8 +1,9 @@
 using Ludora.Domain.Enums;
 
-namespace Ludora.Application.DTOs.Notification;
-
-public sealed class UpdateNotificationPreferenceDTO
+namespace Ludora.Application.DTOs.Notification
 {
-    public NotificationAudience Audience { get; set; }
+    public sealed class UpdateNotificationPreferenceDTO
+    {
+        public NotificationAudience Audience { get; set; }
+    }
 }

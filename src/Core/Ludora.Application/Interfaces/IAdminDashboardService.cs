@@ -1,8 +1,9 @@
 using Ludora.Application.DTOs;
 
-namespace Ludora.Application.Interfaces;
-
-public interface IAdminDashboardService
+namespace Ludora.Application.Interfaces
 {
-    Task<AdminDashboardDTO> GetAsync(CancellationToken cancellationToken = default);
+    public interface IAdminDashboardService
+    {
+        Task<AdminDashboardDTO> GetAsync(CancellationToken cancellationToken = default);
+    }
 }

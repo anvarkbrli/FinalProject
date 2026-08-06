@@ -1,24 +1,26 @@
 using Ludora.Domain.Entities.Forum;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Ludora.Persistence.Configurations;
-
-public sealed class DiscussionReplyLikeConfiguration : IEntityTypeConfiguration<DiscussionReplyLike>
+namespace Ludora.Persistence.Configurations
 {
-    public void Configure(EntityTypeBuilder<DiscussionReplyLike> builder)
+    public sealed class DiscussionReplyLikeConfiguration : IEntityTypeConfiguration<DiscussionReplyLike>
     {
-        builder.HasKey(x => new { x.ReplyId, x.UserId });
-        builder.HasIndex(x => x.UserId);
+        public void Configure(EntityTypeBuilder<DiscussionReplyLike> builder)
+        {
+            builder.HasKey(x => new { x.ReplyId, x.UserId });
+            builder.HasIndex(x => x.UserId);
 
-        builder.HasOne(x => x.Reply)
-            .WithMany(x => x.Likes)
-            .HasForeignKey(x => x.ReplyId)
-            .OnDelete(DeleteBehavior.Cascade);
+            builder.HasOne(x => x.Reply)
+                .WithMany(x => x.Likes)
+                .HasForeignKey(x => x.ReplyId)
+                .OnDelete(DeleteBehavior.Cascade);
 
-        builder.HasOne(x => x.User)
-            .WithMany(x => x.DiscussionReplyLikes)
-            .HasForeignKey(x => x.UserId)
-            .OnDelete(DeleteBehavior.Restrict);
+            builder.HasOne(x => x.User)
+                .WithMany(x => x.DiscussionReplyLikes)
+                .HasForeignKey(x => x.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+        }
     }
 }

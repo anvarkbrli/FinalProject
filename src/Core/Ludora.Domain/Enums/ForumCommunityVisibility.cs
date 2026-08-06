@@ -1,8 +1,9 @@
-namespace Ludora.Domain.Enums;
-
-public enum ForumCommunityVisibility
+namespace Ludora.Domain.Enums
 {
-    Open = 0,
-    Restricted = 1,
-    Private = 2
+    public enum ForumCommunityVisibility
+    {
+        Open = 0,
+        Restricted = 1,
+        Private = 2
+    }
 }

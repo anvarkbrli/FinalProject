@@ -1,6 +1,7 @@
-namespace Ludora.Application.DTOs;
-
-public record GameListCollaboratorInviteDTO
+namespace Ludora.Application.DTOs
 {
-    public string UserName { get; init; } = string.Empty;
+    public record GameListCollaboratorInviteDTO
+    {
+        public string UserName { get; init; } = string.Empty;
+    }
 }

@@ -1,8 +1,9 @@
-namespace Ludora.Domain.Enums;
-
-public enum ForumCommunityMemberRole
+namespace Ludora.Domain.Enums
 {
-    Owner = 0,
-    Member = 1,
-    Moderator = 2
+    public enum ForumCommunityMemberRole
+    {
+        Owner = 0,
+        Member = 1,
+        Moderator = 2
+    }
 }

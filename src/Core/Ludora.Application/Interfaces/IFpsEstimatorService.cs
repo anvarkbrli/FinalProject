@@ -1,11 +1,12 @@
 using Ludora.Application.DTOs.FpsEstimator;
 
-namespace Ludora.Application.Interfaces;
-
-public interface IFpsEstimatorService
+namespace Ludora.Application.Interfaces
 {
-    Task<FpsEstimateResponseDTO> EstimateAsync(
-        Guid userId,
-        FpsEstimateRequestDTO request,
-        CancellationToken cancellationToken = default);
+    public interface IFpsEstimatorService
+    {
+        Task<FpsEstimateResponseDTO> EstimateAsync(
+            Guid userId,
+            FpsEstimateRequestDTO request,
+            CancellationToken cancellationToken = default);
+    }
 }

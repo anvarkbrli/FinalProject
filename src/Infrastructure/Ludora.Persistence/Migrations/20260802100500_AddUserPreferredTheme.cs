@@ -1,19 +1,20 @@
 using Ludora.Persistence.Data;
+
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Ludora.Persistence.Migrations;
-
-[DbContext(typeof(AppDbContext))]
-[Migration("20260802100500_AddUserPreferredTheme")]
-public sealed class AddUserPreferredTheme : Migration
+namespace Ludora.Persistence.Migrations
 {
-    protected override void Up(MigrationBuilder migrationBuilder)
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260802100500_AddUserPreferredTheme")]
+    public sealed class AddUserPreferredTheme : Migration
     {
-        migrationBuilder.Sql(
-            """
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF COL_LENGTH(N'dbo.AspNetUsers', N'PreferredTheme') IS NULL
             BEGIN
                 ALTER TABLE [dbo].[AspNetUsers]
@@ -21,12 +22,12 @@ public sealed class AddUserPreferredTheme : Migration
                     CONSTRAINT [DF_AspNetUsers_PreferredTheme] DEFAULT(N'dark');
             END;
             """);
-    }
+        }
 
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.Sql(
-            """
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF COL_LENGTH(N'dbo.AspNetUsers', N'PreferredTheme') IS NOT NULL
             BEGIN
                 DECLARE @DefaultConstraintName sysname;
@@ -46,5 +47,6 @@ public sealed class AddUserPreferredTheme : Migration
                 DROP COLUMN [PreferredTheme];
             END;
             """);
+        }
     }
 }

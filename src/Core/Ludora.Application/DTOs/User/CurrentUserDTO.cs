@@ -1,38 +1,39 @@
-namespace Ludora.Application.DTOs;
-
-public record CurrentUserDTO
+namespace Ludora.Application.DTOs
 {
-    public Guid Id { get; set; }
+    public record CurrentUserDTO
+    {
+        public Guid Id { get; set; }
 
-    public string UserName { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
 
-    public string Email { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
 
-    public IReadOnlyList<string> Roles { get; set; } = [];
+        public IReadOnlyList<string> Roles { get; set; } = [];
 
-    public IReadOnlyList<string> Capabilities { get; set; } = [];
+        public IReadOnlyList<string> Capabilities { get; set; } = [];
 
-    public bool EmailConfirmed { get; set; }
+        public bool EmailConfirmed { get; set; }
 
-    public string? Bio { get; set; }
+        public string? Bio { get; set; }
 
-    public string? ProfileImageUrl { get; set; }
+        public string? ProfileImageUrl { get; set; }
 
-    public IReadOnlyList<UserSocialLinkDTO> SocialLinks { get; set; } = [];
+        public IReadOnlyList<UserSocialLinkDTO> SocialLinks { get; set; } = [];
 
-    public bool IsPrivate { get; set; }
+        public bool IsPrivate { get; set; }
 
-    public string PreferredLanguage { get; set; } = "az";
+        public string PreferredLanguage { get; set; } = "az";
 
-    public string PreferredTheme { get; set; } = "dark";
+        public string PreferredTheme { get; set; } = "dark";
 
-    public DateTime CreatedAt { get; set; }
+        public DateTime CreatedAt { get; set; }
 
-    public int FollowerCount { get; set; }
+        public int FollowerCount { get; set; }
 
-    public int FollowingCount { get; set; }
+        public int FollowingCount { get; set; }
 
-    public int PostCount { get; set; }
+        public int PostCount { get; set; }
 
-    public UserProfileStatisticsDTO Statistics { get; set; } = new();
+        public UserProfileStatisticsDTO Statistics { get; set; } = new();
+    }
 }

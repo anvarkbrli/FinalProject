@@ -1,6 +1,5 @@
 ﻿using Ludora.Domain.Enums;
 
-
 namespace Ludora.Application.DTOs
 {
     public record CatalogReferenceDTO

@@ -1,8 +1,9 @@
-namespace Ludora.Application.DTOs.Game;
-
-public sealed record GameCommunityUserDTO
+namespace Ludora.Application.DTOs.Game
 {
-    public Guid Id { get; init; }
-    public string UserName { get; init; } = string.Empty;
-    public string? ProfileImageUrl { get; init; }
+    public sealed record GameCommunityUserDTO
+    {
+        public Guid Id { get; init; }
+        public string UserName { get; init; } = string.Empty;
+        public string? ProfileImageUrl { get; init; }
+    }
 }

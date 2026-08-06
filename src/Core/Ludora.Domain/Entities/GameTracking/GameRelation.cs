@@ -1,7 +1,6 @@
 ﻿using Ludora.Domain.Entities.Base;
 using Ludora.Domain.Enums;
 
-
 namespace Ludora.Domain.Entities.GameTracking
 {
     public class GameRelation : BaseEntity

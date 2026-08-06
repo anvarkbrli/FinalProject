@@ -1,10 +1,11 @@
 using Ludora.Application.Models.Steam;
 
-namespace Ludora.Application.Interfaces;
-
-public interface ISteamStoreClient
+namespace Ludora.Application.Interfaces
 {
-    Task<IReadOnlyList<SteamComingSoonGameModel>> GetComingSoonAsync(
-        int limit,
-        CancellationToken cancellationToken = default);
+    public interface ISteamStoreClient
+    {
+        Task<IReadOnlyList<SteamComingSoonGameModel>> GetComingSoonAsync(
+            int limit,
+            CancellationToken cancellationToken = default);
+    }
 }

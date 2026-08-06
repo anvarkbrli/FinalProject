@@ -1,19 +1,20 @@
 using Ludora.Persistence.Data;
+
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Ludora.Persistence.Migrations;
-
-[DbContext(typeof(AppDbContext))]
-[Migration("20260801101500_ChatMessageForwarding")]
-public partial class ChatMessageForwarding : Migration
+namespace Ludora.Persistence.Migrations
 {
-    protected override void Up(MigrationBuilder migrationBuilder)
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260801101500_ChatMessageForwarding")]
+    public partial class ChatMessageForwarding : Migration
     {
-        migrationBuilder.Sql(
-            """
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF COL_LENGTH(N'dbo.ChatMessages', N'IsForwarded') IS NULL
             BEGIN
                 ALTER TABLE [dbo].[ChatMessages]
@@ -21,12 +22,12 @@ public partial class ChatMessageForwarding : Migration
                     CONSTRAINT [DF_ChatMessages_IsForwarded] DEFAULT (0);
             END;
             """);
-    }
+        }
 
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.Sql(
-            """
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF COL_LENGTH(N'dbo.ChatMessages', N'IsForwarded') IS NOT NULL
             BEGIN
                 DECLARE @constraintName sysname;
@@ -44,5 +45,6 @@ public partial class ChatMessageForwarding : Migration
                 DROP COLUMN [IsForwarded];
             END;
             """);
+        }
     }
 }

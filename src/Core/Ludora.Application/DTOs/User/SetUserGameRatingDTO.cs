@@ -1,6 +1,7 @@
-namespace Ludora.Application.DTOs;
-
-public sealed record SetUserGameRatingDTO
+namespace Ludora.Application.DTOs
 {
-    public double? Rating { get; init; }
+    public sealed record SetUserGameRatingDTO
+    {
+        public double? Rating { get; init; }
+    }
 }

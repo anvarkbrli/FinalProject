@@ -1,39 +1,41 @@
 ﻿using Ludora.Domain.Entities.User;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Ludora.Persistence.Configurations;
-
-public class UserBlockConfiguration : IEntityTypeConfiguration<UserBlock>
+namespace Ludora.Persistence.Configurations
 {
-    public void Configure(EntityTypeBuilder<UserBlock> builder)
+    public class UserBlockConfiguration : IEntityTypeConfiguration<UserBlock>
     {
-        builder.HasKey(ub => new { ub.BlockerId, ub.BlockedUserId });
-
-        builder.HasOne(ub => ub.Blocker)
-            .WithMany(u => u.BlockedUsers)
-            .HasForeignKey(ub => ub.BlockerId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.HasOne(ub => ub.BlockedUser)
-            .WithMany(u => u.BlockedByUsers)
-            .HasForeignKey(ub => ub.BlockedUserId)
-            .OnDelete(DeleteBehavior.Restrict);
-
-        builder.Property(ub => ub.CreatedAt).IsRequired();
-
-        builder.HasIndex(ub => new
+        public void Configure(EntityTypeBuilder<UserBlock> builder)
         {
-            ub.BlockedUserId,
-            ub.BlockerId
-        });
+            builder.HasKey(ub => new { ub.BlockerId, ub.BlockedUserId });
 
-        builder.HasIndex(ub => new
-        {
-            ub.BlockerId,
-            ub.CreatedAt,
-            ub.BlockedUserId
-        })
-            .IsDescending(false, true, false);
+            builder.HasOne(ub => ub.Blocker)
+                .WithMany(u => u.BlockedUsers)
+                .HasForeignKey(ub => ub.BlockerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne(ub => ub.BlockedUser)
+                .WithMany(u => u.BlockedByUsers)
+                .HasForeignKey(ub => ub.BlockedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Property(ub => ub.CreatedAt).IsRequired();
+
+            builder.HasIndex(ub => new
+            {
+                ub.BlockedUserId,
+                ub.BlockerId
+            });
+
+            builder.HasIndex(ub => new
+            {
+                ub.BlockerId,
+                ub.CreatedAt,
+                ub.BlockedUserId
+            })
+                .IsDescending(false, true, false);
+        }
     }
 }

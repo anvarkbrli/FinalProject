@@ -1,7 +1,8 @@
-namespace Ludora.Domain.Enums;
-
-public enum BackgroundJobType
+namespace Ludora.Domain.Enums
 {
-    BadgeEvaluation = 1,
-    SteamSync = 2
+    public enum BackgroundJobType
+    {
+        BadgeEvaluation = 1,
+        SteamSync = 2
+    }
 }

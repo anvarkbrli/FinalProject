@@ -1,22 +1,23 @@
-namespace Ludora.Application.DTOs;
-
-public record FollowRequestDTO
+namespace Ludora.Application.DTOs
 {
-    public Guid UserId { get; set; }
+    public record FollowRequestDTO
+    {
+        public Guid UserId { get; set; }
 
-    public string UserName { get; set; } = string.Empty;
+        public string UserName { get; set; } = string.Empty;
 
-    public string? ProfileImageUrl { get; set; }
+        public string? ProfileImageUrl { get; set; }
 
-    public DateTime RequestedAt { get; set; }
-}
+        public DateTime RequestedAt { get; set; }
+    }
 
-public sealed record FollowRequestBulkActionDTO
-{
-    public List<Guid> RequesterIds { get; init; } = new();
-}
+    public sealed record FollowRequestBulkActionDTO
+    {
+        public List<Guid> RequesterIds { get; init; } = new();
+    }
 
-public sealed record FollowRequestBulkResultDTO
-{
-    public int ProcessedCount { get; init; }
+    public sealed record FollowRequestBulkResultDTO
+    {
+        public int ProcessedCount { get; init; }
+    }
 }

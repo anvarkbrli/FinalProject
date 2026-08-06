@@ -1,98 +1,101 @@
 using System.Security.Claims;
+
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Game;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
+
 using Microsoft.AspNetCore.Mvc;
 
-namespace Ludora.API.Controllers;
-
-[Route("api/games/{source}/{gameId:long:min(1)}/community")]
-[ApiController]
-public sealed class GameCommunityController : ControllerBase
+namespace Ludora.API.Controllers
 {
-    private readonly IGameCommunityService _gameCommunityService;
-
-    public GameCommunityController(
-        IGameCommunityService gameCommunityService)
+    [Route("api/games/{source}/{gameId:long:min(1)}/community")]
+    [ApiController]
+    public sealed class GameCommunityController : ControllerBase
     {
-        _gameCommunityService = gameCommunityService;
-    }
+        private readonly IGameCommunityService _gameCommunityService;
 
-    [HttpGet("categories/{category}/users")]
-    public async Task<ActionResult<PagedResultDTO<GameCommunityUserDTO>>> GetCategoryUsers(
-        CatalogSource source,
-        long gameId,
-        string category,
-        [FromQuery] GameCommunityUsersFilterDTO filter,
-        CancellationToken cancellationToken)
-    {
-        if (!Enum.TryParse<GameCommunityUserCategory>(
-                category,
-                ignoreCase: true,
-                out var parsedCategory))
+        public GameCommunityController(
+            IGameCommunityService gameCommunityService)
         {
-            throw new BadRequestException(
-                "İstifadəçi kateqoriyası düzgün deyil.");
+            _gameCommunityService = gameCommunityService;
         }
 
-        var result = await _gameCommunityService.GetCategoryUsersAsync(
-            source,
-            gameId,
-            parsedCategory,
-            filter,
-            cancellationToken);
+        [HttpGet("categories/{category}/users")]
+        public async Task<ActionResult<PagedResultDTO<GameCommunityUserDTO>>> GetCategoryUsers(
+            CatalogSource source,
+            long gameId,
+            string category,
+            [FromQuery] GameCommunityUsersFilterDTO filter,
+            CancellationToken cancellationToken)
+        {
+            if (!Enum.TryParse<GameCommunityUserCategory>(
+                    category,
+                    ignoreCase: true,
+                    out var parsedCategory))
+            {
+                throw new BadRequestException(
+                    "İstifadəçi kateqoriyası düzgün deyil.");
+            }
 
-        return Ok(result);
-    }
+            var result = await _gameCommunityService.GetCategoryUsersAsync(
+                source,
+                gameId,
+                parsedCategory,
+                filter,
+                cancellationToken);
 
-    [HttpGet("ratings/{rating:double}/users")]
-    public async Task<ActionResult<PagedResultDTO<GameCommunityUserDTO>>> GetRatingUsers(
-        CatalogSource source,
-        long gameId,
-        double rating,
-        [FromQuery] GameCommunityUsersFilterDTO filter,
-        CancellationToken cancellationToken)
-    {
-        var result = await _gameCommunityService.GetRatingUsersAsync(
-            source,
-            gameId,
-            rating,
-            filter,
-            cancellationToken);
+            return Ok(result);
+        }
 
-        return Ok(result);
-    }
+        [HttpGet("ratings/{rating:double}/users")]
+        public async Task<ActionResult<PagedResultDTO<GameCommunityUserDTO>>> GetRatingUsers(
+            CatalogSource source,
+            long gameId,
+            double rating,
+            [FromQuery] GameCommunityUsersFilterDTO filter,
+            CancellationToken cancellationToken)
+        {
+            var result = await _gameCommunityService.GetRatingUsersAsync(
+                source,
+                gameId,
+                rating,
+                filter,
+                cancellationToken);
 
-    [HttpGet("wishlist-preview")]
-    public async Task<ActionResult<IReadOnlyList<GameCommunityUserDTO>>> GetWishlistPreview(
-        CatalogSource source,
-        long gameId,
-        [FromQuery] int limit = 3,
-        CancellationToken cancellationToken = default)
-    {
-        var currentUserId = GetOptionalCurrentUserId();
+            return Ok(result);
+        }
 
-        if (!currentUserId.HasValue)
-            return Ok(Array.Empty<GameCommunityUserDTO>());
+        [HttpGet("wishlist-preview")]
+        public async Task<ActionResult<IReadOnlyList<GameCommunityUserDTO>>> GetWishlistPreview(
+            CatalogSource source,
+            long gameId,
+            [FromQuery] int limit = 3,
+            CancellationToken cancellationToken = default)
+        {
+            var currentUserId = GetOptionalCurrentUserId();
 
-        var result = await _gameCommunityService.GetWishlistPreviewAsync(
-            source,
-            gameId,
-            currentUserId.Value,
-            limit,
-            cancellationToken);
+            if (!currentUserId.HasValue)
+                return Ok(Array.Empty<GameCommunityUserDTO>());
 
-        return Ok(result);
-    }
+            var result = await _gameCommunityService.GetWishlistPreviewAsync(
+                source,
+                gameId,
+                currentUserId.Value,
+                limit,
+                cancellationToken);
 
-    private Guid? GetOptionalCurrentUserId()
-    {
-        var claimValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return Ok(result);
+        }
 
-        return Guid.TryParse(claimValue, out var userId)
-            ? userId
-            : null;
+        private Guid? GetOptionalCurrentUserId()
+        {
+            var claimValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            return Guid.TryParse(claimValue, out var userId)
+                ? userId
+                : null;
+        }
     }
 }

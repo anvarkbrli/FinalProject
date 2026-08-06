@@ -1,7 +1,8 @@
-namespace Ludora.Application.DTOs;
-
-public record ForumCategoryUpdateDTO
+namespace Ludora.Application.DTOs
 {
-    public string Name { get; init; } = null!;
-    public string? Description { get; init; }
+    public record ForumCategoryUpdateDTO
+    {
+        public string Name { get; init; } = null!;
+        public string? Description { get; init; }
+    }
 }

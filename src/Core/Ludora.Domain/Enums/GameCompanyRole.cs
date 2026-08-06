@@ -1,7 +1,8 @@
-﻿namespace Ludora.Domain.Enums;
-
-public enum GameCompanyRole : byte
+﻿namespace Ludora.Domain.Enums
 {
-    Developer = 1,
-    Publisher = 2
+    public enum GameCompanyRole : byte
+    {
+        Developer = 1,
+        Publisher = 2
+    }
 }

@@ -1,7 +1,8 @@
-namespace Ludora.Application.DTOs;
-
-public record DiscussionReplyCreateDTO
+namespace Ludora.Application.DTOs
 {
-    public string Content { get; init; } = null!;
-    public int? ParentReplyId { get; init; }
+    public record DiscussionReplyCreateDTO
+    {
+        public string Content { get; init; } = null!;
+        public int? ParentReplyId { get; init; }
+    }
 }

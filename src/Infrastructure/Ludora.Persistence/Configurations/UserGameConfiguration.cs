@@ -1,7 +1,7 @@
 using Ludora.Domain.Entities;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-
 
 namespace Ludora.Persistence.Configurations
 {

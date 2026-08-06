@@ -1,86 +1,87 @@
 using Ludora.Application.Interfaces;
 
-namespace Ludora.API.Hubs;
-
-public sealed class UserPresenceTracker : IUserPresenceTracker
+namespace Ludora.API.Hubs
 {
-    private readonly object _lock = new();
-    private readonly Dictionary<Guid, HashSet<string>> _connections = [];
-
-    public Task<bool> ConnectAsync(
-        Guid userId,
-        string connectionId,
-        CancellationToken cancellationToken = default)
+    public sealed class UserPresenceTracker : IUserPresenceTracker
     {
-        cancellationToken.ThrowIfCancellationRequested();
+        private readonly object _lock = new();
+        private readonly Dictionary<Guid, HashSet<string>> _connections = [];
 
-        lock (_lock)
+        public Task<bool> ConnectAsync(
+            Guid userId,
+            string connectionId,
+            CancellationToken cancellationToken = default)
         {
-            var wasOffline = !_connections.TryGetValue(userId, out var userConnections) ||
-                             userConnections.Count == 0;
+            cancellationToken.ThrowIfCancellationRequested();
 
-            if (userConnections is null)
+            lock (_lock)
             {
-                userConnections = [];
-                _connections[userId] = userConnections;
+                var wasOffline = !_connections.TryGetValue(userId, out var userConnections) ||
+                                 userConnections.Count == 0;
+
+                if (userConnections is null)
+                {
+                    userConnections = [];
+                    _connections[userId] = userConnections;
+                }
+
+                userConnections.Add(connectionId);
+                return Task.FromResult(wasOffline);
             }
-
-            userConnections.Add(connectionId);
-            return Task.FromResult(wasOffline);
         }
-    }
 
-    public Task<bool> DisconnectAsync(
-        Guid userId,
-        string connectionId,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        lock (_lock)
+        public Task<bool> DisconnectAsync(
+            Guid userId,
+            string connectionId,
+            CancellationToken cancellationToken = default)
         {
-            if (!_connections.TryGetValue(userId, out var userConnections))
-                return Task.FromResult(false);
+            cancellationToken.ThrowIfCancellationRequested();
 
-            userConnections.Remove(connectionId);
-            if (userConnections.Count > 0)
-                return Task.FromResult(false);
+            lock (_lock)
+            {
+                if (!_connections.TryGetValue(userId, out var userConnections))
+                    return Task.FromResult(false);
 
-            _connections.Remove(userId);
-            return Task.FromResult(true);
+                userConnections.Remove(connectionId);
+                if (userConnections.Count > 0)
+                    return Task.FromResult(false);
+
+                _connections.Remove(userId);
+                return Task.FromResult(true);
+            }
         }
-    }
 
-    public Task<bool> IsOnlineAsync(
-        Guid userId,
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-
-        lock (_lock)
+        public Task<bool> IsOnlineAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(
-                _connections.TryGetValue(userId, out var userConnections) &&
-                userConnections.Count > 0);
-        }
-    }
+            cancellationToken.ThrowIfCancellationRequested();
 
-    public Task<IReadOnlySet<Guid>> GetOnlineUserIdsAsync(
-        IReadOnlyCollection<Guid> userIds,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(userIds);
-        cancellationToken.ThrowIfCancellationRequested();
-
-        lock (_lock)
-        {
-            IReadOnlySet<Guid> result = userIds
-                .Where(userId =>
+            lock (_lock)
+            {
+                return Task.FromResult(
                     _connections.TryGetValue(userId, out var userConnections) &&
-                    userConnections.Count > 0)
-                .ToHashSet();
+                    userConnections.Count > 0);
+            }
+        }
 
-            return Task.FromResult(result);
+        public Task<IReadOnlySet<Guid>> GetOnlineUserIdsAsync(
+            IReadOnlyCollection<Guid> userIds,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(userIds);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            lock (_lock)
+            {
+                IReadOnlySet<Guid> result = userIds
+                    .Where(userId =>
+                        _connections.TryGetValue(userId, out var userConnections) &&
+                        userConnections.Count > 0)
+                    .ToHashSet();
+
+                return Task.FromResult(result);
+            }
         }
     }
 }

@@ -1,113 +1,116 @@
 using System.Security.Claims;
+
+using Ludora.API.Models;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
-using Ludora.API.Models;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace Ludora.API.Controllers.User;
-
-[Route("api/user-reports")]
-[ApiController]
-public sealed class UserReportsController : ControllerBase
+namespace Ludora.API.Controllers.User
 {
-    private readonly IUserReportService _userReportService;
-
-    public UserReportsController(IUserReportService userReportService)
+    [Route("api/user-reports")]
+    [ApiController]
+    public sealed class UserReportsController : ControllerBase
     {
-        _userReportService = userReportService;
-    }
+        private readonly IUserReportService _userReportService;
 
-    [HttpGet("categories")]
-    public ActionResult<IReadOnlyList<UserReportCategoryOptionDTO>> GetCategories()
-    {
-        return Ok(_userReportService.GetCategoryOptions());
-    }
-
-    [Authorize]
-    [EnableRateLimiting("UserReports")]
-    [HttpPost("users/{reportedUserId:guid}")]
-    [Consumes("multipart/form-data")]
-    [RequestSizeLimit(110 * 1024 * 1024)]
-    [RequestFormLimits(MultipartBodyLengthLimit = 110 * 1024 * 1024)]
-    public async Task<ActionResult<UserReportDTO>> Create(
-        Guid reportedUserId,
-        [FromForm] UserReportCreateFormRequest request,
-        CancellationToken cancellationToken)
-    {
-        var allFiles = request.EvidenceFiles
-            .Concat(request.EvidenceImages)
-            .Concat(request.EvidenceImage is { Length: > 0 } ? [request.EvidenceImage] : [])
-            .Where(x => x.Length > 0)
-            .Take(6)
-            .ToList();
-
-        if (allFiles.Sum(x => x.Length) > 100L * 1024 * 1024)
+        public UserReportsController(IUserReportService userReportService)
         {
-            return BadRequest(new
+            _userReportService = userReportService;
+        }
+
+        [HttpGet("categories")]
+        public ActionResult<IReadOnlyList<UserReportCategoryOptionDTO>> GetCategories()
+        {
+            return Ok(_userReportService.GetCategoryOptions());
+        }
+
+        [Authorize]
+        [EnableRateLimiting("UserReports")]
+        [HttpPost("users/{reportedUserId:guid}")]
+        [Consumes("multipart/form-data")]
+        [RequestSizeLimit(110 * 1024 * 1024)]
+        [RequestFormLimits(MultipartBodyLengthLimit = 110 * 1024 * 1024)]
+        public async Task<ActionResult<UserReportDTO>> Create(
+            Guid reportedUserId,
+            [FromForm] UserReportCreateFormRequest request,
+            CancellationToken cancellationToken)
+        {
+            var allFiles = request.EvidenceFiles
+                .Concat(request.EvidenceImages)
+                .Concat(request.EvidenceImage is { Length: > 0 } ? [request.EvidenceImage] : [])
+                .Where(x => x.Length > 0)
+                .Take(6)
+                .ToList();
+
+            if (allFiles.Sum(x => x.Length) > 100L * 1024 * 1024)
             {
-                message = "Sübut fayllarının ümumi ölçüsü maksimum 100 MB ola bilər."
-            });
-        }
-
-        var streams = allFiles.Select(x => x.OpenReadStream()).ToList();
-
-        try
-        {
-            var result = await _userReportService.CreateAsync(
-                GetCurrentUserId(),
-                reportedUserId,
-                new UserReportCreateDTO
+                return BadRequest(new
                 {
-                    Category = request.Category,
-                    Description = request.Description,
-                    ReportedContentType = request.ReportedContentType,
-                    ReportedContentId = request.ReportedContentId,
-                    EvidenceImages = allFiles
-                        .Zip(streams)
-                        .Select(pair => CreateEvidenceUpload(
-                            pair.First,
-                            pair.Second)!)
-                        .ToList()
-                },
-                cancellationToken);
+                    message = "Sübut fayllarının ümumi ölçüsü maksimum 100 MB ola bilər."
+                });
+            }
 
-            return StatusCode(StatusCodes.Status201Created, result);
-        }
-        finally
-        {
-            foreach (var stream in streams)
-                await stream.DisposeAsync();
-        }
-    }
+            var streams = allFiles.Select(x => x.OpenReadStream()).ToList();
 
-    private static UserReportEvidenceUploadDTO? CreateEvidenceUpload(
-        IFormFile? file,
-        Stream? fileStream)
-    {
-        if (file is null || fileStream is null || file.Length <= 0)
-            return null;
+            try
+            {
+                var result = await _userReportService.CreateAsync(
+                    GetCurrentUserId(),
+                    reportedUserId,
+                    new UserReportCreateDTO
+                    {
+                        Category = request.Category,
+                        Description = request.Description,
+                        ReportedContentType = request.ReportedContentType,
+                        ReportedContentId = request.ReportedContentId,
+                        EvidenceImages = allFiles
+                            .Zip(streams)
+                            .Select(pair => CreateEvidenceUpload(
+                                pair.First,
+                                pair.Second)!)
+                            .ToList()
+                    },
+                    cancellationToken);
 
-        return new UserReportEvidenceUploadDTO
-        {
-            Stream = fileStream,
-            FileName = file.FileName,
-            ContentType = file.ContentType,
-            Length = file.Length
-        };
-    }
-
-    private Guid GetCurrentUserId()
-    {
-        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
-
-        if (!Guid.TryParse(userIdValue, out var userId))
-        {
-            throw new UnauthorizedAccessException(
-                "İstifadəçi müəyyən edilmədi.");
+                return StatusCode(StatusCodes.Status201Created, result);
+            }
+            finally
+            {
+                foreach (var stream in streams)
+                    await stream.DisposeAsync();
+            }
         }
 
-        return userId;
+        private static UserReportEvidenceUploadDTO? CreateEvidenceUpload(
+            IFormFile? file,
+            Stream? fileStream)
+        {
+            if (file is null || fileStream is null || file.Length <= 0)
+                return null;
+
+            return new UserReportEvidenceUploadDTO
+            {
+                Stream = fileStream,
+                FileName = file.FileName,
+                ContentType = file.ContentType,
+                Length = file.Length
+            };
+        }
+
+        private Guid GetCurrentUserId()
+        {
+            var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            if (!Guid.TryParse(userIdValue, out var userId))
+            {
+                throw new UnauthorizedAccessException(
+                    "İstifadəçi müəyyən edilmədi.");
+            }
+
+            return userId;
+        }
     }
 }

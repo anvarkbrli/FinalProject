@@ -1,7 +1,6 @@
 using Ludora.Application.DTOs;
 using Ludora.Domain.Enums;
 
-
 namespace Ludora.Application.Interfaces
 {
     public interface IUserGameService

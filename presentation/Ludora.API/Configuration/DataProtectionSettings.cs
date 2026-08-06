@@ -1,9 +1,10 @@
-namespace Ludora.API.Configuration;
-
-public sealed class DataProtectionSettings
+namespace Ludora.API.Configuration
 {
-    public const string SectionName = "DataProtection";
+    public sealed class DataProtectionSettings
+    {
+        public const string SectionName = "DataProtection";
 
-    public string ApplicationName { get; set; } = "WellPlayd";
-    public string KeyRingPath { get; set; } = "data-protection-keys";
+        public string ApplicationName { get; set; } = "WellPlayd";
+        public string KeyRingPath { get; set; } = "data-protection-keys";
+    }
 }

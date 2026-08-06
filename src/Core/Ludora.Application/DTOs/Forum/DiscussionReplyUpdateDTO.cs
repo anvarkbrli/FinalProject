@@ -1,6 +1,7 @@
-namespace Ludora.Application.DTOs;
-
-public record DiscussionReplyUpdateDTO
+namespace Ludora.Application.DTOs
 {
-    public string Content { get; init; } = null!;
+    public record DiscussionReplyUpdateDTO
+    {
+        public string Content { get; init; } = null!;
+    }
 }

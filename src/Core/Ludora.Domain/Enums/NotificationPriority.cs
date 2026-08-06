@@ -1,9 +1,10 @@
-namespace Ludora.Domain.Enums;
-
-public enum NotificationPriority
+namespace Ludora.Domain.Enums
 {
-    Low = 1,
-    Normal = 2,
-    High = 3,
-    Critical = 4
+    public enum NotificationPriority
+    {
+        Low = 1,
+        Normal = 2,
+        High = 3,
+        Critical = 4
+    }
 }

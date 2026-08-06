@@ -1,74 +1,76 @@
-using Ludora.API.Security;
 using Ludora.API.Extensions;
+using Ludora.API.Security;
 using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace Ludora.API.Controllers.Admin;
-
-[Authorize(Policy = CapabilityNames.ViewReports)]
-[EnableRateLimiting(RateLimitPolicyNames.Moderation)]
-[Route("api/admin/user-reports")]
-[ApiController]
-public sealed class AdminUserReportsController : ControllerBase
+namespace Ludora.API.Controllers.Admin
 {
-    private readonly IAdminUserReportService _adminUserReportService;
-
-    public AdminUserReportsController(
-        IAdminUserReportService adminUserReportService)
+    [Authorize(Policy = CapabilityNames.ViewReports)]
+    [EnableRateLimiting(RateLimitPolicyNames.Moderation)]
+    [Route("api/admin/user-reports")]
+    [ApiController]
+    public sealed class AdminUserReportsController : ControllerBase
     {
-        _adminUserReportService = adminUserReportService;
-    }
+        private readonly IAdminUserReportService _adminUserReportService;
 
-    [HttpGet]
-    public async Task<ActionResult<PagedResultDTO<AdminReportedUserListItemDTO>>> GetReportedUsers(
-        [FromQuery] AdminUserReportFilterDTO filter,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _adminUserReportService.GetReportedUsersAsync(
-            filter,
-            cancellationToken));
-    }
+        public AdminUserReportsController(
+            IAdminUserReportService adminUserReportService)
+        {
+            _adminUserReportService = adminUserReportService;
+        }
 
-    [HttpGet("users/{userId:guid}")]
-    public async Task<ActionResult<AdminReportedUserDetailDTO>> GetReportedUser(
-        Guid userId,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _adminUserReportService.GetReportedUserAsync(
-            userId,
-            cancellationToken));
-    }
+        [HttpGet]
+        public async Task<ActionResult<PagedResultDTO<AdminReportedUserListItemDTO>>> GetReportedUsers(
+            [FromQuery] AdminUserReportFilterDTO filter,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _adminUserReportService.GetReportedUsersAsync(
+                filter,
+                cancellationToken));
+        }
 
-    [HttpGet("{reportId:long}/evidence")]
-    [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
-    public async Task<IActionResult> GetEvidence(
-        long reportId,
-        [FromQuery] int index,
-        CancellationToken cancellationToken)
-    {
-        var file = await _adminUserReportService.GetEvidenceAsync(
-            reportId,
-            index,
-            cancellationToken);
+        [HttpGet("users/{userId:guid}")]
+        public async Task<ActionResult<AdminReportedUserDetailDTO>> GetReportedUser(
+            Guid userId,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _adminUserReportService.GetReportedUserAsync(
+                userId,
+                cancellationToken));
+        }
 
-        return File(file.Content, file.ContentType);
-    }
+        [HttpGet("{reportId:long}/evidence")]
+        [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
+        public async Task<IActionResult> GetEvidence(
+            long reportId,
+            [FromQuery] int index,
+            CancellationToken cancellationToken)
+        {
+            var file = await _adminUserReportService.GetEvidenceAsync(
+                reportId,
+                index,
+                cancellationToken);
 
-    [HttpPatch("{reportId:long}/status")]
-    [Authorize(Policy = CapabilityNames.ManageReports)]
-    public async Task<ActionResult<AdminUserReportItemDTO>> UpdateStatus(
-        long reportId,
-        [FromBody] AdminUserReportStatusUpdateDTO dto,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _adminUserReportService.UpdateStatusAsync(
-            User.GetRequiredUserId(),
-            reportId,
-            dto,
-            cancellationToken));
+            return File(file.Content, file.ContentType);
+        }
+
+        [HttpPatch("{reportId:long}/status")]
+        [Authorize(Policy = CapabilityNames.ManageReports)]
+        public async Task<ActionResult<AdminUserReportItemDTO>> UpdateStatus(
+            long reportId,
+            [FromBody] AdminUserReportStatusUpdateDTO dto,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _adminUserReportService.UpdateStatusAsync(
+                User.GetRequiredUserId(),
+                reportId,
+                dto,
+                cancellationToken));
+        }
     }
 }

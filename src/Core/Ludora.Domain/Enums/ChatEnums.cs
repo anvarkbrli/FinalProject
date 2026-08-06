@@ -1,41 +1,42 @@
-namespace Ludora.Domain.Enums;
-
-public enum ChatRequestStatus
+namespace Ludora.Domain.Enums
 {
-    Pending = 0,
-    Accepted = 1,
-    Rejected = 2
-}
+    public enum ChatRequestStatus
+    {
+        Pending = 0,
+        Accepted = 1,
+        Rejected = 2
+    }
 
-public enum ChatMessageKind
-{
-    Text = 0,
-    Image = 1,
-    Video = 2,
-    GameRecommendation = 3,
-    System = 4
-}
+    public enum ChatMessageKind
+    {
+        Text = 0,
+        Image = 1,
+        Video = 2,
+        GameRecommendation = 3,
+        System = 4
+    }
 
-public enum ChatMessageDeliveryStatus
-{
-    Sent = 0,
-    Delivered = 1,
-    Read = 2
-}
+    public enum ChatMessageDeliveryStatus
+    {
+        Sent = 0,
+        Delivered = 1,
+        Read = 2
+    }
 
-public enum ChatMessageDeleteScope
-{
-    ForMe = 0,
-    ForEveryone = 1
-}
+    public enum ChatMessageDeleteScope
+    {
+        ForMe = 0,
+        ForEveryone = 1
+    }
 
 
-public enum ChatReactionType
-{
-    Like = 0,
-    Love = 1,
-    Laugh = 2,
-    Surprise = 3,
-    Sad = 4,
-    Fire = 5
+    public enum ChatReactionType
+    {
+        Like = 0,
+        Love = 1,
+        Laugh = 2,
+        Surprise = 3,
+        Sad = 4,
+        Fire = 5
+    }
 }

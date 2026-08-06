@@ -1,11 +1,12 @@
-using Ludora.Domain.Entities.Base;
-using Ludora.Domain.Entities.Steam;
-using Ludora.Domain.Enums;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+
+using Ludora.Domain.Entities.Base;
+using Ludora.Domain.Entities.Steam;
+using Ludora.Domain.Enums;
 
 namespace Ludora.Domain.Entities.GameTracking
 {

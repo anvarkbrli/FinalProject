@@ -1,19 +1,20 @@
 using Ludora.Persistence.Data;
+
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Ludora.Persistence.Migrations;
-
-[DbContext(typeof(AppDbContext))]
-[Migration("20260801170000_CommunityRulesFlairsEvents")]
-public partial class CommunityRulesFlairsEvents : Migration
+namespace Ludora.Persistence.Migrations
 {
-    protected override void Up(MigrationBuilder migrationBuilder)
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260801170000_CommunityRulesFlairsEvents")]
+    public partial class CommunityRulesFlairsEvents : Migration
     {
-        migrationBuilder.Sql(
-            """
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF OBJECT_ID(N'[dbo].[ForumCommunityRules]', N'U') IS NULL
             BEGIN
                 CREATE TABLE [dbo].[ForumCommunityRules]
@@ -118,12 +119,12 @@ public partial class CommunityRulesFlairsEvents : Migration
                     ON [dbo].[ForumCommunityEventParticipants] ([UserId], [JoinedAtUtc]);
             END;
             """);
-    }
+        }
 
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.Sql(
-            """
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF OBJECT_ID(N'[dbo].[ForumCommunityEventParticipants]', N'U') IS NOT NULL
                 DROP TABLE [dbo].[ForumCommunityEventParticipants];
             IF OBJECT_ID(N'[dbo].[ForumCommunityEvents]', N'U') IS NOT NULL
@@ -139,5 +140,6 @@ public partial class CommunityRulesFlairsEvents : Migration
             IF OBJECT_ID(N'[dbo].[ForumCommunityRules]', N'U') IS NOT NULL
                 DROP TABLE [dbo].[ForumCommunityRules];
             """);
+        }
     }
 }

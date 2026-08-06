@@ -1,9 +1,10 @@
 using Ludora.Domain.Enums;
 
-namespace Ludora.Application.DTOs;
-
-public record UserReportCategoryCountDTO
+namespace Ludora.Application.DTOs
 {
-    public UserReportCategory Category { get; init; }
-    public int Count { get; init; }
+    public record UserReportCategoryCountDTO
+    {
+        public UserReportCategory Category { get; init; }
+        public int Count { get; init; }
+    }
 }

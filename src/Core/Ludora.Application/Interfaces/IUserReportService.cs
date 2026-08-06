@@ -1,14 +1,15 @@
 using Ludora.Application.DTOs;
 
-namespace Ludora.Application.Interfaces;
-
-public interface IUserReportService
+namespace Ludora.Application.Interfaces
 {
-    Task<UserReportDTO> CreateAsync(
-        Guid reporterUserId,
-        Guid reportedUserId,
-        UserReportCreateDTO dto,
-        CancellationToken cancellationToken = default);
+    public interface IUserReportService
+    {
+        Task<UserReportDTO> CreateAsync(
+            Guid reporterUserId,
+            Guid reportedUserId,
+            UserReportCreateDTO dto,
+            CancellationToken cancellationToken = default);
 
-    IReadOnlyList<UserReportCategoryOptionDTO> GetCategoryOptions();
+        IReadOnlyList<UserReportCategoryOptionDTO> GetCategoryOptions();
+    }
 }

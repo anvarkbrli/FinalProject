@@ -1,9 +1,10 @@
-namespace Ludora.Domain.Enums;
-
-public enum ForumCommunityEventType
+namespace Ludora.Domain.Enums
 {
-    Multiplayer = 0,
-    Community = 1,
-    Tournament = 2,
-    WatchParty = 3
+    public enum ForumCommunityEventType
+    {
+        Multiplayer = 0,
+        Community = 1,
+        Tournament = 2,
+        WatchParty = 3
+    }
 }

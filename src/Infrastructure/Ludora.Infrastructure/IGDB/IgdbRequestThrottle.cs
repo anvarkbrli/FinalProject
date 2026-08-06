@@ -1,56 +1,57 @@
-namespace Ludora.Infrastructure.IGDB;
-
-public sealed class IgdbRequestThrottle
+namespace Ludora.Infrastructure.IGDB
 {
-    private static readonly TimeSpan MinimumRequestInterval = TimeSpan.FromMilliseconds(260);
-    private readonly SemaphoreSlim _openRequestGate = new(8, 8);
-    private readonly SemaphoreSlim _scheduleGate = new(1, 1);
-    private DateTimeOffset _nextRequestAtUtc = DateTimeOffset.MinValue;
-
-    public async Task<IDisposable> EnterAsync(
-        CancellationToken cancellationToken = default)
+    public sealed class IgdbRequestThrottle
     {
-        await _openRequestGate.WaitAsync(cancellationToken);
+        private static readonly TimeSpan MinimumRequestInterval = TimeSpan.FromMilliseconds(260);
+        private readonly SemaphoreSlim _openRequestGate = new(8, 8);
+        private readonly SemaphoreSlim _scheduleGate = new(1, 1);
+        private DateTimeOffset _nextRequestAtUtc = DateTimeOffset.MinValue;
 
-        try
+        public async Task<IDisposable> EnterAsync(
+            CancellationToken cancellationToken = default)
         {
-            await _scheduleGate.WaitAsync(cancellationToken);
+            await _openRequestGate.WaitAsync(cancellationToken);
 
             try
             {
-                var delay = _nextRequestAtUtc - DateTimeOffset.UtcNow;
+                await _scheduleGate.WaitAsync(cancellationToken);
 
-                if (delay > TimeSpan.Zero)
-                    await Task.Delay(delay, cancellationToken);
+                try
+                {
+                    var delay = _nextRequestAtUtc - DateTimeOffset.UtcNow;
 
-                _nextRequestAtUtc = DateTimeOffset.UtcNow.Add(MinimumRequestInterval);
+                    if (delay > TimeSpan.Zero)
+                        await Task.Delay(delay, cancellationToken);
+
+                    _nextRequestAtUtc = DateTimeOffset.UtcNow.Add(MinimumRequestInterval);
+                }
+                finally
+                {
+                    _scheduleGate.Release();
+                }
+
+                return new Lease(_openRequestGate);
             }
-            finally
+            catch
             {
-                _scheduleGate.Release();
+                _openRequestGate.Release();
+                throw;
+            }
+        }
+
+        private sealed class Lease : IDisposable
+        {
+            private SemaphoreSlim? _gate;
+
+            public Lease(SemaphoreSlim gate)
+            {
+                _gate = gate;
             }
 
-            return new Lease(_openRequestGate);
-        }
-        catch
-        {
-            _openRequestGate.Release();
-            throw;
-        }
-    }
-
-    private sealed class Lease : IDisposable
-    {
-        private SemaphoreSlim? _gate;
-
-        public Lease(SemaphoreSlim gate)
-        {
-            _gate = gate;
-        }
-
-        public void Dispose()
-        {
-            Interlocked.Exchange(ref _gate, null)?.Release();
+            public void Dispose()
+            {
+                Interlocked.Exchange(ref _gate, null)?.Release();
+            }
         }
     }
 }

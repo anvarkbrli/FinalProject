@@ -1,12 +1,13 @@
-namespace Ludora.Application.Interfaces;
-
-public interface ITranslationProvider
+namespace Ludora.Application.Interfaces
 {
-    bool IsConfigured { get; }
+    public interface ITranslationProvider
+    {
+        bool IsConfigured { get; }
 
-    Task<string?> TranslateAsync(
-        string text,
-        string sourceLanguage,
-        string targetLanguage,
-        CancellationToken cancellationToken = default);
+        Task<string?> TranslateAsync(
+            string text,
+            string sourceLanguage,
+            string targetLanguage,
+            CancellationToken cancellationToken = default);
+    }
 }

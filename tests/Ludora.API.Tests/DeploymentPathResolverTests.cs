@@ -1,25 +1,26 @@
 using Ludora.API.Configuration;
 
-namespace Ludora.API.Tests;
-
-public sealed class DeploymentPathResolverTests
+namespace Ludora.API.Tests
 {
-    [Fact]
-    public void Resolve_RelativePath_UsesContentRoot()
+    public sealed class DeploymentPathResolverTests
     {
-        var contentRoot = Path.Combine(Path.GetTempPath(), "wellplayd-tests");
+        [Fact]
+        public void Resolve_RelativePath_UsesContentRoot()
+        {
+            var contentRoot = Path.Combine(Path.GetTempPath(), "wellplayd-tests");
 
-        var result = DeploymentPathResolver.Resolve(contentRoot, "private-storage");
+            var result = DeploymentPathResolver.Resolve(contentRoot, "private-storage");
 
-        Assert.Equal(
-            Path.GetFullPath(Path.Combine(contentRoot, "private-storage")),
-            result);
-    }
+            Assert.Equal(
+                Path.GetFullPath(Path.Combine(contentRoot, "private-storage")),
+                result);
+        }
 
-    [Fact]
-    public void Resolve_EmptyPath_Throws()
-    {
-        Assert.Throws<InvalidOperationException>(() =>
-            DeploymentPathResolver.Resolve(Path.GetTempPath(), " "));
+        [Fact]
+        public void Resolve_EmptyPath_Throws()
+        {
+            Assert.Throws<InvalidOperationException>(() =>
+                DeploymentPathResolver.Resolve(Path.GetTempPath(), " "));
+        }
     }
 }

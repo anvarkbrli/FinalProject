@@ -1,62 +1,64 @@
 using System.Security.Claims;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 
-namespace Ludora.API.Hubs;
-
-[Authorize]
-public sealed class NotificationHub : Hub
+namespace Ludora.API.Hubs
 {
-    private readonly UserPresenceCoordinator _presenceCoordinator;
-
-    public NotificationHub(UserPresenceCoordinator presenceCoordinator)
+    [Authorize]
+    public sealed class NotificationHub : Hub
     {
-        _presenceCoordinator = presenceCoordinator;
-    }
+        private readonly UserPresenceCoordinator _presenceCoordinator;
 
-    public override async Task OnConnectedAsync()
-    {
-        var userId = GetUserId();
-        await _presenceCoordinator.ConnectedAsync(
-            userId,
-            PresenceConnectionId(),
-            Context.ConnectionAborted);
-        await base.OnConnectedAsync();
-    }
-
-    public override async Task OnDisconnectedAsync(Exception? exception)
-    {
-        if (TryGetUserId(out var userId))
+        public NotificationHub(UserPresenceCoordinator presenceCoordinator)
         {
-            await _presenceCoordinator.DisconnectedAsync(
-                userId,
-                GetSessionId(),
-                PresenceConnectionId());
+            _presenceCoordinator = presenceCoordinator;
         }
 
-        await base.OnDisconnectedAsync(exception);
-    }
+        public override async Task OnConnectedAsync()
+        {
+            var userId = GetUserId();
+            await _presenceCoordinator.ConnectedAsync(
+                userId,
+                PresenceConnectionId(),
+                Context.ConnectionAborted);
+            await base.OnConnectedAsync();
+        }
 
-    private string PresenceConnectionId() =>
-        $"notification:{Context.ConnectionId}";
+        public override async Task OnDisconnectedAsync(Exception? exception)
+        {
+            if (TryGetUserId(out var userId))
+            {
+                await _presenceCoordinator.DisconnectedAsync(
+                    userId,
+                    GetSessionId(),
+                    PresenceConnectionId());
+            }
 
-    private Guid GetUserId()
-    {
-        if (TryGetUserId(out var userId))
-            return userId;
+            await base.OnDisconnectedAsync(exception);
+        }
 
-        throw new HubException("İstifadəçi müəyyən edilmədi.");
-    }
+        private string PresenceConnectionId() =>
+            $"notification:{Context.ConnectionId}";
 
-    private bool TryGetUserId(out Guid userId)
-    {
-        var value = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(value, out userId);
-    }
+        private Guid GetUserId()
+        {
+            if (TryGetUserId(out var userId))
+                return userId;
 
-    private Guid? GetSessionId()
-    {
-        var value = Context.User?.FindFirstValue("session_id");
-        return Guid.TryParse(value, out var sessionId) ? sessionId : null;
+            throw new HubException("İstifadəçi müəyyən edilmədi.");
+        }
+
+        private bool TryGetUserId(out Guid userId)
+        {
+            var value = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+            return Guid.TryParse(value, out userId);
+        }
+
+        private Guid? GetSessionId()
+        {
+            var value = Context.User?.FindFirstValue("session_id");
+            return Guid.TryParse(value, out var sessionId) ? sessionId : null;
+        }
     }
 }

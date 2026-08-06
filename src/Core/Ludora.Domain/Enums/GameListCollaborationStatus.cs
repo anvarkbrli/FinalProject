@@ -1,7 +1,8 @@
-namespace Ludora.Domain.Enums;
-
-public enum GameListCollaborationStatus
+namespace Ludora.Domain.Enums
 {
-    Pending = 1,
-    Accepted = 2
+    public enum GameListCollaborationStatus
+    {
+        Pending = 1,
+        Accepted = 2
+    }
 }

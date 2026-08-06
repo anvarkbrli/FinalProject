@@ -1,6 +1,7 @@
-namespace Ludora.Application.DTOs;
-
-public sealed record UpdatePreferredLanguageDTO
+namespace Ludora.Application.DTOs
 {
-    public string Language { get; init; } = string.Empty;
+    public sealed record UpdatePreferredLanguageDTO
+    {
+        public string Language { get; init; } = string.Empty;
+    }
 }

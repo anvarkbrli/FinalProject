@@ -1,6 +1,7 @@
-namespace Ludora.Application.DTOs.Notification;
-
-public sealed record UnreadNotificationCountDTO
+namespace Ludora.Application.DTOs.Notification
 {
-    public int Count { get; init; }
+    public sealed record UnreadNotificationCountDTO
+    {
+        public int Count { get; init; }
+    }
 }

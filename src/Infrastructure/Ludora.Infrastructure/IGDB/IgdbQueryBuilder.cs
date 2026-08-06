@@ -1,410 +1,412 @@
 using System.Globalization;
 using System.Text;
+
 using Ludora.Application.DTOs;
 using Ludora.Domain.Enums;
 
-namespace Ludora.Infrastructure.IGDB;
-
-internal static class IgdbQueryBuilder
+namespace Ludora.Infrastructure.IGDB
 {
-    private const string GameCardFields =
-        "fields id,name,summary,first_release_date,total_rating," +
-        "game_type,parent_game,version_parent,version_title," +
-        "cover.image_id,genres.id,genres.name,platforms.id,platforms.name," +
-        "involved_companies.company.id,involved_companies.company.name," +
-        "involved_companies.developer,involved_companies.publisher;";
-
-    private const string GameFields =
-        "fields id,name,summary,first_release_date,total_rating," +
-        "game_type,parent_game,version_parent,version_title,dlcs,expansions,standalone_expansions," +
-        "bundles,remakes,remasters,collections.name,collections.games,franchises.name,franchises.games," +
-        "cover.image_id,genres.id,genres.name,platforms.id,platforms.name," +
-        "involved_companies.company.id,involved_companies.company.name," +
-        "involved_companies.developer,involved_companies.publisher;";
-
-    public static string BuildGames(GameFilterDTO filter)
+    internal static class IgdbQueryBuilder
     {
-        return BuildGames(
-            filter,
-            Array.Empty<long>());
-    }
+        private const string GameCardFields =
+            "fields id,name,summary,first_release_date,total_rating," +
+            "game_type,parent_game,version_parent,version_title," +
+            "cover.image_id,genres.id,genres.name,platforms.id,platforms.name," +
+            "involved_companies.company.id,involved_companies.company.name," +
+            "involved_companies.developer,involved_companies.publisher;";
 
-    public static string BuildGames(
-        GameFilterDTO filter,
-        IReadOnlyCollection<long> excludedGameIds)
-    {
-        ArgumentNullException.ThrowIfNull(filter);
-        ArgumentNullException.ThrowIfNull(excludedGameIds);
+        private const string GameFields =
+            "fields id,name,summary,first_release_date,total_rating," +
+            "game_type,parent_game,version_parent,version_title,dlcs,expansions,standalone_expansions," +
+            "bundles,remakes,remasters,collections.name,collections.games,franchises.name,franchises.games," +
+            "cover.image_id,genres.id,genres.name,platforms.id,platforms.name," +
+            "involved_companies.company.id,involved_companies.company.name," +
+            "involved_companies.developer,involved_companies.publisher;";
 
-        var pageNumber = Math.Max(1, filter.PageNumber);
-        var pageSize = Math.Clamp(filter.PageSize, 1, 500);
-        var offset = checked((pageNumber - 1) * pageSize);
-
-        return BuildGames(
-            filter,
-            offset,
-            pageSize,
-            excludedGameIds);
-    }
-
-    public static string BuildGames(
-        GameFilterDTO filter,
-        int offset,
-        int limit,
-        IReadOnlyCollection<long> excludedGameIds)
-    {
-        ArgumentNullException.ThrowIfNull(filter);
-        ArgumentNullException.ThrowIfNull(excludedGameIds);
-
-        if (offset < 0)
-            throw new ArgumentOutOfRangeException(nameof(offset));
-
-        var builder = new StringBuilder(GameFields);
-        AppendGameFilters(
-            builder,
-            filter,
-            excludedGameIds);
-        AppendGameSort(builder, filter);
-
-        builder.Append(" limit ")
-            .Append(Math.Clamp(limit, 1, 500).ToString(CultureInfo.InvariantCulture))
-            .Append(';');
-
-        builder.Append(" offset ")
-            .Append(offset.ToString(CultureInfo.InvariantCulture))
-            .Append(';');
-
-        return builder.ToString();
-    }
-
-    public static string BuildGamesCount(
-        GameFilterDTO filter,
-        IReadOnlyCollection<long> excludedGameIds)
-    {
-        ArgumentNullException.ThrowIfNull(filter);
-        ArgumentNullException.ThrowIfNull(excludedGameIds);
-
-        var builder = new StringBuilder();
-        AppendGameFilters(
-            builder,
-            filter,
-            excludedGameIds);
-        return builder.ToString();
-    }
-
-    public static string BuildGamesByIds(IReadOnlyCollection<long> ids)
-    {
-        return BuildByIds(GameFields, ids);
-    }
-
-    public static string BuildGamesByIdsForCards(
-        IReadOnlyCollection<long> ids)
-    {
-        return BuildByIds(GameCardFields, ids);
-    }
-
-
-    public static string BuildExternalGamesBySteamAppIds(
-        IReadOnlyCollection<int> steamAppIds)
-    {
-        var normalizedIds = steamAppIds
-            .Where(id => id > 0)
-            .Distinct()
-            .Take(500)
-            .Select(id => $"\"{id.ToString(CultureInfo.InvariantCulture)}\"")
-            .ToArray();
-
-        if (normalizedIds.Length == 0)
-            return "fields game,uid,external_game_source; where id = -1; limit 1;";
-
-        return $"fields game,uid,external_game_source; where external_game_source = 1 & uid = ({string.Join(',', normalizedIds)}); limit {normalizedIds.Length};";
-    }
-
-    public static string BuildGamesSearchIncludingVersions(
-        string search,
-        int limit)
-    {
-        if (string.IsNullOrWhiteSpace(search))
-            throw new ArgumentException("Axtarış mətni boş ola bilməz.", nameof(search));
-
-        return new StringBuilder(GameFields)
-            .Append(" search \"")
-            .Append(Escape(search.Trim()))
-            .Append("\";")
-            .Append(" limit ")
-            .Append(Math.Clamp(limit, 1, 50).ToString(CultureInfo.InvariantCulture))
-            .Append(';')
-            .ToString();
-    }
-
-    public static string BuildUpcomingGames(
-        DateOnly fromDate,
-        DateOnly toDate,
-        int limit)
-    {
-        if (toDate < fromDate)
-            throw new ArgumentOutOfRangeException(nameof(toDate));
-
-        var start = new DateTimeOffset(
-            fromDate.Year,
-            fromDate.Month,
-            fromDate.Day,
-            0,
-            0,
-            0,
-            TimeSpan.Zero).ToUnixTimeSeconds();
-
-        var endExclusiveDate = toDate.AddDays(1);
-        var endExclusive = new DateTimeOffset(
-            endExclusiveDate.Year,
-            endExclusiveDate.Month,
-            endExclusiveDate.Day,
-            0,
-            0,
-            0,
-            TimeSpan.Zero).ToUnixTimeSeconds();
-
-        return new StringBuilder(GameFields)
-            .Append(" where version_parent = null")
-            .Append(" & game_type = (0,4,8,9,10,11)")
-            .Append(" & first_release_date >= ")
-            .Append(start.ToString(CultureInfo.InvariantCulture))
-            .Append(" & first_release_date < ")
-            .Append(endExclusive.ToString(CultureInfo.InvariantCulture))
-            .Append(';')
-            .Append(" sort hypes desc;")
-            .Append(" limit ")
-            .Append(Math.Clamp(limit, 1, 500).ToString(CultureInfo.InvariantCulture))
-            .Append(';')
-            .ToString();
-    }
-
-    public static string BuildPopularityTypes()
-    {
-        return "fields id,name; sort id asc; limit 100;";
-    }
-
-    public static string BuildPopularityPrimitives(
-        long popularityTypeId,
-        int limit)
-    {
-        if (popularityTypeId < 1)
-            throw new ArgumentOutOfRangeException(nameof(popularityTypeId));
-
-        return new StringBuilder(
-                "fields game_id,popularity_type,value;")
-            .Append(" where popularity_type = ")
-            .Append(popularityTypeId.ToString(CultureInfo.InvariantCulture))
-            .Append(';')
-            .Append(" sort value desc;")
-            .Append(" limit ")
-            .Append(Math.Clamp(limit, 1, 500).ToString(CultureInfo.InvariantCulture))
-            .Append(';')
-            .ToString();
-    }
-
-    public static string BuildNamedList(string? search, int limit = 500)
-    {
-        var builder = new StringBuilder("fields id,name;");
-
-        if (!string.IsNullOrWhiteSpace(search))
+        public static string BuildGames(GameFilterDTO filter)
         {
-            builder.Append(" where name ~ *\"")
+            return BuildGames(
+                filter,
+                Array.Empty<long>());
+        }
+
+        public static string BuildGames(
+            GameFilterDTO filter,
+            IReadOnlyCollection<long> excludedGameIds)
+        {
+            ArgumentNullException.ThrowIfNull(filter);
+            ArgumentNullException.ThrowIfNull(excludedGameIds);
+
+            var pageNumber = Math.Max(1, filter.PageNumber);
+            var pageSize = Math.Clamp(filter.PageSize, 1, 500);
+            var offset = checked((pageNumber - 1) * pageSize);
+
+            return BuildGames(
+                filter,
+                offset,
+                pageSize,
+                excludedGameIds);
+        }
+
+        public static string BuildGames(
+            GameFilterDTO filter,
+            int offset,
+            int limit,
+            IReadOnlyCollection<long> excludedGameIds)
+        {
+            ArgumentNullException.ThrowIfNull(filter);
+            ArgumentNullException.ThrowIfNull(excludedGameIds);
+
+            if (offset < 0)
+                throw new ArgumentOutOfRangeException(nameof(offset));
+
+            var builder = new StringBuilder(GameFields);
+            AppendGameFilters(
+                builder,
+                filter,
+                excludedGameIds);
+            AppendGameSort(builder, filter);
+
+            builder.Append(" limit ")
+                .Append(Math.Clamp(limit, 1, 500).ToString(CultureInfo.InvariantCulture))
+                .Append(';');
+
+            builder.Append(" offset ")
+                .Append(offset.ToString(CultureInfo.InvariantCulture))
+                .Append(';');
+
+            return builder.ToString();
+        }
+
+        public static string BuildGamesCount(
+            GameFilterDTO filter,
+            IReadOnlyCollection<long> excludedGameIds)
+        {
+            ArgumentNullException.ThrowIfNull(filter);
+            ArgumentNullException.ThrowIfNull(excludedGameIds);
+
+            var builder = new StringBuilder();
+            AppendGameFilters(
+                builder,
+                filter,
+                excludedGameIds);
+            return builder.ToString();
+        }
+
+        public static string BuildGamesByIds(IReadOnlyCollection<long> ids)
+        {
+            return BuildByIds(GameFields, ids);
+        }
+
+        public static string BuildGamesByIdsForCards(
+            IReadOnlyCollection<long> ids)
+        {
+            return BuildByIds(GameCardFields, ids);
+        }
+
+
+        public static string BuildExternalGamesBySteamAppIds(
+            IReadOnlyCollection<int> steamAppIds)
+        {
+            var normalizedIds = steamAppIds
+                .Where(id => id > 0)
+                .Distinct()
+                .Take(500)
+                .Select(id => $"\"{id.ToString(CultureInfo.InvariantCulture)}\"")
+                .ToArray();
+
+            if (normalizedIds.Length == 0)
+                return "fields game,uid,external_game_source; where id = -1; limit 1;";
+
+            return $"fields game,uid,external_game_source; where external_game_source = 1 & uid = ({string.Join(',', normalizedIds)}); limit {normalizedIds.Length};";
+        }
+
+        public static string BuildGamesSearchIncludingVersions(
+            string search,
+            int limit)
+        {
+            if (string.IsNullOrWhiteSpace(search))
+                throw new ArgumentException("Axtarış mətni boş ola bilməz.", nameof(search));
+
+            return new StringBuilder(GameFields)
+                .Append(" search \"")
                 .Append(Escape(search.Trim()))
-                .Append("\"*;");
+                .Append("\";")
+                .Append(" limit ")
+                .Append(Math.Clamp(limit, 1, 50).ToString(CultureInfo.InvariantCulture))
+                .Append(';')
+                .ToString();
         }
 
-        builder.Append(" sort name asc;");
-        builder.Append(" limit ").Append(Math.Clamp(limit, 1, 500)).Append(';');
-
-        return builder.ToString();
-    }
-
-    public static string BuildNamedByIds(IReadOnlyCollection<long> ids)
-    {
-        return BuildByIds("fields id,name;", ids);
-    }
-
-    private static void AppendGameFilters(
-        StringBuilder builder,
-        GameFilterDTO filter,
-        IReadOnlyCollection<long> excludedGameIds)
-    {
-        var where = new List<string>
+        public static string BuildUpcomingGames(
+            DateOnly fromDate,
+            DateOnly toDate,
+            int limit)
         {
-            "version_parent = null"
-        };
+            if (toDate < fromDate)
+                throw new ArgumentOutOfRangeException(nameof(toDate));
 
-        if (!filter.IncludeRelatedContent)
-        {
-            where.Add("game_type = (0,4,8,9,10,11)");
-        }
-
-        var excludedIds = excludedGameIds
-            .Where(id => id > 0)
-            .Distinct()
-            .ToArray();
-
-        if (excludedIds.Length > 0)
-        {
-            where.Add(
-                $"id != ({string.Join(',', excludedIds)})");
-        }
-
-        if (!string.IsNullOrWhiteSpace(filter.SearchName))
-        {
-            builder.Append(" search \"")
-                .Append(Escape(filter.SearchName.Trim()))
-                .Append("\";");
-        }
-
-        var genreIds = filter.GetGenreReferences()
-            .Where(reference => reference.Source == CatalogSource.Igdb)
-            .Select(reference => reference.Id)
-            .Distinct()
-            .ToArray();
-
-        if (genreIds.Length > 0)
-        {
-            where.Add(BuildAnyValueFilter("genres", genreIds));
-        }
-
-        var platformIds = filter.GetPlatformReferences()
-            .Where(reference => reference.Source == CatalogSource.Igdb)
-            .Select(reference => reference.Id)
-            .Distinct()
-            .ToArray();
-
-        if (platformIds.Length > 0)
-        {
-            where.Add(BuildAnyValueFilter("platforms", platformIds));
-        }
-
-        var companyIds = filter.GetCompanyReferences()
-            .Where(reference => reference.Source == CatalogSource.Igdb)
-            .Select(reference => reference.Id)
-            .Distinct()
-            .ToArray();
-
-        if (companyIds.Length > 0)
-        {
-            where.Add(BuildAnyValueFilter("involved_companies.company", companyIds));
-        }
-
-        if (filter.ReleaseYear.HasValue)
-        {
             var start = new DateTimeOffset(
-                filter.ReleaseYear.Value,
-                1,
-                1,
+                fromDate.Year,
+                fromDate.Month,
+                fromDate.Day,
                 0,
                 0,
                 0,
                 TimeSpan.Zero).ToUnixTimeSeconds();
 
-            var end = new DateTimeOffset(
-                filter.ReleaseYear.Value + 1,
-                1,
-                1,
+            var endExclusiveDate = toDate.AddDays(1);
+            var endExclusive = new DateTimeOffset(
+                endExclusiveDate.Year,
+                endExclusiveDate.Month,
+                endExclusiveDate.Day,
                 0,
                 0,
                 0,
                 TimeSpan.Zero).ToUnixTimeSeconds();
 
-            where.Add($"first_release_date >= {start}");
-            where.Add($"first_release_date < {end}");
+            return new StringBuilder(GameFields)
+                .Append(" where version_parent = null")
+                .Append(" & game_type = (0,4,8,9,10,11)")
+                .Append(" & first_release_date >= ")
+                .Append(start.ToString(CultureInfo.InvariantCulture))
+                .Append(" & first_release_date < ")
+                .Append(endExclusive.ToString(CultureInfo.InvariantCulture))
+                .Append(';')
+                .Append(" sort hypes desc;")
+                .Append(" limit ")
+                .Append(Math.Clamp(limit, 1, 500).ToString(CultureInfo.InvariantCulture))
+                .Append(';')
+                .ToString();
         }
 
-        if (filter.ReleasedOnly)
+        public static string BuildPopularityTypes()
         {
-            var tomorrow = DateOnly
-                .FromDateTime(DateTime.UtcNow)
-                .AddDays(1);
-            var tomorrowUnix = new DateTimeOffset(
-                tomorrow.Year,
-                tomorrow.Month,
-                tomorrow.Day,
-                0,
-                0,
-                0,
-                TimeSpan.Zero).ToUnixTimeSeconds();
-
-            where.Add($"first_release_date < {tomorrowUnix}");
+            return "fields id,name; sort id asc; limit 100;";
         }
 
-        builder.Append(" where ")
-            .Append(string.Join(" & ", where))
-            .Append(';');
-    }
-
-    private static string BuildAnyValueFilter(
-        string field,
-        IReadOnlyCollection<long> values)
-    {
-        var normalizedValues = values
-            .Where(value => value > 0)
-            .Distinct()
-            .ToArray();
-
-        if (normalizedValues.Length == 0)
+        public static string BuildPopularityPrimitives(
+            long popularityTypeId,
+            int limit)
         {
-            throw new ArgumentException("Filter dəyərləri boş ola bilməz.", nameof(values));
+            if (popularityTypeId < 1)
+                throw new ArgumentOutOfRangeException(nameof(popularityTypeId));
+
+            return new StringBuilder(
+                    "fields game_id,popularity_type,value;")
+                .Append(" where popularity_type = ")
+                .Append(popularityTypeId.ToString(CultureInfo.InvariantCulture))
+                .Append(';')
+                .Append(" sort value desc;")
+                .Append(" limit ")
+                .Append(Math.Clamp(limit, 1, 500).ToString(CultureInfo.InvariantCulture))
+                .Append(';')
+                .ToString();
         }
 
-        // genres, platforms and involved_companies.company are collection
-        // fields. Always use APICalypse's list syntax so the predicate means
-        // "the collection contains any selected value", even for one value.
-        // Curly-brace syntax would mean an exact collection match and must not
-        // be used for catalog filters.
-        return $"{field} = ({string.Join(',', normalizedValues.Select(value => value.ToString(CultureInfo.InvariantCulture)))})";
-    }
-
-    private static void AppendGameSort(
-        StringBuilder builder,
-        GameFilterDTO filter)
-    {
-        // IGDB search sorğusu relevance sıralamasını özü tətbiq edir.
-        // `search` ilə əlavə `sort` göndərmək bəzi kombinə edilmiş
-        // filter sorğularının 400 qaytarmasına səbəb olur.
-        if (!string.IsNullOrWhiteSpace(filter.SearchName))
+        public static string BuildNamedList(string? search, int limit = 500)
         {
-            return;
+            var builder = new StringBuilder("fields id,name;");
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                builder.Append(" where name ~ *\"")
+                    .Append(Escape(search.Trim()))
+                    .Append("\"*;");
+            }
+
+            builder.Append(" sort name asc;");
+            builder.Append(" limit ").Append(Math.Clamp(limit, 1, 500)).Append(';');
+
+            return builder.ToString();
         }
 
-        var sort = filter.SortBy?.Trim().ToLowerInvariant() switch
+        public static string BuildNamedByIds(IReadOnlyCollection<long> ids)
         {
-            "name_asc" => "name asc",
-            "name_desc" => "name desc",
-            "rating_asc" => "total_rating asc",
-            "rating_desc" => "total_rating desc",
-            "year_asc" => "first_release_date asc",
-            "year_desc" => "first_release_date desc",
-            _ when string.IsNullOrWhiteSpace(filter.SearchName) => "first_release_date desc",
-            _ => null
-        };
+            return BuildByIds("fields id,name;", ids);
+        }
 
-        if (sort is not null)
-            builder.Append(" sort ").Append(sort).Append(';');
-    }
+        private static void AppendGameFilters(
+            StringBuilder builder,
+            GameFilterDTO filter,
+            IReadOnlyCollection<long> excludedGameIds)
+        {
+            var where = new List<string>
+            {
+                "version_parent = null"
+            };
 
-    private static string BuildByIds(string fields, IReadOnlyCollection<long> ids)
-    {
-        var normalizedIds = ids
-            .Where(id => id > 0)
-            .Distinct()
-            .Take(500)
-            .ToArray();
+            if (!filter.IncludeRelatedContent)
+            {
+                where.Add("game_type = (0,4,8,9,10,11)");
+            }
 
-        if (normalizedIds.Length == 0)
-            return $"{fields} where id = -1; limit 1;";
+            var excludedIds = excludedGameIds
+                .Where(id => id > 0)
+                .Distinct()
+                .ToArray();
 
-        return $"{fields} where id = ({string.Join(',', normalizedIds)}); limit {normalizedIds.Length};";
-    }
+            if (excludedIds.Length > 0)
+            {
+                where.Add(
+                    $"id != ({string.Join(',', excludedIds)})");
+            }
 
-    private static string Escape(string value)
-    {
-        return value
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("\"", "\\\"", StringComparison.Ordinal);
+            if (!string.IsNullOrWhiteSpace(filter.SearchName))
+            {
+                builder.Append(" search \"")
+                    .Append(Escape(filter.SearchName.Trim()))
+                    .Append("\";");
+            }
+
+            var genreIds = filter.GetGenreReferences()
+                .Where(reference => reference.Source == CatalogSource.Igdb)
+                .Select(reference => reference.Id)
+                .Distinct()
+                .ToArray();
+
+            if (genreIds.Length > 0)
+            {
+                where.Add(BuildAnyValueFilter("genres", genreIds));
+            }
+
+            var platformIds = filter.GetPlatformReferences()
+                .Where(reference => reference.Source == CatalogSource.Igdb)
+                .Select(reference => reference.Id)
+                .Distinct()
+                .ToArray();
+
+            if (platformIds.Length > 0)
+            {
+                where.Add(BuildAnyValueFilter("platforms", platformIds));
+            }
+
+            var companyIds = filter.GetCompanyReferences()
+                .Where(reference => reference.Source == CatalogSource.Igdb)
+                .Select(reference => reference.Id)
+                .Distinct()
+                .ToArray();
+
+            if (companyIds.Length > 0)
+            {
+                where.Add(BuildAnyValueFilter("involved_companies.company", companyIds));
+            }
+
+            if (filter.ReleaseYear.HasValue)
+            {
+                var start = new DateTimeOffset(
+                    filter.ReleaseYear.Value,
+                    1,
+                    1,
+                    0,
+                    0,
+                    0,
+                    TimeSpan.Zero).ToUnixTimeSeconds();
+
+                var end = new DateTimeOffset(
+                    filter.ReleaseYear.Value + 1,
+                    1,
+                    1,
+                    0,
+                    0,
+                    0,
+                    TimeSpan.Zero).ToUnixTimeSeconds();
+
+                where.Add($"first_release_date >= {start}");
+                where.Add($"first_release_date < {end}");
+            }
+
+            if (filter.ReleasedOnly)
+            {
+                var tomorrow = DateOnly
+                    .FromDateTime(DateTime.UtcNow)
+                    .AddDays(1);
+                var tomorrowUnix = new DateTimeOffset(
+                    tomorrow.Year,
+                    tomorrow.Month,
+                    tomorrow.Day,
+                    0,
+                    0,
+                    0,
+                    TimeSpan.Zero).ToUnixTimeSeconds();
+
+                where.Add($"first_release_date < {tomorrowUnix}");
+            }
+
+            builder.Append(" where ")
+                .Append(string.Join(" & ", where))
+                .Append(';');
+        }
+
+        private static string BuildAnyValueFilter(
+            string field,
+            IReadOnlyCollection<long> values)
+        {
+            var normalizedValues = values
+                .Where(value => value > 0)
+                .Distinct()
+                .ToArray();
+
+            if (normalizedValues.Length == 0)
+            {
+                throw new ArgumentException("Filter dəyərləri boş ola bilməz.", nameof(values));
+            }
+
+            // genres, platforms and involved_companies.company are collection
+            // fields. Always use APICalypse's list syntax so the predicate means
+            // "the collection contains any selected value", even for one value.
+            // Curly-brace syntax would mean an exact collection match and must not
+            // be used for catalog filters.
+            return $"{field} = ({string.Join(',', normalizedValues.Select(value => value.ToString(CultureInfo.InvariantCulture)))})";
+        }
+
+        private static void AppendGameSort(
+            StringBuilder builder,
+            GameFilterDTO filter)
+        {
+            // IGDB search sorğusu relevance sıralamasını özü tətbiq edir.
+            // `search` ilə əlavə `sort` göndərmək bəzi kombinə edilmiş
+            // filter sorğularının 400 qaytarmasına səbəb olur.
+            if (!string.IsNullOrWhiteSpace(filter.SearchName))
+            {
+                return;
+            }
+
+            var sort = filter.SortBy?.Trim().ToLowerInvariant() switch
+            {
+                "name_asc" => "name asc",
+                "name_desc" => "name desc",
+                "rating_asc" => "total_rating asc",
+                "rating_desc" => "total_rating desc",
+                "year_asc" => "first_release_date asc",
+                "year_desc" => "first_release_date desc",
+                _ when string.IsNullOrWhiteSpace(filter.SearchName) => "first_release_date desc",
+                _ => null
+            };
+
+            if (sort is not null)
+                builder.Append(" sort ").Append(sort).Append(';');
+        }
+
+        private static string BuildByIds(string fields, IReadOnlyCollection<long> ids)
+        {
+            var normalizedIds = ids
+                .Where(id => id > 0)
+                .Distinct()
+                .Take(500)
+                .ToArray();
+
+            if (normalizedIds.Length == 0)
+                return $"{fields} where id = -1; limit 1;";
+
+            return $"{fields} where id = ({string.Join(',', normalizedIds)}); limit {normalizedIds.Length};";
+        }
+
+        private static string Escape(string value)
+        {
+            return value
+                .Replace("\\", "\\\\", StringComparison.Ordinal)
+                .Replace("\"", "\\\"", StringComparison.Ordinal);
+        }
     }
 }

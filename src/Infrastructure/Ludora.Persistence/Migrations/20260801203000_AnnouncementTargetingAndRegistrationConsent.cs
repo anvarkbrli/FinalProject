@@ -1,19 +1,20 @@
 using Ludora.Persistence.Data;
+
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Ludora.Persistence.Migrations;
-
-[DbContext(typeof(AppDbContext))]
-[Migration("20260801203000_AnnouncementTargetingAndRegistrationConsent")]
-public partial class AnnouncementTargetingAndRegistrationConsent : Migration
+namespace Ludora.Persistence.Migrations
 {
-    protected override void Up(MigrationBuilder migrationBuilder)
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260801203000_AnnouncementTargetingAndRegistrationConsent")]
+    public partial class AnnouncementTargetingAndRegistrationConsent : Migration
     {
-        migrationBuilder.Sql(
-            """
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF COL_LENGTH('dbo.Announcements', 'Audience') IS NULL
             BEGIN
                 ALTER TABLE dbo.Announcements
@@ -22,8 +23,8 @@ public partial class AnnouncementTargetingAndRegistrationConsent : Migration
             END;
             """);
 
-        migrationBuilder.Sql(
-            """
+            migrationBuilder.Sql(
+                """
             IF NOT EXISTS (
                 SELECT 1
                 FROM sys.check_constraints
@@ -46,8 +47,8 @@ public partial class AnnouncementTargetingAndRegistrationConsent : Migration
             END;
             """);
 
-        migrationBuilder.Sql(
-            """
+            migrationBuilder.Sql(
+                """
             IF OBJECT_ID(N'dbo.AnnouncementViews', N'U') IS NULL
             BEGIN
                 CREATE TABLE dbo.AnnouncementViews
@@ -69,8 +70,8 @@ public partial class AnnouncementTargetingAndRegistrationConsent : Migration
             END;
             """);
 
-        migrationBuilder.Sql(
-            """
+            migrationBuilder.Sql(
+                """
             IF NOT EXISTS (
                 SELECT 1
                 FROM sys.indexes
@@ -102,8 +103,8 @@ public partial class AnnouncementTargetingAndRegistrationConsent : Migration
             END;
             """);
 
-        migrationBuilder.Sql(
-            """
+            migrationBuilder.Sql(
+                """
             IF COL_LENGTH('dbo.AspNetUsers', 'TermsAcceptedAtUtc') IS NULL
                 ALTER TABLE dbo.AspNetUsers ADD TermsAcceptedAtUtc datetime2 NULL;
 
@@ -116,12 +117,12 @@ public partial class AnnouncementTargetingAndRegistrationConsent : Migration
             IF COL_LENGTH('dbo.AspNetUsers', 'PrivacyVersion') IS NULL
                 ALTER TABLE dbo.AspNetUsers ADD PrivacyVersion nvarchar(32) NULL;
             """);
-    }
+        }
 
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.Sql(
-            """
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF OBJECT_ID(N'dbo.AnnouncementViews', N'U') IS NOT NULL
                 DROP TABLE dbo.AnnouncementViews;
 
@@ -165,5 +166,6 @@ public partial class AnnouncementTargetingAndRegistrationConsent : Migration
             IF COL_LENGTH('dbo.AspNetUsers', 'PrivacyVersion') IS NOT NULL
                 ALTER TABLE dbo.AspNetUsers DROP COLUMN PrivacyVersion;
             """);
+        }
     }
 }

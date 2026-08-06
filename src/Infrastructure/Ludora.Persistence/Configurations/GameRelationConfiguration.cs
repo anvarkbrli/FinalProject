@@ -1,34 +1,36 @@
 using Ludora.Domain.Entities.GameTracking;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Ludora.Persistence.Configurations;
-
-public sealed class GameRelationConfiguration : IEntityTypeConfiguration<GameRelation>
+namespace Ludora.Persistence.Configurations
 {
-    public void Configure(EntityTypeBuilder<GameRelation> builder)
+    public sealed class GameRelationConfiguration : IEntityTypeConfiguration<GameRelation>
     {
-        builder.HasKey(x => x.Id);
-
-        builder.HasIndex(x => new
+        public void Configure(EntityTypeBuilder<GameRelation> builder)
         {
-            x.BaseGameSource,
-            x.BaseGameId,
-            x.RelatedGameSource,
-            x.RelatedGameId,
-            x.RelationType
-        }).IsUnique();
+            builder.HasKey(x => x.Id);
 
-        builder.HasIndex(x => new
-        {
-            x.BaseGameSource,
-            x.BaseGameId
-        });
+            builder.HasIndex(x => new
+            {
+                x.BaseGameSource,
+                x.BaseGameId,
+                x.RelatedGameSource,
+                x.RelatedGameId,
+                x.RelationType
+            }).IsUnique();
 
-        builder.HasIndex(x => new
-        {
-            x.RelatedGameSource,
-            x.RelatedGameId
-        });
+            builder.HasIndex(x => new
+            {
+                x.BaseGameSource,
+                x.BaseGameId
+            });
+
+            builder.HasIndex(x => new
+            {
+                x.RelatedGameSource,
+                x.RelatedGameId
+            });
+        }
     }
 }

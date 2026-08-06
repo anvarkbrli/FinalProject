@@ -1,6 +1,7 @@
-namespace Ludora.Application.DTOs;
-
-public sealed record DiscussionReplyVoteRequestDTO
+namespace Ludora.Application.DTOs
 {
-    public short Value { get; init; }
+    public sealed record DiscussionReplyVoteRequestDTO
+    {
+        public short Value { get; init; }
+    }
 }

@@ -1,6 +1,7 @@
-namespace Ludora.Application.DTOs;
-
-public record ReviewCommentCreateDTO
+namespace Ludora.Application.DTOs
 {
-    public string Content { get; init; } = string.Empty;
+    public record ReviewCommentCreateDTO
+    {
+        public string Content { get; init; } = string.Empty;
+    }
 }

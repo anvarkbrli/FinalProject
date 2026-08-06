@@ -1,15 +1,16 @@
 using Ludora.Domain.Entities.User;
 
-namespace Ludora.Domain.Entities.Steam;
-
-public sealed class SteamFriendSnapshot
+namespace Ludora.Domain.Entities.Steam
 {
-    public long Id { get; set; }
-    public Guid UserId { get; set; }
-    public string FriendSteamId { get; set; } = string.Empty;
-    public DateTime? FriendSinceUtc { get; set; }
-    public DateTime LastSeenAtUtc { get; set; }
-    public bool IsActive { get; set; }
+    public sealed class SteamFriendSnapshot
+    {
+        public long Id { get; set; }
+        public Guid UserId { get; set; }
+        public string FriendSteamId { get; set; } = string.Empty;
+        public DateTime? FriendSinceUtc { get; set; }
+        public DateTime LastSeenAtUtc { get; set; }
+        public bool IsActive { get; set; }
 
-    public AppUser User { get; set; } = null!;
+        public AppUser User { get; set; } = null!;
+    }
 }

@@ -1,11 +1,12 @@
-namespace Ludora.Domain.Enums;
-
-public enum SteamGameMatchMethod
+namespace Ludora.Domain.Enums
 {
-    None = 0,
-    SteamAppId = 1,
-    IgdbExternalId = 2,
-    ExactName = 3,
-    NormalizedEditionName = 4,
-    SteamFallback = 5
+    public enum SteamGameMatchMethod
+    {
+        None = 0,
+        SteamAppId = 1,
+        IgdbExternalId = 2,
+        ExactName = 3,
+        NormalizedEditionName = 4,
+        SteamFallback = 5
+    }
 }

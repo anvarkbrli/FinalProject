@@ -1,6 +1,7 @@
-namespace Ludora.Application.DTOs;
-
-public sealed record InteractionCommentCreateDTO
+namespace Ludora.Application.DTOs
 {
-    public string Content { get; init; } = string.Empty;
+    public sealed record InteractionCommentCreateDTO
+    {
+        public string Content { get; init; } = string.Empty;
+    }
 }

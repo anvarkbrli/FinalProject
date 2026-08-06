@@ -1,19 +1,20 @@
 using Ludora.Persistence.Data;
+
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Ludora.Persistence.Migrations;
-
-[DbContext(typeof(AppDbContext))]
-[Migration("20260721143000_EnsureReviewPlaytimeCompatibility")]
-public partial class EnsureReviewPlaytimeCompatibility : Migration
+namespace Ludora.Persistence.Migrations
 {
-    protected override void Up(MigrationBuilder migrationBuilder)
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260721143000_EnsureReviewPlaytimeCompatibility")]
+    public partial class EnsureReviewPlaytimeCompatibility : Migration
     {
-        migrationBuilder.Sql(
-            """
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF COL_LENGTH(N'dbo.Reviews', N'PlaytimeMinutes') IS NULL
             BEGIN
                 ALTER TABLE [dbo].[Reviews]
@@ -27,10 +28,11 @@ public partial class EnsureReviewPlaytimeCompatibility : Migration
                 CHECK ([PlaytimeMinutes] IS NULL OR ([PlaytimeMinutes] >= 0 AND [PlaytimeMinutes] <= 600000));
             END;
             """);
-    }
+        }
 
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        // Uyğunluq migration-u mövcud istehsal sütununu geri silmir.
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // Uyğunluq migration-u mövcud istehsal sütununu geri silmir.
+        }
     }
 }

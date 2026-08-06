@@ -1,71 +1,73 @@
 using Ludora.Domain.Entities.User;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
-namespace Ludora.Persistence.Configurations;
-
-public sealed class ModeratorActionLogConfiguration : IEntityTypeConfiguration<ModeratorActionLog>
+namespace Ludora.Persistence.Configurations
 {
-    public void Configure(EntityTypeBuilder<ModeratorActionLog> builder)
+    public sealed class ModeratorActionLogConfiguration : IEntityTypeConfiguration<ModeratorActionLog>
     {
-        builder.ToTable("ModeratorActionLogs", tableBuilder =>
+        public void Configure(EntityTypeBuilder<ModeratorActionLog> builder)
         {
-            tableBuilder.HasCheckConstraint(
-                "CK_ModeratorActionLogs_ActionType",
-                "[ActionType] BETWEEN 1 AND 7");
-        });
+            builder.ToTable("ModeratorActionLogs", tableBuilder =>
+            {
+                tableBuilder.HasCheckConstraint(
+                    "CK_ModeratorActionLogs_ActionType",
+                    "[ActionType] BETWEEN 1 AND 7");
+            });
 
-        builder.HasKey(x => x.Id);
+            builder.HasKey(x => x.Id);
 
-        builder.Property(x => x.ActionType)
-            .IsRequired();
+            builder.Property(x => x.ActionType)
+                .IsRequired();
 
-        builder.Property(x => x.Reason)
-            .HasMaxLength(1000);
+            builder.Property(x => x.Reason)
+                .HasMaxLength(1000);
 
-        builder.Property(x => x.Operation)
-            .HasMaxLength(160);
+            builder.Property(x => x.Operation)
+                .HasMaxLength(160);
 
-        builder.Property(x => x.ResourceType)
-            .HasMaxLength(100);
+            builder.Property(x => x.ResourceType)
+                .HasMaxLength(100);
 
-        builder.Property(x => x.ResourceId)
-            .HasMaxLength(200);
+            builder.Property(x => x.ResourceId)
+                .HasMaxLength(200);
 
-        builder.Property(x => x.ResourceName)
-            .HasMaxLength(300);
+            builder.Property(x => x.ResourceName)
+                .HasMaxLength(300);
 
-        builder.Property(x => x.CreatedAtUtc)
-            .IsRequired();
+            builder.Property(x => x.CreatedAtUtc)
+                .IsRequired();
 
-        builder.HasIndex(x => new { x.TargetUserId, x.CreatedAtUtc });
-        builder.HasIndex(x => new { x.UserReportId, x.CreatedAtUtc });
-        builder.HasIndex(x => new { x.AdminUserId, x.CreatedAtUtc });
-        builder.HasIndex(x => new { x.ResourceType, x.CreatedAtUtc });
+            builder.HasIndex(x => new { x.TargetUserId, x.CreatedAtUtc });
+            builder.HasIndex(x => new { x.UserReportId, x.CreatedAtUtc });
+            builder.HasIndex(x => new { x.AdminUserId, x.CreatedAtUtc });
+            builder.HasIndex(x => new { x.ResourceType, x.CreatedAtUtc });
 
-        builder.HasOne(x => x.AdminUser)
-            .WithMany(x => x.PerformedModeratorActions)
-            .HasForeignKey(x => x.AdminUserId)
-            .OnDelete(DeleteBehavior.NoAction);
+            builder.HasOne(x => x.AdminUser)
+                .WithMany(x => x.PerformedModeratorActions)
+                .HasForeignKey(x => x.AdminUserId)
+                .OnDelete(DeleteBehavior.NoAction);
 
-        builder.HasOne(x => x.TargetUser)
-            .WithMany(x => x.ReceivedModeratorActions)
-            .HasForeignKey(x => x.TargetUserId)
-            .OnDelete(DeleteBehavior.NoAction);
+            builder.HasOne(x => x.TargetUser)
+                .WithMany(x => x.ReceivedModeratorActions)
+                .HasForeignKey(x => x.TargetUserId)
+                .OnDelete(DeleteBehavior.NoAction);
 
-        builder.HasOne(x => x.UserReport)
-            .WithMany(x => x.ModeratorActions)
-            .HasForeignKey(x => x.UserReportId)
-            .OnDelete(DeleteBehavior.NoAction);
+            builder.HasOne(x => x.UserReport)
+                .WithMany(x => x.ModeratorActions)
+                .HasForeignKey(x => x.UserReportId)
+                .OnDelete(DeleteBehavior.NoAction);
 
-        builder.HasOne(x => x.UserWarning)
-            .WithMany()
-            .HasForeignKey(x => x.UserWarningId)
-            .OnDelete(DeleteBehavior.NoAction);
+            builder.HasOne(x => x.UserWarning)
+                .WithMany()
+                .HasForeignKey(x => x.UserWarningId)
+                .OnDelete(DeleteBehavior.NoAction);
 
-        builder.HasOne(x => x.UserBanHistory)
-            .WithMany()
-            .HasForeignKey(x => x.UserBanHistoryId)
-            .OnDelete(DeleteBehavior.NoAction);
+            builder.HasOne(x => x.UserBanHistory)
+                .WithMany()
+                .HasForeignKey(x => x.UserBanHistoryId)
+                .OnDelete(DeleteBehavior.NoAction);
+        }
     }
 }

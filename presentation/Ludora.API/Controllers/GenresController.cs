@@ -2,93 +2,95 @@ using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Ludora.API.Controllers;
-
-[Route("api/genres")]
-[ApiController]
-public sealed class GenresController : ControllerBase
+namespace Ludora.API.Controllers
 {
-    private readonly IGenreService _genreService;
-
-    public GenresController(IGenreService genreService)
+    [Route("api/genres")]
+    [ApiController]
+    public sealed class GenresController : ControllerBase
     {
-        _genreService = genreService;
-    }
+        private readonly IGenreService _genreService;
 
-    [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<GenreDetailDTO>>> GetAll(
-        [FromQuery] string? searchName,
-        [FromQuery] CatalogSource? source = null,
-        CancellationToken cancellationToken = default)
-    {
-        return Ok(await _genreService.GetAllAsync(searchName, source, cancellationToken));
-    }
+        public GenresController(IGenreService genreService)
+        {
+            _genreService = genreService;
+        }
 
-    [Authorize(Roles = RoleNames.AdminOrModerator)]
-    [HttpGet("deleted")]
-    public async Task<ActionResult<IReadOnlyList<GenreDetailDTO>>> GetDeleted(
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _genreService.GetDeletedAsync(cancellationToken));
-    }
+        [HttpGet]
+        public async Task<ActionResult<IReadOnlyList<GenreDetailDTO>>> GetAll(
+            [FromQuery] string? searchName,
+            [FromQuery] CatalogSource? source = null,
+            CancellationToken cancellationToken = default)
+        {
+            return Ok(await _genreService.GetAllAsync(searchName, source, cancellationToken));
+        }
 
-    [HttpGet("{source}/{id:long:min(1)}")]
-    public async Task<ActionResult<GenreDetailDTO>> GetById(
-        CatalogSource source,
-        long id,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _genreService.GetByIdAsync(source, id, cancellationToken));
-    }
+        [Authorize(Roles = RoleNames.AdminOrModerator)]
+        [HttpGet("deleted")]
+        public async Task<ActionResult<IReadOnlyList<GenreDetailDTO>>> GetDeleted(
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _genreService.GetDeletedAsync(cancellationToken));
+        }
 
-    [Authorize(Roles = RoleNames.AdminOrModerator)]
-    [HttpPost]
-    public async Task<IActionResult> Create(
-        [FromBody] GenreCreateDTO dto,
-        CancellationToken cancellationToken)
-    {
-        var id = await _genreService.CreateAsync(dto, cancellationToken);
+        [HttpGet("{source}/{id:long:min(1)}")]
+        public async Task<ActionResult<GenreDetailDTO>> GetById(
+            CatalogSource source,
+            long id,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _genreService.GetByIdAsync(source, id, cancellationToken));
+        }
 
-        return CreatedAtAction(
-            nameof(GetById),
-            new { source = CatalogSource.Local, id },
-            new { source = CatalogSource.Local, id });
-    }
+        [Authorize(Roles = RoleNames.AdminOrModerator)]
+        [HttpPost]
+        public async Task<IActionResult> Create(
+            [FromBody] GenreCreateDTO dto,
+            CancellationToken cancellationToken)
+        {
+            var id = await _genreService.CreateAsync(dto, cancellationToken);
 
-    [Authorize(Roles = RoleNames.AdminOrModerator)]
-    [HttpPatch("{source}/{id:long:min(1)}")]
-    public async Task<IActionResult> Update(
-        CatalogSource source,
-        long id,
-        [FromBody] GenreUpdateDTO dto,
-        CancellationToken cancellationToken)
-    {
-        await _genreService.UpdateAsync(source, id, dto, cancellationToken);
-        return NoContent();
-    }
+            return CreatedAtAction(
+                nameof(GetById),
+                new { source = CatalogSource.Local, id },
+                new { source = CatalogSource.Local, id });
+        }
 
-    [Authorize(Roles = RoleNames.Admin)]
-    [HttpDelete("{source}/{id:long:min(1)}")]
-    public async Task<IActionResult> Delete(
-        CatalogSource source,
-        long id,
-        CancellationToken cancellationToken)
-    {
-        await _genreService.DeleteAsync(source, id, cancellationToken);
-        return NoContent();
-    }
+        [Authorize(Roles = RoleNames.AdminOrModerator)]
+        [HttpPatch("{source}/{id:long:min(1)}")]
+        public async Task<IActionResult> Update(
+            CatalogSource source,
+            long id,
+            [FromBody] GenreUpdateDTO dto,
+            CancellationToken cancellationToken)
+        {
+            await _genreService.UpdateAsync(source, id, dto, cancellationToken);
+            return NoContent();
+        }
 
-    [Authorize(Roles = RoleNames.AdminOrModerator)]
-    [HttpPatch("{source}/{id:long:min(1)}/restore")]
-    public async Task<IActionResult> Restore(
-        CatalogSource source,
-        long id,
-        CancellationToken cancellationToken)
-    {
-        await _genreService.RestoreAsync(source, id, cancellationToken);
-        return NoContent();
+        [Authorize(Roles = RoleNames.Admin)]
+        [HttpDelete("{source}/{id:long:min(1)}")]
+        public async Task<IActionResult> Delete(
+            CatalogSource source,
+            long id,
+            CancellationToken cancellationToken)
+        {
+            await _genreService.DeleteAsync(source, id, cancellationToken);
+            return NoContent();
+        }
+
+        [Authorize(Roles = RoleNames.AdminOrModerator)]
+        [HttpPatch("{source}/{id:long:min(1)}/restore")]
+        public async Task<IActionResult> Restore(
+            CatalogSource source,
+            long id,
+            CancellationToken cancellationToken)
+        {
+            await _genreService.RestoreAsync(source, id, cancellationToken);
+            return NoContent();
+        }
     }
 }

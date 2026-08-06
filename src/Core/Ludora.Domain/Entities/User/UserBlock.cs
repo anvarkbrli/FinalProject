@@ -1,14 +1,15 @@
-﻿namespace Ludora.Domain.Entities.User;
-
-public class UserBlock
+﻿namespace Ludora.Domain.Entities.User
 {
-    public Guid BlockerId { get; set; }
+    public class UserBlock
+    {
+        public Guid BlockerId { get; set; }
 
-    public AppUser Blocker { get; set; } = null!;
+        public AppUser Blocker { get; set; } = null!;
 
-    public Guid BlockedUserId { get; set; }
+        public Guid BlockedUserId { get; set; }
 
-    public AppUser BlockedUser { get; set; } = null!;
+        public AppUser BlockedUser { get; set; } = null!;
 
-    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    }
 }

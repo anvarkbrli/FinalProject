@@ -1,8 +1,9 @@
-namespace Ludora.Domain.Enums;
-
-public enum UserActivityFeedScope
+namespace Ludora.Domain.Enums
 {
-    All = 1,
-    Mine = 2,
-    Following = 3
+    public enum UserActivityFeedScope
+    {
+        All = 1,
+        Mine = 2,
+        Following = 3
+    }
 }

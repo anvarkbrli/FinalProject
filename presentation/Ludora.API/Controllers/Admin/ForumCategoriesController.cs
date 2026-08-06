@@ -1,85 +1,87 @@
 using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Ludora.API.Controllers.Admin;
-
-[Route("api/forum/categories")]
-[ApiController]
-public sealed class ForumCategoriesController : ControllerBase
+namespace Ludora.API.Controllers.Admin
 {
-    private readonly IForumCategoryService _categoryService;
-
-    public ForumCategoriesController(IForumCategoryService categoryService)
+    [Route("api/forum/categories")]
+    [ApiController]
+    public sealed class ForumCategoriesController : ControllerBase
     {
-        _categoryService = categoryService;
-    }
+        private readonly IForumCategoryService _categoryService;
 
-    [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<ForumCategoryDTO>>> GetAll(
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _categoryService.GetAllAsync(cancellationToken));
-    }
+        public ForumCategoriesController(IForumCategoryService categoryService)
+        {
+            _categoryService = categoryService;
+        }
 
-    [Authorize(Roles = RoleNames.AdminOrModerator)]
-    [HttpGet("deleted")]
-    public async Task<ActionResult<IReadOnlyList<ForumCategoryDTO>>> GetDeleted(
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _categoryService.GetDeletedAsync(cancellationToken));
-    }
+        [HttpGet]
+        public async Task<ActionResult<IReadOnlyList<ForumCategoryDTO>>> GetAll(
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _categoryService.GetAllAsync(cancellationToken));
+        }
 
-    [HttpGet("{slug}")]
-    public async Task<ActionResult<ForumCategoryDTO>> GetBySlug(
-        string slug,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _categoryService.GetBySlugAsync(slug, cancellationToken));
-    }
+        [Authorize(Roles = RoleNames.AdminOrModerator)]
+        [HttpGet("deleted")]
+        public async Task<ActionResult<IReadOnlyList<ForumCategoryDTO>>> GetDeleted(
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _categoryService.GetDeletedAsync(cancellationToken));
+        }
 
-    [Authorize(Roles = RoleNames.AdminOrModerator)]
-    [HttpPost]
-    public async Task<ActionResult<ForumCategoryDTO>> Create(
-        [FromBody] ForumCategoryCreateDTO dto,
-        CancellationToken cancellationToken)
-    {
-        var result = await _categoryService.CreateAsync(dto, cancellationToken);
+        [HttpGet("{slug}")]
+        public async Task<ActionResult<ForumCategoryDTO>> GetBySlug(
+            string slug,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _categoryService.GetBySlugAsync(slug, cancellationToken));
+        }
 
-        return CreatedAtAction(
-            nameof(GetBySlug),
-            new { slug = result.Slug },
-            result);
-    }
+        [Authorize(Roles = RoleNames.AdminOrModerator)]
+        [HttpPost]
+        public async Task<ActionResult<ForumCategoryDTO>> Create(
+            [FromBody] ForumCategoryCreateDTO dto,
+            CancellationToken cancellationToken)
+        {
+            var result = await _categoryService.CreateAsync(dto, cancellationToken);
 
-    [Authorize(Roles = RoleNames.AdminOrModerator)]
-    [HttpPut("{id:int}")]
-    public async Task<ActionResult<ForumCategoryDTO>> Update(
-        int id,
-        [FromBody] ForumCategoryUpdateDTO dto,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _categoryService.UpdateAsync(id, dto, cancellationToken));
-    }
+            return CreatedAtAction(
+                nameof(GetBySlug),
+                new { slug = result.Slug },
+                result);
+        }
 
-    [Authorize(Roles = RoleNames.Admin)]
-    [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(
-        int id,
-        CancellationToken cancellationToken)
-    {
-        await _categoryService.DeleteAsync(id, cancellationToken);
-        return NoContent();
-    }
+        [Authorize(Roles = RoleNames.AdminOrModerator)]
+        [HttpPut("{id:int}")]
+        public async Task<ActionResult<ForumCategoryDTO>> Update(
+            int id,
+            [FromBody] ForumCategoryUpdateDTO dto,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _categoryService.UpdateAsync(id, dto, cancellationToken));
+        }
 
-    [Authorize(Roles = RoleNames.AdminOrModerator)]
-    [HttpPost("{id:int}/restore")]
-    public async Task<ActionResult<ForumCategoryDTO>> Restore(
-        int id,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _categoryService.RestoreAsync(id, cancellationToken));
+        [Authorize(Roles = RoleNames.Admin)]
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            await _categoryService.DeleteAsync(id, cancellationToken);
+            return NoContent();
+        }
+
+        [Authorize(Roles = RoleNames.AdminOrModerator)]
+        [HttpPost("{id:int}/restore")]
+        public async Task<ActionResult<ForumCategoryDTO>> Restore(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _categoryService.RestoreAsync(id, cancellationToken));
+        }
     }
 }

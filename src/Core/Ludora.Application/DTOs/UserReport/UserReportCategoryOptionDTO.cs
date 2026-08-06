@@ -1,9 +1,10 @@
 using Ludora.Domain.Enums;
 
-namespace Ludora.Application.DTOs;
-
-public record UserReportCategoryOptionDTO
+namespace Ludora.Application.DTOs
 {
-    public UserReportCategory Value { get; init; }
-    public string Label { get; init; } = string.Empty;
+    public record UserReportCategoryOptionDTO
+    {
+        public UserReportCategory Value { get; init; }
+        public string Label { get; init; } = string.Empty;
+    }
 }

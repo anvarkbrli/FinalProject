@@ -1,9 +1,10 @@
-namespace Ludora.Domain.Enums;
-
-public enum EmailTemplateType
+namespace Ludora.Domain.Enums
 {
-    EmailConfirmation = 1,
-    EmailChangeConfirmation = 2,
-    PasswordReset = 3,
-    ContactMessageReply = 4
+    public enum EmailTemplateType
+    {
+        EmailConfirmation = 1,
+        EmailChangeConfirmation = 2,
+        PasswordReset = 3,
+        ContactMessageReply = 4
+    }
 }

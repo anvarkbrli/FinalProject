@@ -1,49 +1,50 @@
-namespace Ludora.Application.Extensions;
-
-using Ludora.Application.Exceptions;
-
-public static class StringExtension
+namespace Ludora.Application.Extensions
 {
-    public static string? TrimOrNull(this string? value)
+    using Ludora.Application.Exceptions;
+
+    public static class StringExtension
     {
-        return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
-    }
-
-    public static string NormalizeRequiredText(
-        this string? value,
-        string fieldName,
-        int maximumLength)
-    {
-        var normalizedValue = value.TrimOrNull();
-
-        if (normalizedValue is null)
-            throw new BadRequestException($"{fieldName} boş ola bilməz.");
-
-        if (normalizedValue.Length > maximumLength)
+        public static string? TrimOrNull(this string? value)
         {
-            throw new BadRequestException(
-                $"{fieldName} maksimum {maximumLength} simvol ola bilər.");
+            return string.IsNullOrWhiteSpace(value) ? null : value.Trim();
         }
 
-        return normalizedValue;
-    }
-
-    public static string? NormalizeOptionalText(
-        this string? value,
-        string fieldName,
-        int maximumLength)
-    {
-        var normalizedValue = value.TrimOrNull();
-
-        if (normalizedValue is null)
-            return null;
-
-        if (normalizedValue.Length > maximumLength)
+        public static string NormalizeRequiredText(
+            this string? value,
+            string fieldName,
+            int maximumLength)
         {
-            throw new BadRequestException(
-                $"{fieldName} maksimum {maximumLength} simvol ola bilər.");
+            var normalizedValue = value.TrimOrNull();
+
+            if (normalizedValue is null)
+                throw new BadRequestException($"{fieldName} boş ola bilməz.");
+
+            if (normalizedValue.Length > maximumLength)
+            {
+                throw new BadRequestException(
+                    $"{fieldName} maksimum {maximumLength} simvol ola bilər.");
+            }
+
+            return normalizedValue;
         }
 
-        return normalizedValue;
+        public static string? NormalizeOptionalText(
+            this string? value,
+            string fieldName,
+            int maximumLength)
+        {
+            var normalizedValue = value.TrimOrNull();
+
+            if (normalizedValue is null)
+                return null;
+
+            if (normalizedValue.Length > maximumLength)
+            {
+                throw new BadRequestException(
+                    $"{fieldName} maksimum {maximumLength} simvol ola bilər.");
+            }
+
+            return normalizedValue;
+        }
     }
 }

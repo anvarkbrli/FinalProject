@@ -1,10 +1,11 @@
-namespace Ludora.Application.DTOs;
-
-public record UserSettingsDTO
+namespace Ludora.Application.DTOs
 {
-    public bool IsPrivate { get; set; }
+    public record UserSettingsDTO
+    {
+        public bool IsPrivate { get; set; }
 
-    public string PreferredLanguage { get; set; } = "az";
+        public string PreferredLanguage { get; set; } = "az";
 
-    public string PreferredTheme { get; set; } = "dark";
+        public string PreferredTheme { get; set; } = "dark";
+    }
 }

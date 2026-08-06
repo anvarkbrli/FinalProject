@@ -1,15 +1,16 @@
 using System.Text.Json.Serialization;
 
-namespace Ludora.Infrastructure.IGDB.Models;
-
-internal sealed class TwitchTokenResponse
+namespace Ludora.Infrastructure.IGDB.Models
 {
-    [JsonPropertyName("access_token")]
-    public string AccessToken { get; set; } = string.Empty;
+    internal sealed class TwitchTokenResponse
+    {
+        [JsonPropertyName("access_token")]
+        public string AccessToken { get; set; } = string.Empty;
 
-    [JsonPropertyName("expires_in")]
-    public int ExpiresIn { get; set; }
+        [JsonPropertyName("expires_in")]
+        public int ExpiresIn { get; set; }
 
-    [JsonPropertyName("token_type")]
-    public string TokenType { get; set; } = string.Empty;
+        [JsonPropertyName("token_type")]
+        public string TokenType { get; set; } = string.Empty;
+    }
 }

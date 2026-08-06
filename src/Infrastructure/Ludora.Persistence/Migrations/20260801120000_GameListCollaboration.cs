@@ -1,19 +1,20 @@
 using Ludora.Persistence.Data;
+
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Ludora.Persistence.Migrations;
-
-[DbContext(typeof(AppDbContext))]
-[Migration("20260801120000_GameListCollaboration")]
-public partial class GameListCollaboration : Migration
+namespace Ludora.Persistence.Migrations
 {
-    protected override void Up(MigrationBuilder migrationBuilder)
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260801120000_GameListCollaboration")]
+    public partial class GameListCollaboration : Migration
     {
-        migrationBuilder.Sql(
-            """
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF OBJECT_ID(N'[dbo].[GameListCollaborators]', N'U') IS NULL
             BEGIN
                 CREATE TABLE [dbo].[GameListCollaborators]
@@ -40,14 +41,15 @@ public partial class GameListCollaboration : Migration
                     ON [dbo].[GameListCollaborators] ([UserId], [Status], [InvitedAtUtc]);
             END
             """);
-    }
+        }
 
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.Sql(
-            """
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF OBJECT_ID(N'[dbo].[GameListCollaborators]', N'U') IS NOT NULL
                 DROP TABLE [dbo].[GameListCollaborators];
             """);
+        }
     }
 }

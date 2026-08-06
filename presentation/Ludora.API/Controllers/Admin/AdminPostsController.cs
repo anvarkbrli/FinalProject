@@ -1,65 +1,67 @@
-using Ludora.API.Security;
 using Ludora.API.Extensions;
+using Ludora.API.Security;
 using Ludora.Application.Common;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace Ludora.API.Controllers.Admin;
-
-[Authorize(Policy = CapabilityNames.ViewPosts)]
-[EnableRateLimiting(RateLimitPolicyNames.Moderation)]
-[Route("api/admin/posts")]
-[ApiController]
-public sealed class AdminPostsController : ControllerBase
+namespace Ludora.API.Controllers.Admin
 {
-    private readonly IAdminPostService _adminPostService;
-
-    public AdminPostsController(IAdminPostService adminPostService)
+    [Authorize(Policy = CapabilityNames.ViewPosts)]
+    [EnableRateLimiting(RateLimitPolicyNames.Moderation)]
+    [Route("api/admin/posts")]
+    [ApiController]
+    public sealed class AdminPostsController : ControllerBase
     {
-        _adminPostService = adminPostService;
-    }
+        private readonly IAdminPostService _adminPostService;
 
-    [HttpGet]
-    public async Task<ActionResult<PagedResultDTO<AdminPostDTO>>> GetAll(
-        [FromQuery] AdminPostFilterDTO filter,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _adminPostService.GetAllAsync(filter, cancellationToken));
-    }
+        public AdminPostsController(IAdminPostService adminPostService)
+        {
+            _adminPostService = adminPostService;
+        }
 
-    [HttpGet("{postId:long}")]
-    public async Task<ActionResult<AdminPostDTO>> GetById(
-        long postId,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _adminPostService.GetByIdAsync(postId, cancellationToken));
-    }
+        [HttpGet]
+        public async Task<ActionResult<PagedResultDTO<AdminPostDTO>>> GetAll(
+            [FromQuery] AdminPostFilterDTO filter,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _adminPostService.GetAllAsync(filter, cancellationToken));
+        }
 
-    [HttpDelete("{postId:long}")]
-    [Authorize(Policy = CapabilityNames.DeletePosts)]
-    public async Task<IActionResult> Delete(
-        long postId,
-        [FromBody] ModeratePostDTO dto,
-        CancellationToken cancellationToken)
-    {
-        await _adminPostService.DeleteAsync(
-            User.GetRequiredUserId(),
-            postId,
-            dto,
-            cancellationToken);
+        [HttpGet("{postId:long}")]
+        public async Task<ActionResult<AdminPostDTO>> GetById(
+            long postId,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _adminPostService.GetByIdAsync(postId, cancellationToken));
+        }
 
-        return NoContent();
-    }
+        [HttpDelete("{postId:long}")]
+        [Authorize(Policy = CapabilityNames.DeletePosts)]
+        public async Task<IActionResult> Delete(
+            long postId,
+            [FromBody] ModeratePostDTO dto,
+            CancellationToken cancellationToken)
+        {
+            await _adminPostService.DeleteAsync(
+                User.GetRequiredUserId(),
+                postId,
+                dto,
+                cancellationToken);
 
-    [HttpPost("{postId:long}/restore")]
-    [Authorize(Policy = CapabilityNames.RestorePosts)]
-    public async Task<ActionResult<AdminPostDTO>> Restore(
-        long postId,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _adminPostService.RestoreAsync(postId, cancellationToken));
+            return NoContent();
+        }
+
+        [HttpPost("{postId:long}/restore")]
+        [Authorize(Policy = CapabilityNames.RestorePosts)]
+        public async Task<ActionResult<AdminPostDTO>> Restore(
+            long postId,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _adminPostService.RestoreAsync(postId, cancellationToken));
+        }
     }
 }

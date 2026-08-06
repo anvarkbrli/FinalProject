@@ -1,7 +1,8 @@
-namespace Ludora.Application.Models;
-
-public sealed record IgdbCompanyModel
+namespace Ludora.Application.Models
 {
-    public long Id { get; init; }
-    public string Name { get; init; } = string.Empty;
+    public sealed record IgdbCompanyModel
+    {
+        public long Id { get; init; }
+        public string Name { get; init; } = string.Empty;
+    }
 }

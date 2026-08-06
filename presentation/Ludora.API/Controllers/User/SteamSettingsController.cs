@@ -1,122 +1,124 @@
 using System.Security.Claims;
 using System.Text.Json;
+
 using Ludora.Application.DTOs.Steam;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Settings;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Options;
 
-namespace Ludora.API.Controllers.User;
-
-[ApiController]
-[Route("api/settings/export/steam")]
-public sealed class SteamSettingsController : ControllerBase
+namespace Ludora.API.Controllers.User
 {
-    private readonly ISteamService _steamService;
-    private readonly SteamSettings _settings;
-    private readonly ISteamSyncQueue _steamSyncQueue;
-
-    public SteamSettingsController(
-        ISteamService steamService,
-        ISteamSyncQueue steamSyncQueue,
-        IOptions<SteamSettings> options)
+    [ApiController]
+    [Route("api/settings/export/steam")]
+    public sealed class SteamSettingsController : ControllerBase
     {
-        _steamService = steamService;
-        _steamSyncQueue = steamSyncQueue;
-        _settings = options.Value;
-    }
+        private readonly ISteamService _steamService;
+        private readonly SteamSettings _settings;
+        private readonly ISteamSyncQueue _steamSyncQueue;
 
-    [Authorize]
-    [HttpGet("connect")]
-    public async Task<ActionResult<SteamConnectStartDTO>> StartConnection(
-        CancellationToken cancellationToken)
-    {
-        var result = await _steamService.StartConnectionAsync(
-            GetCurrentUserId(),
-            cancellationToken);
-
-        return Ok(result);
-    }
-
-    [AllowAnonymous]
-    [HttpGet("callback")]
-    public async Task<IActionResult> Callback(
-        [FromQuery] string? state,
-        [FromQuery] string? responseMode,
-        CancellationToken cancellationToken)
-    {
-        var parameters = Request.Query.ToDictionary(
-            x => x.Key,
-            x => x.Value.ToString(),
-            StringComparer.Ordinal);
-
-        var result = await _steamService.CompleteConnectionAsync(
-            state ?? string.Empty,
-            parameters,
-            cancellationToken);
-
-        if (result.Success && result.UserId.HasValue)
-            await _steamSyncQueue.EnqueueAsync(result.UserId.Value, cancellationToken);
-
-        if (string.Equals(responseMode, "json", StringComparison.OrdinalIgnoreCase))
-            return Ok(result);
-
-        return Content(BuildPopupResponse(result), "text/html; charset=utf-8");
-    }
-
-    [Authorize]
-    [HttpGet("status")]
-    public async Task<ActionResult<SteamConnectionStatusDTO>> GetStatus(
-        CancellationToken cancellationToken)
-    {
-        var result = await _steamService.GetConnectionStatusAsync(
-            GetCurrentUserId(),
-            cancellationToken);
-
-        return Ok(result);
-    }
-
-    [Authorize]
-    [HttpDelete]
-    public async Task<IActionResult> Disconnect(
-        CancellationToken cancellationToken)
-    {
-        await _steamService.DisconnectAsync(
-            GetCurrentUserId(),
-            cancellationToken);
-
-        return NoContent();
-    }
-
-    private string BuildPopupResponse(SteamConnectionResultDTO result)
-    {
-        var payload = JsonSerializer.Serialize(new
+        public SteamSettingsController(
+            ISteamService steamService,
+            ISteamSyncQueue steamSyncQueue,
+            IOptions<SteamSettings> options)
         {
-            type = "wellplayd:steam-link-result",
-            success = result.Success,
-            steamId = result.SteamId,
-            steamName = result.SteamName,
-            avatarUrl = result.AvatarUrl,
-            profileUrl = result.ProfileUrl,
-            linkedAtUtc = result.LinkedAtUtc,
-            error = result.Error
-        });
+            _steamService = steamService;
+            _steamSyncQueue = steamSyncQueue;
+            _settings = options.Value;
+        }
 
-        var redirectUrl = QueryHelpers.AddQueryString(
-            _settings.FrontendSettingsUrl,
-            new Dictionary<string, string?>
+        [Authorize]
+        [HttpGet("connect")]
+        public async Task<ActionResult<SteamConnectStartDTO>> StartConnection(
+            CancellationToken cancellationToken)
+        {
+            var result = await _steamService.StartConnectionAsync(
+                GetCurrentUserId(),
+                cancellationToken);
+
+            return Ok(result);
+        }
+
+        [AllowAnonymous]
+        [HttpGet("callback")]
+        public async Task<IActionResult> Callback(
+            [FromQuery] string? state,
+            [FromQuery] string? responseMode,
+            CancellationToken cancellationToken)
+        {
+            var parameters = Request.Query.ToDictionary(
+                x => x.Key,
+                x => x.Value.ToString(),
+                StringComparer.Ordinal);
+
+            var result = await _steamService.CompleteConnectionAsync(
+                state ?? string.Empty,
+                parameters,
+                cancellationToken);
+
+            if (result.Success && result.UserId.HasValue)
+                await _steamSyncQueue.EnqueueAsync(result.UserId.Value, cancellationToken);
+
+            if (string.Equals(responseMode, "json", StringComparison.OrdinalIgnoreCase))
+                return Ok(result);
+
+            return Content(BuildPopupResponse(result), "text/html; charset=utf-8");
+        }
+
+        [Authorize]
+        [HttpGet("status")]
+        public async Task<ActionResult<SteamConnectionStatusDTO>> GetStatus(
+            CancellationToken cancellationToken)
+        {
+            var result = await _steamService.GetConnectionStatusAsync(
+                GetCurrentUserId(),
+                cancellationToken);
+
+            return Ok(result);
+        }
+
+        [Authorize]
+        [HttpDelete]
+        public async Task<IActionResult> Disconnect(
+            CancellationToken cancellationToken)
+        {
+            await _steamService.DisconnectAsync(
+                GetCurrentUserId(),
+                cancellationToken);
+
+            return NoContent();
+        }
+
+        private string BuildPopupResponse(SteamConnectionResultDTO result)
+        {
+            var payload = JsonSerializer.Serialize(new
             {
-                ["steamSuccess"] = result.Success ? "true" : "false",
-                ["steamName"] = result.SteamName,
-                ["steamError"] = result.Error
+                type = "wellplayd:steam-link-result",
+                success = result.Success,
+                steamId = result.SteamId,
+                steamName = result.SteamName,
+                avatarUrl = result.AvatarUrl,
+                profileUrl = result.ProfileUrl,
+                linkedAtUtc = result.LinkedAtUtc,
+                error = result.Error
             });
 
-        var targetOriginJson = JsonSerializer.Serialize(_settings.FrontendOrigin);
-        var redirectUrlJson = JsonSerializer.Serialize(redirectUrl);
+            var redirectUrl = QueryHelpers.AddQueryString(
+                _settings.FrontendSettingsUrl,
+                new Dictionary<string, string?>
+                {
+                    ["steamSuccess"] = result.Success ? "true" : "false",
+                    ["steamName"] = result.SteamName,
+                    ["steamError"] = result.Error
+                });
 
-        return $$"""
+            var targetOriginJson = JsonSerializer.Serialize(_settings.FrontendOrigin);
+            var redirectUrlJson = JsonSerializer.Serialize(redirectUrl);
+
+            return $$"""
             <!doctype html>
             <html lang="az">
             <head>
@@ -144,15 +146,16 @@ public sealed class SteamSettingsController : ControllerBase
             </body>
             </html>
             """;
-    }
+        }
 
-    private Guid GetCurrentUserId()
-    {
-        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        private Guid GetCurrentUserId()
+        {
+            var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        if (!Guid.TryParse(value, out var userId))
-            throw new UnauthorizedAccessException("İstifadəçi müəyyən edilmədi.");
+            if (!Guid.TryParse(value, out var userId))
+                throw new UnauthorizedAccessException("İstifadəçi müəyyən edilmədi.");
 
-        return userId;
+            return userId;
+        }
     }
 }

@@ -1,7 +1,8 @@
-namespace Ludora.Application.DTOs.Contact;
-
-public sealed record ContactMessageReplyDTO
+namespace Ludora.Application.DTOs.Contact
 {
-    public string? Subject { get; init; }
-    public string? Body { get; init; }
+    public sealed record ContactMessageReplyDTO
+    {
+        public string? Subject { get; init; }
+        public string? Body { get; init; }
+    }
 }

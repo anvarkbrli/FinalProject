@@ -1,45 +1,47 @@
 using Ludora.Persistence.Data;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace Ludora.API.HealthChecks;
-
-public sealed class DatabaseMigrationHealthCheck : IHealthCheck
+namespace Ludora.API.HealthChecks
 {
-    private readonly IServiceScopeFactory _scopeFactory;
-
-    public DatabaseMigrationHealthCheck(IServiceScopeFactory scopeFactory)
+    public sealed class DatabaseMigrationHealthCheck : IHealthCheck
     {
-        _scopeFactory = scopeFactory;
-    }
+        private readonly IServiceScopeFactory _scopeFactory;
 
-    public async Task<HealthCheckResult> CheckHealthAsync(
-        HealthCheckContext context,
-        CancellationToken cancellationToken = default)
-    {
-        try
+        public DatabaseMigrationHealthCheck(IServiceScopeFactory scopeFactory)
         {
-            await using var scope = _scopeFactory.CreateAsyncScope();
-            var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-            var pendingMigrations = (await dbContext.Database
-                    .GetPendingMigrationsAsync(cancellationToken))
-                .ToArray();
-
-            return pendingMigrations.Length == 0
-                ? HealthCheckResult.Healthy("Database schema is up to date.")
-                : HealthCheckResult.Unhealthy(
-                    "Database has pending migrations.",
-                    data: new Dictionary<string, object>
-                    {
-                        ["pendingMigrations"] = pendingMigrations
-                    });
+            _scopeFactory = scopeFactory;
         }
-        catch (Exception exception) when (exception is not OperationCanceledException ||
-                                           !cancellationToken.IsCancellationRequested)
+
+        public async Task<HealthCheckResult> CheckHealthAsync(
+            HealthCheckContext context,
+            CancellationToken cancellationToken = default)
         {
-            return HealthCheckResult.Unhealthy(
-                "Database migration state could not be determined.",
-                exception);
+            try
+            {
+                await using var scope = _scopeFactory.CreateAsyncScope();
+                var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var pendingMigrations = (await dbContext.Database
+                        .GetPendingMigrationsAsync(cancellationToken))
+                    .ToArray();
+
+                return pendingMigrations.Length == 0
+                    ? HealthCheckResult.Healthy("Database schema is up to date.")
+                    : HealthCheckResult.Unhealthy(
+                        "Database has pending migrations.",
+                        data: new Dictionary<string, object>
+                        {
+                            ["pendingMigrations"] = pendingMigrations
+                        });
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException ||
+                                               !cancellationToken.IsCancellationRequested)
+            {
+                return HealthCheckResult.Unhealthy(
+                    "Database migration state could not be determined.",
+                    exception);
+            }
         }
     }
 }

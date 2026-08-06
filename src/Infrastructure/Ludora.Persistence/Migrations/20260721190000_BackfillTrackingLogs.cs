@@ -1,19 +1,20 @@
 using Ludora.Persistence.Data;
+
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Ludora.Persistence.Migrations;
-
-[DbContext(typeof(AppDbContext))]
-[Migration("20260721190000_BackfillTrackingLogs")]
-public partial class BackfillTrackingLogs : Migration
+namespace Ludora.Persistence.Migrations
 {
-    protected override void Up(MigrationBuilder migrationBuilder)
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260721190000_BackfillTrackingLogs")]
+    public partial class BackfillTrackingLogs : Migration
     {
-        migrationBuilder.Sql(
-            """
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             UPDATE reviewLog
             SET
                 [Content] = N'',
@@ -77,10 +78,11 @@ public partial class BackfillTrackingLogs : Migration
                         AND reviewLog.[GameId] = userGame.[GameId]
                 );
             """);
-    }
+        }
 
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        // Data uyğunluğu üçün yaradılan boş loglar geri silinmir.
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            // Data uyğunluğu üçün yaradılan boş loglar geri silinmir.
+        }
     }
 }

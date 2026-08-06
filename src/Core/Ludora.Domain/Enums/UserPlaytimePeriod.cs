@@ -1,8 +1,9 @@
-namespace Ludora.Domain.Enums;
-
-public enum UserPlaytimePeriod
+namespace Ludora.Domain.Enums
 {
-    Weekly = 1,
-    Monthly = 2,
-    Yearly = 3
+    public enum UserPlaytimePeriod
+    {
+        Weekly = 1,
+        Monthly = 2,
+        Yearly = 3
+    }
 }

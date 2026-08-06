@@ -1,4 +1,5 @@
 using Ludora.Domain.Entities.GameTracking;
+
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 

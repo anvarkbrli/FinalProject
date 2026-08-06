@@ -1,6 +1,7 @@
-namespace Ludora.Application.DTOs;
-
-public record EmailOperationResultDTO
+namespace Ludora.Application.DTOs
 {
-    public string Message { get; init; } = string.Empty;
+    public record EmailOperationResultDTO
+    {
+        public string Message { get; init; } = string.Empty;
+    }
 }

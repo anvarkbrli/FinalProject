@@ -1,15 +1,16 @@
-namespace Ludora.API.Configuration;
-
-public static class DeploymentPathResolver
+namespace Ludora.API.Configuration
 {
-    public static string Resolve(string contentRootPath, string configuredPath)
+    public static class DeploymentPathResolver
     {
-        if (string.IsNullOrWhiteSpace(configuredPath))
-            throw new InvalidOperationException("Storage path cannot be empty.");
+        public static string Resolve(string contentRootPath, string configuredPath)
+        {
+            if (string.IsNullOrWhiteSpace(configuredPath))
+                throw new InvalidOperationException("Storage path cannot be empty.");
 
-        return Path.GetFullPath(
-            Path.IsPathRooted(configuredPath)
-                ? configuredPath
-                : Path.Combine(contentRootPath, configuredPath));
+            return Path.GetFullPath(
+                Path.IsPathRooted(configuredPath)
+                    ? configuredPath
+                    : Path.Combine(contentRootPath, configuredPath));
+        }
     }
 }

@@ -1,118 +1,121 @@
 using System.Security.Claims;
+
 using Ludora.Application.DTOs;
 using Ludora.Application.DTOs.Notification;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Ludora.API.Controllers.User;
-
-[Authorize]
-[Route("api/notifications")]
-[ApiController]
-public sealed class NotificationsController : ControllerBase
+namespace Ludora.API.Controllers.User
 {
-    private readonly INotificationService _notificationService;
-
-    public NotificationsController(INotificationService notificationService)
+    [Authorize]
+    [Route("api/notifications")]
+    [ApiController]
+    public sealed class NotificationsController : ControllerBase
     {
-        _notificationService = notificationService;
-    }
+        private readonly INotificationService _notificationService;
 
-    [HttpGet]
-    public async Task<ActionResult<PagedResultDTO<NotificationDTO>>> GetMine(
-        [FromQuery] NotificationFilterDTO filter,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _notificationService.GetMineAsync(
-            GetCurrentUserId(),
-            filter,
-            cancellationToken));
-    }
+        public NotificationsController(INotificationService notificationService)
+        {
+            _notificationService = notificationService;
+        }
 
-    [HttpGet("unread-count")]
-    public async Task<ActionResult<UnreadNotificationCountDTO>> GetUnreadCount(
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _notificationService.GetUnreadCountAsync(
-            GetCurrentUserId(),
-            cancellationToken));
-    }
+        [HttpGet]
+        public async Task<ActionResult<PagedResultDTO<NotificationDTO>>> GetMine(
+            [FromQuery] NotificationFilterDTO filter,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _notificationService.GetMineAsync(
+                GetCurrentUserId(),
+                filter,
+                cancellationToken));
+        }
 
-    [HttpPatch("{notificationId:long}/read")]
-    public async Task<ActionResult<NotificationDTO>> MarkAsRead(
-        long notificationId,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _notificationService.MarkAsReadAsync(
-            GetCurrentUserId(),
-            notificationId,
-            cancellationToken));
-    }
+        [HttpGet("unread-count")]
+        public async Task<ActionResult<UnreadNotificationCountDTO>> GetUnreadCount(
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _notificationService.GetUnreadCountAsync(
+                GetCurrentUserId(),
+                cancellationToken));
+        }
 
-    [HttpPatch("read-all")]
-    public async Task<IActionResult> MarkAllAsRead(CancellationToken cancellationToken)
-    {
-        await _notificationService.MarkAllAsReadAsync(
-            GetCurrentUserId(),
-            cancellationToken);
+        [HttpPatch("{notificationId:long}/read")]
+        public async Task<ActionResult<NotificationDTO>> MarkAsRead(
+            long notificationId,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _notificationService.MarkAsReadAsync(
+                GetCurrentUserId(),
+                notificationId,
+                cancellationToken));
+        }
 
-        return NoContent();
-    }
+        [HttpPatch("read-all")]
+        public async Task<IActionResult> MarkAllAsRead(CancellationToken cancellationToken)
+        {
+            await _notificationService.MarkAllAsReadAsync(
+                GetCurrentUserId(),
+                cancellationToken);
 
-    [HttpDelete("{notificationId:long}")]
-    public async Task<IActionResult> Delete(
-        long notificationId,
-        CancellationToken cancellationToken)
-    {
-        await _notificationService.DeleteAsync(
-            GetCurrentUserId(),
-            notificationId,
-            cancellationToken);
+            return NoContent();
+        }
 
-        return NoContent();
-    }
+        [HttpDelete("{notificationId:long}")]
+        public async Task<IActionResult> Delete(
+            long notificationId,
+            CancellationToken cancellationToken)
+        {
+            await _notificationService.DeleteAsync(
+                GetCurrentUserId(),
+                notificationId,
+                cancellationToken);
 
-    [HttpGet("settings")]
-    public async Task<ActionResult<NotificationSettingsDTO>> GetSettings(
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _notificationService.GetSettingsAsync(
-            GetCurrentUserId(),
-            cancellationToken));
-    }
+            return NoContent();
+        }
 
-    [HttpPut("settings/{type}")]
-    public async Task<ActionResult<NotificationPreferenceDTO>> UpdatePreference(
-        NotificationType type,
-        [FromBody] UpdateNotificationPreferenceDTO dto,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _notificationService.UpdatePreferenceAsync(
-            GetCurrentUserId(),
-            type,
-            dto,
-            cancellationToken));
-    }
+        [HttpGet("settings")]
+        public async Task<ActionResult<NotificationSettingsDTO>> GetSettings(
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _notificationService.GetSettingsAsync(
+                GetCurrentUserId(),
+                cancellationToken));
+        }
 
-    [HttpDelete("settings/reset")]
-    public async Task<IActionResult> ResetPreferences(CancellationToken cancellationToken)
-    {
-        await _notificationService.ResetPreferencesAsync(
-            GetCurrentUserId(),
-            cancellationToken);
+        [HttpPut("settings/{type}")]
+        public async Task<ActionResult<NotificationPreferenceDTO>> UpdatePreference(
+            NotificationType type,
+            [FromBody] UpdateNotificationPreferenceDTO dto,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _notificationService.UpdatePreferenceAsync(
+                GetCurrentUserId(),
+                type,
+                dto,
+                cancellationToken));
+        }
 
-        return NoContent();
-    }
+        [HttpDelete("settings/reset")]
+        public async Task<IActionResult> ResetPreferences(CancellationToken cancellationToken)
+        {
+            await _notificationService.ResetPreferencesAsync(
+                GetCurrentUserId(),
+                cancellationToken);
 
-    private Guid GetCurrentUserId()
-    {
-        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return NoContent();
+        }
 
-        if (!Guid.TryParse(value, out var userId))
-            throw new UnauthorizedAccessException("İstifadəçi müəyyən edilmədi.");
+        private Guid GetCurrentUserId()
+        {
+            var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
 
-        return userId;
+            if (!Guid.TryParse(value, out var userId))
+                throw new UnauthorizedAccessException("İstifadəçi müəyyən edilmədi.");
+
+            return userId;
+        }
     }
 }

@@ -1,55 +1,57 @@
 using System.Text.Json;
+
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 
-namespace Ludora.API.HealthChecks;
-
-public static class HealthCheckResponseWriter
+namespace Ludora.API.HealthChecks
 {
-    private static readonly JsonSerializerOptions JsonOptions =
-        new(JsonSerializerDefaults.Web);
-
-    public static Task WritePublicAsync(HttpContext context, HealthReport report)
+    public static class HealthCheckResponseWriter
     {
-        PrepareResponse(context);
+        private static readonly JsonSerializerOptions JsonOptions =
+            new(JsonSerializerDefaults.Web);
 
-        var payload = new
+        public static Task WritePublicAsync(HttpContext context, HealthReport report)
         {
-            status = report.Status.ToString(),
-            traceId = context.TraceIdentifier
-        };
+            PrepareResponse(context);
 
-        return context.Response.WriteAsync(
-            JsonSerializer.Serialize(payload, JsonOptions));
-    }
+            var payload = new
+            {
+                status = report.Status.ToString(),
+                traceId = context.TraceIdentifier
+            };
 
-    public static Task WriteDetailedAsync(HttpContext context, HealthReport report)
-    {
-        PrepareResponse(context);
+            return context.Response.WriteAsync(
+                JsonSerializer.Serialize(payload, JsonOptions));
+        }
 
-        var payload = new
+        public static Task WriteDetailedAsync(HttpContext context, HealthReport report)
         {
-            status = report.Status.ToString(),
-            traceId = context.TraceIdentifier,
-            durationMilliseconds = Math.Round(report.TotalDuration.TotalMilliseconds, 2),
-            checks = report.Entries.ToDictionary(
-                pair => pair.Key,
-                pair => new
-                {
-                    status = pair.Value.Status.ToString(),
-                    description = pair.Value.Description,
-                    durationMilliseconds = Math.Round(pair.Value.Duration.TotalMilliseconds, 2),
-                    data = pair.Value.Data
-                })
-        };
+            PrepareResponse(context);
 
-        return context.Response.WriteAsync(
-            JsonSerializer.Serialize(payload, JsonOptions));
-    }
+            var payload = new
+            {
+                status = report.Status.ToString(),
+                traceId = context.TraceIdentifier,
+                durationMilliseconds = Math.Round(report.TotalDuration.TotalMilliseconds, 2),
+                checks = report.Entries.ToDictionary(
+                    pair => pair.Key,
+                    pair => new
+                    {
+                        status = pair.Value.Status.ToString(),
+                        description = pair.Value.Description,
+                        durationMilliseconds = Math.Round(pair.Value.Duration.TotalMilliseconds, 2),
+                        data = pair.Value.Data
+                    })
+            };
 
-    private static void PrepareResponse(HttpContext context)
-    {
-        context.Response.ContentType = "application/json; charset=utf-8";
-        context.Response.Headers["Cache-Control"] = "no-store, no-cache";
-        context.Response.Headers["Pragma"] = "no-cache";
+            return context.Response.WriteAsync(
+                JsonSerializer.Serialize(payload, JsonOptions));
+        }
+
+        private static void PrepareResponse(HttpContext context)
+        {
+            context.Response.ContentType = "application/json; charset=utf-8";
+            context.Response.Headers["Cache-Control"] = "no-store, no-cache";
+            context.Response.Headers["Pragma"] = "no-cache";
+        }
     }
 }

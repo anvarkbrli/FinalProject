@@ -9,882 +9,884 @@ using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
 using Ludora.Persistence.Extensions;
+
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
-namespace Ludora.Persistence.Services.Admin;
-
-public sealed class AdminUserService : IAdminUserService
+namespace Ludora.Persistence.Services.Admin
 {
-    private const int MaxSearchLength = 200;
-    private const int MaxPageSize = 100;
-    private const int MaxBanDurationMinutes = 525600;
-
-    private readonly AppDbContext _context;
-    private readonly UserManager<AppUser> _userManager;
-    private readonly RoleManager<IdentityRole<Guid>> _roleManager;
-    private readonly INotificationService _notificationService;
-    private readonly IUserPresenceTracker _presenceTracker;
-
-    public AdminUserService(
-        AppDbContext context,
-        UserManager<AppUser> userManager,
-        RoleManager<IdentityRole<Guid>> roleManager,
-        INotificationService notificationService,
-        IUserPresenceTracker presenceTracker)
+    public sealed class AdminUserService : IAdminUserService
     {
-        _context = context;
-        _userManager = userManager;
-        _roleManager = roleManager;
-        _notificationService = notificationService;
-        _presenceTracker = presenceTracker;
-    }
+        private const int MaxSearchLength = 200;
+        private const int MaxPageSize = 100;
+        private const int MaxBanDurationMinutes = 525600;
 
-    public async Task<PagedResultDTO<AdminUserListItemDTO>> GetAllAsync(
-        AdminUserFilterDTO filter,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(filter);
-        ValidatePagination(filter.PageNumber, filter.PageSize);
+        private readonly AppDbContext _context;
+        private readonly UserManager<AppUser> _userManager;
+        private readonly RoleManager<IdentityRole<Guid>> _roleManager;
+        private readonly INotificationService _notificationService;
+        private readonly IUserPresenceTracker _presenceTracker;
 
-        var search = filter.Search.NormalizeOptionalText("Axtarış mətni", MaxSearchLength);
-        var role = NormalizeOptionalRole(filter.Role);
-        var now = DateTime.UtcNow;
-
-        var query = _context.Users.AsNoTracking();
-
-        if (search is not null)
+        public AdminUserService(
+            AppDbContext context,
+            UserManager<AppUser> userManager,
+            RoleManager<IdentityRole<Guid>> roleManager,
+            INotificationService notificationService,
+            IUserPresenceTracker presenceTracker)
         {
-            query = query.Where(x =>
-                (x.UserName != null && x.UserName.Contains(search)) ||
-                (x.Email != null && x.Email.Contains(search)));
+            _context = context;
+            _userManager = userManager;
+            _roleManager = roleManager;
+            _notificationService = notificationService;
+            _presenceTracker = presenceTracker;
         }
 
-        if (role is not null)
+        public async Task<PagedResultDTO<AdminUserListItemDTO>> GetAllAsync(
+            AdminUserFilterDTO filter,
+            CancellationToken cancellationToken = default)
         {
-            query = query.Where(user =>
-                _context.UserRoles
-                    .Where(userRole => userRole.UserId == user.Id)
-                    .Join(
-                        _context.Roles,
-                        userRole => userRole.RoleId,
-                        identityRole => identityRole.Id,
-                        (_, identityRole) => identityRole.Name)
-                    .Any(roleName => roleName == role));
+            ArgumentNullException.ThrowIfNull(filter);
+            ValidatePagination(filter.PageNumber, filter.PageSize);
+
+            var search = filter.Search.NormalizeOptionalText("Axtarış mətni", MaxSearchLength);
+            var role = NormalizeOptionalRole(filter.Role);
+            var now = DateTime.UtcNow;
+
+            var query = _context.Users.AsNoTracking();
+
+            if (search is not null)
+            {
+                query = query.Where(x =>
+                    (x.UserName != null && x.UserName.Contains(search)) ||
+                    (x.Email != null && x.Email.Contains(search)));
+            }
+
+            if (role is not null)
+            {
+                query = query.Where(user =>
+                    _context.UserRoles
+                        .Where(userRole => userRole.UserId == user.Id)
+                        .Join(
+                            _context.Roles,
+                            userRole => userRole.RoleId,
+                            identityRole => identityRole.Id,
+                            (_, identityRole) => identityRole.Name)
+                        .Any(roleName => roleName == role));
+            }
+
+            if (filter.IsBanned.HasValue)
+            {
+                query = filter.IsBanned.Value
+                    ? query.Where(x =>
+                        x.IsPermanentlyBanned ||
+                        (x.BannedUntilUtc.HasValue && x.BannedUntilUtc > now))
+                    : query.Where(x =>
+                        !x.IsPermanentlyBanned &&
+                        (!x.BannedUntilUtc.HasValue || x.BannedUntilUtc <= now));
+            }
+
+            var totalCount = await query.CountAsync(cancellationToken);
+
+            query = ApplySorting(query, filter.SortBy);
+
+            var items = await query
+                .Skip((filter.PageNumber - 1) * filter.PageSize)
+                .Take(filter.PageSize)
+                .Select(user => new AdminUserListItemDTO
+                {
+                    Id = user.Id,
+                    UserName = user.UserName ?? string.Empty,
+                    Email = user.Email ?? string.Empty,
+                    ProfileImageUrl = user.ProfileImageUrl,
+                    Role = _context.UserRoles
+                        .Where(userRole => userRole.UserId == user.Id)
+                        .Join(
+                            _context.Roles,
+                            userRole => userRole.RoleId,
+                            identityRole => identityRole.Id,
+                            (_, identityRole) => identityRole.Name)
+                        .OrderBy(roleName => roleName)
+                        .FirstOrDefault() ?? RoleNames.User,
+                    IsPrivate = user.IsPrivate,
+                    IsBanned = user.IsPermanentlyBanned ||
+                               (user.BannedUntilUtc.HasValue && user.BannedUntilUtc > now),
+                    IsPermanentlyBanned = user.IsPermanentlyBanned,
+                    BannedUntilUtc = user.BannedUntilUtc,
+                    WarningCount = user.ReceivedWarnings.Count,
+                    ReportCount = user.ReceivedReports.Count,
+                    PendingReportCount = user.ReceivedReports.Count(report =>
+                        report.Status == UserReportStatus.Pending ||
+                        report.Status == UserReportStatus.UnderReview),
+                    CreatedAt = user.CreatedAt
+                })
+                .ToListAsync(cancellationToken);
+
+            var onlineUserIds = await _presenceTracker.GetOnlineUserIdsAsync(
+                items.Select(item => item.Id).ToArray(),
+                cancellationToken);
+
+            items = items
+                .Select(item => item with
+                {
+                    IsOnline = onlineUserIds.Contains(item.Id)
+                })
+                .ToList();
+
+            return new PagedResultDTO<AdminUserListItemDTO>
+            {
+                Items = items,
+                PageNumber = filter.PageNumber,
+                PageSize = filter.PageSize,
+                TotalCount = totalCount,
+                TotalPages = totalCount == 0
+                    ? 0
+                    : (int)Math.Ceiling(totalCount / (double)filter.PageSize)
+            };
         }
 
-        if (filter.IsBanned.HasValue)
+        public async Task<AdminUserDetailDTO> GetByIdAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
         {
-            query = filter.IsBanned.Value
-                ? query.Where(x =>
-                    x.IsPermanentlyBanned ||
-                    (x.BannedUntilUtc.HasValue && x.BannedUntilUtc > now))
-                : query.Where(x =>
-                    !x.IsPermanentlyBanned &&
-                    (!x.BannedUntilUtc.HasValue || x.BannedUntilUtc <= now));
-        }
+            if (userId == Guid.Empty)
+                throw new BadRequestException("İstifadəçi ID-si düzgün deyil.");
 
-        var totalCount = await query.CountAsync(cancellationToken);
+            var user = await _context.Users
+                .AsNoTracking()
+                .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken)
+                ?? throw new NotFoundException("İstifadəçi tapılmadı.");
 
-        query = ApplySorting(query, filter.SortBy);
+            var role = await _context.UserRoles
+                .Where(x => x.UserId == userId)
+                .Join(
+                    _context.Roles,
+                    userRole => userRole.RoleId,
+                    identityRole => identityRole.Id,
+                    (_, identityRole) => identityRole.Name)
+                .OrderBy(x => x)
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? RoleNames.User;
 
-        var items = await query
-            .Skip((filter.PageNumber - 1) * filter.PageSize)
-            .Take(filter.PageSize)
-            .Select(user => new AdminUserListItemDTO
+            var now = DateTime.UtcNow;
+
+            return new AdminUserDetailDTO
             {
                 Id = user.Id,
                 UserName = user.UserName ?? string.Empty,
                 Email = user.Email ?? string.Empty,
+                Bio = user.Bio,
                 ProfileImageUrl = user.ProfileImageUrl,
-                Role = _context.UserRoles
-                    .Where(userRole => userRole.UserId == user.Id)
-                    .Join(
-                        _context.Roles,
-                        userRole => userRole.RoleId,
-                        identityRole => identityRole.Id,
-                        (_, identityRole) => identityRole.Name)
-                    .OrderBy(roleName => roleName)
-                    .FirstOrDefault() ?? RoleNames.User,
+                Role = role,
                 IsPrivate = user.IsPrivate,
+                IsOnline = await _presenceTracker.IsOnlineAsync(
+                    user.Id,
+                    cancellationToken),
                 IsBanned = user.IsPermanentlyBanned ||
                            (user.BannedUntilUtc.HasValue && user.BannedUntilUtc > now),
                 IsPermanentlyBanned = user.IsPermanentlyBanned,
                 BannedUntilUtc = user.BannedUntilUtc,
-                WarningCount = user.ReceivedWarnings.Count,
-                ReportCount = user.ReceivedReports.Count,
-                PendingReportCount = user.ReceivedReports.Count(report =>
-                    report.Status == UserReportStatus.Pending ||
-                    report.Status == UserReportStatus.UnderReview),
+                BanReason = user.BanReason,
+                BannedAtUtc = user.BannedAtUtc,
+                BannedByUserId = user.BannedByUserId,
+                FollowerCount = await _context.UserFollows.CountAsync(x =>
+                        x.FollowingId == userId && x.Status == FollowStatus.Accepted,
+                    cancellationToken),
+                FollowingCount = await _context.UserFollows.CountAsync(x =>
+                        x.FollowerId == userId && x.Status == FollowStatus.Accepted,
+                    cancellationToken),
+                PostCount = await _context.UserPosts.CountAsync(x => x.UserId == userId, cancellationToken),
+                DeletedPostCount = await _context.UserPosts
+                    .IgnoreQueryFilters()
+                    .CountAsync(x => x.UserId == userId && x.IsDeleted, cancellationToken),
+                DiscussionCount = await _context.Discussions.CountAsync(x => x.UserId == userId, cancellationToken),
+                ReplyCount = await _context.DiscussionReplies.CountAsync(x => x.UserId == userId, cancellationToken),
+                WarningCount = await _context.UserWarnings.CountAsync(
+                    x => x.UserId == userId,
+                    cancellationToken),
+                UnreadWarningCount = await _context.UserWarnings.CountAsync(
+                    x => x.UserId == userId && !x.IsRead,
+                    cancellationToken),
+                ReportCount = await _context.UserReports.CountAsync(
+                    x => x.ReportedUserId == userId,
+                    cancellationToken),
+                PendingReportCount = await _context.UserReports.CountAsync(
+                    x => x.ReportedUserId == userId &&
+                         (x.Status == UserReportStatus.Pending ||
+                          x.Status == UserReportStatus.UnderReview),
+                    cancellationToken),
                 CreatedAt = user.CreatedAt
-            })
-            .ToListAsync(cancellationToken);
-
-        var onlineUserIds = await _presenceTracker.GetOnlineUserIdsAsync(
-            items.Select(item => item.Id).ToArray(),
-            cancellationToken);
-
-        items = items
-            .Select(item => item with
-            {
-                IsOnline = onlineUserIds.Contains(item.Id)
-            })
-            .ToList();
-
-        return new PagedResultDTO<AdminUserListItemDTO>
-        {
-            Items = items,
-            PageNumber = filter.PageNumber,
-            PageSize = filter.PageSize,
-            TotalCount = totalCount,
-            TotalPages = totalCount == 0
-                ? 0
-                : (int)Math.Ceiling(totalCount / (double)filter.PageSize)
-        };
-    }
-
-    public async Task<AdminUserDetailDTO> GetByIdAsync(
+            };
+        }
+        public async Task<AdminUserBanHistoryDTO> GetBanHistoryAsync(
         Guid userId,
         CancellationToken cancellationToken = default)
-    {
-        if (userId == Guid.Empty)
-            throw new BadRequestException("İstifadəçi ID-si düzgün deyil.");
-
-        var user = await _context.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(x => x.Id == userId, cancellationToken)
-            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
-
-        var role = await _context.UserRoles
-            .Where(x => x.UserId == userId)
-            .Join(
-                _context.Roles,
-                userRole => userRole.RoleId,
-                identityRole => identityRole.Id,
-                (_, identityRole) => identityRole.Name)
-            .OrderBy(x => x)
-            .FirstOrDefaultAsync(cancellationToken)
-            ?? RoleNames.User;
-
-        var now = DateTime.UtcNow;
-
-        return new AdminUserDetailDTO
         {
-            Id = user.Id,
-            UserName = user.UserName ?? string.Empty,
-            Email = user.Email ?? string.Empty,
-            Bio = user.Bio,
-            ProfileImageUrl = user.ProfileImageUrl,
-            Role = role,
-            IsPrivate = user.IsPrivate,
-            IsOnline = await _presenceTracker.IsOnlineAsync(
-                user.Id,
-                cancellationToken),
-            IsBanned = user.IsPermanentlyBanned ||
-                       (user.BannedUntilUtc.HasValue && user.BannedUntilUtc > now),
-            IsPermanentlyBanned = user.IsPermanentlyBanned,
-            BannedUntilUtc = user.BannedUntilUtc,
-            BanReason = user.BanReason,
-            BannedAtUtc = user.BannedAtUtc,
-            BannedByUserId = user.BannedByUserId,
-            FollowerCount = await _context.UserFollows.CountAsync(x =>
-                    x.FollowingId == userId && x.Status == FollowStatus.Accepted,
-                cancellationToken),
-            FollowingCount = await _context.UserFollows.CountAsync(x =>
-                    x.FollowerId == userId && x.Status == FollowStatus.Accepted,
-                cancellationToken),
-            PostCount = await _context.UserPosts.CountAsync(x => x.UserId == userId, cancellationToken),
-            DeletedPostCount = await _context.UserPosts
-                .IgnoreQueryFilters()
-                .CountAsync(x => x.UserId == userId && x.IsDeleted, cancellationToken),
-            DiscussionCount = await _context.Discussions.CountAsync(x => x.UserId == userId, cancellationToken),
-            ReplyCount = await _context.DiscussionReplies.CountAsync(x => x.UserId == userId, cancellationToken),
-            WarningCount = await _context.UserWarnings.CountAsync(
-                x => x.UserId == userId,
-                cancellationToken),
-            UnreadWarningCount = await _context.UserWarnings.CountAsync(
-                x => x.UserId == userId && !x.IsRead,
-                cancellationToken),
-            ReportCount = await _context.UserReports.CountAsync(
-                x => x.ReportedUserId == userId,
-                cancellationToken),
-            PendingReportCount = await _context.UserReports.CountAsync(
-                x => x.ReportedUserId == userId &&
-                     (x.Status == UserReportStatus.Pending ||
-                      x.Status == UserReportStatus.UnderReview),
-                cancellationToken),
-            CreatedAt = user.CreatedAt
-        };
-    }
-    public async Task<AdminUserBanHistoryDTO> GetBanHistoryAsync(
-    Guid userId,
-    CancellationToken cancellationToken = default)
-    {
-        if (userId == Guid.Empty)
-        {
-            throw new BadRequestException(
-                "İstifadəçi ID-si düzgün deyil.");
-        }
-
-        var user = await _context.Users
-            .AsNoTracking()
-            .Where(x => x.Id == userId)
-            .Select(x => new
+            if (userId == Guid.Empty)
             {
-                x.Id,
-                UserName = x.UserName ?? string.Empty
-            })
-            .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException(
-                "İstifadəçi tapılmadı.");
+                throw new BadRequestException(
+                    "İstifadəçi ID-si düzgün deyil.");
+            }
 
-        var now = DateTime.UtcNow;
-
-        var histories = await _context.UserBanHistories
-            .AsNoTracking()
-            .Where(x => x.UserId == userId)
-            .OrderByDescending(x => x.BannedAtUtc)
-            .Select(x => new
-            {
-                x.Id,
-                x.BanType,
-                x.Reason,
-                x.BannedAtUtc,
-                x.BannedUntilUtc,
-                x.BannedByUserId,
-
-                BannedByUserName =
-                    x.BannedByUser.UserName ?? string.Empty,
-
-                x.UnbannedAtUtc,
-                x.UnbannedByUserId,
-
-                UnbannedByUserName =
-                    x.UnbannedByUser == null
-                        ? null
-                        : x.UnbannedByUser.UserName
-            })
-            .ToListAsync(cancellationToken);
-
-        var items = histories
-            .Select(history =>
-            {
-                var wasManuallyUnbanned =
-                    history.UnbannedAtUtc.HasValue;
-
-                var isActive =
-                    !wasManuallyUnbanned &&
-                    (
-                        history.BanType == BanType.Permanent ||
-                        (
-                            history.BannedUntilUtc.HasValue &&
-                            history.BannedUntilUtc.Value > now
-                        )
-                    );
-
-                var isExpired =
-                    !wasManuallyUnbanned &&
-                    history.BanType == BanType.Temporary &&
-                    history.BannedUntilUtc.HasValue &&
-                    history.BannedUntilUtc.Value <= now;
-
-                return new AdminUserBanHistoryItemDTO
+            var user = await _context.Users
+                .AsNoTracking()
+                .Where(x => x.Id == userId)
+                .Select(x => new
                 {
-                    Id = history.Id,
-                    Type = history.BanType,
-                    Reason = history.Reason,
-                    BannedAtUtc = history.BannedAtUtc,
-                    BannedUntilUtc = history.BannedUntilUtc,
-                    BannedByUserId = history.BannedByUserId,
-                    BannedByUserName = history.BannedByUserName,
-                    IsActive = isActive,
-                    IsExpired = isExpired,
-                    WasManuallyUnbanned = wasManuallyUnbanned,
-                    UnbannedAtUtc = history.UnbannedAtUtc,
-                    UnbannedByUserId = history.UnbannedByUserId,
-                    UnbannedByUserName =
-                        history.UnbannedByUserName
-                };
-            })
-            .ToList();
+                    x.Id,
+                    UserName = x.UserName ?? string.Empty
+                })
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? throw new NotFoundException(
+                    "İstifadəçi tapılmadı.");
 
-        return new AdminUserBanHistoryDTO
-        {
-            UserId = user.Id,
-            UserName = user.UserName,
-            TotalBanCount = items.Count,
+            var now = DateTime.UtcNow;
 
-            TemporaryBanCount = items.Count(
-                x => x.Type == BanType.Temporary),
-
-            PermanentBanCount = items.Count(
-                x => x.Type == BanType.Permanent),
-
-            Items = items
-        };
-    }
-
-    public async Task<AdminUserWarningHistoryDTO> GetWarningHistoryAsync(
-        Guid userId,
-        CancellationToken cancellationToken = default)
-    {
-        if (userId == Guid.Empty)
-            throw new BadRequestException("İstifadəçi ID-si düzgün deyil.");
-
-        var user = await _context.Users
-            .AsNoTracking()
-            .Where(x => x.Id == userId)
-            .Select(x => new
-            {
-                x.Id,
-                UserName = x.UserName ?? string.Empty
-            })
-            .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
-
-        var items = await _context.UserWarnings
-            .AsNoTracking()
-            .Where(x => x.UserId == userId)
-            .OrderByDescending(x => x.CreatedAtUtc)
-            .Select(x => new UserWarningDTO
-            {
-                Id = x.Id,
-                UserId = x.UserId,
-                UserName = x.User.UserName ?? string.Empty,
-                WarnedByUserId = x.WarnedByUserId,
-                WarnedByUserName = x.WarnedByUser.UserName ?? string.Empty,
-                Message = x.Message,
-                CreatedAtUtc = x.CreatedAtUtc,
-                IsRead = x.IsRead,
-                ReadAtUtc = x.ReadAtUtc
-            })
-            .ToListAsync(cancellationToken);
-
-        return new AdminUserWarningHistoryDTO
-        {
-            UserId = user.Id,
-            UserName = user.UserName,
-            TotalWarningCount = items.Count,
-            ReadWarningCount = items.Count(x => x.IsRead),
-            UnreadWarningCount = items.Count(x => !x.IsRead),
-            Items = items
-        };
-    }
-
-    public async Task<UserWarningDTO> WarnAsync(
-        Guid adminUserId,
-        Guid userId,
-        CreateUserWarningDTO dto,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(dto);
-
-        EnsureDifferentUsers(
-            adminUserId,
-            userId,
-            "Öz hesabınıza xəbərdarlıq göndərə bilməzsiniz.");
-
-        var message = dto.Message.NormalizeRequiredText(
-            "Xəbərdarlıq mətni",
-            1000);
-
-        var user = await GetModerationTargetAsync(
-            adminUserId,
-            userId,
-            cancellationToken);
-
-        var warning = new UserWarning
-        {
-            UserId = userId,
-            WarnedByUserId = adminUserId,
-            Message = message,
-            CreatedAtUtc = DateTime.UtcNow
-        };
-
-        await using var transaction = await _context.Database
-            .BeginTransactionAsync(cancellationToken);
-
-        await _context.UserWarnings.AddAsync(
-            warning,
-            cancellationToken);
-
-        await _context.ModeratorActionLogs.AddAsync(
-            new ModeratorActionLog
-            {
-                AdminUserId = adminUserId,
-                TargetUserId = userId,
-                UserWarning = warning,
-                ActionType = ModeratorActionType.WarningIssued,
-                Reason = message,
-                CreatedAtUtc = DateTime.UtcNow
-            },
-            cancellationToken);
-
-        await _context.SaveChangesAsync(cancellationToken);
-
-        await _notificationService.QueueAsync(
-            new NotificationCreateRequest
-            {
-                RecipientUserId = userId,
-                ActorUserId = adminUserId,
-                Type = NotificationType.WarningIssued,
-                Priority = NotificationPriority.Critical,
-                EntityType = NotificationEntityType.Warning,
-                EntityId = warning.Id.ToString(),
-                Title = "Admin xəbərdarlığı",
-                Message = warning.Message,
-                ActionUrl = null,
-                BypassPreferences = true
-            },
-            cancellationToken);
-
-        await _context.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
-        return await _context.UserWarnings
-            .AsNoTracking()
-            .Where(x => x.Id == warning.Id)
-            .Select(x => new UserWarningDTO
-            {
-                Id = x.Id,
-                UserId = x.UserId,
-                UserName = x.User.UserName ?? string.Empty,
-                WarnedByUserId = x.WarnedByUserId,
-                WarnedByUserName = x.WarnedByUser.UserName ?? string.Empty,
-                Message = x.Message,
-                CreatedAtUtc = x.CreatedAtUtc,
-                IsRead = x.IsRead,
-                ReadAtUtc = x.ReadAtUtc
-            })
-            .FirstAsync(cancellationToken);
-    }
-
-    public async Task<AdminUserDetailDTO> BanAsync(
-     Guid adminUserId,
-     Guid userId,
-     BanUserDTO dto,
-     CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(dto);
-
-        EnsureDifferentUsers(
-            adminUserId,
-            userId,
-            "Öz hesabınızı banlaya bilməzsiniz.");
-
-        dto.Type.EnsureDefined("Ban növü");
-
-        var reason = dto.Reason.NormalizeRequiredText(
-            "Ban səbəbi",
-            500);
-
-        if (dto.Type == BanType.Temporary)
-        {
-            if (!dto.DurationMinutes.HasValue)
-            {
-                throw new BadRequestException(
-                    "Müddətli ban üçün ban müddəti daxil edilməlidir.");
-            }
-
-            if (dto.DurationMinutes.Value <= 0 ||
-                dto.DurationMinutes.Value > MaxBanDurationMinutes)
-            {
-                throw new BadRequestException(
-                    $"Ban müddəti 1-{MaxBanDurationMinutes} dəqiqə aralığında olmalıdır.");
-            }
-        }
-
-        if (dto.Type == BanType.Permanent &&
-            dto.DurationMinutes.HasValue)
-        {
-            throw new BadRequestException(
-                "Müddətsiz ban zamanı müddət göndərilməməlidir.");
-        }
-
-        var user = await GetModerationTargetAsync(
-            adminUserId,
-            userId,
-            cancellationToken);
-
-        var now = DateTime.UtcNow;
-
-        var isCurrentlyBanned =
-            user.IsPermanentlyBanned ||
-            (
-                user.BannedUntilUtc.HasValue &&
-                user.BannedUntilUtc.Value > now
-            );
-
-        if (isCurrentlyBanned)
-        {
-            throw new ConflictException(
-                "Bu istifadəçi artıq banlanıb. Yeni ban verməzdən əvvəl mövcud banı açın.");
-        }
-
-        DateTime? bannedUntilUtc = dto.Type == BanType.Temporary
-          ? now.AddMinutes(dto.DurationMinutes!.Value)
-          : null;
-
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync(
-                cancellationToken);
-
-        user.IsPermanentlyBanned =
-            dto.Type == BanType.Permanent;
-
-        user.BannedUntilUtc = bannedUntilUtc;
-        user.BanReason = reason;
-        user.BannedAtUtc = now;
-        user.BannedByUserId = adminUserId;
-
-        var updateResult =
-            await _userManager.UpdateAsync(user);
-
-        updateResult.ThrowIfFailed();
-
-        var stampResult =
-            await _userManager.UpdateSecurityStampAsync(user);
-
-        stampResult.ThrowIfFailed();
-
-        var history = new UserBanHistory
-        {
-            UserId = userId,
-            BannedByUserId = adminUserId,
-            BanType = dto.Type,
-            Reason = reason,
-            BannedAtUtc = now,
-            BannedUntilUtc = bannedUntilUtc
-        };
-
-        await _context.UserBanHistories.AddAsync(
-            history,
-            cancellationToken);
-
-        await _context.ModeratorActionLogs.AddAsync(
-            new ModeratorActionLog
-            {
-                AdminUserId = adminUserId,
-                TargetUserId = userId,
-                UserBanHistory = history,
-                ActionType = dto.Type == BanType.Temporary
-                    ? ModeratorActionType.TemporaryBanIssued
-                    : ModeratorActionType.PermanentBanIssued,
-                Reason = reason,
-                CreatedAtUtc = now
-            },
-            cancellationToken);
-
-        await _context.SaveChangesAsync(
-            cancellationToken);
-
-        await transaction.CommitAsync(
-            cancellationToken);
-
-        return await GetByIdAsync(
-            userId,
-            cancellationToken);
-    }
-
-    public async Task<AdminUserDetailDTO> UnbanAsync(
-       Guid adminUserId,
-       Guid userId,
-       CancellationToken cancellationToken = default)
-    {
-        EnsureDifferentUsers(
-            adminUserId,
-            userId,
-            "Öz hesabınız üçün bu əməliyyatı edə bilməzsiniz.");
-
-        var user = await GetModerationTargetAsync(
-            adminUserId,
-            userId,
-            cancellationToken);
-
-        var now = DateTime.UtcNow;
-
-        var isCurrentlyBanned =
-            user.IsPermanentlyBanned ||
-            (
-                user.BannedUntilUtc.HasValue &&
-                user.BannedUntilUtc.Value > now
-            );
-
-        if (!isCurrentlyBanned)
-        {
-            throw new ConflictException(
-                "Bu istifadəçinin aktiv banı yoxdur.");
-        }
-
-        var activeBanHistory =
-            await _context.UserBanHistories
-                .Where(x =>
-                    x.UserId == userId &&
-                    !x.UnbannedAtUtc.HasValue &&
-                    (
-                        x.BanType == BanType.Permanent ||
-                        (
-                            x.BannedUntilUtc.HasValue &&
-                            x.BannedUntilUtc.Value > now
-                        )
-                    ))
+            var histories = await _context.UserBanHistories
+                .AsNoTracking()
+                .Where(x => x.UserId == userId)
                 .OrderByDescending(x => x.BannedAtUtc)
-                .FirstOrDefaultAsync(cancellationToken);
-        var previousBanReason = user.BanReason;
+                .Select(x => new
+                {
+                    x.Id,
+                    x.BanType,
+                    x.Reason,
+                    x.BannedAtUtc,
+                    x.BannedUntilUtc,
+                    x.BannedByUserId,
 
-        await using var transaction =
-            await _context.Database.BeginTransactionAsync(
+                    BannedByUserName =
+                        x.BannedByUser.UserName ?? string.Empty,
+
+                    x.UnbannedAtUtc,
+                    x.UnbannedByUserId,
+
+                    UnbannedByUserName =
+                        x.UnbannedByUser == null
+                            ? null
+                            : x.UnbannedByUser.UserName
+                })
+                .ToListAsync(cancellationToken);
+
+            var items = histories
+                .Select(history =>
+                {
+                    var wasManuallyUnbanned =
+                        history.UnbannedAtUtc.HasValue;
+
+                    var isActive =
+                        !wasManuallyUnbanned &&
+                        (
+                            history.BanType == BanType.Permanent ||
+                            (
+                                history.BannedUntilUtc.HasValue &&
+                                history.BannedUntilUtc.Value > now
+                            )
+                        );
+
+                    var isExpired =
+                        !wasManuallyUnbanned &&
+                        history.BanType == BanType.Temporary &&
+                        history.BannedUntilUtc.HasValue &&
+                        history.BannedUntilUtc.Value <= now;
+
+                    return new AdminUserBanHistoryItemDTO
+                    {
+                        Id = history.Id,
+                        Type = history.BanType,
+                        Reason = history.Reason,
+                        BannedAtUtc = history.BannedAtUtc,
+                        BannedUntilUtc = history.BannedUntilUtc,
+                        BannedByUserId = history.BannedByUserId,
+                        BannedByUserName = history.BannedByUserName,
+                        IsActive = isActive,
+                        IsExpired = isExpired,
+                        WasManuallyUnbanned = wasManuallyUnbanned,
+                        UnbannedAtUtc = history.UnbannedAtUtc,
+                        UnbannedByUserId = history.UnbannedByUserId,
+                        UnbannedByUserName =
+                            history.UnbannedByUserName
+                    };
+                })
+                .ToList();
+
+            return new AdminUserBanHistoryDTO
+            {
+                UserId = user.Id,
+                UserName = user.UserName,
+                TotalBanCount = items.Count,
+
+                TemporaryBanCount = items.Count(
+                    x => x.Type == BanType.Temporary),
+
+                PermanentBanCount = items.Count(
+                    x => x.Type == BanType.Permanent),
+
+                Items = items
+            };
+        }
+
+        public async Task<AdminUserWarningHistoryDTO> GetWarningHistoryAsync(
+            Guid userId,
+            CancellationToken cancellationToken = default)
+        {
+            if (userId == Guid.Empty)
+                throw new BadRequestException("İstifadəçi ID-si düzgün deyil.");
+
+            var user = await _context.Users
+                .AsNoTracking()
+                .Where(x => x.Id == userId)
+                .Select(x => new
+                {
+                    x.Id,
+                    UserName = x.UserName ?? string.Empty
+                })
+                .FirstOrDefaultAsync(cancellationToken)
+                ?? throw new NotFoundException("İstifadəçi tapılmadı.");
+
+            var items = await _context.UserWarnings
+                .AsNoTracking()
+                .Where(x => x.UserId == userId)
+                .OrderByDescending(x => x.CreatedAtUtc)
+                .Select(x => new UserWarningDTO
+                {
+                    Id = x.Id,
+                    UserId = x.UserId,
+                    UserName = x.User.UserName ?? string.Empty,
+                    WarnedByUserId = x.WarnedByUserId,
+                    WarnedByUserName = x.WarnedByUser.UserName ?? string.Empty,
+                    Message = x.Message,
+                    CreatedAtUtc = x.CreatedAtUtc,
+                    IsRead = x.IsRead,
+                    ReadAtUtc = x.ReadAtUtc
+                })
+                .ToListAsync(cancellationToken);
+
+            return new AdminUserWarningHistoryDTO
+            {
+                UserId = user.Id,
+                UserName = user.UserName,
+                TotalWarningCount = items.Count,
+                ReadWarningCount = items.Count(x => x.IsRead),
+                UnreadWarningCount = items.Count(x => !x.IsRead),
+                Items = items
+            };
+        }
+
+        public async Task<UserWarningDTO> WarnAsync(
+            Guid adminUserId,
+            Guid userId,
+            CreateUserWarningDTO dto,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(dto);
+
+            EnsureDifferentUsers(
+                adminUserId,
+                userId,
+                "Öz hesabınıza xəbərdarlıq göndərə bilməzsiniz.");
+
+            var message = dto.Message.NormalizeRequiredText(
+                "Xəbərdarlıq mətni",
+                1000);
+
+            var user = await GetModerationTargetAsync(
+                adminUserId,
+                userId,
                 cancellationToken);
 
-        user.IsPermanentlyBanned = false;
-        user.BannedUntilUtc = null;
-        user.BanReason = null;
-        user.BannedAtUtc = null;
-        user.BannedByUserId = null;
-
-        var updateResult =
-            await _userManager.UpdateAsync(user);
-
-        updateResult.ThrowIfFailed();
-
-        var stampResult =
-            await _userManager.UpdateSecurityStampAsync(user);
-
-        stampResult.ThrowIfFailed();
-
-        if (activeBanHistory is not null)
-        {
-            activeBanHistory.UnbannedAtUtc = now;
-            activeBanHistory.UnbannedByUserId =
-                adminUserId;
-        }
-
-        await _context.ModeratorActionLogs.AddAsync(
-            new ModeratorActionLog
+            var warning = new UserWarning
             {
-                AdminUserId = adminUserId,
-                TargetUserId = userId,
-                UserBanHistory = activeBanHistory,
-                ActionType = ModeratorActionType.UserUnbanned,
-                Reason = previousBanReason,
-                CreatedAtUtc = now
-            },
-            cancellationToken);
+                UserId = userId,
+                WarnedByUserId = adminUserId,
+                Message = message,
+                CreatedAtUtc = DateTime.UtcNow
+            };
 
-        await _context.SaveChangesAsync(cancellationToken);
+            await using var transaction = await _context.Database
+                .BeginTransactionAsync(cancellationToken);
 
-        await transaction.CommitAsync(
-            cancellationToken);
+            await _context.UserWarnings.AddAsync(
+                warning,
+                cancellationToken);
 
-        return await GetByIdAsync(
-            userId,
-            cancellationToken);
-    }
+            await _context.ModeratorActionLogs.AddAsync(
+                new ModeratorActionLog
+                {
+                    AdminUserId = adminUserId,
+                    TargetUserId = userId,
+                    UserWarning = warning,
+                    ActionType = ModeratorActionType.WarningIssued,
+                    Reason = message,
+                    CreatedAtUtc = DateTime.UtcNow
+                },
+                cancellationToken);
 
-    public async Task<AdminUserDetailDTO> ChangeRoleAsync(
-        Guid adminUserId,
-        Guid userId,
-        ChangeUserRoleDTO dto,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(dto);
-        EnsureDifferentUsers(adminUserId, userId, "Öz rolunuzu dəyişə bilməzsiniz.");
-        await EnsureActorIsAdminAsync(adminUserId);
+            await _context.SaveChangesAsync(cancellationToken);
 
-        var role = NormalizeRequiredRole(dto.Role);
+            await _notificationService.QueueAsync(
+                new NotificationCreateRequest
+                {
+                    RecipientUserId = userId,
+                    ActorUserId = adminUserId,
+                    Type = NotificationType.WarningIssued,
+                    Priority = NotificationPriority.Critical,
+                    EntityType = NotificationEntityType.Warning,
+                    EntityId = warning.Id.ToString(),
+                    Title = "Admin xəbərdarlığı",
+                    Message = warning.Message,
+                    ActionUrl = null,
+                    BypassPreferences = true
+                },
+                cancellationToken);
 
-        if (!await _roleManager.RoleExistsAsync(role))
-            throw new NotFoundException($"{role} rolu sistemdə tapılmadı.");
+            await _context.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
-        var user = await _userManager.FindByIdAsync(userId.ToString())
-            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
-
-        var currentRoles = await _userManager.GetRolesAsync(user);
-
-        if (currentRoles.Contains(RoleNames.Admin, StringComparer.OrdinalIgnoreCase) &&
-            role != RoleNames.Admin)
-        {
-            var adminUsers = await _userManager.GetUsersInRoleAsync(RoleNames.Admin);
-
-            if (adminUsers.Count <= 1)
-                throw new ConflictException("Sistemdəki son adminin rolunu dəyişmək olmaz.");
+            return await _context.UserWarnings
+                .AsNoTracking()
+                .Where(x => x.Id == warning.Id)
+                .Select(x => new UserWarningDTO
+                {
+                    Id = x.Id,
+                    UserId = x.UserId,
+                    UserName = x.User.UserName ?? string.Empty,
+                    WarnedByUserId = x.WarnedByUserId,
+                    WarnedByUserName = x.WarnedByUser.UserName ?? string.Empty,
+                    Message = x.Message,
+                    CreatedAtUtc = x.CreatedAtUtc,
+                    IsRead = x.IsRead,
+                    ReadAtUtc = x.ReadAtUtc
+                })
+                .FirstAsync(cancellationToken);
         }
 
-        if (currentRoles.Count == 1 &&
-            currentRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
+        public async Task<AdminUserDetailDTO> BanAsync(
+         Guid adminUserId,
+         Guid userId,
+         BanUserDTO dto,
+         CancellationToken cancellationToken = default)
         {
+            ArgumentNullException.ThrowIfNull(dto);
+
+            EnsureDifferentUsers(
+                adminUserId,
+                userId,
+                "Öz hesabınızı banlaya bilməzsiniz.");
+
+            dto.Type.EnsureDefined("Ban növü");
+
+            var reason = dto.Reason.NormalizeRequiredText(
+                "Ban səbəbi",
+                500);
+
+            if (dto.Type == BanType.Temporary)
+            {
+                if (!dto.DurationMinutes.HasValue)
+                {
+                    throw new BadRequestException(
+                        "Müddətli ban üçün ban müddəti daxil edilməlidir.");
+                }
+
+                if (dto.DurationMinutes.Value <= 0 ||
+                    dto.DurationMinutes.Value > MaxBanDurationMinutes)
+                {
+                    throw new BadRequestException(
+                        $"Ban müddəti 1-{MaxBanDurationMinutes} dəqiqə aralığında olmalıdır.");
+                }
+            }
+
+            if (dto.Type == BanType.Permanent &&
+                dto.DurationMinutes.HasValue)
+            {
+                throw new BadRequestException(
+                    "Müddətsiz ban zamanı müddət göndərilməməlidir.");
+            }
+
+            var user = await GetModerationTargetAsync(
+                adminUserId,
+                userId,
+                cancellationToken);
+
+            var now = DateTime.UtcNow;
+
+            var isCurrentlyBanned =
+                user.IsPermanentlyBanned ||
+                (
+                    user.BannedUntilUtc.HasValue &&
+                    user.BannedUntilUtc.Value > now
+                );
+
+            if (isCurrentlyBanned)
+            {
+                throw new ConflictException(
+                    "Bu istifadəçi artıq banlanıb. Yeni ban verməzdən əvvəl mövcud banı açın.");
+            }
+
+            DateTime? bannedUntilUtc = dto.Type == BanType.Temporary
+              ? now.AddMinutes(dto.DurationMinutes!.Value)
+              : null;
+
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync(
+                    cancellationToken);
+
+            user.IsPermanentlyBanned =
+                dto.Type == BanType.Permanent;
+
+            user.BannedUntilUtc = bannedUntilUtc;
+            user.BanReason = reason;
+            user.BannedAtUtc = now;
+            user.BannedByUserId = adminUserId;
+
+            var updateResult =
+                await _userManager.UpdateAsync(user);
+
+            updateResult.ThrowIfFailed();
+
+            var stampResult =
+                await _userManager.UpdateSecurityStampAsync(user);
+
+            stampResult.ThrowIfFailed();
+
+            var history = new UserBanHistory
+            {
+                UserId = userId,
+                BannedByUserId = adminUserId,
+                BanType = dto.Type,
+                Reason = reason,
+                BannedAtUtc = now,
+                BannedUntilUtc = bannedUntilUtc
+            };
+
+            await _context.UserBanHistories.AddAsync(
+                history,
+                cancellationToken);
+
+            await _context.ModeratorActionLogs.AddAsync(
+                new ModeratorActionLog
+                {
+                    AdminUserId = adminUserId,
+                    TargetUserId = userId,
+                    UserBanHistory = history,
+                    ActionType = dto.Type == BanType.Temporary
+                        ? ModeratorActionType.TemporaryBanIssued
+                        : ModeratorActionType.PermanentBanIssued,
+                    Reason = reason,
+                    CreatedAtUtc = now
+                },
+                cancellationToken);
+
+            await _context.SaveChangesAsync(
+                cancellationToken);
+
+            await transaction.CommitAsync(
+                cancellationToken);
+
+            return await GetByIdAsync(
+                userId,
+                cancellationToken);
+        }
+
+        public async Task<AdminUserDetailDTO> UnbanAsync(
+           Guid adminUserId,
+           Guid userId,
+           CancellationToken cancellationToken = default)
+        {
+            EnsureDifferentUsers(
+                adminUserId,
+                userId,
+                "Öz hesabınız üçün bu əməliyyatı edə bilməzsiniz.");
+
+            var user = await GetModerationTargetAsync(
+                adminUserId,
+                userId,
+                cancellationToken);
+
+            var now = DateTime.UtcNow;
+
+            var isCurrentlyBanned =
+                user.IsPermanentlyBanned ||
+                (
+                    user.BannedUntilUtc.HasValue &&
+                    user.BannedUntilUtc.Value > now
+                );
+
+            if (!isCurrentlyBanned)
+            {
+                throw new ConflictException(
+                    "Bu istifadəçinin aktiv banı yoxdur.");
+            }
+
+            var activeBanHistory =
+                await _context.UserBanHistories
+                    .Where(x =>
+                        x.UserId == userId &&
+                        !x.UnbannedAtUtc.HasValue &&
+                        (
+                            x.BanType == BanType.Permanent ||
+                            (
+                                x.BannedUntilUtc.HasValue &&
+                                x.BannedUntilUtc.Value > now
+                            )
+                        ))
+                    .OrderByDescending(x => x.BannedAtUtc)
+                    .FirstOrDefaultAsync(cancellationToken);
+            var previousBanReason = user.BanReason;
+
+            await using var transaction =
+                await _context.Database.BeginTransactionAsync(
+                    cancellationToken);
+
+            user.IsPermanentlyBanned = false;
+            user.BannedUntilUtc = null;
+            user.BanReason = null;
+            user.BannedAtUtc = null;
+            user.BannedByUserId = null;
+
+            var updateResult =
+                await _userManager.UpdateAsync(user);
+
+            updateResult.ThrowIfFailed();
+
+            var stampResult =
+                await _userManager.UpdateSecurityStampAsync(user);
+
+            stampResult.ThrowIfFailed();
+
+            if (activeBanHistory is not null)
+            {
+                activeBanHistory.UnbannedAtUtc = now;
+                activeBanHistory.UnbannedByUserId =
+                    adminUserId;
+            }
+
+            await _context.ModeratorActionLogs.AddAsync(
+                new ModeratorActionLog
+                {
+                    AdminUserId = adminUserId,
+                    TargetUserId = userId,
+                    UserBanHistory = activeBanHistory,
+                    ActionType = ModeratorActionType.UserUnbanned,
+                    Reason = previousBanReason,
+                    CreatedAtUtc = now
+                },
+                cancellationToken);
+
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await transaction.CommitAsync(
+                cancellationToken);
+
+            return await GetByIdAsync(
+                userId,
+                cancellationToken);
+        }
+
+        public async Task<AdminUserDetailDTO> ChangeRoleAsync(
+            Guid adminUserId,
+            Guid userId,
+            ChangeUserRoleDTO dto,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(dto);
+            EnsureDifferentUsers(adminUserId, userId, "Öz rolunuzu dəyişə bilməzsiniz.");
+            await EnsureActorIsAdminAsync(adminUserId);
+
+            var role = NormalizeRequiredRole(dto.Role);
+
+            if (!await _roleManager.RoleExistsAsync(role))
+                throw new NotFoundException($"{role} rolu sistemdə tapılmadı.");
+
+            var user = await _userManager.FindByIdAsync(userId.ToString())
+                ?? throw new NotFoundException("İstifadəçi tapılmadı.");
+
+            var currentRoles = await _userManager.GetRolesAsync(user);
+
+            if (currentRoles.Contains(RoleNames.Admin, StringComparer.OrdinalIgnoreCase) &&
+                role != RoleNames.Admin)
+            {
+                var adminUsers = await _userManager.GetUsersInRoleAsync(RoleNames.Admin);
+
+                if (adminUsers.Count <= 1)
+                    throw new ConflictException("Sistemdəki son adminin rolunu dəyişmək olmaz.");
+            }
+
+            if (currentRoles.Count == 1 &&
+                currentRoles.Contains(role, StringComparer.OrdinalIgnoreCase))
+            {
+                return await GetByIdAsync(userId, cancellationToken);
+            }
+
+            await using var transaction = await _context.Database
+                .BeginTransactionAsync(cancellationToken);
+
+            if (currentRoles.Count > 0)
+            {
+                var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
+                removeResult.ThrowIfFailed();
+            }
+
+            var addResult = await _userManager.AddToRoleAsync(user, role);
+            addResult.ThrowIfFailed();
+
+            var stampResult = await _userManager.UpdateSecurityStampAsync(user);
+            stampResult.ThrowIfFailed();
+
+            await _context.ModeratorActionLogs.AddAsync(
+                new ModeratorActionLog
+                {
+                    AdminUserId = adminUserId,
+                    TargetUserId = userId,
+                    ActionType = ModeratorActionType.RoleChanged,
+                    Reason = $"{string.Join(", ", currentRoles)} -> {role}",
+                    CreatedAtUtc = DateTime.UtcNow
+                },
+                cancellationToken);
+            await _context.SaveChangesAsync(cancellationToken);
+
+            await transaction.CommitAsync(cancellationToken);
+
             return await GetByIdAsync(userId, cancellationToken);
         }
 
-        await using var transaction = await _context.Database
-            .BeginTransactionAsync(cancellationToken);
-
-        if (currentRoles.Count > 0)
+        private static IQueryable<AppUser> ApplySorting(
+            IQueryable<AppUser> query,
+            string? sortBy)
         {
-            var removeResult = await _userManager.RemoveFromRolesAsync(user, currentRoles);
-            removeResult.ThrowIfFailed();
-        }
-
-        var addResult = await _userManager.AddToRoleAsync(user, role);
-        addResult.ThrowIfFailed();
-
-        var stampResult = await _userManager.UpdateSecurityStampAsync(user);
-        stampResult.ThrowIfFailed();
-
-        await _context.ModeratorActionLogs.AddAsync(
-            new ModeratorActionLog
+            return sortBy?.Trim().ToLowerInvariant() switch
             {
-                AdminUserId = adminUserId,
-                TargetUserId = userId,
-                ActionType = ModeratorActionType.RoleChanged,
-                Reason = $"{string.Join(", ", currentRoles)} -> {role}",
-                CreatedAtUtc = DateTime.UtcNow
-            },
-            cancellationToken);
-        await _context.SaveChangesAsync(cancellationToken);
+                "oldest" => query.OrderBy(x => x.CreatedAt),
+                "username" => query.OrderBy(x => x.UserName),
+                "username_desc" => query.OrderByDescending(x => x.UserName),
+                "mostreported" => query
+                    .OrderByDescending(x => x.ReceivedReports.Count)
+                    .ThenByDescending(x => x.CreatedAt),
+                "mostwarned" => query
+                    .OrderByDescending(x => x.ReceivedWarnings.Count)
+                    .ThenByDescending(x => x.CreatedAt),
+                _ => query.OrderByDescending(x => x.CreatedAt)
+            };
+        }
 
-        await transaction.CommitAsync(cancellationToken);
-
-        return await GetByIdAsync(userId, cancellationToken);
-    }
-
-    private static IQueryable<AppUser> ApplySorting(
-        IQueryable<AppUser> query,
-        string? sortBy)
-    {
-        return sortBy?.Trim().ToLowerInvariant() switch
+        private static string? NormalizeOptionalRole(string? role)
         {
-            "oldest" => query.OrderBy(x => x.CreatedAt),
-            "username" => query.OrderBy(x => x.UserName),
-            "username_desc" => query.OrderByDescending(x => x.UserName),
-            "mostreported" => query
-                .OrderByDescending(x => x.ReceivedReports.Count)
-                .ThenByDescending(x => x.CreatedAt),
-            "mostwarned" => query
-                .OrderByDescending(x => x.ReceivedWarnings.Count)
-                .ThenByDescending(x => x.CreatedAt),
-            _ => query.OrderByDescending(x => x.CreatedAt)
-        };
-    }
+            if (string.IsNullOrWhiteSpace(role))
+                return null;
 
-    private static string? NormalizeOptionalRole(string? role)
-    {
-        if (string.IsNullOrWhiteSpace(role))
-            return null;
+            return NormalizeRequiredRole(role);
+        }
 
-        return NormalizeRequiredRole(role);
-    }
+        private static string NormalizeRequiredRole(string role)
+        {
+            if (string.IsNullOrWhiteSpace(role))
+                throw new BadRequestException("Rol boş ola bilməz.");
 
-    private static string NormalizeRequiredRole(string role)
-    {
-        if (string.IsNullOrWhiteSpace(role))
-            throw new BadRequestException("Rol boş ola bilməz.");
+            var trimmedRole = role.Trim();
 
-        var trimmedRole = role.Trim();
+            if (!RoleNames.All.Contains(trimmedRole))
+                throw new BadRequestException(
+                    "Yalnız Admin, Moderator və User rolları istifadə oluna bilər.");
 
-        if (!RoleNames.All.Contains(trimmedRole))
-            throw new BadRequestException(
-                "Yalnız Admin, Moderator və User rolları istifadə oluna bilər.");
+            if (trimmedRole.Equals(
+                    RoleNames.Admin,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return RoleNames.Admin;
+            }
 
-        if (trimmedRole.Equals(
+            if (trimmedRole.Equals(
+                    RoleNames.Moderator,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return RoleNames.Moderator;
+            }
+
+            return RoleNames.User;
+        }
+
+        private static void EnsureDifferentUsers(
+            Guid adminUserId,
+            Guid targetUserId,
+            string message)
+        {
+            if (adminUserId == Guid.Empty || targetUserId == Guid.Empty)
+                throw new BadRequestException("İstifadəçi ID-si düzgün deyil.");
+
+            if (adminUserId == targetUserId)
+                throw new ForbiddenException(message);
+        }
+
+        private async Task<AppUser> GetModerationTargetAsync(
+            Guid actorUserId,
+            Guid targetUserId,
+            CancellationToken cancellationToken)
+        {
+            var actor = await _userManager.FindByIdAsync(actorUserId.ToString())
+                ?? throw new ForbiddenException(
+                    "Moderasiya əməliyyatı üçün istifadəçi müəyyən edilmədi.");
+
+            var actorRoles = await _userManager.GetRolesAsync(actor);
+            var actorIsAdmin = actorRoles.Contains(
                 RoleNames.Admin,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return RoleNames.Admin;
-        }
-
-        if (trimmedRole.Equals(
+                StringComparer.OrdinalIgnoreCase);
+            var actorIsModerator = actorRoles.Contains(
                 RoleNames.Moderator,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return RoleNames.Moderator;
-        }
+                StringComparer.OrdinalIgnoreCase);
 
-        return RoleNames.User;
-    }
+            if (!actorIsAdmin && !actorIsModerator)
+                throw new ForbiddenException(
+                    "Bu moderasiya əməliyyatı üçün icazəniz yoxdur.");
 
-    private static void EnsureDifferentUsers(
-        Guid adminUserId,
-        Guid targetUserId,
-        string message)
-    {
-        if (adminUserId == Guid.Empty || targetUserId == Guid.Empty)
-            throw new BadRequestException("İstifadəçi ID-si düzgün deyil.");
+            var target = await _userManager.FindByIdAsync(targetUserId.ToString())
+                ?? throw new NotFoundException("İstifadəçi tapılmadı.");
+            var targetRoles = await _userManager.GetRolesAsync(target);
 
-        if (adminUserId == targetUserId)
-            throw new ForbiddenException(message);
-    }
-
-    private async Task<AppUser> GetModerationTargetAsync(
-        Guid actorUserId,
-        Guid targetUserId,
-        CancellationToken cancellationToken)
-    {
-        var actor = await _userManager.FindByIdAsync(actorUserId.ToString())
-            ?? throw new ForbiddenException(
-                "Moderasiya əməliyyatı üçün istifadəçi müəyyən edilmədi.");
-
-        var actorRoles = await _userManager.GetRolesAsync(actor);
-        var actorIsAdmin = actorRoles.Contains(
-            RoleNames.Admin,
-            StringComparer.OrdinalIgnoreCase);
-        var actorIsModerator = actorRoles.Contains(
-            RoleNames.Moderator,
-            StringComparer.OrdinalIgnoreCase);
-
-        if (!actorIsAdmin && !actorIsModerator)
-            throw new ForbiddenException(
-                "Bu moderasiya əməliyyatı üçün icazəniz yoxdur.");
-
-        var target = await _userManager.FindByIdAsync(targetUserId.ToString())
-            ?? throw new NotFoundException("İstifadəçi tapılmadı.");
-        var targetRoles = await _userManager.GetRolesAsync(target);
-
-        if (targetRoles.Contains(
-            RoleNames.Admin,
-            StringComparer.OrdinalIgnoreCase))
-        {
-            throw new ForbiddenException(
-                "Admin rolundakı istifadəçi üzərində bu əməliyyatı yerinə yetirmək olmaz.");
-        }
-
-        if (!actorIsAdmin &&
-            targetRoles.Contains(
-                RoleNames.Moderator,
+            if (targetRoles.Contains(
+                RoleNames.Admin,
                 StringComparer.OrdinalIgnoreCase))
-        {
-            throw new ForbiddenException(
-                "Moderator başqa moderator üzərində bu əməliyyatı yerinə yetirə bilməz.");
+            {
+                throw new ForbiddenException(
+                    "Admin rolundakı istifadəçi üzərində bu əməliyyatı yerinə yetirmək olmaz.");
+            }
+
+            if (!actorIsAdmin &&
+                targetRoles.Contains(
+                    RoleNames.Moderator,
+                    StringComparer.OrdinalIgnoreCase))
+            {
+                throw new ForbiddenException(
+                    "Moderator başqa moderator üzərində bu əməliyyatı yerinə yetirə bilməz.");
+            }
+
+            return target;
         }
 
-        return target;
-    }
-
-    private async Task EnsureActorIsAdminAsync(Guid actorUserId)
-    {
-        var actor = await _userManager.FindByIdAsync(actorUserId.ToString())
-            ?? throw new ForbiddenException(
-                "Rol əməliyyatı üçün istifadəçi müəyyən edilmədi.");
-        var actorRoles = await _userManager.GetRolesAsync(actor);
-
-        if (!actorRoles.Contains(
-            RoleNames.Admin,
-            StringComparer.OrdinalIgnoreCase))
+        private async Task EnsureActorIsAdminAsync(Guid actorUserId)
         {
-            throw new ForbiddenException(
-                "İstifadəçi rolunu yalnız admin dəyişə bilər.");
+            var actor = await _userManager.FindByIdAsync(actorUserId.ToString())
+                ?? throw new ForbiddenException(
+                    "Rol əməliyyatı üçün istifadəçi müəyyən edilmədi.");
+            var actorRoles = await _userManager.GetRolesAsync(actor);
+
+            if (!actorRoles.Contains(
+                RoleNames.Admin,
+                StringComparer.OrdinalIgnoreCase))
+            {
+                throw new ForbiddenException(
+                    "İstifadəçi rolunu yalnız admin dəyişə bilər.");
+            }
         }
-    }
 
-    private static void ValidatePagination(int pageNumber, int pageSize)
-    {
-        if (pageNumber < 1)
-            throw new BadRequestException("Səhifə nömrəsi 1-dən kiçik ola bilməz.");
+        private static void ValidatePagination(int pageNumber, int pageSize)
+        {
+            if (pageNumber < 1)
+                throw new BadRequestException("Səhifə nömrəsi 1-dən kiçik ola bilməz.");
 
-        if (pageSize is < 1 or > MaxPageSize)
-            throw new BadRequestException($"Səhifə ölçüsü 1-{MaxPageSize} aralığında olmalıdır.");
+            if (pageSize is < 1 or > MaxPageSize)
+                throw new BadRequestException($"Səhifə ölçüsü 1-{MaxPageSize} aralığında olmalıdır.");
 
-        if ((long)(pageNumber - 1) * pageSize > int.MaxValue)
-            throw new BadRequestException("Səhifə parametrləri həddindən artıq böyükdür.");
+            if ((long)(pageNumber - 1) * pageSize > int.MaxValue)
+                throw new BadRequestException("Səhifə parametrləri həddindən artıq böyükdür.");
+        }
     }
 }

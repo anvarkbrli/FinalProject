@@ -1,10 +1,11 @@
 using Ludora.Domain.Enums;
 
-namespace Ludora.Application.DTOs.Notification;
-
-public sealed record NotificationPreferenceDTO
+namespace Ludora.Application.DTOs.Notification
 {
-    public NotificationType Type { get; init; }
-    public NotificationAudience Audience { get; init; }
-    public bool IsOverridden { get; init; }
+    public sealed record NotificationPreferenceDTO
+    {
+        public NotificationType Type { get; init; }
+        public NotificationAudience Audience { get; init; }
+        public bool IsOverridden { get; init; }
+    }
 }

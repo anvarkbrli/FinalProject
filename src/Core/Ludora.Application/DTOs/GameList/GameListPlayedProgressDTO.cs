@@ -1,8 +1,9 @@
-namespace Ludora.Application.DTOs;
-
-public sealed record GameListPlayedProgressDTO
+namespace Ludora.Application.DTOs
 {
-    public int PlayedGameCount { get; init; }
+    public sealed record GameListPlayedProgressDTO
+    {
+        public int PlayedGameCount { get; init; }
 
-    public int TotalGameCount { get; init; }
+        public int TotalGameCount { get; init; }
+    }
 }

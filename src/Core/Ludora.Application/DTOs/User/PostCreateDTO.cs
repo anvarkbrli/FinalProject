@@ -1,7 +1,8 @@
-namespace Ludora.Application.DTOs;
-
-public record PostCreateDTO
+namespace Ludora.Application.DTOs
 {
-    public string? Content { get; set; }
-    public PostImageUploadDTO? Image { get; set; }
+    public record PostCreateDTO
+    {
+        public string? Content { get; set; }
+        public PostImageUploadDTO? Image { get; set; }
+    }
 }

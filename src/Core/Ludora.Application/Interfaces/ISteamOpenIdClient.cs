@@ -1,12 +1,13 @@
 using Ludora.Application.Models.Steam;
 
-namespace Ludora.Application.Interfaces;
-
-public interface ISteamOpenIdClient
+namespace Ludora.Application.Interfaces
 {
-    string BuildAuthenticationUrl(string state);
+    public interface ISteamOpenIdClient
+    {
+        string BuildAuthenticationUrl(string state);
 
-    Task<SteamOpenIdValidationModel> ValidateCallbackAsync(
-        IReadOnlyDictionary<string, string> callbackParameters,
-        CancellationToken cancellationToken = default);
+        Task<SteamOpenIdValidationModel> ValidateCallbackAsync(
+            IReadOnlyDictionary<string, string> callbackParameters,
+            CancellationToken cancellationToken = default);
+    }
 }

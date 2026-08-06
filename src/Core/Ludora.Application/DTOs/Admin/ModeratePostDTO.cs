@@ -1,6 +1,7 @@
-namespace Ludora.Application.DTOs;
-
-public record ModeratePostDTO
+namespace Ludora.Application.DTOs
 {
-    public string? Reason { get; init; }
+    public record ModeratePostDTO
+    {
+        public string? Reason { get; init; }
+    }
 }

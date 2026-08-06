@@ -3,214 +3,216 @@ using Ludora.Application.DTOs.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
+
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 
-namespace Ludora.API.BackgroundServices;
-
-public sealed class NotificationOutboxWorker : BackgroundService
+namespace Ludora.API.BackgroundServices
 {
-    private const int BatchSize = 50;
-    private const int MaxAttempts = 8;
-    private static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(2);
-    private static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(1);
-    private static readonly TimeSpan ProcessedMessageRetention = TimeSpan.FromDays(7);
-    private static readonly TimeSpan CleanupInterval = TimeSpan.FromHours(24);
-
-    private readonly IServiceScopeFactory _scopeFactory;
-    private readonly IHubContext<NotificationHub> _hubContext;
-    private readonly ILogger<NotificationOutboxWorker> _logger;
-    private DateTime _nextCleanupAtUtc = DateTime.MinValue;
-
-    public NotificationOutboxWorker(
-        IServiceScopeFactory scopeFactory,
-        IHubContext<NotificationHub> hubContext,
-        ILogger<NotificationOutboxWorker> logger)
+    public sealed class NotificationOutboxWorker : BackgroundService
     {
-        _scopeFactory = scopeFactory;
-        _hubContext = hubContext;
-        _logger = logger;
-    }
+        private const int BatchSize = 50;
+        private const int MaxAttempts = 8;
+        private static readonly TimeSpan IdleDelay = TimeSpan.FromSeconds(2);
+        private static readonly TimeSpan LockDuration = TimeSpan.FromMinutes(1);
+        private static readonly TimeSpan ProcessedMessageRetention = TimeSpan.FromDays(7);
+        private static readonly TimeSpan CleanupInterval = TimeSpan.FromHours(24);
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        while (!stoppingToken.IsCancellationRequested)
+        private readonly IServiceScopeFactory _scopeFactory;
+        private readonly IHubContext<NotificationHub> _hubContext;
+        private readonly ILogger<NotificationOutboxWorker> _logger;
+        private DateTime _nextCleanupAtUtc = DateTime.MinValue;
+
+        public NotificationOutboxWorker(
+            IServiceScopeFactory scopeFactory,
+            IHubContext<NotificationHub> hubContext,
+            ILogger<NotificationOutboxWorker> logger)
         {
-            try
-            {
-                var processedCount = await ProcessBatchAsync(stoppingToken);
-
-                if (processedCount == 0)
-                    await Task.Delay(IdleDelay, stoppingToken);
-            }
-            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
-            {
-                break;
-            }
-            catch (Exception exception)
-            {
-                _logger.LogError(exception, "Notification outbox işlənərkən gözlənilməz xəta baş verdi.");
-                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
-            }
-        }
-    }
-
-    private async Task<int> ProcessBatchAsync(CancellationToken cancellationToken)
-    {
-        await using var scope = _scopeFactory.CreateAsyncScope();
-        var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-
-        var now = DateTime.UtcNow;
-
-        if (now >= _nextCleanupAtUtc)
-        {
-            await CleanupProcessedMessagesAsync(context, now, cancellationToken);
-            _nextCleanupAtUtc = now.Add(CleanupInterval);
+            _scopeFactory = scopeFactory;
+            _hubContext = hubContext;
+            _logger = logger;
         }
 
-        var candidateIds = await context.NotificationOutboxMessages
-            .AsNoTracking()
-            .Where(x =>
-                x.ProcessedAtUtc == null &&
-                x.DeadLetteredAtUtc == null &&
-                (x.NextAttemptAtUtc == null || x.NextAttemptAtUtc <= now) &&
-                (x.LockedUntilUtc == null || x.LockedUntilUtc < now))
-            .OrderBy(x => x.CreatedAtUtc)
-            .Select(x => x.Id)
-            .Take(BatchSize)
-            .ToListAsync(cancellationToken);
-
-        if (candidateIds.Count == 0)
-            return 0;
-
-        var lockToken = Guid.NewGuid();
-        var lockedUntilUtc = now.Add(LockDuration);
-
-        await context.NotificationOutboxMessages
-            .Where(x =>
-                candidateIds.Contains(x.Id) &&
-                x.ProcessedAtUtc == null &&
-                x.DeadLetteredAtUtc == null &&
-                (x.LockedUntilUtc == null || x.LockedUntilUtc < now))
-            .ExecuteUpdateAsync(
-                setters => setters
-                    .SetProperty(x => x.LockToken, lockToken)
-                    .SetProperty(x => x.LockedUntilUtc, lockedUntilUtc),
-                cancellationToken);
-
-        var messages = await context.NotificationOutboxMessages
-            .Include(x => x.Notification)
-                .ThenInclude(x => x.ActorUser)
-            .Where(x =>
-                x.LockToken == lockToken &&
-                x.ProcessedAtUtc == null &&
-                x.DeadLetteredAtUtc == null)
-            .OrderBy(x => x.CreatedAtUtc)
-            .ToListAsync(cancellationToken);
-
-        foreach (var message in messages)
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {
-            try
+            while (!stoppingToken.IsCancellationRequested)
             {
-                var dto = Map(message.Notification);
-
-                await _hubContext.Clients
-                    .User(message.Notification.RecipientUserId.ToString())
-                    .SendAsync(message.EventName, dto, cancellationToken);
-
-                message.ProcessedAtUtc = DateTime.UtcNow;
-                message.LastError = null;
-                message.LockToken = null;
-                message.LockedUntilUtc = null;
-            }
-            catch (Exception exception)
-            {
-                message.AttemptCount++;
-                message.LastError = Truncate(exception.Message, 2000);
-                message.LockToken = null;
-                message.LockedUntilUtc = null;
-
-                if (message.AttemptCount >= MaxAttempts)
+                try
                 {
-                    message.DeadLetteredAtUtc = DateTime.UtcNow;
-                    message.NextAttemptAtUtc = null;
+                    var processedCount = await ProcessBatchAsync(stoppingToken);
 
-                    _logger.LogError(
-                        exception,
-                        "Notification {NotificationId} {AttemptCount} cəhddən sonra dead-letter edildi.",
-                        message.NotificationId,
-                        message.AttemptCount);
+                    if (processedCount == 0)
+                        await Task.Delay(IdleDelay, stoppingToken);
                 }
-                else
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
                 {
-                    message.NextAttemptAtUtc = DateTime.UtcNow.Add(
-                        GetRetryDelay(message.AttemptCount));
-
-                    _logger.LogWarning(
-                        exception,
-                        "Notification {NotificationId} real-time göndərilmədi. Cəhd: {AttemptCount}",
-                        message.NotificationId,
-                        message.AttemptCount);
+                    break;
+                }
+                catch (Exception exception)
+                {
+                    _logger.LogError(exception, "Notification outbox işlənərkən gözlənilməz xəta baş verdi.");
+                    await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
                 }
             }
         }
 
-        await context.SaveChangesAsync(cancellationToken);
-        return messages.Count;
-    }
-
-    private async Task CleanupProcessedMessagesAsync(
-        AppDbContext context,
-        DateTime now,
-        CancellationToken cancellationToken)
-    {
-        var cutoff = now.Subtract(ProcessedMessageRetention);
-
-        var deletedCount = await context.NotificationOutboxMessages
-            .Where(x => x.ProcessedAtUtc != null && x.ProcessedAtUtc < cutoff)
-            .ExecuteDeleteAsync(cancellationToken);
-
-        if (deletedCount > 0)
+        private async Task<int> ProcessBatchAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation(
-                "{DeletedCount} işlənmiş notification outbox qeydi təmizləndi.",
-                deletedCount);
+            await using var scope = _scopeFactory.CreateAsyncScope();
+            var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+            var now = DateTime.UtcNow;
+
+            if (now >= _nextCleanupAtUtc)
+            {
+                await CleanupProcessedMessagesAsync(context, now, cancellationToken);
+                _nextCleanupAtUtc = now.Add(CleanupInterval);
+            }
+
+            var candidateIds = await context.NotificationOutboxMessages
+                .AsNoTracking()
+                .Where(x =>
+                    x.ProcessedAtUtc == null &&
+                    x.DeadLetteredAtUtc == null &&
+                    (x.NextAttemptAtUtc == null || x.NextAttemptAtUtc <= now) &&
+                    (x.LockedUntilUtc == null || x.LockedUntilUtc < now))
+                .OrderBy(x => x.CreatedAtUtc)
+                .Select(x => x.Id)
+                .Take(BatchSize)
+                .ToListAsync(cancellationToken);
+
+            if (candidateIds.Count == 0)
+                return 0;
+
+            var lockToken = Guid.NewGuid();
+            var lockedUntilUtc = now.Add(LockDuration);
+
+            await context.NotificationOutboxMessages
+                .Where(x =>
+                    candidateIds.Contains(x.Id) &&
+                    x.ProcessedAtUtc == null &&
+                    x.DeadLetteredAtUtc == null &&
+                    (x.LockedUntilUtc == null || x.LockedUntilUtc < now))
+                .ExecuteUpdateAsync(
+                    setters => setters
+                        .SetProperty(x => x.LockToken, lockToken)
+                        .SetProperty(x => x.LockedUntilUtc, lockedUntilUtc),
+                    cancellationToken);
+
+            var messages = await context.NotificationOutboxMessages
+                .Include(x => x.Notification)
+                    .ThenInclude(x => x.ActorUser)
+                .Where(x =>
+                    x.LockToken == lockToken &&
+                    x.ProcessedAtUtc == null &&
+                    x.DeadLetteredAtUtc == null)
+                .OrderBy(x => x.CreatedAtUtc)
+                .ToListAsync(cancellationToken);
+
+            foreach (var message in messages)
+            {
+                try
+                {
+                    var dto = Map(message.Notification);
+
+                    await _hubContext.Clients
+                        .User(message.Notification.RecipientUserId.ToString())
+                        .SendAsync(message.EventName, dto, cancellationToken);
+
+                    message.ProcessedAtUtc = DateTime.UtcNow;
+                    message.LastError = null;
+                    message.LockToken = null;
+                    message.LockedUntilUtc = null;
+                }
+                catch (Exception exception)
+                {
+                    message.AttemptCount++;
+                    message.LastError = Truncate(exception.Message, 2000);
+                    message.LockToken = null;
+                    message.LockedUntilUtc = null;
+
+                    if (message.AttemptCount >= MaxAttempts)
+                    {
+                        message.DeadLetteredAtUtc = DateTime.UtcNow;
+                        message.NextAttemptAtUtc = null;
+
+                        _logger.LogError(
+                            exception,
+                            "Notification {NotificationId} {AttemptCount} cəhddən sonra dead-letter edildi.",
+                            message.NotificationId,
+                            message.AttemptCount);
+                    }
+                    else
+                    {
+                        message.NextAttemptAtUtc = DateTime.UtcNow.Add(
+                            GetRetryDelay(message.AttemptCount));
+
+                        _logger.LogWarning(
+                            exception,
+                            "Notification {NotificationId} real-time göndərilmədi. Cəhd: {AttemptCount}",
+                            message.NotificationId,
+                            message.AttemptCount);
+                    }
+                }
+            }
+
+            await context.SaveChangesAsync(cancellationToken);
+            return messages.Count;
         }
-    }
 
-    private static NotificationDTO Map(Notification notification)
-    {
-        return new NotificationDTO
+        private async Task CleanupProcessedMessagesAsync(
+            AppDbContext context,
+            DateTime now,
+            CancellationToken cancellationToken)
         {
-            Id = notification.Id,
-            Type = notification.Type,
-            Priority = notification.Priority,
-            EntityType = notification.EntityType,
-            EntityId = notification.EntityId,
-            ActorUserId = notification.ActorUserId,
-            ActorUserName = notification.ActorUser?.UserName,
-            ActorProfileImageUrl = notification.ActorUser?.ProfileImageUrl,
-            Title = notification.Title,
-            Message = notification.Message,
-            ActionUrl = notification.ActionUrl,
-            DataJson = notification.DataJson,
-            IsAdminNotification = notification.Type is
-                NotificationType.AnnouncementPublished or
-                NotificationType.WarningIssued,
-            IsRead = notification.IsRead,
-            ReadAtUtc = notification.ReadAtUtc,
-            CreatedAtUtc = notification.CreatedAtUtc
-        };
-    }
+            var cutoff = now.Subtract(ProcessedMessageRetention);
 
-    private static TimeSpan GetRetryDelay(int attemptCount)
-    {
-        var seconds = Math.Min(600, 5 * Math.Pow(2, Math.Min(attemptCount, 7)));
-        return TimeSpan.FromSeconds(seconds);
-    }
+            var deletedCount = await context.NotificationOutboxMessages
+                .Where(x => x.ProcessedAtUtc != null && x.ProcessedAtUtc < cutoff)
+                .ExecuteDeleteAsync(cancellationToken);
 
-    private static string Truncate(string value, int maxLength)
-    {
-        return value.Length <= maxLength ? value : value[..maxLength];
+            if (deletedCount > 0)
+            {
+                _logger.LogInformation(
+                    "{DeletedCount} işlənmiş notification outbox qeydi təmizləndi.",
+                    deletedCount);
+            }
+        }
+
+        private static NotificationDTO Map(Notification notification)
+        {
+            return new NotificationDTO
+            {
+                Id = notification.Id,
+                Type = notification.Type,
+                Priority = notification.Priority,
+                EntityType = notification.EntityType,
+                EntityId = notification.EntityId,
+                ActorUserId = notification.ActorUserId,
+                ActorUserName = notification.ActorUser?.UserName,
+                ActorProfileImageUrl = notification.ActorUser?.ProfileImageUrl,
+                Title = notification.Title,
+                Message = notification.Message,
+                ActionUrl = notification.ActionUrl,
+                DataJson = notification.DataJson,
+                IsAdminNotification = notification.Type is
+                    NotificationType.AnnouncementPublished or
+                    NotificationType.WarningIssued,
+                IsRead = notification.IsRead,
+                ReadAtUtc = notification.ReadAtUtc,
+                CreatedAtUtc = notification.CreatedAtUtc
+            };
+        }
+
+        private static TimeSpan GetRetryDelay(int attemptCount)
+        {
+            var seconds = Math.Min(600, 5 * Math.Pow(2, Math.Min(attemptCount, 7)));
+            return TimeSpan.FromSeconds(seconds);
+        }
+
+        private static string Truncate(string value, int maxLength)
+        {
+            return value.Length <= maxLength ? value : value[..maxLength];
+        }
     }
 }

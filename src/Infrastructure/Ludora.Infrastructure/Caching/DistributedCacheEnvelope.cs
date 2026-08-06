@@ -1,7 +1,8 @@
-namespace Ludora.Infrastructure.Caching;
-
-public sealed class DistributedCacheEnvelope<T>
+namespace Ludora.Infrastructure.Caching
 {
-    public DateTime ExpiresAtUtc { get; init; }
-    public T? Value { get; init; }
+    public sealed class DistributedCacheEnvelope<T>
+    {
+        public DateTime ExpiresAtUtc { get; init; }
+        public T? Value { get; init; }
+    }
 }

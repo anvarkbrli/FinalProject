@@ -1,9 +1,10 @@
-namespace Ludora.Domain.Enums;
-
-public enum BackgroundJobStatus
+namespace Ludora.Domain.Enums
 {
-    Pending = 1,
-    Processing = 2,
-    Completed = 3,
-    Failed = 4
+    public enum BackgroundJobStatus
+    {
+        Pending = 1,
+        Processing = 2,
+        Completed = 3,
+        Failed = 4
+    }
 }

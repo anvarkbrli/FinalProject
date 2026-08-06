@@ -1,19 +1,20 @@
 using Ludora.Persistence.Data;
+
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace Ludora.Persistence.Migrations;
-
-[DbContext(typeof(AppDbContext))]
-[Migration("20260802110000_ChatMessageMediaCollections")]
-public partial class ChatMessageMediaCollections : Migration
+namespace Ludora.Persistence.Migrations
 {
-    protected override void Up(MigrationBuilder migrationBuilder)
+    [DbContext(typeof(AppDbContext))]
+    [Migration("20260802110000_ChatMessageMediaCollections")]
+    public partial class ChatMessageMediaCollections : Migration
     {
-        migrationBuilder.Sql(
-            """
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF OBJECT_ID(N'dbo.ChatMessageMedia', N'U') IS NULL
             BEGIN
                 CREATE TABLE [dbo].[ChatMessageMedia]
@@ -33,8 +34,8 @@ public partial class ChatMessageMediaCollections : Migration
             END;
             """);
 
-        migrationBuilder.Sql(
-            """
+            migrationBuilder.Sql(
+                """
             IF NOT EXISTS
             (
                 SELECT 1
@@ -60,8 +61,8 @@ public partial class ChatMessageMediaCollections : Migration
             END;
             """);
 
-        migrationBuilder.Sql(
-            """
+            migrationBuilder.Sql(
+                """
             INSERT INTO [dbo].[ChatMessageMedia]
                 ([MessageId], [StorageKey], [ContentType], [OriginalFileName], [Length], [SortOrder])
             SELECT
@@ -80,14 +81,15 @@ public partial class ChatMessageMediaCollections : Migration
                   WHERE media.[MessageId] = message.[Id]
               );
             """);
-    }
+        }
 
-    protected override void Down(MigrationBuilder migrationBuilder)
-    {
-        migrationBuilder.Sql(
-            """
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.Sql(
+                """
             IF OBJECT_ID(N'dbo.ChatMessageMedia', N'U') IS NOT NULL
                 DROP TABLE [dbo].[ChatMessageMedia];
             """);
+        }
     }
 }

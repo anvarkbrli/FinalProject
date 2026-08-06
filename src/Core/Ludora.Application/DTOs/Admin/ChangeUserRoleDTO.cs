@@ -1,6 +1,7 @@
-namespace Ludora.Application.DTOs;
-
-public record ChangeUserRoleDTO
+namespace Ludora.Application.DTOs
 {
-    public string Role { get; init; } = string.Empty;
+    public record ChangeUserRoleDTO
+    {
+        public string Role { get; init; } = string.Empty;
+    }
 }

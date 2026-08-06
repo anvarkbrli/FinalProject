@@ -1,7 +1,8 @@
-namespace Ludora.Application.DTOs;
-
-public record UserRatingDistributionDTO
+namespace Ludora.Application.DTOs
 {
-    public double Rating { get; init; }
-    public int Count { get; init; }
+    public record UserRatingDistributionDTO
+    {
+        public double Rating { get; init; }
+        public int Count { get; init; }
+    }
 }

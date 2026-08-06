@@ -1,6 +1,7 @@
-namespace Ludora.Application.DTOs.Admin;
-
-public record CreateUserWarningDTO
+namespace Ludora.Application.DTOs.Admin
 {
-    public string? Message { get; init; }
+    public record CreateUserWarningDTO
+    {
+        public string? Message { get; init; }
+    }
 }

@@ -1,513 +1,516 @@
-using Ludora.API.Security;
-using Ludora.API.Models;
 using System.Security.Claims;
+
+using Ludora.API.Models;
+using Ludora.API.Security;
 using Ludora.Application.DTOs;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Enums;
+
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.RateLimiting;
 
-namespace Ludora.API.Controllers;
-
-[Route("api/forum-communities")]
-[ApiController]
-public sealed class ForumCommunitiesController : ControllerBase
+namespace Ludora.API.Controllers
 {
-    private readonly IForumCommunityService _communityService;
-    private readonly IForumCommunityFeatureService _featureService;
-
-    public ForumCommunitiesController(
-        IForumCommunityService communityService,
-        IForumCommunityFeatureService featureService)
+    [Route("api/forum-communities")]
+    [ApiController]
+    public sealed class ForumCommunitiesController : ControllerBase
     {
-        _communityService = communityService;
-        _featureService = featureService;
-    }
+        private readonly IForumCommunityService _communityService;
+        private readonly IForumCommunityFeatureService _featureService;
 
-    [HttpGet]
-    public async Task<ActionResult<IReadOnlyList<ForumCommunitySummaryDTO>>> GetAll(
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _communityService.GetAllAsync(
-            GetOptionalCurrentUserId(),
-            cancellationToken));
-    }
+        public ForumCommunitiesController(
+            IForumCommunityService communityService,
+            IForumCommunityFeatureService featureService)
+        {
+            _communityService = communityService;
+            _featureService = featureService;
+        }
 
-    [Authorize]
-    [HttpGet("mine")]
-    public async Task<ActionResult<IReadOnlyList<ForumCommunitySummaryDTO>>> GetMine(
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _communityService.GetMineAsync(
-            GetCurrentUserId(),
-            cancellationToken));
-    }
+        [HttpGet]
+        public async Task<ActionResult<IReadOnlyList<ForumCommunitySummaryDTO>>> GetAll(
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _communityService.GetAllAsync(
+                GetOptionalCurrentUserId(),
+                cancellationToken));
+        }
 
-    [HttpGet("{slug}")]
-    public async Task<ActionResult<ForumCommunitySummaryDTO>> GetBySlug(
-        string slug,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _communityService.GetBySlugAsync(
-            slug,
-            GetOptionalCurrentUserId(),
-            cancellationToken));
-    }
+        [Authorize]
+        [HttpGet("mine")]
+        public async Task<ActionResult<IReadOnlyList<ForumCommunitySummaryDTO>>> GetMine(
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _communityService.GetMineAsync(
+                GetCurrentUserId(),
+                cancellationToken));
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
-    [HttpPost]
-    [Consumes("multipart/form-data")]
-    [RequestSizeLimit(20_000_000)]
-    public async Task<ActionResult<ForumCommunitySummaryDTO>> Create(
-        [FromForm] ForumCommunityCreateFormRequest request,
-        CancellationToken cancellationToken)
-    {
-        var files = request.ImageFiles;
-        var icon = request.HasIcon ? files.ElementAtOrDefault(0) : null;
-        var coverIndex = request.HasIcon ? 1 : 0;
-        var coverImage = request.HasCoverImage
-            ? files.ElementAtOrDefault(coverIndex)
-            : null;
+        [HttpGet("{slug}")]
+        public async Task<ActionResult<ForumCommunitySummaryDTO>> GetBySlug(
+            string slug,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _communityService.GetBySlugAsync(
+                slug,
+                GetOptionalCurrentUserId(),
+                cancellationToken));
+        }
 
-        var result = await _communityService.CreateAsync(
-            GetCurrentUserId(),
-            new ForumCommunityCreateDTO
-            {
-                Name = request.Name,
-                Description = request.Description,
-                Category = request.Category,
-                Visibility = request.Visibility,
-                Icon = ToUpload(icon),
-                CoverImage = ToUpload(coverImage)
-            },
-            cancellationToken);
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.Uploads)]
+        [HttpPost]
+        [Consumes("multipart/form-data")]
+        [RequestSizeLimit(20_000_000)]
+        public async Task<ActionResult<ForumCommunitySummaryDTO>> Create(
+            [FromForm] ForumCommunityCreateFormRequest request,
+            CancellationToken cancellationToken)
+        {
+            var files = request.ImageFiles;
+            var icon = request.HasIcon ? files.ElementAtOrDefault(0) : null;
+            var coverIndex = request.HasIcon ? 1 : 0;
+            var coverImage = request.HasCoverImage
+                ? files.ElementAtOrDefault(coverIndex)
+                : null;
 
-        return CreatedAtAction(nameof(GetBySlug), new { slug = result.Slug }, result);
-    }
+            var result = await _communityService.CreateAsync(
+                GetCurrentUserId(),
+                new ForumCommunityCreateDTO
+                {
+                    Name = request.Name,
+                    Description = request.Description,
+                    Category = request.Category,
+                    Visibility = request.Visibility,
+                    Icon = ToUpload(icon),
+                    CoverImage = ToUpload(coverImage)
+                },
+                cancellationToken);
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPut("{id:int}/join")]
-    public async Task<IActionResult> Join(int id, CancellationToken cancellationToken)
-    {
-        await _communityService.JoinAsync(id, GetCurrentUserId(), cancellationToken);
-        return NoContent();
-    }
+            return CreatedAtAction(nameof(GetBySlug), new { slug = result.Slug }, result);
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpDelete("{id:int}/membership")]
-    public async Task<ActionResult<ForumCommunityLeaveResultDTO>> Leave(
-        int id,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _communityService.LeaveAsync(
-            id,
-            GetCurrentUserId(),
-            cancellationToken));
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPut("{id:int}/join")]
+        public async Task<IActionResult> Join(int id, CancellationToken cancellationToken)
+        {
+            await _communityService.JoinAsync(id, GetCurrentUserId(), cancellationToken);
+            return NoContent();
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPut("{id:int}/follow")]
-    public async Task<IActionResult> Follow(int id, CancellationToken cancellationToken)
-    {
-        await _communityService.FollowAsync(id, GetCurrentUserId(), cancellationToken);
-        return NoContent();
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpDelete("{id:int}/membership")]
+        public async Task<ActionResult<ForumCommunityLeaveResultDTO>> Leave(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _communityService.LeaveAsync(
+                id,
+                GetCurrentUserId(),
+                cancellationToken));
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpDelete("{id:int}/follow")]
-    public async Task<IActionResult> Unfollow(int id, CancellationToken cancellationToken)
-    {
-        await _communityService.UnfollowAsync(id, GetCurrentUserId(), cancellationToken);
-        return NoContent();
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPut("{id:int}/follow")]
+        public async Task<IActionResult> Follow(int id, CancellationToken cancellationToken)
+        {
+            await _communityService.FollowAsync(id, GetCurrentUserId(), cancellationToken);
+            return NoContent();
+        }
 
-    [Authorize]
-    [HttpGet("{id:int}/membership-requests")]
-    public async Task<ActionResult<IReadOnlyList<ForumCommunityMemberDTO>>> GetMembershipRequests(
-        int id,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _communityService.GetMembershipRequestsAsync(
-            id,
-            GetCurrentUserId(),
-            cancellationToken));
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpDelete("{id:int}/follow")]
+        public async Task<IActionResult> Unfollow(int id, CancellationToken cancellationToken)
+        {
+            await _communityService.UnfollowAsync(id, GetCurrentUserId(), cancellationToken);
+            return NoContent();
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPut("{id:int}/membership-requests/{membershipId:int}/approve")]
-    public async Task<IActionResult> ApproveMembership(
-        int id,
-        int membershipId,
-        CancellationToken cancellationToken)
-    {
-        await _communityService.ApproveMembershipAsync(
-            id,
-            membershipId,
-            GetCurrentUserId(),
-            cancellationToken);
-        return NoContent();
-    }
+        [Authorize]
+        [HttpGet("{id:int}/membership-requests")]
+        public async Task<ActionResult<IReadOnlyList<ForumCommunityMemberDTO>>> GetMembershipRequests(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _communityService.GetMembershipRequestsAsync(
+                id,
+                GetCurrentUserId(),
+                cancellationToken));
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpDelete("{id:int}/membership-requests/{membershipId:int}")]
-    public async Task<IActionResult> RejectMembership(
-        int id,
-        int membershipId,
-        CancellationToken cancellationToken)
-    {
-        await _communityService.RejectMembershipAsync(
-            id,
-            membershipId,
-            GetCurrentUserId(),
-            cancellationToken);
-        return NoContent();
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPut("{id:int}/membership-requests/{membershipId:int}/approve")]
+        public async Task<IActionResult> ApproveMembership(
+            int id,
+            int membershipId,
+            CancellationToken cancellationToken)
+        {
+            await _communityService.ApproveMembershipAsync(
+                id,
+                membershipId,
+                GetCurrentUserId(),
+                cancellationToken);
+            return NoContent();
+        }
 
-    [Authorize]
-    [HttpGet("{id:int}/members")]
-    public async Task<ActionResult<IReadOnlyList<ForumCommunityMemberDTO>>> GetMembers(
-        int id,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _communityService.GetMembersAsync(
-            id,
-            GetCurrentUserId(),
-            cancellationToken));
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpDelete("{id:int}/membership-requests/{membershipId:int}")]
+        public async Task<IActionResult> RejectMembership(
+            int id,
+            int membershipId,
+            CancellationToken cancellationToken)
+        {
+            await _communityService.RejectMembershipAsync(
+                id,
+                membershipId,
+                GetCurrentUserId(),
+                cancellationToken);
+            return NoContent();
+        }
 
-    [Authorize]
-    [HttpGet("{id:int}/invite-candidates")]
-    public async Task<ActionResult<IReadOnlyList<ForumCommunityInviteCandidateDTO>>> SearchInviteCandidates(
-        int id,
-        [FromQuery] string query,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _communityService.SearchInviteCandidatesAsync(
-            id,
-            GetCurrentUserId(),
-            query,
-            cancellationToken));
-    }
+        [Authorize]
+        [HttpGet("{id:int}/members")]
+        public async Task<ActionResult<IReadOnlyList<ForumCommunityMemberDTO>>> GetMembers(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _communityService.GetMembersAsync(
+                id,
+                GetCurrentUserId(),
+                cancellationToken));
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpDelete("{id:int}/members/{membershipId:int}")]
-    public async Task<IActionResult> RemoveMember(
-        int id,
-        int membershipId,
-        CancellationToken cancellationToken)
-    {
-        await _communityService.RemoveMemberAsync(
-            id,
-            membershipId,
-            GetCurrentUserId(),
-            cancellationToken);
-        return NoContent();
-    }
+        [Authorize]
+        [HttpGet("{id:int}/invite-candidates")]
+        public async Task<ActionResult<IReadOnlyList<ForumCommunityInviteCandidateDTO>>> SearchInviteCandidates(
+            int id,
+            [FromQuery] string query,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _communityService.SearchInviteCandidatesAsync(
+                id,
+                GetCurrentUserId(),
+                query,
+                cancellationToken));
+        }
 
-
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPut("{id:int}/members/{membershipId:int}/role")]
-    public async Task<IActionResult> UpdateMemberRole(
-        int id,
-        int membershipId,
-        [FromBody] ForumCommunityMemberRoleUpdateDTO dto,
-        CancellationToken cancellationToken)
-    {
-        await _communityService.UpdateMemberRoleAsync(
-            id,
-            membershipId,
-            GetCurrentUserId(),
-            dto.Role,
-            cancellationToken);
-        return NoContent();
-    }
-
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(
-        int id,
-        CancellationToken cancellationToken)
-    {
-        await _communityService.DeleteAsync(
-            id,
-            GetCurrentUserId(),
-            cancellationToken);
-        return NoContent();
-    }
-
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPost("{id:int}/invitations")]
-    public async Task<IActionResult> Invite(
-        int id,
-        [FromBody] ForumCommunityInviteDTO dto,
-        CancellationToken cancellationToken)
-    {
-        await _communityService.InviteAsync(
-            id,
-            GetCurrentUserId(),
-            dto.UserName,
-            cancellationToken);
-        return NoContent();
-    }
-
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPut("{id:int}/invitations/accept")]
-    public async Task<IActionResult> AcceptInvite(
-        int id,
-        CancellationToken cancellationToken)
-    {
-        await _communityService.AcceptInviteAsync(
-            id,
-            GetCurrentUserId(),
-            cancellationToken);
-        return NoContent();
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpDelete("{id:int}/members/{membershipId:int}")]
+        public async Task<IActionResult> RemoveMember(
+            int id,
+            int membershipId,
+            CancellationToken cancellationToken)
+        {
+            await _communityService.RemoveMemberAsync(
+                id,
+                membershipId,
+                GetCurrentUserId(),
+                cancellationToken);
+            return NoContent();
+        }
 
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPut("{id:int}/ownership-offer/accept")]
-    public async Task<IActionResult> AcceptOwnershipOffer(
-        int id,
-        CancellationToken cancellationToken)
-    {
-        await _communityService.AcceptOwnershipOfferAsync(
-            id,
-            GetCurrentUserId(),
-            cancellationToken);
-        return NoContent();
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPut("{id:int}/members/{membershipId:int}/role")]
+        public async Task<IActionResult> UpdateMemberRole(
+            int id,
+            int membershipId,
+            [FromBody] ForumCommunityMemberRoleUpdateDTO dto,
+            CancellationToken cancellationToken)
+        {
+            await _communityService.UpdateMemberRoleAsync(
+                id,
+                membershipId,
+                GetCurrentUserId(),
+                dto.Role,
+                cancellationToken);
+            return NoContent();
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpDelete("{id:int}/ownership-offer")]
-    public async Task<IActionResult> DeclineOwnershipOffer(
-        int id,
-        CancellationToken cancellationToken)
-    {
-        await _communityService.DeclineOwnershipOfferAsync(
-            id,
-            GetCurrentUserId(),
-            cancellationToken);
-        return NoContent();
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpDelete("{id:int}")]
+        public async Task<IActionResult> Delete(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            await _communityService.DeleteAsync(
+                id,
+                GetCurrentUserId(),
+                cancellationToken);
+            return NoContent();
+        }
 
-    [HttpGet("{id:int}/rules")]
-    public async Task<ActionResult<IReadOnlyList<ForumCommunityRuleDTO>>> GetRules(
-        int id,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _featureService.GetRulesAsync(
-            id,
-            GetOptionalCurrentUserId(),
-            cancellationToken));
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPost("{id:int}/invitations")]
+        public async Task<IActionResult> Invite(
+            int id,
+            [FromBody] ForumCommunityInviteDTO dto,
+            CancellationToken cancellationToken)
+        {
+            await _communityService.InviteAsync(
+                id,
+                GetCurrentUserId(),
+                dto.UserName,
+                cancellationToken);
+            return NoContent();
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPut("{id:int}/rules")]
-    public async Task<ActionResult<IReadOnlyList<ForumCommunityRuleDTO>>> ReplaceRules(
-        int id,
-        [FromBody] ForumCommunityRulesUpdateDTO dto,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _featureService.ReplaceRulesAsync(
-            id,
-            GetCurrentUserId(),
-            dto,
-            cancellationToken));
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPut("{id:int}/invitations/accept")]
+        public async Task<IActionResult> AcceptInvite(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            await _communityService.AcceptInviteAsync(
+                id,
+                GetCurrentUserId(),
+                cancellationToken);
+            return NoContent();
+        }
 
-    [HttpGet("{id:int}/moderators")]
-    public async Task<ActionResult<IReadOnlyList<ForumCommunityMemberSearchDTO>>> GetModerators(
-        int id,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _featureService.GetModeratorsAsync(
-            id,
-            GetOptionalCurrentUserId(),
-            cancellationToken));
-    }
 
-    [HttpGet("{id:int}/flairs")]
-    public async Task<ActionResult<IReadOnlyList<ForumCommunityFlairDTO>>> GetFlairs(
-        int id,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _featureService.GetFlairsAsync(
-            id,
-            GetOptionalCurrentUserId(),
-            cancellationToken));
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPut("{id:int}/ownership-offer/accept")]
+        public async Task<IActionResult> AcceptOwnershipOffer(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            await _communityService.AcceptOwnershipOfferAsync(
+                id,
+                GetCurrentUserId(),
+                cancellationToken);
+            return NoContent();
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPut("{id:int}/flairs")]
-    public async Task<ActionResult<IReadOnlyList<ForumCommunityFlairDTO>>> ReplaceFlairs(
-        int id,
-        [FromBody] ForumCommunityFlairsUpdateDTO dto,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _featureService.ReplaceFlairsAsync(
-            id,
-            GetCurrentUserId(),
-            dto,
-            cancellationToken));
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpDelete("{id:int}/ownership-offer")]
+        public async Task<IActionResult> DeclineOwnershipOffer(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            await _communityService.DeclineOwnershipOfferAsync(
+                id,
+                GetCurrentUserId(),
+                cancellationToken);
+            return NoContent();
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPut("{id:int}/my-flair")]
-    public async Task<IActionResult> SetMyFlair(
-        int id,
-        [FromBody] ForumCommunitySetFlairDTO dto,
-        CancellationToken cancellationToken)
-    {
-        await _featureService.SetMyFlairAsync(id, GetCurrentUserId(), dto, cancellationToken);
-        return NoContent();
-    }
+        [HttpGet("{id:int}/rules")]
+        public async Task<ActionResult<IReadOnlyList<ForumCommunityRuleDTO>>> GetRules(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _featureService.GetRulesAsync(
+                id,
+                GetOptionalCurrentUserId(),
+                cancellationToken));
+        }
 
-    [Authorize]
-    [HttpGet("{id:int}/member-search")]
-    public async Task<ActionResult<PagedResultDTO<ForumCommunityMemberSearchDTO>>> SearchMembers(
-        int id,
-        [FromQuery] string? query,
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 20,
-        CancellationToken cancellationToken = default)
-    {
-        return Ok(await _featureService.SearchMembersAsync(
-            id,
-            GetCurrentUserId(),
-            query,
-            pageNumber,
-            pageSize,
-            cancellationToken));
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPut("{id:int}/rules")]
+        public async Task<ActionResult<IReadOnlyList<ForumCommunityRuleDTO>>> ReplaceRules(
+            int id,
+            [FromBody] ForumCommunityRulesUpdateDTO dto,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _featureService.ReplaceRulesAsync(
+                id,
+                GetCurrentUserId(),
+                dto,
+                cancellationToken));
+        }
 
-    [HttpGet("{id:int}/events")]
-    public async Task<ActionResult<PagedResultDTO<ForumCommunityEventDTO>>> GetEvents(
-        int id,
-        [FromQuery] bool past = false,
-        [FromQuery] int pageNumber = 1,
-        [FromQuery] int pageSize = 12,
-        CancellationToken cancellationToken = default)
-    {
-        return Ok(await _featureService.GetEventsAsync(
-            id,
-            GetOptionalCurrentUserId(),
-            past,
-            pageNumber,
-            pageSize,
-            cancellationToken));
-    }
+        [HttpGet("{id:int}/moderators")]
+        public async Task<ActionResult<IReadOnlyList<ForumCommunityMemberSearchDTO>>> GetModerators(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _featureService.GetModeratorsAsync(
+                id,
+                GetOptionalCurrentUserId(),
+                cancellationToken));
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPost("{id:int}/events")]
-    public async Task<ActionResult<ForumCommunityEventDTO>> CreateEvent(
-        int id,
-        [FromBody] ForumCommunityEventUpsertDTO dto,
-        CancellationToken cancellationToken)
-    {
-        var created = await _featureService.CreateEventAsync(
-            id,
-            GetCurrentUserId(),
-            dto,
-            cancellationToken);
-        return Ok(created);
-    }
+        [HttpGet("{id:int}/flairs")]
+        public async Task<ActionResult<IReadOnlyList<ForumCommunityFlairDTO>>> GetFlairs(
+            int id,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _featureService.GetFlairsAsync(
+                id,
+                GetOptionalCurrentUserId(),
+                cancellationToken));
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPut("{id:int}/events/{eventId:int}")]
-    public async Task<ActionResult<ForumCommunityEventDTO>> UpdateEvent(
-        int id,
-        int eventId,
-        [FromBody] ForumCommunityEventUpsertDTO dto,
-        CancellationToken cancellationToken)
-    {
-        return Ok(await _featureService.UpdateEventAsync(
-            id,
-            eventId,
-            GetCurrentUserId(),
-            dto,
-            cancellationToken));
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPut("{id:int}/flairs")]
+        public async Task<ActionResult<IReadOnlyList<ForumCommunityFlairDTO>>> ReplaceFlairs(
+            int id,
+            [FromBody] ForumCommunityFlairsUpdateDTO dto,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _featureService.ReplaceFlairsAsync(
+                id,
+                GetCurrentUserId(),
+                dto,
+                cancellationToken));
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpDelete("{id:int}/events/{eventId:int}")]
-    public async Task<IActionResult> CancelEvent(
-        int id,
-        int eventId,
-        CancellationToken cancellationToken)
-    {
-        await _featureService.CancelEventAsync(id, eventId, GetCurrentUserId(), cancellationToken);
-        return NoContent();
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPut("{id:int}/my-flair")]
+        public async Task<IActionResult> SetMyFlair(
+            int id,
+            [FromBody] ForumCommunitySetFlairDTO dto,
+            CancellationToken cancellationToken)
+        {
+            await _featureService.SetMyFlairAsync(id, GetCurrentUserId(), dto, cancellationToken);
+            return NoContent();
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpPut("{id:int}/events/{eventId:int}/participation")]
-    public async Task<IActionResult> JoinEvent(
-        int id,
-        int eventId,
-        CancellationToken cancellationToken)
-    {
-        await _featureService.JoinEventAsync(id, eventId, GetCurrentUserId(), cancellationToken);
-        return NoContent();
-    }
+        [Authorize]
+        [HttpGet("{id:int}/member-search")]
+        public async Task<ActionResult<PagedResultDTO<ForumCommunityMemberSearchDTO>>> SearchMembers(
+            int id,
+            [FromQuery] string? query,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 20,
+            CancellationToken cancellationToken = default)
+        {
+            return Ok(await _featureService.SearchMembersAsync(
+                id,
+                GetCurrentUserId(),
+                query,
+                pageNumber,
+                pageSize,
+                cancellationToken));
+        }
 
-    [Authorize]
-    [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
-    [HttpDelete("{id:int}/events/{eventId:int}/participation")]
-    public async Task<IActionResult> LeaveEvent(
-        int id,
-        int eventId,
-        CancellationToken cancellationToken)
-    {
-        await _featureService.LeaveEventAsync(id, eventId, GetCurrentUserId(), cancellationToken);
-        return NoContent();
-    }
+        [HttpGet("{id:int}/events")]
+        public async Task<ActionResult<PagedResultDTO<ForumCommunityEventDTO>>> GetEvents(
+            int id,
+            [FromQuery] bool past = false,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 12,
+            CancellationToken cancellationToken = default)
+        {
+            return Ok(await _featureService.GetEventsAsync(
+                id,
+                GetOptionalCurrentUserId(),
+                past,
+                pageNumber,
+                pageSize,
+                cancellationToken));
+        }
 
-    private static ProfileImageUploadDTO? ToUpload(IFormFile? file)
-    {
-        return file is null
-            ? null
-            : new ProfileImageUploadDTO
-            {
-                Stream = file.OpenReadStream(),
-                Length = file.Length,
-                ContentType = file.ContentType,
-                FileName = file.FileName
-            };
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPost("{id:int}/events")]
+        public async Task<ActionResult<ForumCommunityEventDTO>> CreateEvent(
+            int id,
+            [FromBody] ForumCommunityEventUpsertDTO dto,
+            CancellationToken cancellationToken)
+        {
+            var created = await _featureService.CreateEventAsync(
+                id,
+                GetCurrentUserId(),
+                dto,
+                cancellationToken);
+            return Ok(created);
+        }
 
-    private Guid GetCurrentUserId()
-    {
-        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        if (!Guid.TryParse(value, out var userId))
-            throw new UnauthorizedAccessException("İstifadəçi müəyyən edilmədi.");
-        return userId;
-    }
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPut("{id:int}/events/{eventId:int}")]
+        public async Task<ActionResult<ForumCommunityEventDTO>> UpdateEvent(
+            int id,
+            int eventId,
+            [FromBody] ForumCommunityEventUpsertDTO dto,
+            CancellationToken cancellationToken)
+        {
+            return Ok(await _featureService.UpdateEventAsync(
+                id,
+                eventId,
+                GetCurrentUserId(),
+                dto,
+                cancellationToken));
+        }
 
-    private Guid? GetOptionalCurrentUserId()
-    {
-        var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        return Guid.TryParse(value, out var userId) ? userId : null;
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpDelete("{id:int}/events/{eventId:int}")]
+        public async Task<IActionResult> CancelEvent(
+            int id,
+            int eventId,
+            CancellationToken cancellationToken)
+        {
+            await _featureService.CancelEventAsync(id, eventId, GetCurrentUserId(), cancellationToken);
+            return NoContent();
+        }
+
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpPut("{id:int}/events/{eventId:int}/participation")]
+        public async Task<IActionResult> JoinEvent(
+            int id,
+            int eventId,
+            CancellationToken cancellationToken)
+        {
+            await _featureService.JoinEventAsync(id, eventId, GetCurrentUserId(), cancellationToken);
+            return NoContent();
+        }
+
+        [Authorize]
+        [EnableRateLimiting(RateLimitPolicyNames.ForumWrite)]
+        [HttpDelete("{id:int}/events/{eventId:int}/participation")]
+        public async Task<IActionResult> LeaveEvent(
+            int id,
+            int eventId,
+            CancellationToken cancellationToken)
+        {
+            await _featureService.LeaveEventAsync(id, eventId, GetCurrentUserId(), cancellationToken);
+            return NoContent();
+        }
+
+        private static ProfileImageUploadDTO? ToUpload(IFormFile? file)
+        {
+            return file is null
+                ? null
+                : new ProfileImageUploadDTO
+                {
+                    Stream = file.OpenReadStream(),
+                    Length = file.Length,
+                    ContentType = file.ContentType,
+                    FileName = file.FileName
+                };
+        }
+
+        private Guid GetCurrentUserId()
+        {
+            var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            if (!Guid.TryParse(value, out var userId))
+                throw new UnauthorizedAccessException("İstifadəçi müəyyən edilmədi.");
+            return userId;
+        }
+
+        private Guid? GetOptionalCurrentUserId()
+        {
+            var value = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            return Guid.TryParse(value, out var userId) ? userId : null;
+        }
     }
 }

@@ -1,11 +1,12 @@
-namespace Ludora.Domain.Enums;
-
-public enum UserActivityFeedCategory
+namespace Ludora.Domain.Enums
 {
-    All = 0,
-    Statuses = 1,
-    Lists = 2,
-    Ratings = 3,
-    Reviews = 4,
-    Posts = 5
+    public enum UserActivityFeedCategory
+    {
+        All = 0,
+        Statuses = 1,
+        Lists = 2,
+        Ratings = 3,
+        Reviews = 4,
+        Posts = 5
+    }
 }

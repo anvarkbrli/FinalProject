@@ -1,8 +1,9 @@
-namespace Ludora.Domain.Enums;
-
-public enum NotificationAudience
+namespace Ludora.Domain.Enums
 {
-    Everyone = 1,
-    ConnectionsOnly = 2,
-    Never = 3
+    public enum NotificationAudience
+    {
+        Everyone = 1,
+        ConnectionsOnly = 2,
+        Never = 3
+    }
 }

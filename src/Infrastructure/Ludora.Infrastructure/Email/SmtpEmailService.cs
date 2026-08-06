@@ -3,37 +3,39 @@ using System.Net.Mail;
 using System.Net.Mime;
 using System.Text;
 using System.Text.Encodings.Web;
+
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Application.Settings;
+
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace Ludora.Infrastructure.Email;
-
-public sealed class SmtpEmailService : IEmailTransport
+namespace Ludora.Infrastructure.Email
 {
-    private readonly EmailSettings _settings;
-    private readonly ILogger<SmtpEmailService> _logger;
-
-    public SmtpEmailService(
-        IOptions<EmailSettings> options,
-        ILogger<SmtpEmailService> logger)
+    public sealed class SmtpEmailService : IEmailTransport
     {
-        _settings = options.Value;
-        _logger = logger;
-    }
+        private readonly EmailSettings _settings;
+        private readonly ILogger<SmtpEmailService> _logger;
 
-    public Task SendEmailConfirmationAsync(
-        string email,
-        string userName,
-        string confirmationLink,
-        CancellationToken cancellationToken = default)
-    {
-        var safeUserName = HtmlEncoder.Default.Encode(userName);
-        var safeLink = HtmlEncoder.Default.Encode(confirmationLink);
+        public SmtpEmailService(
+            IOptions<EmailSettings> options,
+            ILogger<SmtpEmailService> logger)
+        {
+            _settings = options.Value;
+            _logger = logger;
+        }
 
-        var htmlBody = $$"""
+        public Task SendEmailConfirmationAsync(
+            string email,
+            string userName,
+            string confirmationLink,
+            CancellationToken cancellationToken = default)
+        {
+            var safeUserName = HtmlEncoder.Default.Encode(userName);
+            var safeLink = HtmlEncoder.Default.Encode(confirmationLink);
+
+            var htmlBody = $$"""
             <!doctype html>
             <html lang="az">
             <body style="margin:0;background:#f4f4f5;font-family:Arial,sans-serif;line-height:1.6;color:#1f2937">
@@ -61,7 +63,7 @@ public sealed class SmtpEmailService : IEmailTransport
             </html>
             """;
 
-        var plainTextBody = $$"""
+            var plainTextBody = $$"""
             Salam, {{userName}}.
 
             WellPlayd qeydiyyatını tamamlamaq üçün bu linkə keç:
@@ -70,24 +72,24 @@ public sealed class SmtpEmailService : IEmailTransport
             Link 24 saat etibarlıdır. Qeydiyyatı sən etməmisənsə, bu məktubu nəzərə alma.
             """;
 
-        return SendAsync(
-            email,
-            "WellPlayd email təsdiqi",
-            plainTextBody,
-            htmlBody,
-            cancellationToken);
-    }
+            return SendAsync(
+                email,
+                "WellPlayd email təsdiqi",
+                plainTextBody,
+                htmlBody,
+                cancellationToken);
+        }
 
-    public Task SendEmailChangeConfirmationAsync(
-        string newEmail,
-        string userName,
-        string confirmationLink,
-        CancellationToken cancellationToken = default)
-    {
-        var safeUserName = HtmlEncoder.Default.Encode(userName);
-        var safeLink = HtmlEncoder.Default.Encode(confirmationLink);
+        public Task SendEmailChangeConfirmationAsync(
+            string newEmail,
+            string userName,
+            string confirmationLink,
+            CancellationToken cancellationToken = default)
+        {
+            var safeUserName = HtmlEncoder.Default.Encode(userName);
+            var safeLink = HtmlEncoder.Default.Encode(confirmationLink);
 
-        var htmlBody = $$"""
+            var htmlBody = $$"""
             <!doctype html>
             <html lang="az">
             <body style="margin:0;background:#f4f4f5;font-family:Arial,sans-serif;line-height:1.6;color:#1f2937">
@@ -115,7 +117,7 @@ public sealed class SmtpEmailService : IEmailTransport
             </html>
             """;
 
-        var plainTextBody = $$"""
+            var plainTextBody = $$"""
             Salam, {{userName}}.
 
             WellPlayd hesabının email ünvanını dəyişmək üçün bu linkə keç:
@@ -124,25 +126,25 @@ public sealed class SmtpEmailService : IEmailTransport
             Bu əməliyyatı sən başlamamısansa, linkə klikləmə və hesab şifrəni dəyiş.
             """;
 
-        return SendAsync(
-            newEmail,
-            "WellPlayd email dəyişikliyini təsdiqlə",
-            plainTextBody,
-            htmlBody,
-            cancellationToken);
-    }
+            return SendAsync(
+                newEmail,
+                "WellPlayd email dəyişikliyini təsdiqlə",
+                plainTextBody,
+                htmlBody,
+                cancellationToken);
+        }
 
 
-    public Task SendPasswordResetAsync(
-        string email,
-        string userName,
-        string resetLink,
-        CancellationToken cancellationToken = default)
-    {
-        var safeUserName = HtmlEncoder.Default.Encode(userName);
-        var safeLink = HtmlEncoder.Default.Encode(resetLink);
+        public Task SendPasswordResetAsync(
+            string email,
+            string userName,
+            string resetLink,
+            CancellationToken cancellationToken = default)
+        {
+            var safeUserName = HtmlEncoder.Default.Encode(userName);
+            var safeLink = HtmlEncoder.Default.Encode(resetLink);
 
-        var htmlBody = $$"""
+            var htmlBody = $$"""
             <!doctype html>
             <html lang="az">
             <body style="margin:0;background:#f4f4f5;font-family:Arial,sans-serif;line-height:1.6;color:#1f2937">
@@ -170,7 +172,7 @@ public sealed class SmtpEmailService : IEmailTransport
             </html>
             """;
 
-        var plainTextBody = $$"""
+            var plainTextBody = $$"""
             Salam, {{userName}}.
 
             WellPlayd şifrəsini yeniləmək üçün bu linkə keç:
@@ -179,196 +181,197 @@ public sealed class SmtpEmailService : IEmailTransport
             Bu sorğunu sən göndərməmisənsə, məktubu nəzərə alma.
             """;
 
-        return SendAsync(
-            email,
-            "WellPlayd şifrə yeniləmə",
-            plainTextBody,
-            htmlBody,
-            cancellationToken);
-    }
-
-    public Task SendCustomEmailAsync(
-        string email,
-        string subject,
-        string plainTextBody,
-        string htmlBody,
-        CancellationToken cancellationToken = default) =>
-        SendAsync(
-            email,
-            subject,
-            plainTextBody,
-            htmlBody,
-            cancellationToken);
-
-    private async Task SendAsync(
-        string recipient,
-        string subject,
-        string plainTextBody,
-        string htmlBody,
-        CancellationToken cancellationToken)
-    {
-        if (!_settings.Enabled)
-        {
-            throw new ExternalServiceException(
-                "Email xidməti aktiv deyil. EmailSettings konfiqurasiyasını və user-secrets dəyərlərini yoxlayın.");
-        }
-
-        var maskedRecipient = MaskEmail(recipient);
-        Exception? lastException = null;
-
-        for (var attempt = 1; attempt <= _settings.MaxRetryAttempts; attempt++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            try
-            {
-                using var message = CreateMessage(
-                    recipient,
-                    subject,
-                    plainTextBody,
-                    htmlBody);
-
-                using var client = CreateClient();
-                using var timeoutCts =
-                    CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-
-                timeoutCts.CancelAfter(
-                    TimeSpan.FromSeconds(_settings.SendTimeoutSeconds));
-
-                _logger.LogInformation(
-                    "Email SMTP serverinə göndərilir. Recipient: {Recipient}; Subject: {Subject}; Attempt: {Attempt}/{MaxAttempts}.",
-                    maskedRecipient,
-                    subject,
-                    attempt,
-                    _settings.MaxRetryAttempts);
-
-                await client.SendMailAsync(message, timeoutCts.Token);
-
-                _logger.LogInformation(
-                    "SMTP server emaili qəbul etdi. Recipient: {Recipient}; Subject: {Subject}; Attempt: {Attempt}.",
-                    maskedRecipient,
-                    subject,
-                    attempt);
-
-                return;
-            }
-            catch (OperationCanceledException exception)
-                when (!cancellationToken.IsCancellationRequested)
-            {
-                lastException = exception;
-
-                _logger.LogWarning(
-                    exception,
-                    "Email göndərişi {TimeoutSeconds} saniyədə timeout oldu. Recipient: {Recipient}; Attempt: {Attempt}/{MaxAttempts}.",
-                    _settings.SendTimeoutSeconds,
-                    maskedRecipient,
-                    attempt,
-                    _settings.MaxRetryAttempts);
-            }
-            catch (SmtpException exception)
-            {
-                lastException = exception;
-
-                _logger.LogWarning(
-                    exception,
-                    "SMTP xətası. Recipient: {Recipient}; StatusCode: {StatusCode}; Attempt: {Attempt}/{MaxAttempts}.",
-                    maskedRecipient,
-                    exception.StatusCode,
-                    attempt,
-                    _settings.MaxRetryAttempts);
-            }
-            catch (InvalidOperationException exception)
-            {
-                // Konfiqurasiya və client state xətaları retry ilə düzəlmir.
-                throw new ExternalServiceException(
-                    "Email SMTP konfiqurasiyasına görə göndərilə bilmədi. Server loglarını yoxlayın.",
-                    exception);
-            }
-            catch (FormatException exception)
-            {
-                throw new ExternalServiceException(
-                    "Göndərən və ya qəbul edən email ünvanının formatı düzgün deyil.",
-                    exception);
-            }
-
-            if (attempt >= _settings.MaxRetryAttempts)
-                break;
-
-            var delay = TimeSpan.FromSeconds(
-                _settings.RetryDelaySeconds * attempt);
-
-            if (delay > TimeSpan.Zero)
-                await Task.Delay(delay, cancellationToken);
-        }
-
-        throw new ExternalServiceException(
-            "Email SMTP serverinə göndərilə bilmədi. Bir müddət sonra yenidən yoxlayın.",
-            lastException ?? new SmtpException("Naməlum SMTP xətası."));
-    }
-
-    private MailMessage CreateMessage(
-        string recipient,
-        string subject,
-        string plainTextBody,
-        string htmlBody)
-    {
-        var message = new MailMessage
-        {
-            From = new MailAddress(
-                _settings.FromEmail,
-                _settings.FromName,
-                Encoding.UTF8),
-            Subject = subject,
-            SubjectEncoding = Encoding.UTF8,
-            Body = plainTextBody,
-            BodyEncoding = Encoding.UTF8,
-            IsBodyHtml = false,
-            DeliveryNotificationOptions =
-                DeliveryNotificationOptions.OnFailure |
-                DeliveryNotificationOptions.Delay
-        };
-
-        message.To.Add(recipient);
-        message.Headers.Add("Auto-Submitted", "auto-generated");
-        message.Headers.Add("X-Auto-Response-Suppress", "All");
-
-        message.AlternateViews.Add(
-            AlternateView.CreateAlternateViewFromString(
+            return SendAsync(
+                email,
+                "WellPlayd şifrə yeniləmə",
+                plainTextBody,
                 htmlBody,
-                Encoding.UTF8,
-                MediaTypeNames.Text.Html));
-
-        return message;
-    }
-
-    private SmtpClient CreateClient()
-    {
-        var client = new SmtpClient(
-            _settings.Host,
-            _settings.Port)
-        {
-            EnableSsl = _settings.EnableSsl,
-            UseDefaultCredentials = false,
-            DeliveryMethod = SmtpDeliveryMethod.Network
-        };
-
-        if (!string.IsNullOrWhiteSpace(_settings.UserName))
-        {
-            client.Credentials = new NetworkCredential(
-                _settings.UserName,
-                _settings.Password ?? string.Empty);
+                cancellationToken);
         }
 
-        return client;
-    }
+        public Task SendCustomEmailAsync(
+            string email,
+            string subject,
+            string plainTextBody,
+            string htmlBody,
+            CancellationToken cancellationToken = default) =>
+            SendAsync(
+                email,
+                subject,
+                plainTextBody,
+                htmlBody,
+                cancellationToken);
 
-    private static string MaskEmail(string email)
-    {
-        var atIndex = email.IndexOf('@');
+        private async Task SendAsync(
+            string recipient,
+            string subject,
+            string plainTextBody,
+            string htmlBody,
+            CancellationToken cancellationToken)
+        {
+            if (!_settings.Enabled)
+            {
+                throw new ExternalServiceException(
+                    "Email xidməti aktiv deyil. EmailSettings konfiqurasiyasını və user-secrets dəyərlərini yoxlayın.");
+            }
 
-        if (atIndex <= 1)
-            return "***";
+            var maskedRecipient = MaskEmail(recipient);
+            Exception? lastException = null;
 
-        return $"{email[0]}***{email[(atIndex - 1)..]}";
+            for (var attempt = 1; attempt <= _settings.MaxRetryAttempts; attempt++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                try
+                {
+                    using var message = CreateMessage(
+                        recipient,
+                        subject,
+                        plainTextBody,
+                        htmlBody);
+
+                    using var client = CreateClient();
+                    using var timeoutCts =
+                        CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+                    timeoutCts.CancelAfter(
+                        TimeSpan.FromSeconds(_settings.SendTimeoutSeconds));
+
+                    _logger.LogInformation(
+                        "Email SMTP serverinə göndərilir. Recipient: {Recipient}; Subject: {Subject}; Attempt: {Attempt}/{MaxAttempts}.",
+                        maskedRecipient,
+                        subject,
+                        attempt,
+                        _settings.MaxRetryAttempts);
+
+                    await client.SendMailAsync(message, timeoutCts.Token);
+
+                    _logger.LogInformation(
+                        "SMTP server emaili qəbul etdi. Recipient: {Recipient}; Subject: {Subject}; Attempt: {Attempt}.",
+                        maskedRecipient,
+                        subject,
+                        attempt);
+
+                    return;
+                }
+                catch (OperationCanceledException exception)
+                    when (!cancellationToken.IsCancellationRequested)
+                {
+                    lastException = exception;
+
+                    _logger.LogWarning(
+                        exception,
+                        "Email göndərişi {TimeoutSeconds} saniyədə timeout oldu. Recipient: {Recipient}; Attempt: {Attempt}/{MaxAttempts}.",
+                        _settings.SendTimeoutSeconds,
+                        maskedRecipient,
+                        attempt,
+                        _settings.MaxRetryAttempts);
+                }
+                catch (SmtpException exception)
+                {
+                    lastException = exception;
+
+                    _logger.LogWarning(
+                        exception,
+                        "SMTP xətası. Recipient: {Recipient}; StatusCode: {StatusCode}; Attempt: {Attempt}/{MaxAttempts}.",
+                        maskedRecipient,
+                        exception.StatusCode,
+                        attempt,
+                        _settings.MaxRetryAttempts);
+                }
+                catch (InvalidOperationException exception)
+                {
+                    // Konfiqurasiya və client state xətaları retry ilə düzəlmir.
+                    throw new ExternalServiceException(
+                        "Email SMTP konfiqurasiyasına görə göndərilə bilmədi. Server loglarını yoxlayın.",
+                        exception);
+                }
+                catch (FormatException exception)
+                {
+                    throw new ExternalServiceException(
+                        "Göndərən və ya qəbul edən email ünvanının formatı düzgün deyil.",
+                        exception);
+                }
+
+                if (attempt >= _settings.MaxRetryAttempts)
+                    break;
+
+                var delay = TimeSpan.FromSeconds(
+                    _settings.RetryDelaySeconds * attempt);
+
+                if (delay > TimeSpan.Zero)
+                    await Task.Delay(delay, cancellationToken);
+            }
+
+            throw new ExternalServiceException(
+                "Email SMTP serverinə göndərilə bilmədi. Bir müddət sonra yenidən yoxlayın.",
+                lastException ?? new SmtpException("Naməlum SMTP xətası."));
+        }
+
+        private MailMessage CreateMessage(
+            string recipient,
+            string subject,
+            string plainTextBody,
+            string htmlBody)
+        {
+            var message = new MailMessage
+            {
+                From = new MailAddress(
+                    _settings.FromEmail,
+                    _settings.FromName,
+                    Encoding.UTF8),
+                Subject = subject,
+                SubjectEncoding = Encoding.UTF8,
+                Body = plainTextBody,
+                BodyEncoding = Encoding.UTF8,
+                IsBodyHtml = false,
+                DeliveryNotificationOptions =
+                    DeliveryNotificationOptions.OnFailure |
+                    DeliveryNotificationOptions.Delay
+            };
+
+            message.To.Add(recipient);
+            message.Headers.Add("Auto-Submitted", "auto-generated");
+            message.Headers.Add("X-Auto-Response-Suppress", "All");
+
+            message.AlternateViews.Add(
+                AlternateView.CreateAlternateViewFromString(
+                    htmlBody,
+                    Encoding.UTF8,
+                    MediaTypeNames.Text.Html));
+
+            return message;
+        }
+
+        private SmtpClient CreateClient()
+        {
+            var client = new SmtpClient(
+                _settings.Host,
+                _settings.Port)
+            {
+                EnableSsl = _settings.EnableSsl,
+                UseDefaultCredentials = false,
+                DeliveryMethod = SmtpDeliveryMethod.Network
+            };
+
+            if (!string.IsNullOrWhiteSpace(_settings.UserName))
+            {
+                client.Credentials = new NetworkCredential(
+                    _settings.UserName,
+                    _settings.Password ?? string.Empty);
+            }
+
+            return client;
+        }
+
+        private static string MaskEmail(string email)
+        {
+            var atIndex = email.IndexOf('@');
+
+            if (atIndex <= 1)
+                return "***";
+
+            return $"{email[0]}***{email[(atIndex - 1)..]}";
+        }
     }
 }

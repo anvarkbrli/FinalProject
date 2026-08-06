@@ -1,0 +1,4 @@
+node_modules
+dist
+coverage
+src/locales/auto-ui.json

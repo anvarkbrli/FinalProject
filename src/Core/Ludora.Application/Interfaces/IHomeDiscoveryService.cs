@@ -1,9 +1,10 @@
 using Ludora.Application.DTOs.Home;
 
-namespace Ludora.Application.Interfaces;
-
-public interface IHomeDiscoveryService
+namespace Ludora.Application.Interfaces
 {
-    Task<HomeDiscoveryDTO> GetAsync(
-        CancellationToken cancellationToken = default);
+    public interface IHomeDiscoveryService
+    {
+        Task<HomeDiscoveryDTO> GetAsync(
+            CancellationToken cancellationToken = default);
+    }
 }

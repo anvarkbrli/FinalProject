@@ -1,7 +1,6 @@
 using Ludora.Application.DTOs.Game;
 using Ludora.Domain.Enums;
 
-
 namespace Ludora.Application.DTOs
 {
     public record GameDetailDTO
