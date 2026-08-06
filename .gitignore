@@ -42,3 +42,6 @@ Thumbs.db
 # Production database backups
 deployment/backups/*
 !deployment/backups/.gitkeep
+
+# Public frontend build-time endpoints (contains no secrets)
+!presentation/Frontend/ludora-client/.env.production
