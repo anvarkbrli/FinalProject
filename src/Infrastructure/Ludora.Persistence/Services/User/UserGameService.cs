@@ -8,7 +8,6 @@ using Ludora.Domain.Entities;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -715,7 +714,7 @@ namespace Ludora.Persistence.Services
                 gameId,
                 cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameStatusChanged,
                 gameSource: source,
@@ -770,7 +769,7 @@ namespace Ludora.Persistence.Services
                 rating: entity.Rating,
                 cancellationToken: cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameStatusRemoved,
                 gameSource: source,
@@ -813,7 +812,7 @@ namespace Ludora.Persistence.Services
                 entity.IsFavorite = isFavorite;
             }
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 isFavorite
                     ? UserActivityType.GameAddedToFavorites
@@ -857,7 +856,7 @@ namespace Ludora.Persistence.Services
                 entity.IsWishlisted = isWishlisted;
             }
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 isWishlisted
                     ? UserActivityType.GameAddedToWishlist
@@ -946,7 +945,7 @@ namespace Ludora.Persistence.Services
                     cancellationToken: cancellationToken);
             }
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 rating.HasValue
                     ? UserActivityType.GameRated

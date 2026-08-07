@@ -6,7 +6,6 @@ using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -47,7 +46,7 @@ namespace Ludora.Persistence.Services
                 CreatedAt = DateTime.UtcNow
             }, cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.PostLiked,
                 targetUserId: post.UserId,
@@ -82,7 +81,7 @@ namespace Ludora.Persistence.Services
 
             _context.PostLikes.Remove(like);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.PostUnliked,
                 targetUserId: post.UserId,
@@ -150,7 +149,7 @@ namespace Ludora.Persistence.Services
 
             await _context.PostComments.AddAsync(comment, cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.PostCommented,
                 targetUserId: post.UserId,
@@ -236,7 +235,7 @@ namespace Ludora.Persistence.Services
             comment.Content = dto.Content.NormalizeRequiredText("Şərh mətni", MaxCommentLength);
             comment.UpdatedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.PostCommentUpdated,
                 targetUserId: post.UserId,
@@ -263,7 +262,7 @@ namespace Ludora.Persistence.Services
             comment.DeletedAtUtc = DateTime.UtcNow;
             comment.UpdatedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.PostCommentDeleted,
                 targetUserId: post.UserId,

@@ -1,4 +1,7 @@
+using Ludora.API.Configuration;
 using Ludora.API.Hubs;
+
+using Microsoft.Extensions.Options;
 
 namespace Ludora.API.Tests
 {
@@ -7,7 +10,7 @@ namespace Ludora.API.Tests
         [Fact]
         public async Task MultipleConnections_StayOnlineUntilLastDisconnect()
         {
-            var tracker = new UserPresenceTracker();
+            var tracker = CreateTracker();
             var userId = Guid.NewGuid();
 
             Assert.True(await tracker.ConnectAsync(userId, "chat-1"));
@@ -24,7 +27,7 @@ namespace Ludora.API.Tests
         [Fact]
         public async Task BatchLookup_ReturnsOnlyOnlineUsers()
         {
-            var tracker = new UserPresenceTracker();
+            var tracker = CreateTracker();
             var onlineUserId = Guid.NewGuid();
             var offlineUserId = Guid.NewGuid();
             await tracker.ConnectAsync(onlineUserId, "connection");
@@ -34,6 +37,15 @@ namespace Ludora.API.Tests
 
             Assert.Contains(onlineUserId, result);
             Assert.DoesNotContain(offlineUserId, result);
+        }
+
+        private static UserPresenceTracker CreateTracker()
+        {
+            return new UserPresenceTracker(
+                Options.Create(new PresenceSettings
+                {
+                    OfflineAfterSeconds = 90
+                }));
         }
     }
 }

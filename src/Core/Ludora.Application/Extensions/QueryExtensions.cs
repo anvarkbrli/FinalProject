@@ -1,4 +1,4 @@
-namespace Ludora.Persistence.Extensions
+namespace Ludora.Application.Extensions
 {
     using Ludora.Application.DTOs;
     using Ludora.Application.Exceptions;

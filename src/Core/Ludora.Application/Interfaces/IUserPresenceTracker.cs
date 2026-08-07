@@ -12,6 +12,11 @@ namespace Ludora.Application.Interfaces
             string connectionId,
             CancellationToken cancellationToken = default);
 
+        Task HeartbeatAsync(
+            Guid userId,
+            string connectionId,
+            CancellationToken cancellationToken = default);
+
         Task<bool> IsOnlineAsync(
             Guid userId,
             CancellationToken cancellationToken = default);

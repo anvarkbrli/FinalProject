@@ -7,6 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.SqlClient" Version="5.1.7" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.29" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Ludora.Domain\Ludora.Domain.csproj" />
   </ItemGroup>
 

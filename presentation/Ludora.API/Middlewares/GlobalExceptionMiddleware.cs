@@ -67,6 +67,14 @@ namespace Ludora.API.Middlewares
                 context.Response.StatusCode = statusCode;
                 context.Response.ContentType = "application/json; charset=utf-8";
 
+                var externalServiceException = exception as ExternalServiceException;
+                if (externalServiceException?.RetryAfterSeconds is > 0)
+                {
+                    context.Response.Headers.RetryAfter =
+                        externalServiceException.RetryAfterSeconds.Value.ToString(
+                            CultureInfo.InvariantCulture);
+                }
+
                 var localizedException = _localizer[exception.Message];
                 var isSafeApplicationException = exception is
                     BadRequestException or
@@ -139,7 +147,8 @@ namespace Ludora.API.Middlewares
                 {
                     statusCode,
                     message,
-                    traceId = context.TraceIdentifier
+                    traceId = context.TraceIdentifier,
+                    retryAfterSeconds = externalServiceException?.RetryAfterSeconds
                 };
 
                 await context.Response.WriteAsync(
@@ -195,6 +204,9 @@ namespace Ludora.API.Middlewares
                 KeyNotFoundException => StatusCodes.Status404NotFound,
                 ConflictException => StatusCodes.Status409Conflict,
                 DbUpdateException => StatusCodes.Status409Conflict,
+                ExternalServiceException externalServiceException
+                    when externalServiceException.StatusCode is >= 400 and <= 599
+                    => externalServiceException.StatusCode.Value,
                 ExternalServiceException => StatusCodes.Status503ServiceUnavailable,
                 _ => StatusCodes.Status500InternalServerError
             };

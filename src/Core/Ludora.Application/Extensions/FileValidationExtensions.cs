@@ -1,8 +1,7 @@
-namespace Ludora.Persistence.Extensions
+namespace Ludora.Application.Extensions
 {
     using Ludora.Application.DTOs;
     using Ludora.Application.Exceptions;
-    using Ludora.Application.Extensions;
 
     public static class FileValidationExtensions
     {

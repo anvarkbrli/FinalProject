@@ -112,6 +112,36 @@ namespace Ludora.API.Hubs
             }
         }
 
+        public async Task HeartbeatAsync(
+            Guid userId,
+            string connectionId,
+            CancellationToken cancellationToken = default)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            AddLocalConnection(userId, connectionId);
+            var now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+            try
+            {
+                await _database.ScriptEvaluateAsync(
+                    ConnectScript,
+                    [GetKey(userId)],
+                    [
+                        connectionId,
+                        now,
+                        now - TimeSpan.FromSeconds(_settings.OfflineAfterSeconds).TotalMilliseconds,
+                        _settings.OfflineAfterSeconds
+                    ]);
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Redis presence heartbeat failed for user {UserId}; local fallback remains active.",
+                    userId);
+            }
+        }
+
         public async Task<bool> IsOnlineAsync(
             Guid userId,
             CancellationToken cancellationToken = default)

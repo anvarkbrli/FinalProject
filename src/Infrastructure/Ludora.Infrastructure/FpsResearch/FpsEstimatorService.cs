@@ -239,25 +239,144 @@ namespace Ludora.Infrastructure.FpsResearch
                 correlationId);
 
             if (!_researchClient.IsEnabled)
-                throw new ExternalServiceException("FPS benchmark xidməti aktiv deyil.");
+            {
+                _logger.LogWarning(
+                    "FPS research provider deaktivdir; konservativ local fallback istifadə olunur. CorrelationId {CorrelationId}.",
+                    correlationId);
 
-            var research = await _researchClient.ResearchAsync(
-                BuildSystemPrompt(normalized.Language),
-                BuildBenchmarkSearchPrompt(normalized),
+                return BuildLocalFallbackResponse(normalized);
+            }
+
+            var response = await ResearchAndBuildResponseAsync(
+                normalized,
+                correlationId,
                 cancellationToken);
 
-            var response = BuildSafeResponse(
-                research.Content,
-                normalized,
-                research.Sources);
+            var cacheDuration =
+                response.EvidenceQuality.Equals(
+                    "Insufficient",
+                    StringComparison.OrdinalIgnoreCase) &&
+                response.BenchmarkSources.Count == 0
+                    ? TimeSpan.FromMinutes(15)
+                    : TimeSpan.FromHours(_settings.CacheDurationHours);
 
             await _cache.SetAsync(
                 cacheKey,
                 response,
-                TimeSpan.FromHours(_settings.CacheDurationHours),
+                cacheDuration,
                 cancellationToken);
 
             return response;
+        }
+
+        private async Task<FpsEstimateResponseDTO> ResearchAndBuildResponseAsync(
+            NormalizedFpsRequest normalized,
+            string correlationId,
+            CancellationToken cancellationToken)
+        {
+            // 1) Fast Compound Mini with a focused web search.
+            // 2) Configured Compound model if Mini cannot produce a valid result.
+            // 3) A plain production JSON-capable Groq model without web tools.
+            // 4) A conservative local estimate as the final safety net.
+            //
+            // A valid FPS form should therefore no longer become HTTP 503 merely
+            // because one AI model/tool response was malformed or temporarily down.
+            var attempts = new List<(string Model, string Version)>
+            {
+                ("groq/compound-mini", "latest")
+            };
+
+            var configuredModel = string.IsNullOrWhiteSpace(_settings.Model)
+                ? "groq/compound"
+                : _settings.Model.Trim();
+            var configuredVersion = string.IsNullOrWhiteSpace(_settings.ModelVersion)
+                ? "latest"
+                : _settings.ModelVersion.Trim();
+
+            if (!attempts.Any(item => string.Equals(
+                    item.Model,
+                    configuredModel,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                attempts.Add((configuredModel, configuredVersion));
+            }
+
+            // Current Groq production model with JSON Object Mode. It does not use
+            // Compound tools; when reached, the result is intentionally treated as
+            // source-less / Insufficient evidence by BuildSafeResponse.
+            const string jsonFallbackModel = "openai/gpt-oss-20b";
+            if (!attempts.Any(item => string.Equals(
+                    item.Model,
+                    jsonFallbackModel,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                attempts.Add((jsonFallbackModel, string.Empty));
+            }
+
+            Exception? lastException = null;
+
+            foreach (var attempt in attempts)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                try
+                {
+                    var research = await _researchClient.ResearchAsync(
+                        BuildSystemPrompt(normalized.Language),
+                        BuildBenchmarkSearchPrompt(normalized),
+                        cancellationToken,
+                        attempt.Model,
+                        attempt.Version);
+
+                    var result = BuildSafeResponse(
+                        research.Content,
+                        normalized,
+                        research.Sources);
+
+                    _logger.LogInformation(
+                        "FPS estimator {Model} ilə uğurlu nəticə yaratdı. EvidenceQuality {EvidenceQuality}, SourceCount {SourceCount}, CorrelationId {CorrelationId}.",
+                        attempt.Model,
+                        result.EvidenceQuality,
+                        result.BenchmarkSources.Count,
+                        correlationId);
+
+                    return result;
+                }
+                catch (OperationCanceledException)
+                    when (cancellationToken.IsCancellationRequested)
+                {
+                    throw;
+                }
+                catch (ExternalServiceException exception)
+                {
+                    lastException = exception;
+                    _logger.LogWarning(
+                        exception,
+                        "FPS estimator {Model} ilə nəticə yarada bilmədi; növbəti təhlükəsiz fallback sınanır. CorrelationId {CorrelationId}.",
+                        attempt.Model,
+                        correlationId);
+                }
+                catch (Exception exception)
+                    when (exception is JsonException or
+                          InvalidOperationException or
+                          FormatException or
+                          OverflowException)
+                {
+                    lastException = exception;
+                    _logger.LogWarning(
+                        exception,
+                        "FPS estimator {Model} cavabını emal edə bilmədi; növbəti təhlükəsiz fallback sınanır. CorrelationId {CorrelationId}.",
+                        attempt.Model,
+                        correlationId);
+                }
+            }
+
+            _logger.LogError(
+                lastException,
+                "Bütün Groq FPS estimator yolları uğursuz oldu. İstifadəçiyə konservativ local fallback qaytarılır. CorrelationId {CorrelationId}.",
+                correlationId);
+
+            return BuildLocalFallbackResponse(normalized);
         }
 
         private static NormalizedFpsRequest ValidateAndNormalize(
@@ -438,27 +557,39 @@ namespace Ludora.Infrastructure.FpsResearch
 
             if (string.IsNullOrWhiteSpace(summary))
             {
-                throw new ExternalServiceException(InvalidResponseMessage);
+                summary = BuildFallbackSummary(
+                    request,
+                    estimate.AverageFps);
             }
 
             var sources = CleanSources(
                 researchSources,
                 estimate.UsedSourceUrls);
 
-            if (sources.Count == 0)
-            {
-                throw new ExternalServiceException(
-                    "Bu kombinasiya üçün etibarlı benchmark mənbəsi tapılmadı. Bir qədər sonra yenidən yoxlayın.");
-            }
-
+            // The prompt explicitly allows an Insufficient result when no usable
+            // benchmark evidence exists. The previous implementation contradicted
+            // that rule by converting every source-less but otherwise valid estimate
+            // into HTTP 503. Keep the result usable, but downgrade its evidence
+            // quality and confidence instead of pretending that benchmark evidence
+            // exists.
             var evidenceQuality = NormalizeEvidenceQuality(
                 estimate.EvidenceQuality);
+
+            if (sources.Count == 0)
+            {
+                evidenceQuality = "Insufficient";
+            }
             var evidenceSummary = CleanAiText(
                 estimate.EvidenceSummary,
                 500);
 
             if (string.IsNullOrWhiteSpace(evidenceSummary))
-                throw new ExternalServiceException(InvalidResponseMessage);
+            {
+                evidenceSummary = BuildFallbackEvidenceSummary(
+                    request.Language,
+                    evidenceQuality,
+                    sources.Count);
+            }
 
             var confidence = Math.Min(
                 Math.Clamp(estimate.ConfidencePercent, 0, 100),
@@ -517,13 +648,349 @@ namespace Ludora.Infrastructure.FpsResearch
                 ImportantFactors = factors,
                 EvidenceQuality = evidenceQuality,
                 EvidenceSummary = evidenceSummary,
-                BenchmarkSampleCount = Math.Clamp(
-                    estimate.BenchmarkSampleCount,
-                    0,
-                    10_000),
+                BenchmarkSampleCount = sources.Count == 0
+                    ? 0
+                    : Math.Clamp(
+                        estimate.BenchmarkSampleCount,
+                        0,
+                        10_000),
                 BenchmarkSources = sources,
                 Disclaimer = GetDisclaimer(request.Language),
                 IsCached = false
+            };
+        }
+
+        private static string BuildFallbackSummary(
+            NormalizedFpsRequest request,
+            int averageFps)
+        {
+            return request.Language == "en"
+                ? $"{request.GameName} is estimated at around {Math.Max(0, averageFps)} FPS for the selected {request.Resolution} / {request.GraphicsPreset} configuration. This is an estimate and real performance can vary by game version, drivers, temperatures and system configuration."
+                : $"{request.GameName} seçilmiş {request.Resolution} / {request.GraphicsPreset} konfiqurasiyasında təxminən {Math.Max(0, averageFps)} FPS səviyyəsində qiymətləndirilir. Bu təxmini nəticədir; real performans oyun versiyası, driver, temperatur və sistem konfiqurasiyasına görə dəyişə bilər.";
+        }
+
+        private static string BuildFallbackEvidenceSummary(
+            string language,
+            string evidenceQuality,
+            int sourceCount)
+        {
+            if (language == "en")
+            {
+                return sourceCount > 0
+                    ? $"The estimate was synthesized from {sourceCount} public web research source(s). Evidence quality: {evidenceQuality}."
+                    : "No sufficiently matching public benchmark source was returned, so the estimate uses conservative inference and reduced confidence.";
+            }
+
+            return sourceCount > 0
+                ? $"Təxmin {sourceCount} açıq web araşdırma mənbəsi əsasında ümumiləşdirilib. Sübut keyfiyyəti: {evidenceQuality}."
+                : "Kifayət qədər uyğun açıq benchmark mənbəsi qaytarılmadığı üçün nəticə ehtiyatlı inferensiya və aşağı etibar faizi ilə təqdim olunur.";
+        }
+
+        private static FpsEstimateResponseDTO BuildLocalFallbackResponse(
+            NormalizedFpsRequest request)
+        {
+            var baseline = GetGpuBaselineFps(request.Gpu);
+            var yearMultiplier = GetGameEraMultiplier(
+                request.GameReleaseYear,
+                request.GameName);
+            var resolutionMultiplier = request.Resolution switch
+            {
+                "1280x720" => 1.35,
+                "1920x1080" => 1.00,
+                "2560x1440" => 0.76,
+                "3440x1440" => 0.62,
+                "3840x2160" => 0.48,
+                _ => 1.00
+            };
+            var presetMultiplier = request.GraphicsPreset switch
+            {
+                "Low" => 1.28,
+                "Medium" => 1.08,
+                "High" => 0.90,
+                "Ultra" => 0.77,
+                _ => 1.00
+            };
+            var ramMultiplier = request.RamGb switch
+            {
+                < 8 => 0.68,
+                < 16 => 0.88,
+                _ => 1.00
+            };
+            var rayTracingMultiplier = request.RayTracingEnabled
+                ? (IsIntegratedGpu(request.Gpu) ? 0.55 : 0.70)
+                : 1.00;
+            var upscalerMultiplier = GetUpscalerMultiplier(
+                request.Upscaler,
+                request.UpscalerMode);
+            var frameGenerationMultiplier = request.FrameGenerationEnabled
+                ? 1.22
+                : 1.00;
+
+            var rawAverage = baseline *
+                             yearMultiplier *
+                             resolutionMultiplier *
+                             presetMultiplier *
+                             ramMultiplier *
+                             rayTracingMultiplier *
+                             upscalerMultiplier *
+                             frameGenerationMultiplier;
+
+            var average = Math.Clamp(
+                (int)Math.Round(rawAverage, MidpointRounding.AwayFromZero),
+                8,
+                360);
+            var onePercentLow = Math.Clamp(
+                (int)Math.Round(average * 0.72),
+                5,
+                average);
+            var minimum = Math.Clamp(
+                (int)Math.Round(average * 0.62),
+                4,
+                average);
+            var maximum = Math.Clamp(
+                (int)Math.Round(average * 1.22),
+                average,
+                420);
+
+            var recommendations = BuildLocalRecommendations(request);
+            var factors = BuildLocalImportantFactors(request);
+
+            var summary = request.Language == "en"
+                ? $"Live benchmark research was temporarily unavailable, so {request.GameName} is conservatively estimated at about {average} FPS for {request.Resolution} / {request.GraphicsPreset} using the supplied hardware class and settings. Treat this as a fallback estimate rather than measured benchmark data."
+                : $"Canlı benchmark araşdırması müvəqqəti əlçatan olmadığı üçün {request.GameName} seçilmiş {request.Resolution} / {request.GraphicsPreset} konfiqurasiyasında verilmiş avadanlıq sinfi və ayarlar əsasında ehtiyatlı şəkildə təxminən {average} FPS qiymətləndirilir. Bu nəticəni ölçülmüş benchmark deyil, fallback təxmin kimi qəbul et.";
+
+            var evidenceSummary = request.Language == "en"
+                ? "No reliable live benchmark source could be returned by the research provider. The service used a conservative local hardware/game-workload heuristic and intentionally reduced confidence."
+                : "Araşdırma provayderindən etibarlı canlı benchmark mənbəsi alınmadı. Xidmət ehtiyatlı lokal avadanlıq/oyun-yükü heuristikasından istifadə edib və etibar faizini qəsdən aşağı saxlayıb.";
+
+            return new FpsEstimateResponseDTO
+            {
+                NormalizedGameName = request.GameName,
+                NormalizedGpuName = request.Gpu,
+                NormalizedCpuName = request.Cpu,
+                Resolution = request.Resolution,
+                GraphicsPreset = request.GraphicsPreset,
+                AverageFps = average,
+                OnePercentLowFps = onePercentLow,
+                MinimumExpectedFps = minimum,
+                MaximumExpectedFps = maximum,
+                ConfidencePercent = 22,
+                PerformanceLevel = GetPerformanceLevel(
+                    average,
+                    request.Language),
+                Summary = summary,
+                Recommendations = recommendations,
+                ImportantFactors = factors,
+                EvidenceQuality = "Insufficient",
+                EvidenceSummary = evidenceSummary,
+                BenchmarkSampleCount = 0,
+                BenchmarkSources = [],
+                Disclaimer = GetDisclaimer(request.Language),
+                IsCached = false
+            };
+        }
+
+        private static int GetGpuBaselineFps(string gpu)
+        {
+            var value = gpu.ToUpperInvariant();
+
+            if (value.Contains("890M")) return 65;
+            if (value.Contains("880M")) return 58;
+            if (value.Contains("780M")) return 54;
+            if (value.Contains("680M")) return 47;
+            if (value.Contains("IRIS XE")) return 38;
+            if (value.Contains("VEGA 8")) return 34;
+            if (value.Contains("VEGA")) return 31;
+            if (value.Contains("UHD") || value.Contains("HD GRAPHICS")) return 25;
+
+            if (value.Contains("RTX 5090") || value.Contains("RTX5090")) return 225;
+            if (value.Contains("RTX 5080") || value.Contains("RTX5080")) return 195;
+            if (value.Contains("RTX 5070") || value.Contains("RTX5070")) return 155;
+            if (value.Contains("RTX 5060") || value.Contains("RTX5060")) return 118;
+            if (value.Contains("RTX 5050") || value.Contains("RTX5050")) return 88;
+            if (value.Contains("RTX 4090") || value.Contains("RTX4090")) return 205;
+            if (value.Contains("RTX 4080") || value.Contains("RTX4080")) return 175;
+            if (value.Contains("RTX 4070") || value.Contains("RTX4070")) return 138;
+            if (value.Contains("RTX 4060") || value.Contains("RTX4060")) return 102;
+            if (value.Contains("RTX 4050") || value.Contains("RTX4050")) return 78;
+            if (value.Contains("RTX 3090") || value.Contains("RTX3090")) return 152;
+            if (value.Contains("RTX 3080") || value.Contains("RTX3080")) return 136;
+            if (value.Contains("RTX 3070") || value.Contains("RTX3070")) return 112;
+            if (value.Contains("RTX 3060") || value.Contains("RTX3060")) return 87;
+            if (value.Contains("RTX 3050") || value.Contains("RTX3050")) return 62;
+            if (value.Contains("RTX 2080") || value.Contains("RTX2080")) return 102;
+            if (value.Contains("RTX 2070") || value.Contains("RTX2070")) return 87;
+            if (value.Contains("RTX 2060") || value.Contains("RTX2060")) return 72;
+            if (value.Contains("GTX 1080") || value.Contains("GTX1080")) return 82;
+            if (value.Contains("GTX 1070") || value.Contains("GTX1070")) return 70;
+            if (value.Contains("GTX 1660") || value.Contains("GTX1660")) return 65;
+            if (value.Contains("GTX 1060") || value.Contains("GTX1060")) return 56;
+            if (value.Contains("GTX 1650") || value.Contains("GTX1650")) return 50;
+            if (value.Contains("GTX 1050") || value.Contains("GTX1050")) return 38;
+
+            if (value.Contains("RX 9070")) return 168;
+            if (value.Contains("RX 7900")) return 180;
+            if (value.Contains("RX 7800")) return 147;
+            if (value.Contains("RX 7700")) return 122;
+            if (value.Contains("RX 7600")) return 92;
+            if (value.Contains("RX 6950") || value.Contains("RX 6900")) return 145;
+            if (value.Contains("RX 6800")) return 122;
+            if (value.Contains("RX 6700")) return 102;
+            if (value.Contains("RX 6600")) return 81;
+            if (value.Contains("RX 6500")) return 56;
+            if (value.Contains("RX 6400")) return 40;
+            if (value.Contains("RX 5700")) return 76;
+            if (value.Contains("RX 5600")) return 62;
+            if (value.Contains("RX 5500")) return 48;
+
+            if (value.Contains("ARC B580")) return 92;
+            if (value.Contains("ARC B570")) return 82;
+            if (value.Contains("ARC A770")) return 82;
+            if (value.Contains("ARC A750")) return 72;
+            if (value.Contains("ARC A580")) return 62;
+            if (value.Contains("ARC A380")) return 40;
+
+            if (IsIntegratedGpu(gpu)) return 34;
+            return 72;
+        }
+
+        private static double GetGameEraMultiplier(
+            int? releaseYear,
+            string gameName)
+        {
+            var name = gameName.ToUpperInvariant();
+
+            if (name.Contains("VALORANT") ||
+                name.Contains("COUNTER-STRIKE") ||
+                name.Contains("COUNTER STRIKE") ||
+                name.Contains("LEAGUE OF LEGENDS") ||
+                name.Contains("ROCKET LEAGUE"))
+            {
+                return 1.75;
+            }
+
+            if (name.Contains("PORTAL 2") ||
+                name.Contains("SAN ANDREAS") ||
+                name.Contains("LEFT 4 DEAD"))
+            {
+                return 2.15;
+            }
+
+            if (name.Contains("ALAN WAKE 2") ||
+                name.Contains("BLACK MYTH") ||
+                name.Contains("MONSTER HUNTER WILDS") ||
+                name.Contains("INDIANA JONES") ||
+                name.Contains("CYBERPUNK 2077"))
+            {
+                return 0.70;
+            }
+
+            if (!releaseYear.HasValue)
+                return 1.00;
+
+            var year = releaseYear.Value;
+            return year switch
+            {
+                <= 2010 => 2.30,
+                <= 2014 => 1.90,
+                <= 2018 => 1.48,
+                <= 2021 => 1.16,
+                <= 2023 => 0.98,
+                <= 2025 => 0.82,
+                _ => 0.74
+            };
+        }
+
+        private static bool IsIntegratedGpu(string gpu)
+        {
+            var value = gpu.ToUpperInvariant();
+            return value.Contains("IRIS") ||
+                   value.Contains("UHD") ||
+                   value.Contains("HD GRAPHICS") ||
+                   value.Contains("RADEON 780M") ||
+                   value.Contains("RADEON 680M") ||
+                   value.Contains("RADEON 880M") ||
+                   value.Contains("RADEON 890M") ||
+                   value.Contains("VEGA");
+        }
+
+        private static double GetUpscalerMultiplier(
+            string upscaler,
+            string mode)
+        {
+            if (string.Equals(
+                    upscaler,
+                    "None",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return 1.00;
+            }
+
+            return mode switch
+            {
+                "Quality" => 1.12,
+                "Balanced" => 1.22,
+                "Performance" => 1.35,
+                "Ultra Performance" => 1.45,
+                _ => 1.08
+            };
+        }
+
+        private static IReadOnlyCollection<string> BuildLocalRecommendations(
+            NormalizedFpsRequest request)
+        {
+            var values = new List<string>();
+            var english = request.Language == "en";
+
+            if (request.RayTracingEnabled)
+            {
+                values.Add(english
+                    ? "Disable ray tracing first if you need a more stable frame rate."
+                    : "Daha stabil kadr sürəti lazımdırsa ilk olaraq ray tracing-i söndür.");
+            }
+
+            if (request.GraphicsPreset is "High" or "Ultra")
+            {
+                values.Add(english
+                    ? "Lower the graphics preset by one step and reduce the most expensive effects such as shadows and volumetrics."
+                    : "Qrafika presetini bir pillə aşağı sal və kölgə/volumetric kimi ağır effektləri azalt.");
+            }
+
+            if (string.Equals(
+                    request.Upscaler,
+                    "None",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                values.Add(english
+                    ? "If the game supports DLSS, FSR or XeSS, try Quality mode before reducing resolution."
+                    : "Oyun DLSS, FSR və ya XeSS dəstəkləyirsə resolution azaltmazdan əvvəl Quality rejimini sına.");
+            }
+
+            values.Add(english
+                ? "Keep the GPU driver current and close heavy background applications before playing."
+                : "GPU driverini güncəl saxla və oyundan əvvəl ağır arxa-plan proqramlarını bağla.");
+
+            return values.Take(4).ToList();
+        }
+
+        private static IReadOnlyCollection<string> BuildLocalImportantFactors(
+            NormalizedFpsRequest request)
+        {
+            var english = request.Language == "en";
+            return new List<string>
+            {
+                english
+                    ? $"GPU performance class: {request.Gpu}."
+                    : $"GPU performans sinfi: {request.Gpu}.",
+                english
+                    ? $"Target rendering load: {request.Resolution} / {request.GraphicsPreset}."
+                    : $"Hədəf render yükü: {request.Resolution} / {request.GraphicsPreset}.",
+                english
+                    ? $"Game release/workload era: {request.GameReleaseYear?.ToString() ?? "unknown"}."
+                    : $"Oyunun buraxılış/yük dövrü: {request.GameReleaseYear?.ToString() ?? "naməlum"}.",
+                english
+                    ? $"Available system memory: {request.RamGb} GB RAM."
+                    : $"Mövcud sistem yaddaşı: {request.RamGb} GB RAM."
             };
         }
 
@@ -554,7 +1021,7 @@ namespace Ludora.Infrastructure.FpsResearch
             var keyHash = Convert.ToHexString(
                 SHA256.HashData(Encoding.UTF8.GetBytes(material)));
 
-            return $"fps-research:v4:{keyHash}";
+            return $"fps-research:v7:{keyHash}";
         }
 
         private static string NormalizeLanguage(string? value)
@@ -701,12 +1168,7 @@ namespace Ludora.Infrastructure.FpsResearch
                 .Where(url => url.Length > 0)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            var candidates = (sources ?? []).Where(source =>
-                selected.Count == 0 ||
-                selected.Contains(
-                    NormalizeComparableUrl(source.Url)));
-
-            return candidates
+            var validSources = (sources ?? [])
                 .Where(source =>
                     Uri.TryCreate(
                         source.Url,
@@ -714,6 +1176,24 @@ namespace Ludora.Infrastructure.FpsResearch
                         out var uri) &&
                     (uri.Scheme == Uri.UriSchemeHttps ||
                      uri.Scheme == Uri.UriSchemeHttp))
+                .ToList();
+
+            // Prefer the URLs the model says it actually used, but never discard
+            // genuine Groq web-search results just because the model omitted,
+            // normalized or slightly rewrote usedSourceUrls. That mismatch was a
+            // common reason for a valid FPS estimate to end up with zero sources.
+            var selectedMatches = selected.Count == 0
+                ? validSources
+                : validSources
+                    .Where(source => selected.Contains(
+                        NormalizeComparableUrl(source.Url)))
+                    .ToList();
+
+            var candidates = selectedMatches.Count > 0
+                ? selectedMatches
+                : validSources;
+
+            return candidates
                 .Select(source => new FpsBenchmarkSourceDTO
                 {
                     Title = CleanAiText(

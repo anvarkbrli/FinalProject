@@ -1,4 +1,4 @@
-﻿namespace Ludora.Persistence.Extensions
+namespace Ludora.Application.Extensions
 {
     public static class PathExtensions
     {

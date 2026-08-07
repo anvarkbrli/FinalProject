@@ -1,6 +1,6 @@
 using System.Security.Claims;
 
-namespace Ludora.API.Extensions
+namespace Ludora.Application.Extensions
 {
     public static class ClaimsPrincipalExtensions
     {

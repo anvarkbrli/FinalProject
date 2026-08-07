@@ -1,4 +1,4 @@
-using Ludora.API.Extensions;
+using Ludora.Application.Extensions;
 using Ludora.API.Security;
 using Ludora.Application.Common;
 using Ludora.Application.DTOs;

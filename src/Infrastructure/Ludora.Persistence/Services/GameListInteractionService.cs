@@ -6,7 +6,6 @@ using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -47,7 +46,7 @@ namespace Ludora.Persistence.Services
                 CreatedAt = DateTime.UtcNow
             }, cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameListLiked,
                 targetUserId: gameList.UserId,
@@ -83,7 +82,7 @@ namespace Ludora.Persistence.Services
 
             _context.GameListLikes.Remove(like);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameListUnliked,
                 targetUserId: gameList.UserId,
@@ -152,7 +151,7 @@ namespace Ludora.Persistence.Services
 
             await _context.GameListComments.AddAsync(comment, cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameListCommented,
                 targetUserId: gameList.UserId,
@@ -237,7 +236,7 @@ namespace Ludora.Persistence.Services
             comment.Content = dto.Content.NormalizeRequiredText("Şərh mətni", MaxCommentLength);
             comment.UpdatedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameListCommentUpdated,
                 targetUserId: gameList.UserId,
@@ -264,7 +263,7 @@ namespace Ludora.Persistence.Services
             comment.DeletedAtUtc = DateTime.UtcNow;
             comment.UpdatedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameListCommentDeleted,
                 targetUserId: gameList.UserId,

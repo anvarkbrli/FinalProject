@@ -18,6 +18,8 @@ namespace Ludora.Persistence.Services
         private const int MaxSearchPageSize = 50;
         private const int MaxMediaCount = 10;
         private const long MaxTotalMediaBytes = 150L * 1024 * 1024;
+        private const string GiphyMarkerPrefix = "[[giphy:";
+        private const string GiphyMarkerSuffix = "]]";
         private static readonly TimeZoneInfo BakuTimeZone = ResolveBakuTimeZone();
 
         private readonly AppDbContext _context;
@@ -458,6 +460,9 @@ namespace Ludora.Persistence.Services
             if (text?.Length > MaxMessageLength)
                 throw new BadRequestException($"Mesaj maksimum {MaxMessageLength} simvol ola bilər.");
 
+            var gifUrl = NormalizeGiphyUrl(dto.GifUrl);
+            var hasGif = gifUrl is not null;
+
             var hasGame = dto.GameSource.HasValue || dto.GameId.HasValue;
             if (hasGame &&
                 (!dto.GameSource.HasValue ||
@@ -473,7 +478,9 @@ namespace Ludora.Persistence.Services
                 throw new BadRequestException($"Bir mesajda maksimum {MaxMediaCount} media faylı göndərilə bilər.");
             if (mediaUploads.Sum(item => item.Length) > MaxTotalMediaBytes)
                 throw new BadRequestException("Bir mesajdakı media fayllarının ümumi ölçüsü maksimum 150 MB ola bilər.");
-            if (text is null && mediaUploads.Count == 0 && !hasGame)
+            if (hasGif && (text is not null || mediaUploads.Count > 0 || hasGame))
+                throw new BadRequestException("GIF ayrıca mesaj kimi göndərilməlidir.");
+            if (text is null && mediaUploads.Count == 0 && !hasGame && !hasGif)
                 throw new BadRequestException("Boş mesaj göndərilə bilməz.");
 
             var savedMedia = new List<(string StorageKey, string ContentType, long Length, string FileName)>();
@@ -612,11 +619,13 @@ namespace Ludora.Persistence.Services
                 var now = DateTime.UtcNow;
                 var kind = hasGame
                     ? ChatMessageKind.GameRecommendation
-                    : hasSavedMedia && firstMedia.ContentType.StartsWith("video/", StringComparison.Ordinal)
-                        ? ChatMessageKind.Video
-                        : hasSavedMedia
-                            ? ChatMessageKind.Image
-                            : ChatMessageKind.Text;
+                    : hasGif
+                        ? ChatMessageKind.Image
+                        : hasSavedMedia && firstMedia.ContentType.StartsWith("video/", StringComparison.Ordinal)
+                            ? ChatMessageKind.Video
+                            : hasSavedMedia
+                                ? ChatMessageKind.Image
+                                : ChatMessageKind.Text;
 
                 var message = new ChatMessage
                 {
@@ -624,7 +633,7 @@ namespace Ludora.Persistence.Services
                     SenderUserId = senderUserId,
                     ReplyToMessageId = dto.ReplyToMessageId,
                     Kind = kind,
-                    Text = text,
+                    Text = hasGif ? EncodeGiphyUrl(gifUrl!) : text,
                     MediaStorageKey = hasSavedMedia ? firstMedia.StorageKey : null,
                     MediaContentType = hasSavedMedia ? firstMedia.ContentType : null,
                     MediaLength = hasSavedMedia ? firstMedia.Length : null,
@@ -700,6 +709,53 @@ namespace Ludora.Persistence.Services
                     await _fileStorage.DeleteChatMediaAsync(item.StorageKey);
                 throw;
             }
+        }
+
+        public async Task<ChatMessageDTO> EditMessageAsync(
+            Guid userId,
+            long messageId,
+            ChatEditMessageDTO dto,
+            CancellationToken cancellationToken = default)
+        {
+            ArgumentNullException.ThrowIfNull(dto);
+            if (userId == Guid.Empty || messageId <= 0)
+                throw new BadRequestException("Redaktə ediləcək mesaj düzgün deyil.");
+
+            var text = dto.Text?.Trim() ?? string.Empty;
+            if (text.Length == 0)
+                throw new BadRequestException("Mesaj boş ola bilməz.");
+            if (text.Length > MaxMessageLength)
+                throw new BadRequestException($"Mesaj maksimum {MaxMessageLength} simvol ola bilər.");
+
+            var message = await _context.ChatMessages
+                .Include(item => item.Conversation)
+                    .ThenInclude(conversation => conversation.Members)
+                .FirstOrDefaultAsync(item => item.Id == messageId, cancellationToken)
+                ?? throw new NotFoundException("Mesaj tapılmadı.");
+
+            var isParticipant = message.Conversation.IsGroup
+                ? message.Conversation.Members.Any(member =>
+                    member.UserId == userId && message.SentAtUtc >= member.JoinedAtUtc)
+                : message.Conversation.UserOneId == userId || message.Conversation.UserTwoId == userId;
+            if (!isParticipant)
+                throw new ForbiddenException("Bu mesaja giriş yoxdur.");
+            if (message.SenderUserId != userId)
+                throw new ForbiddenException("Yalnız öz mesajını redaktə edə bilərsən.");
+            if (message.DeletedForEveryoneAtUtc.HasValue)
+                throw new BadRequestException("Silinmiş mesaj redaktə edilə bilməz.");
+            if (message.Kind != ChatMessageKind.Text || TryGetGiphyUrl(message.Text) is not null)
+                throw new BadRequestException("Yalnız mətn mesajları redaktə edilə bilər.");
+
+            if (!string.Equals(message.Text, text, StringComparison.Ordinal))
+            {
+                message.Text = text;
+                message.Conversation.UpdatedAtUtc = DateTime.UtcNow;
+                await _context.SaveChangesAsync(cancellationToken);
+            }
+
+            var loaded = await MessageGraphQuery(userId)
+                .FirstAsync(item => item.Id == messageId, cancellationToken);
+            return MapMessage(loaded, userId);
         }
 
         public async Task<ChatForwardMessagesResultDTO> ForwardMessageAsync(
@@ -1742,11 +1798,15 @@ namespace Ludora.Persistence.Services
                 })
                 .ToListAsync(cancellationToken);
 
+            var onlineUserIds = await _presenceTracker.GetOnlineUserIdsAsync(
+                members.Select(member => member.UserId).Distinct().ToArray(),
+                cancellationToken);
+
             return members
                 .GroupBy(member => member.ConversationId)
                 .ToDictionary(
                     group => group.Key,
-                    group => group.Count(member => _presenceTracker.IsOnline(member.UserId)));
+                    group => group.Count(member => onlineUserIds.Contains(member.UserId)));
         }
 
         private ChatConversationDTO MapConversation(
@@ -1860,8 +1920,11 @@ namespace Ludora.Persistence.Services
                     SenderUserId = message.ReplyToMessage.SenderUserId,
                     SenderUserName = message.ReplyToMessage.SenderUser?.UserName ?? "İstifadəçi",
                     Kind = message.ReplyToMessage.Kind,
-                    Text = replyDeleted ? null : message.ReplyToMessage.Text,
+                    Text = replyDeleted || TryGetGiphyUrl(message.ReplyToMessage.Text) is not null
+                        ? null
+                        : message.ReplyToMessage.Text,
                     GameName = replyDeleted ? null : message.ReplyToMessage.GameName,
+                    IsGif = !replyDeleted && TryGetGiphyUrl(message.ReplyToMessage.Text) is not null,
                     IsDeleted = replyDeleted
                 };
             }
@@ -1907,7 +1970,8 @@ namespace Ludora.Persistence.Services
                     IsOnline = false
                 },
                 Kind = message.Kind,
-                Text = deleted ? null : message.Text,
+                Text = deleted || TryGetGiphyUrl(message.Text) is not null ? null : message.Text,
+                GifUrl = deleted ? null : TryGetGiphyUrl(message.Text),
                 MediaUrl = deleted || message.MediaStorageKey is null
                     ? null
                     : $"/chat/messages/{message.Id}/media",
@@ -1979,6 +2043,44 @@ namespace Ludora.Persistence.Services
             if (normalized.Length > 100)
                 throw new BadRequestException("Söhbət axtarışı maksimum 100 simvol ola bilər.");
             return normalized;
+        }
+
+        private static string EncodeGiphyUrl(string gifUrl) =>
+            $"{GiphyMarkerPrefix}{gifUrl}{GiphyMarkerSuffix}";
+
+        private static string? TryGetGiphyUrl(string? storedText)
+        {
+            if (string.IsNullOrWhiteSpace(storedText) ||
+                !storedText.StartsWith(GiphyMarkerPrefix, StringComparison.Ordinal) ||
+                !storedText.EndsWith(GiphyMarkerSuffix, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            var raw = storedText[GiphyMarkerPrefix.Length..^GiphyMarkerSuffix.Length];
+            return NormalizeGiphyUrl(raw);
+        }
+
+        private static string? NormalizeGiphyUrl(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            var trimmed = value.Trim();
+            if (trimmed.Length > 2048 ||
+                !Uri.TryCreate(trimmed, UriKind.Absolute, out var uri) ||
+                !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BadRequestException("GIF ünvanı düzgün deyil.");
+            }
+
+            var host = uri.Host;
+            var trustedHost = string.Equals(host, "giphy.com", StringComparison.OrdinalIgnoreCase) ||
+                              host.EndsWith(".giphy.com", StringComparison.OrdinalIgnoreCase);
+            if (!trustedHost)
+                throw new BadRequestException("Yalnız GIPHY GIF-ləri göndərilə bilər.");
+
+            return uri.AbsoluteUri;
         }
 
         private static string? NormalizeOptional(string? value, int maxLength)

@@ -5,7 +5,7 @@ using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
+using Ludora.Application.Extensions;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -86,7 +86,7 @@ namespace Ludora.Persistence.Services
                 userFollow,
                 cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 followerId,
                 status == FollowStatus.Accepted
                     ? UserActivityType.UserFollowed
@@ -143,7 +143,7 @@ namespace Ludora.Persistence.Services
 
             _context.UserFollows.Remove(userFollow);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 followerId,
                 userFollow.Status == FollowStatus.Pending
                     ? UserActivityType.FollowRequestCancelled
@@ -169,7 +169,7 @@ namespace Ludora.Persistence.Services
             followRequest.Status = FollowStatus.Accepted;
             followRequest.AcceptedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 requesterId,
                 UserActivityType.UserFollowed,
                 targetUserId: currentUserId);
@@ -289,7 +289,7 @@ namespace Ludora.Persistence.Services
                 request.Status = FollowStatus.Accepted;
                 request.AcceptedAt = acceptedAt;
 
-                _context.AddUserActivity(
+                _context.UserActivities.AddUserActivity(
                     request.FollowerId,
                     UserActivityType.UserFollowed,
                     targetUserId: currentUserId);

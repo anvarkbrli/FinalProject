@@ -73,21 +73,56 @@ namespace Ludora.Infrastructure.FpsResearch
                 return saved;
             }
 
-            if (!_researchClient.IsEnabled || !_igdbClient.IsEnabled)
+            if (!_igdbClient.IsEnabled)
             {
                 throw new ExternalServiceException(
-                    "AI oyun tövsiyə xidməti hazırda aktiv deyil.");
+                    "Oyun kataloqu xidməti hazırda aktiv deyil.");
             }
 
-            var result = await ResearchWithGroqAsync(
-                profile,
-                normalizedLanguage,
-                cancellationToken);
+            if (!_researchClient.IsEnabled)
+            {
+                return await BuildIgdbFallbackAsync(
+                    profile,
+                    normalizedLanguage,
+                    cancellationToken);
+            }
+
+            HomeInterestRecommendationsDTO result;
+
+            try
+            {
+                result = await ResearchWithGroqAsync(
+                    profile,
+                    normalizedLanguage,
+                    cancellationToken);
+            }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+                when (exception is ExternalServiceException or JsonException)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Groq interest recommendation uğursuz oldu; IGDB popularity fallback istifadə edilir.");
+
+                return await BuildIgdbFallbackAsync(
+                    profile,
+                    normalizedLanguage,
+                    cancellationToken);
+            }
 
             if (result.Items.Count == 0)
             {
-                throw new ExternalServiceException(
-                    "Seçimlərinizə uyğun, populyarlığı təsdiqlənmiş oyun tapılmadı.");
+                _logger.LogWarning(
+                    "Groq interest recommendation cavabı uyğun kataloq oyunu vermədi; IGDB popularity fallback istifadə edilir.");
+
+                return await BuildIgdbFallbackAsync(
+                    profile,
+                    normalizedLanguage,
+                    cancellationToken);
             }
 
             return await _userService.SaveHomeInterestRecommendationsOnceAsync(
@@ -234,6 +269,241 @@ namespace Ludora.Infrastructure.FpsResearch
                 });
 
             return matchedGame is null ? null : MapGame(matchedGame);
+        }
+
+        private async Task<HomeInterestRecommendationsDTO> BuildIgdbFallbackAsync(
+            ForumInterestProfileDTO profile,
+            string language,
+            CancellationToken cancellationToken)
+        {
+            try
+            {
+                var selectedGenres = profile.Genres
+                    .Select(Normalize)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                var selectedTitles = profile.Games
+                    .Select(game => NormalizeTitle(game.Title))
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var popularityTypes = await _igdbClient
+                    .GetPopularityTypesAsync(cancellationToken);
+                var popularityType = FindFallbackPopularityType(popularityTypes);
+                IReadOnlyList<IgdbPopularityPrimitiveModel> primitives = [];
+
+                if (popularityType is not null)
+                {
+                    primitives = await _igdbClient.GetPopularityPrimitivesAsync(
+                        popularityType.Id,
+                        120,
+                        cancellationToken);
+                }
+
+                var popularityScore = primitives
+                    .GroupBy(item => item.GameId)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => group.Max(item => item.Value));
+                var gameIds = primitives
+                    .OrderByDescending(item => item.Value)
+                    .Select(item => item.GameId)
+                    .Distinct()
+                    .Take(120)
+                    .ToArray();
+
+                IReadOnlyList<IgdbGameModel> games = gameIds.Length > 0
+                    ? await _igdbClient.GetGamesByIdsForCardsAsync(
+                        gameIds,
+                        cancellationToken)
+                    : [];
+
+                var candidates = FilterFallbackGames(
+                        games,
+                        profile,
+                        selectedGenres,
+                        selectedTitles)
+                    .OrderByDescending(game =>
+                        popularityScore.GetValueOrDefault(game.Id))
+                    .ThenByDescending(game => game.Rating ?? 0)
+                    .ToList();
+
+                if (candidates.Count < RecommendationLimit)
+                {
+                    var genreFilters = await ResolveGenreFiltersAsync(
+                        profile.Genres,
+                        cancellationToken);
+                    var catalogGames = await _igdbClient.GetGamesAsync(
+                        new GameFilterDTO
+                        {
+                            GenreFilters = genreFilters,
+                            ReleasedOnly = true,
+                            SortBy = "rating_desc",
+                            PageNumber = 1,
+                            PageSize = 80,
+                            IncludeRelatedContent = false
+                        },
+                        cancellationToken);
+
+                    foreach (var game in FilterFallbackGames(
+                                 catalogGames,
+                                 profile,
+                                 selectedGenres,
+                                 selectedTitles))
+                    {
+                        if (candidates.Any(existing => existing.Id == game.Id))
+                            continue;
+
+                        candidates.Add(game);
+                        if (candidates.Count >= RecommendationLimit)
+                            break;
+                    }
+                }
+
+                var items = candidates
+                    .Take(RecommendationLimit)
+                    .Select((game, index) => new HomeInterestRecommendationDTO
+                    {
+                        Game = MapGame(game),
+                        Reason = BuildFallbackReason(game, profile, language),
+                        MatchScore = Math.Max(70, 92 - index * 3)
+                    })
+                    .ToList();
+
+                if (items.Count == 0)
+                {
+                    throw new ExternalServiceException(
+                        "Seçimlərinizə uyğun oyun tövsiyəsi hazırda tapılmadı.");
+                }
+
+                return new HomeInterestRecommendationsDTO
+                {
+                    Language = language,
+                    Items = items,
+                    Summary = language == "en"
+                        ? "Groq is temporarily unavailable, so these picks use IGDB popularity and your saved interests as a fallback."
+                        : "Groq müvəqqəti əlçatan olmadığı üçün bu seçimlər IGDB populyarlığı və yadda saxladığın maraqlara əsaslanan fallback ilə hazırlanıb.",
+                    IsAiGenerated = false,
+                    GeneratedAtUtc = DateTime.UtcNow
+                };
+            }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (ExternalServiceException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "IGDB interest recommendation fallback uğursuz oldu.");
+
+                throw new ExternalServiceException(
+                    "Oyun tövsiyə xidməti hazırda əlçatan deyil. Bir qədər sonra yenidən yoxlayın.",
+                    exception);
+            }
+        }
+
+        private static IEnumerable<IgdbGameModel> FilterFallbackGames(
+            IEnumerable<IgdbGameModel> games,
+            ForumInterestProfileDTO profile,
+            IReadOnlySet<string> selectedGenres,
+            IReadOnlySet<string> selectedTitles)
+        {
+            return games.Where(game =>
+                game.Id > 0 &&
+                !string.IsNullOrWhiteSpace(game.Name) &&
+                !string.IsNullOrWhiteSpace(game.CoverImageUrl) &&
+                DisplayableGameTypes.Contains(game.GameType) &&
+                !selectedTitles.Contains(NormalizeTitle(game.Name)) &&
+                (selectedGenres.Count == 0 ||
+                 game.Genres.Any(genre =>
+                     selectedGenres.Contains(Normalize(genre.Name)))) &&
+                (string.IsNullOrWhiteSpace(profile.Platform) ||
+                 game.Platforms.Any(platform =>
+                     PlatformMatches(profile.Platform, platform.Name))));
+        }
+
+        private async Task<string?> ResolveGenreFiltersAsync(
+            IEnumerable<string> genreNames,
+            CancellationToken cancellationToken)
+        {
+            var ids = new HashSet<long>();
+
+            foreach (var genreName in genreNames
+                         .Where(name => !string.IsNullOrWhiteSpace(name))
+                         .Take(8))
+            {
+                var normalizedName = Normalize(genreName);
+                var matches = await _igdbClient.GetGenresAsync(
+                    genreName,
+                    cancellationToken);
+                var match = matches.FirstOrDefault(genre =>
+                                Normalize(genre.Name) == normalizedName)
+                            ?? matches.FirstOrDefault();
+
+                if (match is not null && match.Id > 0)
+                    ids.Add(match.Id);
+            }
+
+            return ids.Count == 0
+                ? null
+                : string.Join(',', ids.Select(id => $"Igdb:{id}"));
+        }
+
+        private static IgdbPopularityTypeModel? FindFallbackPopularityType(
+            IEnumerable<IgdbPopularityTypeModel> popularityTypes)
+        {
+            var types = popularityTypes.ToArray();
+            var preferredNames = new[]
+            {
+                "Playing",
+                "Visits",
+                "Want to Play"
+            };
+
+            foreach (var preferredName in preferredNames)
+            {
+                var match = types.FirstOrDefault(type =>
+                    string.Equals(
+                        type.Name,
+                        preferredName,
+                        StringComparison.OrdinalIgnoreCase));
+                if (match is not null)
+                    return match;
+            }
+
+            return types.FirstOrDefault();
+        }
+
+        private static string BuildFallbackReason(
+            IgdbGameModel game,
+            ForumInterestProfileDTO profile,
+            string language)
+        {
+            var matchingGenres = game.Genres
+                .Select(genre => genre.Name)
+                .Where(name => profile.Genres.Any(selected =>
+                    Normalize(selected) == Normalize(name)))
+                .Take(2)
+                .ToArray();
+            var genreText = matchingGenres.Length > 0
+                ? string.Join(", ", matchingGenres)
+                : game.Genres.FirstOrDefault()?.Name;
+
+            return language == "en"
+                ? LimitText(
+                    string.IsNullOrWhiteSpace(genreText)
+                        ? "A popular catalog pick that matches your saved platform and game interests."
+                        : $"A popular {genreText} pick that matches your saved platform and game interests.",
+                    270)
+                : LimitText(
+                    string.IsNullOrWhiteSpace(genreText)
+                        ? "Yadda saxladığın platforma və oyun maraqlarına uyğun populyar kataloq seçimidir."
+                        : $"Yadda saxladığın platforma və oyun maraqlarına uyğun populyar {genreText} seçimidir.",
+                    270);
         }
 
         private static string BuildSystemPrompt(string language)

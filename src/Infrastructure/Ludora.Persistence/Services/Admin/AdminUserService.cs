@@ -8,7 +8,6 @@ using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
 
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;

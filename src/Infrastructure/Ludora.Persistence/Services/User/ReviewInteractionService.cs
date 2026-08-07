@@ -6,7 +6,6 @@ using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -43,7 +42,7 @@ namespace Ludora.Persistence.Services
                 CreatedAt = DateTime.UtcNow
             }, cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.ReviewLiked,
                 targetUserId: review.UserId,
@@ -76,7 +75,7 @@ namespace Ludora.Persistence.Services
             if (like is null) return;
             _context.ReviewLikes.Remove(like);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.ReviewUnliked,
                 targetUserId: review.UserId,
@@ -151,7 +150,7 @@ namespace Ludora.Persistence.Services
             };
             await _context.ReviewComments.AddAsync(comment, cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.ReviewCommented,
                 targetUserId: review.UserId,
@@ -228,7 +227,7 @@ namespace Ludora.Persistence.Services
             comment.Content = dto.Content.NormalizeRequiredText("Şərh mətni", MaxCommentLength);
             comment.UpdatedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.ReviewCommentUpdated,
                 targetUserId: review.UserId,
@@ -251,7 +250,7 @@ namespace Ludora.Persistence.Services
             comment.DeletedAtUtc = DateTime.UtcNow;
             comment.UpdatedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.ReviewCommentDeleted,
                 targetUserId: review.UserId,

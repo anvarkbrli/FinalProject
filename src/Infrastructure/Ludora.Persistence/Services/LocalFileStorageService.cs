@@ -1,4 +1,4 @@
-﻿namespace Ludora.Persistence.Services
+namespace Ludora.Persistence.Services
 {
     using Ludora.Application.DTOs;
     using Ludora.Application.DTOs.Chat;
@@ -7,7 +7,6 @@
     using Ludora.Application.Interfaces;
     using Ludora.Application.Models;
     using Ludora.Application.Settings;
-    using Ludora.Persistence.Extensions;
     using Microsoft.Extensions.Logging;
     using SixLabors.ImageSharp;
     using SixLabors.ImageSharp.Formats.Webp;

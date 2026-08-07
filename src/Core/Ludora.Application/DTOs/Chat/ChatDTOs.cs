@@ -27,6 +27,7 @@ namespace Ludora.Application.DTOs.Chat
         public ChatMessageKind Kind { get; init; }
         public string? Text { get; init; }
         public string? GameName { get; init; }
+        public bool IsGif { get; init; }
         public bool IsDeleted { get; init; }
     }
 
@@ -71,6 +72,7 @@ namespace Ludora.Application.DTOs.Chat
         public ChatUserDTO? SenderUser { get; init; }
         public ChatMessageKind Kind { get; init; }
         public string? Text { get; init; }
+        public string? GifUrl { get; init; }
         public string? MediaUrl { get; init; }
         public string? MediaContentType { get; init; }
         public IReadOnlyList<ChatMessageMediaDTO> MediaItems { get; init; } = [];
@@ -90,6 +92,20 @@ namespace Ludora.Application.DTOs.Chat
         public DateTime? DeletedForEveryoneAtUtc { get; init; }
         public bool IsPinnedByCurrentUser { get; init; }
         public DateTime? PinnedAtUtc { get; init; }
+    }
+
+
+    public sealed record ChatEditMessageDTO
+    {
+        public string Text { get; init; } = string.Empty;
+    }
+
+    public sealed record ChatMessageEditedDTO
+    {
+        public long MessageId { get; init; }
+        public long ConversationId { get; init; }
+        public Guid EditedByUserId { get; init; }
+        public DateTime EditedAtUtc { get; init; }
     }
 
     public sealed record ChatSendMessageResultDTO
@@ -193,6 +209,7 @@ namespace Ludora.Application.DTOs.Chat
         public Guid? RecipientUserId { get; init; }
         public long? ConversationId { get; init; }
         public string? Text { get; init; }
+        public string? GifUrl { get; init; }
         public IReadOnlyList<ChatMediaUploadDTO> Media { get; init; } = [];
         public CatalogSource? GameSource { get; init; }
         public long? GameId { get; init; }

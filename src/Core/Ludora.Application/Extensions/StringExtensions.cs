@@ -2,7 +2,7 @@ namespace Ludora.Application.Extensions
 {
     using Ludora.Application.Exceptions;
 
-    public static class StringExtension
+    public static class StringExtensions
     {
         public static string? TrimOrNull(this string? value)
         {

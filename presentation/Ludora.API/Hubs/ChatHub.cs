@@ -101,6 +101,12 @@ namespace Ludora.API.Hubs
                 Context.ConnectionId,
                 ConversationGroup(conversationId));
 
+        public Task Heartbeat() =>
+            _presenceCoordinator.HeartbeatAsync(
+                GetUserId(),
+                PresenceConnectionId(),
+                Context.ConnectionAborted);
+
         public async Task SetTyping(long conversationId, bool isTyping)
         {
             var now = DateTime.UtcNow;

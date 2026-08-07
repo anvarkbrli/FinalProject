@@ -3,6 +3,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
@@ -27,6 +28,10 @@ namespace Ludora.Infrastructure.FpsResearch
             HttpStatusCode.ServiceUnavailable,
             HttpStatusCode.GatewayTimeout
         ];
+
+        private static readonly Regex UrlRegex = new(
+            @"https?://[^\s""'<>\]\)]+",
+            RegexOptions.Compiled | RegexOptions.IgnoreCase);
 
         private readonly HttpClient _httpClient;
         private readonly FpsResearchSettings _settings;
@@ -63,16 +68,35 @@ namespace Ludora.Infrastructure.FpsResearch
             var modelVersion = string.IsNullOrWhiteSpace(modelVersionOverride)
                 ? _settings.ModelVersion
                 : modelVersionOverride.Trim();
-            var payload = JsonSerializer.Serialize(new
+
+            var isCompoundSystem = model.StartsWith(
+                "groq/compound",
+                StringComparison.OrdinalIgnoreCase);
+
+            // FPS has three provider paths: Compound Mini, Compound and finally a
+            // plain production model. Only Compound systems accept compound_custom.
+            // The previous implementation always sent compound_custom, which made a
+            // non-Compound fallback impossible and left the endpoint dependent on a
+            // single provider response shape.
+            var payloadData = new Dictionary<string, object?>
             {
-                model,
-                temperature = 0.1,
-                max_tokens = 1600,
-                response_format = new
+                ["model"] = model,
+                ["temperature"] = 0.1,
+                ["max_completion_tokens"] = isCompoundSystem ? 3500 : 2400,
+                ["response_format"] = new
                 {
                     type = "json_object"
                 },
-                compound_custom = new
+                ["messages"] = new[]
+                {
+                    new { role = "system", content = systemPrompt },
+                    new { role = "user", content = benchmarkSearchPrompt }
+                }
+            };
+
+            if (isCompoundSystem)
+            {
+                payloadData["compound_custom"] = new
                 {
                     tools = new
                     {
@@ -81,13 +105,17 @@ namespace Ludora.Infrastructure.FpsResearch
                             "web_search"
                         }
                     }
-                },
-                messages = new[]
-                {
-                    new { role = "system", content = systemPrompt },
-                    new { role = "user", content = benchmarkSearchPrompt }
-                }
-            });
+                };
+            }
+            else if (model.StartsWith(
+                         "openai/gpt-oss",
+                         StringComparison.OrdinalIgnoreCase))
+            {
+                // Keep the emergency JSON-only fallback quick and predictable.
+                payloadData["reasoning_effort"] = "low";
+            }
+
+            var payload = JsonSerializer.Serialize(payloadData);
 
             for (var attempt = 0; attempt <= _settings.MaxRetries; attempt++)
             {
@@ -96,7 +124,9 @@ namespace Ludora.Infrastructure.FpsResearch
 
                 try
                 {
-                    using var request = CreateRequest(payload, modelVersion);
+                    using var request = CreateRequest(
+                        payload,
+                        isCompoundSystem ? modelVersion : string.Empty);
                     using var response = await _httpClient.SendAsync(
                         request,
                         HttpCompletionOption.ResponseHeadersRead,
@@ -106,33 +136,65 @@ namespace Ludora.Infrastructure.FpsResearch
                     var correlationId =
                         Activity.Current?.TraceId.ToString() ?? "none";
 
-                    _logger.LogInformation(
-                        "FPS benchmark research tamamlandı. Provider Groq Compound, Model {Model}, DurationMs {DurationMs}, StatusCode {StatusCode}, RetryCount {RetryCount}, CorrelationId {CorrelationId}.",
+                    if (response.IsSuccessStatusCode)
+                    {
+                        var responseJson = await response.Content
+                            .ReadAsStringAsync(cancellationToken);
+
+                        _logger.LogInformation(
+                            "Groq Compound request uğurlu oldu. Model {Model}, DurationMs {DurationMs}, StatusCode {StatusCode}, RetryCount {RetryCount}, CorrelationId {CorrelationId}.",
+                            model,
+                            elapsed.TotalMilliseconds,
+                            (int)response.StatusCode,
+                            attempt,
+                            correlationId);
+
+                        var completion = ReadCompletion(responseJson);
+
+                        _logger.LogInformation(
+                            "Groq Compound cavabında {SourceCount} research source tapıldı. Model {Model}, CorrelationId {CorrelationId}.",
+                            completion.Sources.Count,
+                            model,
+                            correlationId);
+
+                        return completion;
+                    }
+
+                    var errorBody = await response.Content
+                        .ReadAsStringAsync(cancellationToken);
+                    var providerError = ReadProviderError(errorBody);
+                    var retryAfterSeconds = GetRetryAfterSeconds(response);
+
+                    _logger.LogWarning(
+                        "Groq Compound request uğursuz oldu. Model {Model}, DurationMs {DurationMs}, StatusCode {StatusCode}, RetryCount {RetryCount}, ProviderErrorCode {ProviderErrorCode}, ProviderErrorType {ProviderErrorType}, ProviderMessage {ProviderMessage}, RetryAfterSeconds {RetryAfterSeconds}, RemainingRequests {RemainingRequests}, RemainingTokens {RemainingTokens}, CorrelationId {CorrelationId}.",
                         model,
                         elapsed.TotalMilliseconds,
                         (int)response.StatusCode,
                         attempt,
+                        providerError.Code,
+                        providerError.Type,
+                        providerError.Message,
+                        retryAfterSeconds,
+                        GetHeader(response, "x-ratelimit-remaining-requests"),
+                        GetHeader(response, "x-ratelimit-remaining-tokens"),
                         correlationId);
 
+                    var retryDelay = GetRetryDelay(
+                        response,
+                        attempt,
+                        retryAfterSeconds);
+
                     if (RetryableStatusCodes.Contains(response.StatusCode) &&
-                        attempt < _settings.MaxRetries)
+                        attempt < _settings.MaxRetries &&
+                        retryDelay.HasValue)
                     {
-                        await Task.Delay(
-                            GetRetryDelay(response, attempt),
-                            cancellationToken);
+                        await Task.Delay(retryDelay.Value, cancellationToken);
                         continue;
                     }
 
-                    if (!response.IsSuccessStatusCode)
-                    {
-                        throw new ExternalServiceException(
-                            "FPS benchmark xidməti hazırda əlçatan deyil. Bir qədər sonra yenidən yoxlayın.");
-                    }
-
-                    var responseJson = await response.Content
-                        .ReadAsStringAsync(cancellationToken);
-
-                    return ReadCompletion(responseJson);
+                    throw CreateProviderException(
+                        response.StatusCode,
+                        retryAfterSeconds);
                 }
                 catch (OperationCanceledException)
                     when (cancellationToken.IsCancellationRequested)
@@ -169,15 +231,48 @@ namespace Ludora.Infrastructure.FpsResearch
                 new AuthenticationHeaderValue("Bearer", _settings.ApiKey);
             request.Headers.Accept.Add(
                 new MediaTypeWithQualityHeaderValue("application/json"));
-            request.Headers.TryAddWithoutValidation(
-                "Groq-Model-Version",
-                modelVersion);
+
+            if (!string.IsNullOrWhiteSpace(modelVersion))
+            {
+                request.Headers.TryAddWithoutValidation(
+                    "Groq-Model-Version",
+                    modelVersion);
+            }
+
             request.Content = new StringContent(
                 payload,
                 Encoding.UTF8,
                 "application/json");
 
             return request;
+        }
+
+        private static ExternalServiceException CreateProviderException(
+            HttpStatusCode statusCode,
+            int? retryAfterSeconds)
+        {
+            if (statusCode == HttpStatusCode.TooManyRequests)
+            {
+                return new ExternalServiceException(
+                    "AI xidmətinin sorğu limiti müvəqqəti dolub. Bir qədər sonra yenidən yoxlayın.",
+                    429,
+                    retryAfterSeconds);
+            }
+
+            if (statusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
+            {
+                return new ExternalServiceException(
+                    "AI xidməti hazırda autentifikasiya oluna bilmir. Bir qədər sonra yenidən yoxlayın.");
+            }
+
+            if (statusCode == HttpStatusCode.BadRequest)
+            {
+                return new ExternalServiceException(
+                    "AI xidməti sorğunu qəbul etmədi. Bir qədər sonra yenidən yoxlayın.");
+            }
+
+            return new ExternalServiceException(
+                "FPS benchmark xidməti hazırda əlçatan deyil. Bir qədər sonra yenidən yoxlayın.");
         }
 
         private static FpsResearchCompletion ReadCompletion(
@@ -206,7 +301,7 @@ namespace Ludora.Infrastructure.FpsResearch
                     executedTools.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var tool in executedTools.EnumerateArray())
-                        ReadToolSearchResults(tool, sources);
+                        CollectSources(tool, sources);
                 }
 
                 return new FpsResearchCompletion
@@ -276,58 +371,71 @@ namespace Ludora.Infrastructure.FpsResearch
             return normalized;
         }
 
-        private static void ReadToolSearchResults(
-            JsonElement tool,
+        private static void CollectSources(
+            JsonElement element,
             ICollection<RankedResearchSource> sources)
         {
-            if (!tool.TryGetProperty(
-                    "search_results",
-                    out var searchResults))
+            switch (element.ValueKind)
             {
-                return;
-            }
-
-            if (searchResults.ValueKind == JsonValueKind.Object &&
-                searchResults.TryGetProperty(
-                    "results",
-                    out var nestedResults))
-            {
-                searchResults = nestedResults;
-            }
-
-            if (searchResults.ValueKind != JsonValueKind.Array)
-                return;
-
-            foreach (var result in searchResults.EnumerateArray())
-            {
-                var urlValue = result.TryGetProperty("url", out var url)
-                    ? url.GetString()
-                    : null;
-
-                if (!TryNormalizeUrl(urlValue, out var normalizedUrl))
-                    continue;
-
-                var title = result.TryGetProperty("title", out var titleValue)
-                    ? titleValue.GetString()
-                    : null;
-                var score =
-                    result.TryGetProperty("score", out var scoreValue) &&
-                    scoreValue.TryGetDouble(out var parsedScore)
-                        ? parsedScore
-                        : 0;
-
-                sources.Add(new RankedResearchSource
+                case JsonValueKind.Object:
                 {
-                    Source = new FpsResearchSource
+                    if (element.TryGetProperty("url", out var urlElement) &&
+                        urlElement.ValueKind == JsonValueKind.String)
                     {
-                        Title = string.IsNullOrWhiteSpace(title)
-                            ? new Uri(normalizedUrl).Host
-                            : title.Trim(),
-                        Url = normalizedUrl
-                    },
-                    RelevanceScore = score
-                });
+                        var urlValue = urlElement.GetString();
+                        var title = element.TryGetProperty("title", out var titleElement) &&
+                                    titleElement.ValueKind == JsonValueKind.String
+                            ? titleElement.GetString()
+                            : null;
+                        var score = element.TryGetProperty("score", out var scoreElement) &&
+                                    scoreElement.TryGetDouble(out var parsedScore)
+                            ? parsedScore
+                            : 0;
+
+                        AddSource(urlValue, title, score, sources);
+                    }
+
+                    foreach (var property in element.EnumerateObject())
+                        CollectSources(property.Value, sources);
+                    break;
+                }
+                case JsonValueKind.Array:
+                    foreach (var item in element.EnumerateArray())
+                        CollectSources(item, sources);
+                    break;
+                case JsonValueKind.String:
+                {
+                    var value = element.GetString();
+                    if (string.IsNullOrWhiteSpace(value))
+                        break;
+
+                    foreach (Match match in UrlRegex.Matches(value))
+                        AddSource(match.Value, null, 0, sources);
+                    break;
+                }
             }
+        }
+
+        private static void AddSource(
+            string? urlValue,
+            string? title,
+            double score,
+            ICollection<RankedResearchSource> sources)
+        {
+            if (!TryNormalizeUrl(urlValue, out var normalizedUrl))
+                return;
+
+            sources.Add(new RankedResearchSource
+            {
+                Source = new FpsResearchSource
+                {
+                    Title = string.IsNullOrWhiteSpace(title)
+                        ? new Uri(normalizedUrl).Host
+                        : title.Trim(),
+                    Url = normalizedUrl
+                },
+                RelevanceScore = score
+            });
         }
 
         private static bool TryNormalizeUrl(
@@ -335,8 +443,9 @@ namespace Ludora.Infrastructure.FpsResearch
             out string normalizedUrl)
         {
             normalizedUrl = string.Empty;
+            var candidate = value?.Trim().TrimEnd('.', ',', ';', ':', '!', '?');
 
-            if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) ||
+            if (!Uri.TryCreate(candidate, UriKind.Absolute, out var uri) ||
                 (uri.Scheme != Uri.UriSchemeHttps &&
                  uri.Scheme != Uri.UriSchemeHttp))
             {
@@ -347,20 +456,108 @@ namespace Ludora.Infrastructure.FpsResearch
             return true;
         }
 
-        private static TimeSpan GetRetryDelay(
+        private static TimeSpan? GetRetryDelay(
             HttpResponseMessage response,
-            int attempt)
+            int attempt,
+            int? retryAfterSeconds)
         {
-            if (response.Headers.RetryAfter?.Delta is { } delta &&
-                delta > TimeSpan.Zero &&
-                delta <= TimeSpan.FromSeconds(10))
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
-                return delta;
+                if (retryAfterSeconds is > 15)
+                    return null;
+
+                if (retryAfterSeconds is > 0)
+                    return TimeSpan.FromSeconds(retryAfterSeconds.Value);
+
+                return TimeSpan.FromSeconds(1);
             }
 
             return TimeSpan.FromMilliseconds(
-                350 * Math.Pow(2, attempt));
+                500 * Math.Pow(2, attempt));
         }
+
+        private static int? GetRetryAfterSeconds(HttpResponseMessage response)
+        {
+            if (response.Headers.RetryAfter?.Delta is { } delta &&
+                delta > TimeSpan.Zero)
+            {
+                return Math.Max(1, (int)Math.Ceiling(delta.TotalSeconds));
+            }
+
+            if (response.Headers.RetryAfter?.Date is { } retryDate)
+            {
+                var remaining = retryDate - DateTimeOffset.UtcNow;
+                if (remaining > TimeSpan.Zero)
+                    return Math.Max(1, (int)Math.Ceiling(remaining.TotalSeconds));
+            }
+
+            return null;
+        }
+
+        private static string? GetHeader(
+            HttpResponseMessage response,
+            string headerName)
+        {
+            return response.Headers.TryGetValues(headerName, out var values)
+                ? values.FirstOrDefault()
+                : null;
+        }
+
+        private static ProviderError ReadProviderError(string responseBody)
+        {
+            if (string.IsNullOrWhiteSpace(responseBody))
+                return new ProviderError(null, null, null);
+
+            try
+            {
+                using var document = JsonDocument.Parse(responseBody);
+                if (!document.RootElement.TryGetProperty("error", out var error))
+                {
+                    return new ProviderError(
+                        LimitForLog(responseBody),
+                        null,
+                        null);
+                }
+
+                var message = error.TryGetProperty("message", out var messageElement)
+                    ? messageElement.ToString()
+                    : null;
+                var type = error.TryGetProperty("type", out var typeElement)
+                    ? typeElement.ToString()
+                    : null;
+                var code = error.TryGetProperty("code", out var codeElement)
+                    ? codeElement.ToString()
+                    : null;
+
+                return new ProviderError(
+                    LimitForLog(message),
+                    LimitForLog(type),
+                    LimitForLog(code));
+            }
+            catch (JsonException)
+            {
+                return new ProviderError(
+                    LimitForLog(responseBody),
+                    null,
+                    null);
+            }
+        }
+
+        private static string? LimitForLog(string? value)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            var normalized = value.Replace('\r', ' ').Replace('\n', ' ').Trim();
+            return normalized.Length <= 600
+                ? normalized
+                : normalized[..600] + "…";
+        }
+
+        private sealed record ProviderError(
+            string? Message,
+            string? Type,
+            string? Code);
 
         private sealed class RankedResearchSource
         {

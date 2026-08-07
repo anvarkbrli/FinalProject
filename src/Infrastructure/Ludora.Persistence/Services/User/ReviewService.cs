@@ -8,7 +8,6 @@ using Ludora.Domain.Entities;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -172,7 +171,7 @@ namespace Ludora.Persistence.Services
 
             await SaveChangesAsync(cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.ReviewCreated,
                 gameSource: source,
@@ -464,7 +463,7 @@ namespace Ludora.Persistence.Services
                     cancellationToken);
             }
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.ReviewUpdated,
                 gameSource: review.Source,
@@ -556,7 +555,7 @@ namespace Ludora.Persistence.Services
                 reviewId,
                 cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.ReviewDeleted,
                 gameSource: review.Source,

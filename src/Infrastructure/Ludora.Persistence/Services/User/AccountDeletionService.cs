@@ -8,7 +8,7 @@ using Ludora.Domain.Entities.Forum;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
+using Ludora.Application.Extensions;
 
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;

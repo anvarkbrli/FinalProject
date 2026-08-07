@@ -14,14 +14,17 @@ namespace Ludora.Infrastructure.IGDB
 {
     public sealed class HomeDiscoveryService : IHomeDiscoveryService
     {
-        private const string FreshCacheKey = "home-discovery:v6:fresh";
-        private const string StaleCacheKey = "home-discovery:v6:stale";
+        private const string FreshCacheKey = "home-discovery:v7:fresh";
+        private const string StaleCacheKey = "home-discovery:v7:stale";
         private const int SectionSize = 18;
         private const int ComingSoonSectionSize = 18;
         private const int PopularityCandidateCount = 80;
         private const int UpcomingCandidateCount = 200;
         private const int UpcomingWindowMonths = 18;
         private const int AzerbaijanUtcOffsetHours = 4;
+        private static readonly TimeSpan FreshCacheDuration = TimeSpan.FromMinutes(30);
+        private static readonly TimeSpan EmptyCacheDuration = TimeSpan.FromMinutes(2);
+        private static readonly TimeSpan StaleCacheDuration = TimeSpan.FromHours(24);
 
         private static readonly SemaphoreSlim CacheLock = new(1, 1);
 
@@ -88,17 +91,28 @@ namespace Ludora.Infrastructure.IGDB
                     staleResult,
                     cancellationToken);
 
+                var hasDiscoveryData =
+                    result.TrendingGames.Count > 0 ||
+                    result.ComingSoonGames.Count > 0;
+
                 await _cache.SetAsync(
                     FreshCacheKey,
                     result,
-                    TimeSpan.FromMinutes(30),
+                    hasDiscoveryData
+                        ? FreshCacheDuration
+                        : EmptyCacheDuration,
                     cancellationToken);
 
-                await _cache.SetAsync(
-                    StaleCacheKey,
-                    result,
-                    TimeSpan.FromHours(24),
-                    cancellationToken);
+                // Never replace the long-lived last-known-good cache with a
+                // completely empty response caused by a temporary IGDB/SQL issue.
+                if (hasDiscoveryData)
+                {
+                    await _cache.SetAsync(
+                        StaleCacheKey,
+                        result,
+                        StaleCacheDuration,
+                        cancellationToken);
+                }
 
                 return result;
             }
@@ -112,46 +126,83 @@ namespace Ludora.Infrastructure.IGDB
             HomeDiscoveryDTO? staleResult,
             CancellationToken cancellationToken)
         {
-            IReadOnlyList<GameListItemDTO> trendingGames = [];
-            IReadOnlyList<HomeComingSoonGameDTO> comingSoonGames = [];
+            IReadOnlyList<GameListItemDTO> trendingGames =
+                staleResult?.TrendingGames ?? [];
+            IReadOnlyList<HomeComingSoonGameDTO> comingSoonGames =
+                staleResult?.ComingSoonGames ?? [];
 
-            if (_igdbClient.IsEnabled)
+            if (!_igdbClient.IsEnabled)
             {
-                try
+                return new HomeDiscoveryDTO
                 {
-                    var popularityTypes = await _igdbClient
-                        .GetPopularityTypesAsync(cancellationToken);
-                    var trendingTask = LoadTrendingFromIgdbAsync(
-                        popularityTypes,
-                        cancellationToken);
-                    var comingSoonTask = LoadMostAnticipatedUpcomingAsync(
-                        popularityTypes,
-                        cancellationToken);
-
-                    await Task.WhenAll(trendingTask, comingSoonTask);
-
-                    trendingGames = await trendingTask;
-                    comingSoonGames = await comingSoonTask;
-                }
-                catch (OperationCanceledException)
-                    when (cancellationToken.IsCancellationRequested)
-                {
-                    throw;
-                }
-                catch (Exception exception)
-                {
-                    _logger.LogWarning(
-                        exception,
-                        "Ana səhifə üçün IGDB discovery məlumatları alına bilmədi; son uğurlu keş istifadə olunur.");
-
-                    trendingGames = staleResult?.TrendingGames ?? [];
-                    comingSoonGames = staleResult?.ComingSoonGames ?? [];
-                }
+                    TrendingGames = trendingGames,
+                    ComingSoonGames = comingSoonGames,
+                    GeneratedAtUtc = DateTime.UtcNow
+                };
             }
-            else
+
+            IReadOnlyList<IgdbPopularityTypeModel> popularityTypes = [];
+
+            try
             {
-                trendingGames = staleResult?.TrendingGames ?? [];
-                comingSoonGames = staleResult?.ComingSoonGames ?? [];
+                popularityTypes = await _igdbClient
+                    .GetPopularityTypesAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                // Popularity metadata is useful for ranking, but it must not
+                // take both home rails down. Each rail has an IGDB games fallback.
+                _logger.LogWarning(
+                    exception,
+                    "IGDB popularity type məlumatları alınmadı; discovery fallback ilə davam edir.");
+            }
+
+            try
+            {
+                var loadedTrendingGames = await LoadTrendingFromIgdbAsync(
+                    popularityTypes,
+                    cancellationToken);
+
+                if (loadedTrendingGames.Count > 0)
+                    trendingGames = loadedTrendingGames;
+            }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Trend oyunları alına bilmədi; son uğurlu keş istifadə olunur.");
+            }
+
+            try
+            {
+                var loadedComingSoonGames =
+                    await LoadMostAnticipatedUpcomingAsync(
+                        popularityTypes,
+                        cancellationToken);
+
+                if (loadedComingSoonGames.Count > 0)
+                    comingSoonGames = loadedComingSoonGames;
+            }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "Tezliklə çıxacaq oyunlar alına bilmədi; son uğurlu keş istifadə olunur.");
             }
 
             return new HomeDiscoveryDTO
@@ -180,27 +231,18 @@ namespace Ludora.Infrastructure.IGDB
             if (trendingIds.Length == 0)
                 return await LoadTrendingFallbackAsync(cancellationToken);
 
-            var references = trendingIds
-                .Select(x => new CatalogReferenceDTO
-                {
-                    Source = CatalogSource.Igdb,
-                    Id = x
-                })
-                .ToArray();
-
-            var gamesByReference = await _gameService.GetByReferencesAsync(
-                references,
+            var gamesById = await ResolveIgdbGameCardsAsync(
+                trendingIds,
                 cancellationToken);
 
             var trendingGames = trendingIds
-                .Select(id => gamesByReference.GetValueOrDefault(
-                    (CatalogSource.Igdb, id)))
+                .Select(id => gamesById.GetValueOrDefault(id))
                 .Where(x => x is not null)
                 .Select(x => x!)
-                .Where(IsDisplayableGame)
-                .Where(x => x.ReleaseDate.HasValue && x.ReleaseDate.Value <= today)
+                .Where(x =>
+                    x.ReleaseDate.HasValue &&
+                    x.ReleaseDate.Value <= today)
                 .Take(SectionSize)
-                .Select(MapGame)
                 .ToList();
 
             return trendingGames.Count > 0
@@ -243,12 +285,12 @@ namespace Ludora.Infrastructure.IGDB
             var maximumReleaseDate = today.AddMonths(UpcomingWindowMonths);
 
             var scores = new Dictionary<long, double>();
-            var wishlistedTask = LoadPopularityMetricAsync(
+            var wishlistedTask = LoadPopularityMetricSafeAsync(
                 popularityTypes,
                 "Most Wishlisted Upcoming",
                 UpcomingCandidateCount,
                 cancellationToken);
-            var wantToPlayTask = LoadPopularityMetricAsync(
+            var wantToPlayTask = LoadPopularityMetricSafeAsync(
                 popularityTypes,
                 "Want to Play",
                 UpcomingCandidateCount,
@@ -287,18 +329,13 @@ namespace Ludora.Infrastructure.IGDB
                 .ToArray();
 
             if (candidateIds.Length == 0)
-                return [];
+                return await LoadUpcomingFallbackAsync(
+                    today,
+                    maximumReleaseDate,
+                    cancellationToken);
 
-            var references = candidateIds
-                .Select(id => new CatalogReferenceDTO
-                {
-                    Source = CatalogSource.Igdb,
-                    Id = id
-                })
-                .ToArray();
-
-            var gamesByReference = await _gameService.GetByReferencesAsync(
-                references,
+            var gamesById = await ResolveIgdbGameCardsAsync(
+                candidateIds,
                 cancellationToken);
 
             var releaseWindowDays = Math.Max(
@@ -306,8 +343,7 @@ namespace Ludora.Infrastructure.IGDB
                 maximumReleaseDate.DayNumber - today.DayNumber);
 
             var rankedGames = candidateIds
-                .Select(id => gamesByReference.GetValueOrDefault(
-                    (CatalogSource.Igdb, id)))
+                .Select(id => gamesById.GetValueOrDefault(id))
                 .Where(x => x is not null)
                 .Select(x => x!)
                 .Where(IsDisplayableGame)
@@ -349,6 +385,137 @@ namespace Ludora.Infrastructure.IGDB
                     ReleaseDate = item.Game.ReleaseDate
                 })
                 .ToList();
+        }
+
+        private async Task<IReadOnlyList<HomeComingSoonGameDTO>>
+            LoadUpcomingFallbackAsync(
+                DateOnly today,
+                DateOnly maximumReleaseDate,
+                CancellationToken cancellationToken)
+        {
+            var games = await _igdbClient.GetUpcomingGamesAsync(
+                today,
+                maximumReleaseDate,
+                Math.Max(ComingSoonSectionSize * 3, 36),
+                cancellationToken);
+
+            return games
+                .Where(IsDisplayableGame)
+                .Where(x =>
+                    x.ReleaseDate.HasValue &&
+                    x.ReleaseDate.Value >= today &&
+                    x.ReleaseDate.Value <= maximumReleaseDate)
+                .Take(ComingSoonSectionSize)
+                .Select((game, index) => new HomeComingSoonGameDTO
+                {
+                    AnticipationRank = index + 1,
+                    Source = CatalogSource.Igdb,
+                    Id = game.Id,
+                    Title = game.Name,
+                    CoverImageUrl = game.CoverImageUrl,
+                    ReleaseDate = game.ReleaseDate
+                })
+                .ToList();
+        }
+
+        private async Task<IReadOnlyDictionary<long, GameListItemDTO>>
+            ResolveIgdbGameCardsAsync(
+                IReadOnlyCollection<long> gameIds,
+                CancellationToken cancellationToken)
+        {
+            var normalizedIds = gameIds
+                .Where(x => x > 0)
+                .Distinct()
+                .Take(500)
+                .ToArray();
+
+            if (normalizedIds.Length == 0)
+                return new Dictionary<long, GameListItemDTO>();
+
+            var result = new Dictionary<long, GameListItemDTO>();
+
+            try
+            {
+                var references = normalizedIds
+                    .Select(id => new CatalogReferenceDTO
+                    {
+                        Source = CatalogSource.Igdb,
+                        Id = id
+                    })
+                    .ToArray();
+
+                var gamesByReference =
+                    await _gameService.GetByReferencesAsync(
+                        references,
+                        cancellationToken);
+
+                foreach (var id in normalizedIds)
+                {
+                    var game = gamesByReference.GetValueOrDefault(
+                        (CatalogSource.Igdb, id));
+
+                    if (game is null || !IsDisplayableGame(game))
+                        continue;
+
+                    result[id] = MapGame(game);
+                }
+
+                // A successful GameService result has already applied local
+                // overrides/hidden-game rules. Do not re-add omitted games.
+                return result;
+            }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                // Discovery should still work when SQL/override enrichment has a
+                // transient failure. The card endpoint below is IGDB-only.
+                _logger.LogWarning(
+                    exception,
+                    "Discovery oyunları DB zənginləşdirməsindən alına bilmədi; birbaşa IGDB fallback istifadə olunur.");
+            }
+
+            var igdbGames = await _igdbClient.GetGamesByIdsForCardsAsync(
+                normalizedIds,
+                cancellationToken);
+
+            foreach (var game in igdbGames.Where(IsDisplayableGame))
+                result[game.Id] = MapGame(game);
+
+            return result;
+        }
+
+        private async Task<IReadOnlyList<IgdbPopularityPrimitiveModel>>
+            LoadPopularityMetricSafeAsync(
+                IReadOnlyList<IgdbPopularityTypeModel> popularityTypes,
+                string metricName,
+                int limit,
+                CancellationToken cancellationToken)
+        {
+            try
+            {
+                return await LoadPopularityMetricAsync(
+                    popularityTypes,
+                    metricName,
+                    limit,
+                    cancellationToken);
+            }
+            catch (OperationCanceledException)
+                when (cancellationToken.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                _logger.LogWarning(
+                    exception,
+                    "IGDB popularity metric alınmadı: {MetricName}",
+                    metricName);
+                return [];
+            }
         }
 
         private async Task<IReadOnlyList<IgdbPopularityPrimitiveModel>>
@@ -404,7 +571,7 @@ namespace Ludora.Infrastructure.IGDB
                 .Select(async metric => new
                 {
                     metric.Weight,
-                    Primitives = await LoadPopularityMetricAsync(
+                    Primitives = await LoadPopularityMetricSafeAsync(
                         popularityTypes,
                         metric.Name,
                         PopularityCandidateCount,
@@ -481,6 +648,14 @@ namespace Ludora.Infrastructure.IGDB
         {
             return DateOnly.FromDateTime(
                 DateTime.UtcNow.AddHours(AzerbaijanUtcOffsetHours));
+        }
+
+        private static bool IsDisplayableGame(GameListItemDTO game)
+        {
+            return game.Id > 0 &&
+                   !string.IsNullOrWhiteSpace(game.Title) &&
+                   !string.IsNullOrWhiteSpace(game.CoverImageUrl) &&
+                   MainCatalogGameTypes.Contains(game.GameType);
         }
 
         private static bool IsDisplayableGame(GameDetailDTO game)

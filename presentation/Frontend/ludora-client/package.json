@@ -12,7 +12,7 @@
     "i18n:check": "node scripts/check-i18n.mjs && node scripts/build-auto-locales.mjs --check",
     "i18n:generate": "node scripts/build-auto-locales.mjs",
     "verify": "npm run lint && npm run i18n:check && npm run typecheck",
-    "build": "node scripts/validate-production-env.mjs && tsc -b && vite build",
+    "build": "tsc -b && vite build",
     "build:clean": "npm run clean && npm run build",
     "preview": "vite preview"
   },

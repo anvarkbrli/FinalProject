@@ -33,7 +33,7 @@ export async function estimateFps(
       request,
       {
         signal,
-        timeout: 30_000,
+        timeout: 90_000,
       },
     );
 
@@ -65,6 +65,10 @@ export function getFpsEstimatorError(
 
   const status = error.response?.status;
   const responseData = error.response?.data;
+  const serverMessage =
+    responseData && typeof responseData === "object"
+      ? responseData.message?.trim()
+      : undefined;
   const fieldErrors: Partial<
     Record<FpsFormField, string>
   > = {};
@@ -121,7 +125,8 @@ export function getFpsEstimatorError(
     return {
       status,
       message:
-        "Çox sayda sorğu göndərildi. Bir qədər sonra yenidən yoxlayın.",
+        serverMessage ||
+        "AI xidmətinin sorğu limiti müvəqqəti dolub. Bir qədər sonra yenidən yoxlayın.",
       fieldErrors,
       canRetry: true,
     };
@@ -131,6 +136,7 @@ export function getFpsEstimatorError(
     return {
       status,
       message:
+        serverMessage ||
         "FPS təxmin xidməti hazırda əlçatan deyil. Bir qədər sonra yenidən yoxlayın.",
       fieldErrors,
       canRetry: true,

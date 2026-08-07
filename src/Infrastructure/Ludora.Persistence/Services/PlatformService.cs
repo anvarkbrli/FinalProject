@@ -8,7 +8,6 @@ using Ludora.Domain.Entities.GameTracking;
 using Ludora.Domain.Entities.IGDB;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
 
 using Microsoft.EntityFrameworkCore;
 

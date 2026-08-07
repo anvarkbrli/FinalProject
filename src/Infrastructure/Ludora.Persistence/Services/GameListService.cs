@@ -6,7 +6,6 @@ using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -350,7 +349,7 @@ namespace Ludora.Persistence.Services
             await _context.GameLists.AddAsync(gameList, cancellationToken);
             await SaveListChangesAsync(cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameListCreated,
                 gameListId: gameList.Id,
@@ -448,7 +447,7 @@ namespace Ludora.Persistence.Services
 
             gameList.UpdatedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameListUpdated,
                 gameListId: gameList.Id,
@@ -471,7 +470,7 @@ namespace Ludora.Persistence.Services
             gameList.IsDeleted = true;
             gameList.UpdatedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameListDeleted,
                 gameListId: gameList.Id,
@@ -558,7 +557,7 @@ namespace Ludora.Persistence.Services
             await _context.GameListItems.AddAsync(gameListItem, cancellationToken);
             gameList.UpdatedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameAddedToList,
                 gameSource: source,
@@ -619,7 +618,7 @@ namespace Ludora.Persistence.Services
 
             gameList.UpdatedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameRemovedFromList,
                 gameSource: source,
@@ -703,7 +702,7 @@ namespace Ludora.Persistence.Services
             item.Position = position;
             gameList.UpdatedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameListGameReordered,
                 gameSource: source,
@@ -750,7 +749,7 @@ namespace Ludora.Persistence.Services
                 itemMap[requestedKeys[index]].Position = index + 1;
 
             gameList.UpdatedAt = DateTime.UtcNow;
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameListGameReordered,
                 gameListId: gameList.Id,
@@ -827,7 +826,7 @@ namespace Ludora.Persistence.Services
             await _context.GameLists.AddAsync(clone, cancellationToken);
             await SaveListChangesAsync(cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.GameListCreated,
                 gameListId: clone.Id,

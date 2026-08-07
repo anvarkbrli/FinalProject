@@ -66,6 +66,11 @@ namespace Ludora.Application.Interfaces
             Guid senderUserId,
             ChatSendMessageDTO dto,
             CancellationToken cancellationToken = default);
+        Task<ChatMessageDTO> EditMessageAsync(
+            Guid userId,
+            long messageId,
+            ChatEditMessageDTO dto,
+            CancellationToken cancellationToken = default);
         Task<ChatForwardMessagesResultDTO> ForwardMessageAsync(
             Guid userId,
             long sourceMessageId,

@@ -44,6 +44,12 @@ namespace Ludora.API.Hubs
                 cancellationToken);
         }
 
+        public Task HeartbeatAsync(
+            Guid userId,
+            string connectionId,
+            CancellationToken cancellationToken) =>
+            _tracker.HeartbeatAsync(userId, connectionId, cancellationToken);
+
         public async Task DisconnectedAsync(
             Guid userId,
             Guid? sessionId,

@@ -25,6 +25,12 @@ namespace Ludora.API.Hubs
             await base.OnConnectedAsync();
         }
 
+        public Task Heartbeat() =>
+            _presenceCoordinator.HeartbeatAsync(
+                GetUserId(),
+                PresenceConnectionId(),
+                Context.ConnectionAborted);
+
         public override async Task OnDisconnectedAsync(Exception? exception)
         {
             if (TryGetUserId(out var userId))

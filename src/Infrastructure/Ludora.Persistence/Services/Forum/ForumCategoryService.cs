@@ -5,7 +5,6 @@ using Ludora.Application.Helpers;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities.Forum;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
 
 using Microsoft.EntityFrameworkCore;
 

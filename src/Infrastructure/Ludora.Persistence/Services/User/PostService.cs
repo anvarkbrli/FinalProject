@@ -6,7 +6,6 @@ using Ludora.Application.Models.Notification;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -76,7 +75,7 @@ namespace Ludora.Persistence.Services
                 await _context.UserPosts.AddAsync(post, cancellationToken);
                 await _context.SaveChangesAsync(cancellationToken);
 
-                _context.AddUserActivity(
+                _context.UserActivities.AddUserActivity(
                     userId,
                     UserActivityType.PostCreated,
                     postId: post.Id);
@@ -279,7 +278,7 @@ namespace Ludora.Persistence.Services
                 post.ImageUrl = resultingImageUrl;
                 post.UpdatedAt = DateTime.UtcNow;
 
-                _context.AddUserActivity(
+                _context.UserActivities.AddUserActivity(
                     userId,
                     UserActivityType.PostUpdated,
                     postId: post.Id);
@@ -319,7 +318,7 @@ namespace Ludora.Persistence.Services
             post.DeleteReason = null;
             post.UpdatedAt = DateTime.UtcNow;
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 userId,
                 UserActivityType.PostDeleted,
                 postId: post.Id);

@@ -31,6 +31,8 @@ namespace Ludora.API.Controllers
             [FromBody] FpsEstimateRequestDTO request,
             CancellationToken cancellationToken)
         {
+            Response.Headers["X-WellPlayd-Fps-Version"] = "v7-final";
+
             return Ok(
                 await _fpsEstimatorService.EstimateAsync(
                     GetCurrentUserId(),

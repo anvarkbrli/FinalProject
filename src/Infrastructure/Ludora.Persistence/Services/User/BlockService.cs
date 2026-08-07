@@ -1,10 +1,10 @@
-﻿using Ludora.Application.DTOs;
+using Ludora.Application.DTOs;
 using Ludora.Application.Exceptions;
 using Ludora.Application.Interfaces;
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
 using Ludora.Persistence.Data;
-using Ludora.Persistence.Extensions;
+using Ludora.Application.Extensions;
 
 using Microsoft.EntityFrameworkCore;
 
@@ -58,7 +58,7 @@ namespace Ludora.Persistence.Services
 
             await _context.UserBlocks.AddAsync(userBlock, cancellationToken);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 blockerId,
                 UserActivityType.UserBlocked,
                 targetUserId: blockedUserId);
@@ -80,7 +80,7 @@ namespace Ludora.Persistence.Services
 
             _context.UserBlocks.Remove(userBlock);
 
-            _context.AddUserActivity(
+            _context.UserActivities.AddUserActivity(
                 blockerId,
                 UserActivityType.UserUnblocked,
                 targetUserId: blockedUserId);

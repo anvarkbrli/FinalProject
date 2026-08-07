@@ -1,13 +1,13 @@
 using Ludora.Domain.Entities.User;
 using Ludora.Domain.Enums;
-using Ludora.Persistence.Data;
+using Microsoft.EntityFrameworkCore;
 
-namespace Ludora.Persistence.Extensions
+namespace Ludora.Application.Extensions
 {
     public static class UserActivityExtensions
     {
         public static UserActivity AddUserActivity(
-            this AppDbContext context,
+            this DbSet<UserActivity> userActivities,
             Guid userId,
             UserActivityType type,
             Guid? targetUserId = null,
@@ -21,6 +21,8 @@ namespace Ludora.Persistence.Extensions
             string? subjectTitle = null,
             DateTime? createdAt = null)
         {
+            ArgumentNullException.ThrowIfNull(userActivities);
+
             var activity = new UserActivity
             {
                 UserId = userId,
@@ -39,7 +41,7 @@ namespace Ludora.Persistence.Extensions
                 CreatedAt = createdAt ?? DateTime.UtcNow
             };
 
-            context.UserActivities.Add(activity);
+            userActivities.Add(activity);
             return activity;
         }
     }

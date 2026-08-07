@@ -1,24 +1,26 @@
+using System.Security.Cryptography;
+using System.Text;
+using Ludora.Application.Common;
+using Ludora.Application.DTOs;
+using Ludora.Application.DTOs.JWT;
+using Ludora.Application.DTOs.ExternalAuth;
+using Ludora.Application.Exceptions;
+using Ludora.Application.Interfaces;
+using Ludora.Application.Mappings;
+using Ludora.Application.Settings;
+using Ludora.Domain.Entities.User;
+using Ludora.Domain.Enums;
+using Ludora.Persistence.Data;
+using Ludora.Application.Extensions;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
 namespace Ludora.Persistence.Services
 {
-    using System.Security.Cryptography;
-    using System.Text;
-    using Ludora.Application.Common;
-    using Ludora.Application.DTOs;
-    using Ludora.Application.DTOs.JWT;
-    using Ludora.Application.DTOs.ExternalAuth;
-    using Ludora.Application.Exceptions;
-    using Ludora.Application.Interfaces;
-    using Ludora.Application.Mappings;
-    using Ludora.Application.Settings;
-    using Ludora.Domain.Entities.User;
-    using Ludora.Domain.Enums;
-    using Ludora.Persistence.Data;
-    using Ludora.Persistence.Extensions;
-    using Microsoft.AspNetCore.Identity;
-    using Microsoft.AspNetCore.WebUtilities;
-    using Microsoft.EntityFrameworkCore;
-    using Microsoft.Extensions.Logging;
-    using Microsoft.Extensions.Options;
+  
 
     public class AuthService : IAuthService
     {

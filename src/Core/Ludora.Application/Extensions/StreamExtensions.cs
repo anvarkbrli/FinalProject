@@ -1,8 +1,8 @@
-namespace Ludora.Persistence.Extensions
+namespace Ludora.Application.Extensions
 {
     using Ludora.Application.Exceptions;
 
-    public static class StreamExtension
+    public static class StreamExtensions
     {
         public static async Task<byte[]> ToByteArrayAsync(
             this Stream stream,

@@ -280,6 +280,7 @@ namespace Ludora.API.Controllers.User
                         RecipientUserId = request.RecipientUserId,
                         ConversationId = request.ConversationId,
                         Text = request.Text,
+                        GifUrl = request.GifUrl,
                         Media = uploads,
                         GameSource = request.GameSource,
                         GameId = request.GameId,
@@ -313,6 +314,35 @@ namespace Ludora.API.Controllers.User
                 foreach (var stream in mediaStreams)
                     await stream.DisposeAsync();
             }
+        }
+
+        [HttpPut("messages/{messageId:long}")]
+        public async Task<ActionResult<ChatMessageDTO>> EditMessage(
+            long messageId,
+            [FromBody] ChatEditMessageDTO request,
+            CancellationToken cancellationToken)
+        {
+            var userId = GetCurrentUserId();
+            var message = await _chatService.EditMessageAsync(
+                userId,
+                messageId,
+                request,
+                cancellationToken);
+            var participants = await _chatService.GetParticipantsAsync(
+                userId,
+                message.ConversationId,
+                cancellationToken);
+            var edited = new ChatMessageEditedDTO
+            {
+                MessageId = message.Id,
+                ConversationId = message.ConversationId,
+                EditedByUserId = userId,
+                EditedAtUtc = DateTime.UtcNow
+            };
+
+            await _hub.Clients.Groups(participants.UserIds.Select(ChatHub.UserGroup).ToArray())
+                .SendAsync("MessageEdited", edited, cancellationToken);
+            return Ok(message);
         }
 
         [HttpPost("messages/{messageId:long}/forward")]
@@ -690,35 +720,5 @@ namespace Ludora.API.Controllers.User
         }
 
         public sealed record SetChatReactionRequest(ChatReactionType ReactionType);
-    }
-
-    public sealed class ChatGroupCreateFormRequest
-    {
-        public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
-        public List<Guid> MemberUserIds { get; set; } = [];
-        public IFormFile? Image { get; set; }
-    }
-
-    public sealed class ChatGroupUpdateFormRequest
-    {
-        public string Name { get; set; } = string.Empty;
-        public string? Description { get; set; }
-        public bool RemoveImage { get; set; }
-        public List<Guid> MemberUserIdsToAdd { get; set; } = [];
-        public IFormFile? Image { get; set; }
-    }
-
-    public sealed class ChatSendMessageFormRequest
-    {
-        public Guid? RecipientUserId { get; set; }
-        public long? ConversationId { get; set; }
-        public string? Text { get; set; }
-        public CatalogSource? GameSource { get; set; }
-        public long? GameId { get; set; }
-        public string? GameName { get; set; }
-        public string? GameCoverUrl { get; set; }
-        public long? ReplyToMessageId { get; set; }
-        public List<IFormFile> Media { get; set; } = [];
     }
 }
