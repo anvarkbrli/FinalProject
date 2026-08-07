@@ -10,6 +10,14 @@ namespace Ludora.Application.Interfaces
             bool canModerate,
             CancellationToken cancellationToken = default);
 
+        Task<PagedResultDTO<DiscussionListItemDTO>> GetByUserAsync(
+            Guid userId,
+            int pageNumber,
+            int pageSize,
+            Guid? currentUserId,
+            bool canModerate,
+            CancellationToken cancellationToken = default);
+
         Task<PagedResultDTO<DiscussionListItemDTO>> GetDeletedAsync(
             DiscussionFilterDTO filter,
             CancellationToken cancellationToken = default);

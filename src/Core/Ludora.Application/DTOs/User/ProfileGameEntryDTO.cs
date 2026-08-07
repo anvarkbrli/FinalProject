@@ -15,6 +15,7 @@ namespace Ludora.Application.DTOs
         public bool IsWishlisted { get; init; }
         public double? Rating { get; init; }
         public long? ReviewId { get; init; }
+        public bool HasWrittenReview { get; init; }
         public string? PlayedPlatformName { get; init; }
         public DateOnly? PlayedOn { get; init; }
         public int? PlaytimeMinutes { get; init; }

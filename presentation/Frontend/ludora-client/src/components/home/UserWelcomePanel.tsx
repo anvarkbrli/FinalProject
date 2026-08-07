@@ -366,11 +366,11 @@ export function UserWelcomePanel() {
                   return (
                     <Link
                       key={rating}
-                      to={`/users/${user.userName}`}
+                      to={`/users/${user.userName}?tab=games&gameRating=${rating}`}
                       className="group relative flex h-full min-w-0 flex-1 items-end rounded-t-md outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
                       aria-label={language === "en"
-                        ? `Show the ${count} ${count === 1 ? "game" : "games"} you rated ${formatRating(rating)} stars on your profile`
-                        : `${formatRating(rating)} ulduz verdiyin ${count} oyunu profildə göstər`}
+                        ? `Show the ${count} ${count === 1 ? "game" : "games"} you rated ${formatRating(rating)} stars`
+                        : `${formatRating(rating)} ulduz verdiyin ${count} oyunu göstər`}
                     >
                       <span
                         className={`w-full rounded-t-md transition duration-200 group-hover:-translate-y-1 group-hover:opacity-100 ${

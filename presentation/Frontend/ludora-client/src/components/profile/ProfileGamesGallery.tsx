@@ -17,6 +17,7 @@ import type {
   UserProfileGameSortBy,
 } from "../../types/profile";
 import { resolveAssetUrl } from "../../lib/helpers";
+import { useI18n } from "../../i18n/useI18n";
 
 const statusLabels: Record<
   NonNullable<ProfileGameEntryDTO["status"]>,
@@ -208,6 +209,9 @@ export function ProfileGamesGallery({
   onPageChange,
   onOpenReview,
 }: ProfileGamesGalleryProps) {
+  const { language } = useI18n();
+  const isEnglish = language === "en";
+
   const hasFilters =
     Boolean(searchValue.trim()) ||
     Boolean(selectedGenre) ||
@@ -244,7 +248,7 @@ export function ProfileGamesGallery({
           {selectedRating !== null && (
             <div className="inline-flex h-11 items-center gap-2 rounded-xl border border-amber-300/15 bg-amber-500/[0.08] px-3 text-sm font-bold text-amber-300">
               <Star size={14} fill="currentColor" />
-              {selectedRating.toFixed(1)} ulduz
+              {selectedRating.toFixed(1)}
               <button
                 type="button"
                 onClick={() => {
@@ -292,7 +296,7 @@ export function ProfileGamesGallery({
           </select>
 
           <span className="rounded-full border border-white/[0.07] bg-white/[0.035] px-3 py-1.5 text-xs font-semibold text-zinc-400">
-            {totalCount} oyun
+            {totalCount} {isEnglish ? (totalCount === 1 ? "game" : "games") : "oyun"}
           </span>
         </div>
       </div>
@@ -505,6 +509,8 @@ export function ProfileGamesGallery({
                     typeof game.reviewId === "number" && game.reviewId > 0
                       ? game.reviewId
                       : null;
+                  const hasWrittenReview =
+                    game.hasWrittenReview === true && reviewId !== null;
 
                   return (
                     <div key={`${game.source}-${game.gameId}`}>
@@ -542,7 +548,7 @@ export function ProfileGamesGallery({
                           </div>
                         </Link>
 
-                        {(game.status || reviewId !== null) && (
+                        {(game.status || hasWrittenReview) && (
                           <div className="px-3.5 py-3.5">
                             <div className="flex items-center justify-between gap-2">
                               <div className="flex min-w-0 flex-1 items-center gap-1.5 text-[11px] text-zinc-500">
@@ -553,7 +559,7 @@ export function ProfileGamesGallery({
                                 )}
                               </div>
 
-                              {reviewId !== null && (
+                              {hasWrittenReview && reviewId !== null && (
                                   <button
                                     type="button"
                                     onClick={() => {

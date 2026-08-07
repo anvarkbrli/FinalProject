@@ -86,11 +86,21 @@ namespace Ludora.API.Configuration
                     new DirectoryInfo(resolvedDataProtection.KeyRingPath));
             services.AddHostedService<StorageInitializationHostedService>();
 
+            var sqlIdleModeSettings = configuration
+                .GetSection(SqlIdleModeSettings.SectionName)
+                .Get<SqlIdleModeSettings>() ?? new SqlIdleModeSettings();
+
             var singleInstanceSettings = configuration
                 .GetSection(SingleInstanceSettings.SectionName)
                 .Get<SingleInstanceSettings>() ?? new SingleInstanceSettings();
+
             services.AddSingleton(singleInstanceSettings);
-            services.AddHostedService<SingleInstanceLockHostedService>();
+
+            // A session-level SQL application lock keeps Azure SQL Serverless
+            // permanently awake. In temporary SQL idle mode we deliberately
+            // do not start this hosted service.
+            if (!sqlIdleModeSettings.Enabled)
+                services.AddHostedService<SingleInstanceLockHostedService>();
 
             var forwardedHeadersSettings = configuration
                 .GetSection(ForwardedHeadersSettings.SectionName)

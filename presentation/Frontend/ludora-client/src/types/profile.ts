@@ -242,6 +242,7 @@ export interface ProfileGameEntryDTO {
   isWishlisted: boolean;
   rating: number | null;
   reviewId: number | null;
+  hasWrittenReview?: boolean;
   playedPlatformName: string | null;
   playedOn: string | null;
   playtimeMinutes: number | null;

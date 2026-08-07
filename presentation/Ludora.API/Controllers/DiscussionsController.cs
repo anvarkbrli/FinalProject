@@ -39,6 +39,24 @@ namespace Ludora.API.Controllers
             return Ok(result);
         }
 
+        [HttpGet("user/{userId:guid}")]
+        public async Task<ActionResult<PagedResultDTO<DiscussionListItemDTO>>> GetByUser(
+            Guid userId,
+            [FromQuery] int pageNumber = 1,
+            [FromQuery] int pageSize = 20,
+            CancellationToken cancellationToken = default)
+        {
+            var result = await _discussionService.GetByUserAsync(
+                userId,
+                pageNumber,
+                pageSize,
+                GetOptionalCurrentUserId(),
+                CanManageContent(),
+                cancellationToken);
+
+            return Ok(result);
+        }
+
         [HttpGet("{id:int}")]
         public async Task<ActionResult<DiscussionDetailDTO>> GetById(
             int id,

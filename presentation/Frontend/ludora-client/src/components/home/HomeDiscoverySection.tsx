@@ -354,23 +354,20 @@ function DiscoveryCarousel({
   variant,
 }: DiscoveryCarouselProps) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const normalizeTimerRef = useRef<number | null>(null);
   const [isPaused, setIsPaused] = useState(false);
   const [isInViewport, setIsInViewport] = useState(true);
   const [isPageVisible, setIsPageVisible] = useState(true);
+  const [isMobileLike, setIsMobileLike] = useState(false);
 
-  const repeatedGames = useMemo(
-    () =>
-      games.length > 1
-        ? [...games, ...games, ...games]
-        : games,
+  const displayedGames = useMemo(
+    () => games.slice(0, 10),
     [games],
   );
 
-  const getCarouselMetrics = useCallback(() => {
+  const getCarouselStep = useCallback(() => {
     const container = containerRef.current;
 
-    if (!container || games.length < 2) {
+    if (!container || displayedGames.length < 2) {
       return null;
     }
 
@@ -379,69 +376,53 @@ function DiscoveryCarousel({
         "[data-discovery-carousel-item]",
       );
 
-    if (items.length <= games.length) {
+    if (items.length < 2) {
       return null;
     }
 
-    const step =
-      items[1].offsetLeft - items[0].offsetLeft;
-    const cycleWidth =
-      items[games.length].offsetLeft -
-      items[0].offsetLeft;
+    const step = items[1].offsetLeft - items[0].offsetLeft;
 
-    if (step <= 0 || cycleWidth <= 0) {
-      return null;
-    }
-
-    return { container, step, cycleWidth };
-  }, [games.length]);
-
-  const normalizePosition = useCallback(() => {
-    const metrics = getCarouselMetrics();
-
-    if (!metrics) {
-      return;
-    }
-
-    const { container, cycleWidth } = metrics;
-
-    if (container.scrollLeft < cycleWidth) {
-      container.scrollLeft += cycleWidth;
-    } else if (
-      container.scrollLeft >=
-      cycleWidth * 2
-    ) {
-      container.scrollLeft -= cycleWidth;
-    }
-  }, [getCarouselMetrics]);
-
-  const scheduleNormalize = useCallback(() => {
-    if (normalizeTimerRef.current !== null) {
-      window.clearTimeout(normalizeTimerRef.current);
-    }
-
-    normalizeTimerRef.current = window.setTimeout(
-      normalizePosition,
-      520,
-    );
-  }, [normalizePosition]);
+    return step > 0 ? { container, step } : null;
+  }, [displayedGames.length]);
 
   const moveCarousel = useCallback(
     (direction: -1 | 1) => {
-      const metrics = getCarouselMetrics();
+      const metrics = getCarouselStep();
 
       if (!metrics) {
         return;
       }
 
-      metrics.container.scrollBy({
-        left: metrics.step * direction,
+      const { container, step } = metrics;
+      const maxScrollLeft = Math.max(
+        0,
+        container.scrollWidth - container.clientWidth,
+      );
+      const edgeTolerance = Math.max(4, step * 0.2);
+      const isAtStart = container.scrollLeft <= edgeTolerance;
+      const isAtEnd =
+        container.scrollLeft >= maxScrollLeft - edgeTolerance;
+
+      // Keep the arrows looping without cloning every card three times.
+      if (direction === 1 && isAtEnd) {
+        container.scrollTo({ left: 0, behavior: "auto" });
+        return;
+      }
+
+      if (direction === -1 && isAtStart) {
+        container.scrollTo({
+          left: maxScrollLeft,
+          behavior: "auto",
+        });
+        return;
+      }
+
+      container.scrollBy({
+        left: step * direction,
         behavior: "smooth",
       });
-
-      scheduleNormalize();
     },
-    [getCarouselMetrics, scheduleNormalize],
+    [getCarouselStep],
   );
 
   useEffect(() => {
@@ -480,42 +461,28 @@ function DiscoveryCarousel({
   }, []);
 
   useEffect(() => {
-    const container = containerRef.current;
-
-    if (!container || games.length < 2) {
-      return;
-    }
-
-    const placeAtMiddleCycle = () => {
-      const metrics = getCarouselMetrics();
-
-      if (metrics) {
-        metrics.container.scrollLeft =
-          metrics.cycleWidth;
-      }
+    const mediaQuery = window.matchMedia(
+      "(max-width: 767px), (hover: none) and (pointer: coarse)",
+    );
+    const updateMobileLike = () => {
+      setIsMobileLike(mediaQuery.matches);
     };
 
-    const frameId = window.requestAnimationFrame(
-      placeAtMiddleCycle,
-    );
-    const resizeObserver = new ResizeObserver(
-      placeAtMiddleCycle,
-    );
-
-    resizeObserver.observe(container);
+    updateMobileLike();
+    mediaQuery.addEventListener?.("change", updateMobileLike);
 
     return () => {
-      window.cancelAnimationFrame(frameId);
-      resizeObserver.disconnect();
+      mediaQuery.removeEventListener?.("change", updateMobileLike);
     };
-  }, [games.length, getCarouselMetrics]);
+  }, []);
 
   useEffect(() => {
     if (
-      games.length < 2 ||
+      displayedGames.length < 2 ||
       isPaused ||
       !isInViewport ||
-      !isPageVisible
+      !isPageVisible ||
+      isMobileLike
     ) {
       return;
     }
@@ -536,23 +503,13 @@ function DiscoveryCarousel({
       window.clearInterval(intervalId);
     };
   }, [
-    games.length,
+    displayedGames.length,
     isInViewport,
+    isMobileLike,
     isPageVisible,
     isPaused,
     moveCarousel,
   ]);
-
-  useEffect(
-    () => () => {
-      if (normalizeTimerRef.current !== null) {
-        window.clearTimeout(
-          normalizeTimerRef.current,
-        );
-      }
-    },
-    [],
-  );
 
   return (
     <div
@@ -573,24 +530,23 @@ function DiscoveryCarousel({
       <div
         ref={containerRef}
         className="home-discovery-carousel flex snap-x snap-mandatory gap-4 overflow-x-auto py-1"
-        onScroll={isInViewport ? scheduleNormalize : undefined}
       >
-        {repeatedGames.map((game, index) => (
+        {displayedGames.map((game, index) => (
           <div
-            key={`${variant}-slide-${index}-${game.source}-${game.id}`}
+            key={`${variant}-slide-${game.source}-${game.id}`}
             data-discovery-carousel-item
             className="home-discovery-slide min-w-0 flex-none snap-start"
           >
             <DiscoveryGameCard
               game={game}
-              index={index % games.length}
+              index={index}
               variant={variant}
             />
           </div>
         ))}
       </div>
 
-      {games.length > 1 ? (
+      {displayedGames.length > 1 ? (
         <>
           <button
             type="button"
@@ -630,7 +586,6 @@ function DiscoveryCarousel({
 interface DiscoveryRailProps {
   title: string;
   eyebrow: string;
-  description: string;
   games: DiscoveryGame[];
   variant: DiscoveryGameCardProps["variant"];
   isLoading: boolean;
@@ -639,14 +594,13 @@ interface DiscoveryRailProps {
 function DiscoveryRail({
   title,
   eyebrow,
-  description,
   games,
   variant,
   isLoading,
 }: DiscoveryRailProps) {
   return (
     <section className="home-discovery-rail">
-      <div className="mb-6 flex items-end justify-between gap-4">
+      <div className="mb-5 flex items-end justify-between gap-4">
         <div>
           <p
             className={`text-xs font-bold uppercase tracking-[0.22em] ${
@@ -658,13 +612,9 @@ function DiscoveryRail({
             {eyebrow}
           </p>
 
-          <h2 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+          <h2 className="mt-1.5 text-2xl font-bold tracking-tight text-white sm:text-3xl">
             {title}
           </h2>
-
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">
-            {description}
-          </p>
         </div>
       </div>
 
@@ -715,7 +665,6 @@ export function HomeDiscoverySection({
             <DiscoveryRail
               eyebrow={language === "en" ? "Popular now" : "İndi populyar"}
               title={language === "en" ? "Now trending" : "Trend oyunlar"}
-              description={language === "en" ? "A combined trending ranking based on IGDB, Steam, and Twitch activity signals." : "IGDB, Steam və Twitch aktivlik göstəricilərinin birləşdirilmiş trend sıralaması."}
               games={trendingGames}
               variant="trending"
               isLoading={isLoading}
@@ -724,7 +673,6 @@ export function HomeDiscoverySection({
             <DiscoveryRail
               eyebrow={language === "en" ? "Prepare for release" : "Buraxılışa hazırlaş"}
               title={language === "en" ? "Coming soon" : "Tezliklə çıxacaq"}
-              description={language === "en" ? "Based on Steam Top Wishlists; big games without a Steam page are completed using general anticipation and proximity to release." : "Steam Top Wishlists əsas götürülür; Steam səhifəsi olmayan böyük oyunlar ümumi gözlənti və buraxılış yaxınlığı ilə tamamlanır."}
               games={comingSoonGames}
               variant="comingSoon"
               isLoading={isLoading}

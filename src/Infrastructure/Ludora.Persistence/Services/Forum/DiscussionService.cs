@@ -102,6 +102,53 @@ namespace Ludora.Persistence.Services
             return CreatePagedResult(items, filter.PageNumber, filter.PageSize, totalCount);
         }
 
+        public async Task<PagedResultDTO<DiscussionListItemDTO>> GetByUserAsync(
+            Guid userId,
+            int pageNumber,
+            int pageSize,
+            Guid? currentUserId,
+            bool canModerate,
+            CancellationToken cancellationToken = default)
+        {
+            ValidatePagination(pageNumber, pageSize);
+
+            var userExists = await _context.Users
+                .AsNoTracking()
+                .AnyAsync(x => x.Id == userId, cancellationToken);
+
+            if (!userExists)
+                throw new NotFoundException("İstifadəçi tapılmadı.");
+
+            var query = _context.Discussions
+                .AsNoTracking()
+                .Where(x => x.UserId == userId);
+
+            if (!canModerate)
+            {
+                query = query.Where(x =>
+                    x.CommunityId == null ||
+                    x.Community!.Visibility != ForumCommunityVisibility.Private ||
+                    currentUserId.HasValue &&
+                    (currentUserId.Value == userId ||
+                     x.Community.Members.Any(member =>
+                         member.UserId == currentUserId.Value &&
+                         member.Status == ForumCommunityMembershipStatus.Active)));
+            }
+
+            if (currentUserId.HasValue && !canModerate && currentUserId.Value != userId)
+                query = ExcludeBlockedAuthors(query, currentUserId.Value);
+
+            var totalCount = await query.CountAsync(cancellationToken);
+            query = ApplySorting(query, "newest");
+
+            var items = await ProjectListItems(query, currentUserId, canModerate)
+                .Skip((pageNumber - 1) * pageSize)
+                .Take(pageSize)
+                .ToListAsync(cancellationToken);
+
+            return CreatePagedResult(items, pageNumber, pageSize, totalCount);
+        }
+
         public async Task<PagedResultDTO<DiscussionListItemDTO>> GetDeletedAsync(
             DiscussionFilterDTO filter,
             CancellationToken cancellationToken = default)

@@ -47,6 +47,23 @@
     "ownedGames": "Owned games",
     "wishlist": "Wishlist",
     "favorites": "Favorites",
-    "activity": "Activity"
+    "activity": "Activity",
+    "discussions": "Discussions"
+  },
+  "discussions": {
+    "title": "Discussions",
+    "description": "Discussions created across the forum",
+    "mainForum": "Main forum",
+    "pinned": "Pinned",
+    "likes": "{count} likes",
+    "replies": "{count} replies",
+    "views": "{count} views",
+    "emptyTitle": "No discussions yet",
+    "emptyDescription": "This user has not started any forum discussions yet.",
+    "loadErrorTitle": "Could not load discussions",
+    "loadError": "The user’s discussions could not be loaded.",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "{page} / {totalPages}"
   }
 }

@@ -47,6 +47,23 @@
     "ownedGames": "Sahib olunanlar",
     "wishlist": "Wishlist",
     "favorites": "Sevimlilər",
-    "activity": "Axın"
+    "activity": "Axın",
+    "discussions": "Müzakirələr"
+  },
+  "discussions": {
+    "title": "Müzakirələr",
+    "description": "Forumda yaratdığı müzakirələr",
+    "mainForum": "Ümumi forum",
+    "pinned": "Sabitlənib",
+    "likes": "{count} bəyəni",
+    "replies": "{count} cavab",
+    "views": "{count} baxış",
+    "emptyTitle": "Hələ müzakirə yoxdur",
+    "emptyDescription": "Bu istifadəçi hələ forumda müzakirə açmayıb.",
+    "loadErrorTitle": "Müzakirələri yükləmək mümkün olmadı",
+    "loadError": "İstifadəçinin müzakirələrini yükləmək mümkün olmadı.",
+    "previous": "Əvvəlki",
+    "next": "Növbəti",
+    "page": "{page} / {totalPages}"
   }
 }

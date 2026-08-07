@@ -30,7 +30,7 @@ export const HomeInterestRecommendations = memo(
         <div className="pointer-events-none absolute inset-0" />
 
         <div className="relative mx-auto max-w-7xl px-5 lg:px-8">
-          <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-teal-300">
                 <WandSparkles size={15} />
@@ -43,12 +43,6 @@ export const HomeInterestRecommendations = memo(
                   : "Maraqlarına uyğun məşhur oyunlar"}
               </h2>
 
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">
-                {data?.summary ??
-                  (language === "en"
-                    ? "We are researching widely played games in your selected genres and verifying them against the catalog."
-                    : "Seçdiyin janrlarda çox oynanılan oyunları araşdırıb kataloqda təsdiqləyirik.")}
-              </p>
             </div>
 
             {data?.isAiGenerated && (

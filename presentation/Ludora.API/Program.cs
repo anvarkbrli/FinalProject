@@ -125,6 +125,11 @@ namespace Ludora.API
                 .GetSection(CacheSettings.SectionName)
                 .Get<CacheSettings>() ?? new CacheSettings();
 
+            var sqlIdleModeSettings = builder.Configuration
+                .GetSection(SqlIdleModeSettings.SectionName)
+                .Get<SqlIdleModeSettings>() ?? new SqlIdleModeSettings();
+            builder.Services.AddSingleton(sqlIdleModeSettings);
+
             builder.Services
                 .AddOptions<PresenceSettings>()
                 .Bind(builder.Configuration.GetSection(PresenceSettings.SectionName))
@@ -162,8 +167,11 @@ namespace Ludora.API
                     });
             }
 
-            builder.Services.AddHostedService<NotificationOutboxWorker>();
-            builder.Services.AddHostedService<EmailOutboxWorker>();
+            if (!sqlIdleModeSettings.Enabled)
+            {
+                builder.Services.AddHostedService<NotificationOutboxWorker>();
+                builder.Services.AddHostedService<EmailOutboxWorker>();
+            }
 
             var presenceSettings = builder.Configuration
                 .GetSection(PresenceSettings.SectionName)
@@ -185,9 +193,14 @@ namespace Ludora.API
             builder.Services.AddScoped<UserPresenceCoordinator>();
             builder.Services.AddSingleton<IBadgeEvaluationQueue, BadgeEvaluationQueue>();
             builder.Services.AddSingleton<ISteamSyncQueue, SteamSyncQueue>();
-            builder.Services.AddHostedService<BadgeEvaluationWorker>();
-            builder.Services.AddHostedService<SteamSyncWorker>();
-            builder.Services.AddHostedService<BackgroundJobCleanupWorker>();
+
+            if (!sqlIdleModeSettings.Enabled)
+            {
+                builder.Services.AddHostedService<BadgeEvaluationWorker>();
+                builder.Services.AddHostedService<SteamSyncWorker>();
+                builder.Services.AddHostedService<BackgroundJobCleanupWorker>();
+            }
+
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen(options =>
             {
@@ -531,15 +544,25 @@ namespace Ludora.API
             builder.Services.AddPersistenceServices(builder.Configuration);
 
             var healthChecks = builder.Services
-                .AddHealthChecks()
-                .AddDbContextCheck<AppDbContext>(
-                    "database",
-                    failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
-                    tags: ["ready"])
-                .AddCheck<DatabaseMigrationHealthCheck>(
-                    "database-migrations",
-                    failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
-                    tags: ["ready"])
+                .AddHealthChecks();
+
+            // Azure Health Check may call /health/ready periodically. The database
+            // checks themselves wake Azure SQL Serverless, so they are excluded
+            // while the temporary SQL idle mode is enabled.
+            if (!sqlIdleModeSettings.Enabled)
+            {
+                healthChecks
+                    .AddDbContextCheck<AppDbContext>(
+                        "database",
+                        failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+                        tags: ["ready"])
+                    .AddCheck<DatabaseMigrationHealthCheck>(
+                        "database-migrations",
+                        failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
+                        tags: ["ready"]);
+            }
+
+            healthChecks
                 .AddCheck<StorageHealthCheck>(
                     "storage",
                     failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Unhealthy,
@@ -583,7 +606,10 @@ namespace Ludora.API
                 return;
             }
 
-            await EnsureRolesAsync(app.Services);
+            // Roles are already persisted in the database. Re-seeding them on every
+            // idle-mode restart would wake Azure SQL even when there is no user traffic.
+            if (!sqlIdleModeSettings.Enabled)
+                await EnsureRolesAsync(app.Services);
 
             if (app.Environment.IsDevelopment())
             {

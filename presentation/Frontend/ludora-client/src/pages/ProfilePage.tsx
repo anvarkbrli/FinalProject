@@ -7,7 +7,6 @@ import {
   ArrowDown,
   ArrowUp,
   Ban,
-  Bookmark,
   CalendarDays,
   Check,
   ChevronDown,
@@ -19,7 +18,6 @@ import {
   Flag,
   Gamepad2,
   Heart,
-  History,
   ImagePlus,
   ListChecks,
   ListOrdered,
@@ -52,6 +50,7 @@ import {
   useParams,
   useSearchParams,
 } from "react-router-dom";
+import { CopyShareButton } from "../components/common/CopyShareButton";
 import { InteractionCommentsPanel } from "../components/interactions/InteractionCommentsPanel";
 import { InteractionLikesModal } from "../components/interactions/InteractionLikesModal";
 import { Footer } from "../components/layout/Footer";
@@ -59,6 +58,7 @@ import { Navbar } from "../components/layout/Navbar";
 import { useI18n } from "../i18n/useI18n";
 import { GameListEditorModal } from "../components/lists/GameListEditorModal";
 import { ProfileActivityFeed } from "../components/profile/ProfileActivityFeed";
+import { ProfileDiscussions } from "../components/profile/ProfileDiscussions";
 import { FollowRequestsModal } from "../components/profile/FollowRequestsModal";
 import { ProfileGamesGallery } from "../components/profile/ProfileGamesGallery";
 import { ProfileOverview } from "../components/profile/ProfileOverview";
@@ -105,6 +105,7 @@ import {
   getFollowStatus,
   getMyCollaboratingGameLists,
   getMyFeed,
+  getUserDiscussions,
   getUserGameLists,
   getUserFavoriteGames,
   getUserGames,
@@ -138,6 +139,7 @@ type ProfileTab =
   | "overview"
   | "games"
   | "posts"
+  | "discussions"
   | "lists"
   | "reviews"
   | "owned-games"
@@ -163,57 +165,18 @@ interface NoticeState {
 const profileTabs: Array<{
   id: ProfileTab;
   label: string;
-  icon: typeof FileText;
   ownerOnly?: boolean;
 }> = [
-  {
-    id: "overview",
-    label: "Profil",
-    icon: UserCheck,
-  },
-  {
-    id: "games",
-    label: "Oyunlar",
-    icon: Gamepad2,
-  },
-  {
-    id: "posts",
-    label: "Postlar",
-    icon: FileText,
-  },
-  {
-    id: "lists",
-    label: "Siyahılar",
-    icon: ListChecks,
-  },
-  {
-    id: "reviews",
-    label: "Rəylər",
-    icon: Star,
-  },
-  {
-    id: "owned-games",
-    label: "Sahib olunanlar",
-    icon: ListOrdered,
-  },
-  {
-    id: "wishlist",
-    label: "Wishlist",
-    icon: Bookmark,
-    ownerOnly: true,
-  },
-  {
-    id: "favorites",
-    label: "Sevimlilər",
-    icon: Heart,
-    ownerOnly: true,
-  },
-  {
-    id: "feed",
-    label: "Axın",
-    icon: History,
-    ownerOnly: true,
-  },
+  { id: "overview", label: "Profil" },
+  { id: "games", label: "Oyunlar" },
+  { id: "posts", label: "Postlar" },
+  { id: "discussions", label: "Müzakirələr" },
+  { id: "lists", label: "Siyahılar" },
+  { id: "reviews", label: "Rəylər" },
+  { id: "owned-games", label: "Sahib olunanlar" },
+  { id: "wishlist", label: "Wishlist", ownerOnly: true },
+  { id: "favorites", label: "Sevimlilər", ownerOnly: true },
+  { id: "feed", label: "Axın", ownerOnly: true },
 ];
 
 type ReviewSortCategory =
@@ -417,7 +380,7 @@ function UserAvatar({
 
 function ProfileLoadingState() {
   return (
-    <div className="min-h-screen wellplayd-page-bg text-[var(--wp-text)]">
+    <div className="profile-page min-h-screen wellplayd-page-bg text-[var(--wp-text)]">
       <Navbar />
 
       <main className="flex min-h-[70vh] items-center justify-center px-5">
@@ -535,6 +498,8 @@ export function ProfilePage() {
   const [wishlistPage, setWishlistPage] =
     useState(1);
   const [favoritesPage, setFavoritesPage] =
+    useState(1);
+  const [discussionsPage, setDiscussionsPage] =
     useState(1);
   const [isFavoritesModalOpen, setIsFavoritesModalOpen] =
     useState(false);
@@ -674,6 +639,25 @@ export function ProfilePage() {
     enabled:
       canViewProfileContent &&
       visibleActiveTab === "posts",
+  });
+
+  const discussionsQuery = useQuery({
+    queryKey: [
+      "user-discussions",
+      profile?.id,
+      discussionsPage,
+      storedUser?.id ?? "anonymous",
+    ],
+    queryFn: ({ signal }) =>
+      getUserDiscussions(
+        profile!.id,
+        discussionsPage,
+        20,
+        signal,
+      ),
+    enabled:
+      canViewProfileContent &&
+      visibleActiveTab === "discussions",
   });
 
   const listsQuery = useQuery({
@@ -1538,6 +1522,27 @@ export function ProfilePage() {
     removeFollowerMutation.isPending;
 
   const posts = postsQuery.data ?? [];
+  const sharedPostId = Number(searchParams.get("post"));
+
+  useEffect(() => {
+    if (
+      visibleActiveTab !== "posts" ||
+      !Number.isSafeInteger(sharedPostId) ||
+      sharedPostId < 1 ||
+      postsQuery.isLoading
+    ) {
+      return;
+    }
+
+    const frameId = window.requestAnimationFrame(() => {
+      document.getElementById(`post-${sharedPostId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [postsQuery.data, postsQuery.isLoading, sharedPostId, visibleActiveTab]);
   const gameLists = listsQuery.data ?? [];
   const collaboratingGameLists = collaboratingListsQuery.data ?? [];
   const reviews = reviewsQuery.data?.items ?? [];
@@ -1813,22 +1818,22 @@ export function ProfilePage() {
   }
 
   return (
-    <div className="min-h-screen wellplayd-page-bg text-zinc-100">
+    <div className="profile-page min-h-screen wellplayd-page-bg text-zinc-100">
       <Navbar />
 
       <main>
         <section className="wp-profile-hero relative overflow-hidden border-b border-white/[0.06] bg-[#0a0a0e]">
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(124,58,237,0.17),transparent_30%),radial-gradient(circle_at_90%_30%,rgba(217,70,239,0.07),transparent_25%)]" />
 
-          <div className="relative mx-auto max-w-7xl px-5 py-12 lg:px-8 lg:py-16">
+          <div className="profile-hero-inner relative mx-auto max-w-7xl px-5 py-12 lg:px-8 lg:py-16">
             <div className="flex flex-col gap-7 md:flex-row md:items-start md:justify-between">
-              <div className="flex min-w-0 flex-col gap-6 sm:flex-row sm:items-start">
+              <div className="profile-identity flex min-w-0 flex-col gap-6 sm:flex-row sm:items-start">
                 <UserAvatar
                   userName={profile.userName}
                   profileImageUrl={
                     profile.profileImageUrl
                   }
-                  className="h-28 w-28 rounded-3xl border border-white/10 text-3xl shadow-2xl shadow-black/30"
+                  className="profile-avatar h-28 w-28 rounded-3xl border border-white/10 text-3xl shadow-2xl shadow-black/30"
                 />
 
                 <div className="min-w-0 pt-1">
@@ -1887,15 +1892,27 @@ export function ProfilePage() {
                 </div>
               </div>
 
-              <div className="flex shrink-0 flex-wrap gap-3">
+              <div className="profile-actions flex shrink-0 flex-wrap gap-3">
                 {isOwnProfile ? (
-                  <Link
-                    to="/settings?section=profile"
-                    className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-5 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.09] hover:text-white"
-                  >
-                    <Pencil size={17} />
-                    {language === "en" ? "Edit" : "Redaktə et"}
-                  </Link>
+                  <>
+                    <Link
+                      to="/settings?section=profile"
+                      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-white/[0.09] bg-white/[0.05] px-5 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.09] hover:text-white"
+                    >
+                      <Pencil size={17} />
+                      {language === "en" ? "Edit" : "Redaktə et"}
+                    </Link>
+                    <CopyShareButton
+                      path={`/users/${encodeURIComponent(loadedProfile.userName)}`}
+                      title={`${loadedProfile.userName} · WellPlayd`}
+                      text={
+                        language === "en"
+                          ? `View ${loadedProfile.userName}'s WellPlayd profile.`
+                          : `${loadedProfile.userName} istifadəçisinin WellPlayd profilinə bax.`
+                      }
+                      className="flex h-11 items-center justify-center gap-2 rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-soft)] px-4 text-sm font-semibold text-[var(--wp-text)] transition hover:bg-[var(--wp-surface-hover)] hover:text-[var(--wp-text-strong)]"
+                    />
+                  </>
                 ) : (
                   <>
                     <button
@@ -1934,6 +1951,18 @@ export function ProfilePage() {
                             ? "Follow"
                             : "İzlə"}
                     </button>
+
+                    <CopyShareButton
+                      path={`/users/${encodeURIComponent(loadedProfile.userName)}`}
+                      title={`${loadedProfile.userName} · WellPlayd`}
+                      text={
+                        language === "en"
+                          ? `View ${loadedProfile.userName}'s WellPlayd profile.`
+                          : `${loadedProfile.userName} istifadəçisinin WellPlayd profilinə bax.`
+                      }
+                      iconOnly
+                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-[var(--wp-border)] bg-[var(--wp-surface-soft)] text-[var(--wp-text-muted)] transition hover:bg-[var(--wp-surface-hover)] hover:text-[var(--wp-text-strong)]"
+                    />
 
                     <div ref={profileActionMenuRef} className="relative">
                         <button
@@ -2028,7 +2057,7 @@ export function ProfilePage() {
               </div>
             </div>
 
-            <div className="mt-8 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-6 sm:grid-cols-4">
+            <div className="profile-stats-grid mt-8 grid grid-cols-2 gap-3 border-t border-white/[0.06] pt-6 sm:grid-cols-4">
               <button
                 type="button"
                 onClick={() => setConnectionModal("followers")}
@@ -2174,9 +2203,8 @@ export function ProfilePage() {
             </section>
           ) : (
             <>
-              <div className="flex gap-2 overflow-x-auto border-b border-white/[0.07] pb-3">
+              <div className="profile-tabs flex gap-2 overflow-x-auto border-b border-[var(--wp-border)]">
             {visibleProfileTabs.map((tab) => {
-              const Icon = tab.icon;
               const isActive = visibleActiveTab === tab.id;
 
               return (
@@ -2186,13 +2214,12 @@ export function ProfilePage() {
                   onClick={() => {
                     updateProfileTab(tab.id);
                   }}
-                  className={`flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                  className={`relative flex shrink-0 items-center px-3 py-3 text-sm font-semibold transition-colors duration-300 after:absolute after:inset-x-3 after:-bottom-[1px] after:h-0.5 after:origin-center after:rounded-full after:bg-[var(--wp-accent)] after:transition-transform after:duration-300 after:ease-out ${
                     isActive
-                      ? "bg-violet-500/12 text-violet-200"
-                      : "text-zinc-500 hover:bg-white/[0.04] hover:text-zinc-200"
+                      ? "text-[var(--wp-text-strong)] after:scale-x-100"
+                      : "text-[var(--wp-text-muted)] after:scale-x-0 hover:text-[var(--wp-text-strong)] hover:after:scale-x-100"
                   }`}
                 >
-                  <Icon size={17} />
                   {t(
                     `profile:tabs.${
                       tab.id === "owned-games"
@@ -2320,6 +2347,17 @@ export function ProfilePage() {
                 onClearFilters={clearGameFilters}
                 onPageChange={setGamesPage}
                 onOpenReview={openProfileReview}
+              />
+            )}
+
+            {visibleActiveTab === "discussions" && (
+              <ProfileDiscussions
+                result={discussionsQuery.data}
+                isLoading={discussionsQuery.isLoading}
+                isError={discussionsQuery.isError}
+                error={discussionsQuery.error}
+                page={discussionsPage}
+                onPageChange={setDiscussionsPage}
               />
             )}
 
@@ -2476,7 +2514,8 @@ export function ProfilePage() {
                   posts.map((post) => (
                     <article
                       key={post.id}
-                      className="rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6"
+                      id={`post-${post.id}`}
+                      className="scroll-mt-28 rounded-3xl border border-white/[0.07] bg-[#101015] p-5 sm:p-6"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex min-w-0 items-center gap-3">
@@ -2504,6 +2543,16 @@ export function ProfilePage() {
                         </div>
 
                         <div className="flex shrink-0 gap-1">
+                          <CopyShareButton
+                            path={`/users/${encodeURIComponent(post.userName)}?tab=posts&post=${post.id}#post-${post.id}`}
+                            title={`${post.userName} · WellPlayd`}
+                            text={
+                              post.content?.trim() ||
+                              (language === "en" ? "WellPlayd post" : "WellPlayd postu")
+                            }
+                            iconOnly
+                            className="flex h-9 w-9 items-center justify-center rounded-lg text-[var(--wp-text-muted)] transition hover:bg-[var(--wp-surface-hover)] hover:text-[var(--wp-accent)]"
+                          />
                           <ContentReportButton
                             reportedUserId={post.userId}
                             reportedUserName={post.userName}

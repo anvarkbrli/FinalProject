@@ -17,7 +17,10 @@ import type {
   UserReviewsResultDTO,
 } from "../types/profile";
 import type { UserGameDTO } from "../types/userGames";
-import type { PagedResultDTO } from "../types/home";
+import type {
+  DiscussionListItemDTO,
+  PagedResultDTO,
+} from "../types/home";
 import type { ReviewSort } from "../types/reviews";
 
 export async function getUserProfile(
@@ -104,6 +107,24 @@ export async function getFollowing(
   );
 
   return response.data.items;
+}
+
+
+export async function getUserDiscussions(
+  userId: string,
+  pageNumber = 1,
+  pageSize = 20,
+  signal?: AbortSignal,
+): Promise<PagedResultDTO<DiscussionListItemDTO>> {
+  const response = await api.get<PagedResultDTO<DiscussionListItemDTO>>(
+    `/discussions/user/${userId}`,
+    {
+      params: { pageNumber, pageSize },
+      signal,
+    },
+  );
+
+  return response.data;
 }
 
 export async function getUserPosts(
